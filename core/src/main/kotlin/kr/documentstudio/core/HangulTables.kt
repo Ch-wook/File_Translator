@@ -8,7 +8,7 @@ object HangulTables {
     private const val HP="http://www.hancom.co.kr/hwpml/2011/paragraph"
     private const val HH="http://www.hancom.co.kr/hwpml/2011/head"
     private const val HC="http://www.hancom.co.kr/hwpml/2011/core"
-    val operations=setOf("hwpx.table","hwpx.tableAddRow","hwpx.tableDeleteRow","hwpx.tableAddColumn","hwpx.tableDeleteColumn","hwpx.tableMerge","hwpx.tableSplit","hwpx.tableCellStyle","hwpx.tableSize")
+    val operations=setOf("hwpx.table","hwpx.tableAddRow","hwpx.tableDeleteRow","hwpx.tableAddColumn","hwpx.tableDeleteColumn","hwpx.tableMerge","hwpx.tableSplit","hwpx.tableCellStyle","hwpx.tableSize","hwpx.tableAlign")
     private fun children(e: Element,name: String)= (0 until e.childNodes.length).mapNotNull {e.childNodes.item(it) as? Element}.filter {it.localName==name && it.namespaceURI==HP}
     private fun child(e: Element,name: String)=children(e,name).singleOrNull() ?: error("한글 표의 $name 속성이 올바르지 않습니다.")
     private fun Element.number(name: String)=getAttribute(name).toIntOrNull() ?: error("한글 표의 $name 값이 올바르지 않습니다.")
@@ -75,6 +75,10 @@ object HangulTables {
             val row=(args["row"] ?: "1").toInt()-1;val col=(args["column"] ?: "1").toInt()-1
             fun unmerged() {require(cells.all {child(it,"cellSpan").let {s->s.number("rowSpan")==1 && s.number("colSpan")==1}}) {"행·열·크기 변경 전에 병합을 해제하세요."}}
             when(change.type) {
+                "hwpx.tableAlign" -> {
+                    val align=args.getValue("align").uppercase();require(align in setOf("LEFT","CENTER","RIGHT"))
+                    child(table,"pos").apply {setAttribute("treatAsChar","0");setAttribute("horzRelTo","COLUMN");setAttribute("horzAlign",align);setAttribute("horzOffset","0")}
+                }
                 "hwpx.tableCellStyle" -> {
                     val selected=cell(row,col);val vertical=args["vertical"] ?: "CENTER";require(vertical.uppercase() in listOf("TOP","CENTER","BOTTOM"))
                     selected.setAttribute("borderFillIDRef",border(header,selected.getAttribute("borderFillIDRef"),args["background"],args["border"] ?: "000000"))

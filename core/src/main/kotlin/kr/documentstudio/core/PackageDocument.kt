@@ -107,6 +107,7 @@ class PackageDocument private constructor(val source: File, val format: Format, 
                             pr.getAttribute("sz").toDoubleOrNull()?.let {put("size",(it/100).toString())};listOf("bold" to "b","italic" to "i").forEach {(key,name)->if(pr.hasAttribute(name)) put(key,(pr.getAttribute(name)=="1").toString())}
                             Xml.child(pr,"solidFill")?.let {Xml.child(it,"srgbClr")?.getAttribute("val")?.let {color->put("color",color)}}
                         } else if(format==Format.HWPX && header!=null) {
+                            putAll(HangulFormatting.read(header,e))
                             val ref=(e.parentNode as Element).getAttribute("charPrIDRef");val char=Xml.elements(header,"charPr").firstOrNull {it.getAttribute("id")==ref}
                             if(char!=null) {char.getAttribute("height").toDoubleOrNull()?.let {put("size",(it/100).toString())};char.getAttribute("textColor").takeIf {it.isNotBlank()}?.let {put("color",it.removePrefix("#"))};listOf("bold","italic").forEach {put(it,(Xml.child(char,it)!=null).toString())};Xml.child(char,"underline")?.let {put("underline",(it.getAttribute("type")!="NONE").toString())}}
                         }

@@ -38,6 +38,8 @@ fun DocumentTools(s: Session,sec: Section?,vm: DocumentActions,busy: Boolean,pag
             Action("페이지 나누기","word.break"),
             Action("A4 용지·여백","word.layout",listOf(Triple("landscape","가로 방향 (true / false)","false"),Triple("marginMm","여백 mm","20"),Triple("columns","단 수 (1~4)","1"))))
         Format.HWPX -> listOf(
+            Action("다단 설정","hwpx.columns",listOf(Triple("columns","단 수 (1~4)","2"),Triple("gapMm","단 간격 mm (0~30)","8"))),
+            Action("표 가로 정렬","hwpx.tableAlign",listOf(Triple("table","표 번호","1"),Triple("align","LEFT / CENTER / RIGHT","CENTER"))),
             Action("표 삽입","hwpx.table",listOf(Triple("rows","행 수 (1~50)","3"),Triple("columns","열 수 (1~20)","3"),Triple("widthMm","표 너비 mm","160"))),
             Action("표 행 삽입","hwpx.tableAddRow",listOf(Triple("table","표 번호 (1부터)","1"),Triple("row","삽입 행 위치 (1부터)","2"))),
             Action("표 행 삭제","hwpx.tableDeleteRow",listOf(Triple("table","표 번호","1"),Triple("row","삭제 행","2"))),
@@ -147,7 +149,7 @@ fun StyleDialog(id: String,format: Format,existing: Map<String,String>,vm: Docum
         Text("변경한 항목만 적용합니다. 원본 문서 서식으로 저장합니다.")
         val booleans=if(spreadsheet || format==Format.PPTX) listOf("bold" to "굵게","italic" to "기울임") else (if(format==Format.HWPX) listOf("bold" to "굵게") else emptyList())+listOf("italic" to "기울임","underline" to "밑줄","strike" to "취소선")
         booleans.forEach {(key,label)->Row {Checkbox((pending[key] ?: existing[key])=="true",{pending[key]=it.toString()});Text(label,modifier=Modifier.padding(top=12.dp))}}
-        val allFields=fields+if(format==Format.DOCX) listOf("position" to "위치 superscript / subscript / baseline","spacing" to "문자 간격 pt (-20~100)","scale" to "문자 가로 폭 % (20~400)","beforePt" to "문단 앞 간격 pt","afterPt" to "문단 뒤 간격 pt","indentMm" to "왼쪽 들여쓰기 mm","firstLineMm" to "첫 줄 mm (음수는 내어쓰기)") else emptyList()
+        val allFields=fields+if(format==Format.DOCX) listOf("position" to "위치 superscript / subscript / baseline","spacing" to "문자 간격 pt (-20~100)","scale" to "문자 가로 폭 % (20~400)","beforePt" to "문단 앞 간격 pt","afterPt" to "문단 뒤 간격 pt","indentMm" to "왼쪽 들여쓰기 mm","firstLineMm" to "첫 줄 mm (음수는 내어쓰기)") else if(format==Format.HWPX) listOf("tracking" to "자간 % (-50~50)","scale" to "장평 % (50~200)","offset" to "글자 위치 % (-100~100)","beforePt" to "문단 앞 간격 pt","afterPt" to "문단 뒤 간격 pt","indentMm" to "왼쪽 들여쓰기 mm","firstLineMm" to "첫 줄 mm (음수는 내어쓰기)","styleId" to "기존 스타일 ID","headingType" to "머리 NONE / NUMBER / BULLET","headingLevel" to "번호 수준 (1~7)","numberingId" to "기존 번호/글머리표 ID (비우면 생성)") else emptyList()
         allFields.forEach {(key,label)->OutlinedTextField(pending[key] ?: "",{pending[key]=it},label={Text(label)},placeholder={Text(existing[key] ?: "원래 값 유지")},singleLine=true,modifier=Modifier.fillMaxWidth().padding(vertical=4.dp))}
     }},confirmButton={TextButton(onClick={vm.style(id,pending.filterValues {it.isNotBlank()});close()},enabled=pending.isNotEmpty()) {Text("적용")}},dismissButton={TextButton(onClick=close) {Text("취소")}})
 }

@@ -35,6 +35,14 @@ object PackageFeatures {
         if(change!=null) {
             val args=change.arguments
             when(change.type) {
+                "hwpx.columns" -> {
+                    require(format==Format.HWPX);val doc=xml(change.target);val columns=(args["columns"] ?: "1").toInt();require(columns in 1..4)
+                    val gap=(args["gapMm"] ?: "8").toDouble();require(gap.isFinite() && gap in 0.0..30.0)
+                    val col=Xml.elements(doc,"colPr").singleOrNull() ?: error("다단 제어가 여러 개인 구역은 보호합니다.")
+                    require(col.getAttribute("sameSz")=="1" && col.childNodes.length==0) {"개별 단 너비가 있는 다단은 보호합니다."}
+                    col.setAttribute("colCount",columns.toString());col.setAttribute("sameGap",(gap*7200/25.4).toInt().toString())
+                    Xml.elements(doc,"linesegarray").forEach {it.parentNode.removeChild(it)}
+                }
                 in HangulTables.operations -> {require(format==Format.HWPX);HangulTables.apply(xml(change.target),xml("Contents/header.xml"),change)}
                 in SheetOperations.operations -> {require(format==Format.XLSX);SheetOperations.apply(parts,::xml,change)}
                 in WordTables.operations -> {require(format==Format.DOCX);WordTables.apply(xml("word/document.xml"),change)}
@@ -277,7 +285,7 @@ object PackageFeatures {
         val index=Xml.elements(xfs,"xf").size;xfs.appendChild(xf);xfs.setAttribute("count",(index+1).toString());cell.setAttribute("s",index.toString())
     }
     private fun hangulStyle(header: Document,doc: Document,text: Element,props: Map<String,String>) {
-        val run=text.parentNode as Element;val chars=Xml.elements(header,"charProperties").single();val old=Xml.elements(chars,"charPr").first {it.getAttribute("id")==run.getAttribute("charPrIDRef")};val char=old.cloneNode(true) as Element
+        val run=text.parentNode as Element;HangulFormatting.selectStyle(header,run,props);val chars=Xml.elements(header,"charProperties").single();val old=Xml.elements(chars,"charPr").first {it.getAttribute("id")==run.getAttribute("charPrIDRef")};val char=old.cloneNode(true) as Element
         val id=Xml.elements(chars,"charPr").maxOf {it.getAttribute("id").toInt()}+1;char.setAttribute("id",id.toString())
         listOf("bold","italic").forEach {key->props[key]?.let {value->Xml.child(char,key)?.let {char.removeChild(it)};if(value=="true") char.appendChild(header.element(HH,"hh:$key"))}}
         props["size"]?.let {val size=it.toDouble();require(size in 1.0..200.0);char.setAttribute("height",(size*100).toInt().toString())}
@@ -285,13 +293,15 @@ object PackageFeatures {
         props["underline"]?.let {val e=Xml.child(char,"underline") ?: header.element(HH,"hh:underline").also {char.appendChild(it)};e.setAttribute("type",if(it=="true") "BOTTOM" else "NONE");e.setAttribute("shape","SOLID");e.setAttribute("color","#000000")}
         props["strike"]?.let {val e=Xml.child(char,"strikeout") ?: header.element(HH,"hh:strikeout").also {char.appendChild(it)};e.setAttribute("shape",if(it=="true") "SOLID" else "NONE");e.setAttribute("color","#000000")}
         props["font"]?.let {name->require(name.isNotBlank() && name.length<=80);val ref=Xml.child(char,"fontRef") ?: error("글꼴 참조 누락");Xml.elements(header,"fontface").forEach {face ->val all=Xml.elements(face,"font");val font=all.first().cloneNode(true) as Element;val fid=all.maxOf {it.getAttribute("id").toInt()}+1;font.setAttribute("id",fid.toString());font.setAttribute("face",name);face.appendChild(font);face.setAttribute("fontCnt",(all.size+1).toString());val key=face.getAttribute("lang").lowercase();if(key in listOf("hangul","latin","hanja","japanese","other","symbol","user")) ref.setAttribute(key,fid.toString())}}
+        HangulFormatting.character(char,props)
         order(char,listOf("fontRef","ratio","spacing","relSz","offset","bold","italic","underline","strikeout","outline","shadow","emboss","engrave","supscript","subscript"))
         chars.appendChild(char);chars.setAttribute("itemCnt",Xml.elements(chars,"charPr").size.toString());run.setAttribute("charPrIDRef",id.toString())
         val paragraph=run.parentNode as Element
-        if(props.keys.any {it in listOf("align","lineSpacing")}) {
+        if(props.keys.any {it in HangulFormatting.paragraphKeys}) {
             val paras=Xml.elements(header,"paraProperties").single();val original=Xml.elements(paras,"paraPr").first {it.getAttribute("id")==paragraph.getAttribute("paraPrIDRef")};val para=original.cloneNode(true) as Element;val pid=Xml.elements(paras,"paraPr").maxOf {it.getAttribute("id").toInt()}+1;para.setAttribute("id",pid.toString())
             props["align"]?.let {val align=when(it) {"left"->"LEFT";"center"->"CENTER";"right"->"RIGHT";"both"->"JUSTIFY";else->error("문단 정렬 값 오류")};(Xml.child(para,"align") ?: error("문단 정렬 속성 누락")).setAttribute("horizontal",align)}
-            props["lineSpacing"]?.let {val spacing=it.toDouble();require(spacing in 0.5..5.0);val e=Xml.elements(para,"lineSpacing").firstOrNull() ?: error("줄 간격 속성 누락");e.setAttribute("type","PERCENT");e.setAttribute("value",(spacing*100).toInt().toString())}
+            props["lineSpacing"]?.let {val spacing=it.toDouble();require(spacing in 0.5..5.0);val entries=Xml.elements(para,"lineSpacing");require(entries.isNotEmpty()) {"줄 간격 속성 누락"};entries.forEach {e->e.setAttribute("type","PERCENT");e.setAttribute("value",(spacing*100).toInt().toString());e.setAttribute("unit","HWPUNIT")}}
+            HangulFormatting.paragraph(header,para,props)
             paras.appendChild(para);paras.setAttribute("itemCnt",Xml.elements(paras,"paraPr").size.toString());paragraph.setAttribute("paraPrIDRef",pid.toString())
         }
         Xml.elements(doc,"linesegarray").forEach {it.parentNode.removeChild(it)}

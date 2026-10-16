@@ -9,13 +9,13 @@ import org.commonmark.ext.gfm.tables.TablesExtension
 
 object MarkdownRender {
     fun render(source: String): CharSequence {
-        val document=Parser.builder().extensions(listOf(TablesExtension.create())).build().parse(source)
+        val document=MarkdownTasks.parse(source)
         val result=SpannableStringBuilder()
         fun children(node: Node,visit: (Node)->Unit) {var child=node.firstChild;while(child!=null) {visit(child);child=child.next}}
         fun visit(node: Node) {
             val start=result.length
             when(node) {
-                is Text -> result.append(node.literal)
+                is Text -> {val task=MarkdownTasks.task(node,source);result.append(if(task==null) node.literal else (if(task.checked) "☑" else "☐")+node.literal.drop(3))}
                 is SoftLineBreak -> result.append(' ')
                 is HardLineBreak -> result.append('\n')
                 is Code -> result.append(node.literal)

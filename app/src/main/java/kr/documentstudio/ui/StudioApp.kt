@@ -330,9 +330,9 @@ private fun Editor(s: Session,settings: Settings,vm: DocumentActions,busy: Boole
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     if(draw) DrawingPage(s,current,page,settings,vm,busy)
                     else if(continuous && s.format==Format.PDF) PdfContinuousReader(s,page,navigationRequest,busy,horizontalPages,{page=it}) {page=it;continuous=false;draw=true}
-                    else if(preview && s.format==Format.MD) MarkdownPreview(s.edits.text)
+                    else if(preview && s.format==Format.MD) MarkdownPreview(s.edits.text,busy,vm::text)
                     else if(preview && s.format==Format.PPTX && current!=null) SlidePreview(s,current,vm,busy)
-                    else if(s.format in listOf(Format.TXT,Format.MD)) NativeTextEditor(s.edits.text,settings.fontSize,busy,settings.wrapLines,vm::focus,vm::text)
+                    else if(s.format in listOf(Format.TXT,Format.MD)) NativeTextEditor(s.edits.text,settings.fontSize,busy,settings.wrapLines,vm::focus,vm::text,s.format==Format.MD)
                     else if(s.format in listOf(Format.XLSX,Format.XLS) && current!=null) SheetEditor(s,current,vm,busy)
                     else if(current!=null) RunEditor(s,current,vm,busy)
                 }
@@ -356,9 +356,12 @@ private fun Editor(s: Session,settings: Settings,vm: DocumentActions,busy: Boole
 }
 
 @Composable
-private fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit) {
+private fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false) {
     val onChange by rememberUpdatedState(change)
     val onFocused by rememberUpdatedState(focused)
+    var editor by remember {mutableStateOf<LineNumberEditText?>(null)}
+    Column(Modifier.fillMaxSize()) {
+    if(markdown) MarkdownToolbar({editor},!busy)
     AndroidView(factory={context -> LineNumberEditText(context).apply {
         gravity=android.view.Gravity.TOP or android.view.Gravity.START
         setBackgroundColor(AndroidColor.WHITE);setPadding(92,24,28,24)
@@ -371,10 +374,11 @@ private fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Bo
         })
         contentDescription="문서 본문"
         setOnFocusChangeListener {_,hasFocus -> if(hasFocus) onFocused()}
-    } },update={view ->
+    }.also {editor=it} },update={view ->
         view.textSize=fontSize;view.isEnabled=!busy;view.setHorizontallyScrolling(!wrap)
         if(view.text.toString()!=text) {view.tag=true;val position=view.selectionStart.coerceAtLeast(0).coerceAtMost(text.length);view.setText(text);view.setSelection(position);view.tag=false}
-    },modifier=Modifier.fillMaxSize())
+    },modifier=Modifier.fillMaxWidth().weight(1f))
+}
 }
 
 @Composable
