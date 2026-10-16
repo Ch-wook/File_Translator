@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kr.documentstudio.core.*
 import kr.documentstudio.data.*
 
@@ -20,13 +22,18 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     private val mutable=MutableStateFlow(UiState())
     val state=mutable.asStateFlow()
     private val histories=mutableMapOf<String,History<Session>>()
+    private val checkpointed=mutableMapOf<String,Session>()
+    private val settingsMutex=Mutex()
+    private var settingsChanged=false
     private var checkpointJob: Job?=null
     private var lastTextEdit=0L
+    private var lastTextTarget: String?=null
     private var officeActive: String?=null
     init { viewModelScope.launch {
         try {
             val preferences=withContext(Dispatchers.IO) { application.getSharedPreferences("settings",0).let { p -> Settings(p.getBoolean("stylusOnly",false),p.getFloat("fontSize",16f),p.getString("encoding","UTF-8")!!,p.getString("penTool","PEN")!!,p.getInt("penColor",0xFF294E46.toInt()),p.getFloat("penWidth",0.004f),p.getFloat("penOpacity",1f),p.getBoolean("wrapLines",true),p.getBoolean("partialEraser",false),p.getFloat("eraserRadius",0.025f).coerceIn(0.005f,0.08f)) } }
-            mutable.value=mutable.value.copy(recents=repository.recents(),settings=preferences)
+            val recents=repository.recents()
+            mutable.value=mutable.value.copy(recents=recents,settings=if(settingsChanged) mutable.value.settings else preferences)
         } catch(e: CancellationException) {throw e}
         catch(e: Exception) { message("작업 목록을 읽을 수 없습니다: ${e.message}") }
     } }
@@ -36,7 +43,12 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         checkpointJob?.cancel()
         mutable.value=mutable.value.copy(busy=true)
         viewModelScope.launch {
-            try { block(); mutable.value=mutable.value.copy(recents=repository.recents()) }
+            try {
+                // Preserve pending input even when the requested operation fails.
+                flushInternal()
+                block()
+                refreshRecents()
+            }
             catch(e: CancellationException) {throw e}
             catch(e: Exception) { message(e.message ?: "작업에 실패했습니다.") }
             finally { mutable.value=mutable.value.copy(busy=officeActive!=null) }
@@ -44,40 +56,49 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     }
     private fun attach(s: Session) {
         histories[s.id]=History(30)
+        checkpointed[s.id]=s
         lastTextEdit=0
         mutable.value=mutable.value.copy(tabs=mutable.value.tabs.filter { it.id!=s.id }+s,active=s.id)
         s.recoveryWarning?.let {message(it)}
     }
-    fun create(format: Format) = action { flushInternal(); attach(repository.create(format)) }
+    fun create(format: Format) = action { attach(repository.create(format)) }
     fun open(uri: Uri) = action {
-        flushInternal()
+        mutable.value.tabs.firstOrNull {it.uri==uri.toString()}?.let {
+            lastTextEdit=0;mutable.value=mutable.value.copy(active=it.id);return@action
+        }
         val s=repository.open(uri,mutable.value.settings.encoding); attach(s)
         val ext=s.name.substringAfterLast('.',"").lowercase()
         if(ext.isNotEmpty() && ext != s.format.extension && ext != "markdown") message("파일 내용은 ${s.format.extension.uppercase()} 형식입니다. 저장할 때 올바른 확장자를 사용하세요.")
         else if(s.dirty && s.uri!=null) message("저장되지 않은 작업 복구본을 열었습니다.")
     }
-    fun restore(id: String) = action { flushInternal(); attach(repository.restore(id)) }
-    fun home() { flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=null) }
-    fun select(id: String) { flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=id) }
+    fun restore(id: String) = action {
+        if(mutable.value.tabs.any {it.id==id}) {lastTextEdit=0;mutable.value=mutable.value.copy(active=id)}
+        else attach(repository.restore(id))
+    }
+    fun home() { if(mutable.value.busy) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=null) }
+    fun select(id: String) { if(mutable.value.busy || mutable.value.tabs.none {it.id==id}) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=id) }
     fun close(id: String) = action {
         mutable.value.tabs.firstOrNull { it.id==id }?.let { repository.checkpoint(it) }
         histories.remove(id)
+        checkpointed.remove(id)
         val tabs=mutable.value.tabs.filter { it.id!=id }
         mutable.value=mutable.value.copy(tabs=tabs,active=if(mutable.value.active==id) tabs.lastOrNull()?.id else mutable.value.active)
         message("작업 복구본을 보존하고 탭을 닫았습니다.")
     }
     private fun replace(s: Session) { mutable.value=mutable.value.copy(tabs=mutable.value.tabs.map { if(it.id==s.id) s else it }) }
-    fun edit(edits: Edits,typing: Boolean=false) {
+    fun edit(edits: Edits,typing: Boolean=false,target: String?=null) {
         if(mutable.value.busy) return
         val s=mutable.value.session ?: return
         if(s.edits==edits) return
-        val now=System.currentTimeMillis()
-        if(!typing || now-lastTextEdit>750) histories.getValue(s.id).record(s)
+        val now=android.os.SystemClock.uptimeMillis()
+        val textTarget="${s.id}:$target"
+        if(!typing || lastTextEdit==0L || textTarget!=lastTextTarget || now-lastTextEdit>750) histories.getValue(s.id).record(s)
         lastTextEdit=if(typing) now else 0
+        lastTextTarget=if(typing) textTarget else null
         replace(s.copy(edits=edits)); scheduleCheckpoint()
     }
-    fun text(value: String) { mutable.value.session?.let { edit(it.edits.copy(text=value),true) } }
-    fun field(id: String,value: String) { mutable.value.session?.let { edit(it.edits.copy(values=it.edits.values+(id to value)),true) } }
+    fun text(value: String) { mutable.value.session?.let { edit(it.edits.copy(text=value),true,"text") } }
+    fun field(id: String,value: String) { mutable.value.session?.let { edit(it.edits.copy(values=it.edits.values+(id to value)),true,id) } }
     fun bold(id: String,value: Boolean) { mutable.value.session?.let { edit(it.edits.copy(bold=it.edits.bold+(id to value))) } }
     fun style(id: String,value: Map<String,String>) {mutable.value.session?.let {edit(it.edits.copy(styles=it.edits.styles+(id to ((it.edits.styles[id] ?: emptyMap())+value))))}}
     fun change(change: DocumentChange) = action {
@@ -87,10 +108,13 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     fun openOffice(launch: (Session,java.io.File)->Unit) = action {
         require(android.os.Build.VERSION.SDK_INT>=30) {"정밀 오피스 편집은 Android 11 이상에서 사용할 수 있습니다. 이 기기에서는 기본 편집 도구를 사용하세요."}
         val s=mutable.value.session ?: return@action
-        flushInternal()
         val file=repository.prepareOffice(s)
         officeActive=s.id
-        try { launch(s,file) } catch(e: Exception) {officeActive=null;throw e}
+        try { launch(s,file) } catch(e: Exception) {
+            officeActive=null
+            replace(s.copy(recoveryWarning="정밀 편집을 시작하지 못했습니다. 복구 파일을 보관한 뒤 다시 시작할 수 있습니다."))
+            throw e
+        }
     }
     fun finishOffice(id: String?) {
         val target=id ?: officeActive
@@ -99,7 +123,12 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         action {
             val s=mutable.value.tabs.firstOrNull {it.id==target}
             if(s==null) attach(repository.restore(target)) else {
-                val result=repository.acceptOffice(s)
+                val result=try {repository.acceptOffice(s)}
+                catch(e: CancellationException) {throw e}
+                catch(e: Exception) {
+                    replace(s.copy(recoveryWarning="정밀 편집 결과를 가져오지 못했습니다. 이전 작업과 복구 파일을 보존했습니다: ${e.message}"))
+                    throw e
+                }
                 if(result.base!=s.base) {histories.getValue(s.id).record(s);replace(result)}
             }
             message("정밀 편집 결과를 작업 복구본에 반영했습니다. 저장 버튼으로 파일에 저장하세요.")
@@ -129,9 +158,9 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     }
     fun canUndo(id: String)=histories[id]?.canUndo==true
     fun canRedo(id: String)=histories[id]?.canRedo==true
-    private fun restoreSnapshot(snapshot: Session,current: Session)=snapshot.copy(uri=current.uri,name=current.name,sourceHash=current.sourceHash,saved=current.saved,savedRevision=current.savedRevision)
-    fun undo() { val s=mutable.value.session ?: return; replace(restoreSnapshot(histories.getValue(s.id).undo(s),s)); lastTextEdit=0; scheduleCheckpoint() }
-    fun redo() { val s=mutable.value.session ?: return; replace(restoreSnapshot(histories.getValue(s.id).redo(s),s)); lastTextEdit=0; scheduleCheckpoint() }
+    private fun restoreSnapshot(snapshot: Session,current: Session)=snapshot.copy(uri=current.uri,name=current.name,sourceHash=current.sourceHash,saved=current.saved,savedRevision=current.savedRevision,recoveryWarning=current.recoveryWarning)
+    fun undo() { if(mutable.value.busy) return; val s=mutable.value.session ?: return; replace(restoreSnapshot(histories.getValue(s.id).undo(s),s)); lastTextEdit=0; scheduleCheckpoint() }
+    fun redo() { if(mutable.value.busy) return; val s=mutable.value.session ?: return; replace(restoreSnapshot(histories.getValue(s.id).redo(s),s)); lastTextEdit=0; scheduleCheckpoint() }
     fun save(uri: Uri) = action {
         val s=mutable.value.session ?: return@action
         replace(repository.save(s,uri))
@@ -142,19 +171,34 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     fun favorite(id: String) = action { repository.favorite(id) }
     fun print(context: android.content.Context) = action {mutable.value.session?.let {s->val file=repository.printable(s);val manager=context.getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager;manager.print(s.name,kr.documentstudio.ui.DocumentPrintAdapter(file,s.name),null)}}
     fun settings(value: Settings) {
+        settingsChanged=true
         mutable.value=mutable.value.copy(settings=value)
-        viewModelScope.launch(Dispatchers.IO) { getApplication<Application>().getSharedPreferences("settings",0).edit()
-            .putBoolean("stylusOnly",value.stylusOnly).putFloat("fontSize",value.fontSize).putString("encoding",value.encoding)
-            .putString("penTool",value.penTool).putInt("penColor",value.penColor).putFloat("penWidth",value.penWidth).putFloat("penOpacity",value.penOpacity).putBoolean("wrapLines",value.wrapLines)
-            .putBoolean("partialEraser",value.partialEraser).putFloat("eraserRadius",value.eraserRadius).apply() }
+        viewModelScope.launch(Dispatchers.IO) {settingsMutex.withLock {
+            val latest=mutable.value.settings
+            getApplication<Application>().getSharedPreferences("settings",0).edit()
+                .putBoolean("stylusOnly",latest.stylusOnly).putFloat("fontSize",latest.fontSize).putString("encoding",latest.encoding)
+                .putString("penTool",latest.penTool).putInt("penColor",latest.penColor).putFloat("penWidth",latest.penWidth).putFloat("penOpacity",latest.penOpacity).putBoolean("wrapLines",latest.wrapLines)
+                .putBoolean("partialEraser",latest.partialEraser).putFloat("eraserRadius",latest.eraserRadius).apply()
+        }}
     }
     private fun scheduleCheckpoint() {
         checkpointJob?.cancel()
         checkpointJob=viewModelScope.launch { delay(700); recoverySafely() }
     }
     private suspend fun flushInternal() {
-        mutable.value.tabs.forEach { repository.checkpoint(it) }
-        mutable.value=mutable.value.copy(recents=repository.recents())
+        mutable.value.tabs.forEach { session ->
+            if(checkpointed[session.id]!=session) {
+                repository.checkpoint(session)
+                checkpointed[session.id]=session
+            }
+        }
+        refreshRecents()
+    }
+    private suspend fun refreshRecents() {
+        // Read the flow after IO: copy(recents=repository.recents()) captures its
+        // receiver before suspension and can restore an obsolete tab or edit.
+        val recents=repository.recents()
+        mutable.value=mutable.value.copy(recents=recents)
     }
     private suspend fun recoverySafely() {
         try {flushInternal()}

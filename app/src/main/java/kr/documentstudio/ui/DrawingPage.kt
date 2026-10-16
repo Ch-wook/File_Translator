@@ -40,18 +40,28 @@ fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: Editor
     val keyboard=LocalSoftwareKeyboardController.current
     val slide=if(s.format==Format.PPTX) rememberSlide(s,sec) else null
     LaunchedEffect(Unit) {keyboard?.hide()}
-    val image by produceState<android.graphics.Bitmap?>(null,s.base,s.sourceHash,page) {
-        value=null
-        if(s.format==Format.PDF) try {value=vm.repository.render(s,page)}
-        catch(e: kotlinx.coroutines.CancellationException) {throw e}
-        catch(e: Exception){vm.message("PDF 페이지 표시 실패: ${e.message}")}
-    }
+    var renderRetry by remember {mutableIntStateOf(0)}
+    var renderFailure by remember(s.base,page,renderRetry) {mutableStateOf<String?>(null)}
+    val image by key(s.base,page,renderRetry) {produceState<android.graphics.Bitmap?>(null) {
+        var loaded: android.graphics.Bitmap?=null
+        try {
+            if(s.format==Format.PDF) {
+                // Keep ownership here even if cancellation arrives as IO completes.
+                withContext(Dispatchers.IO) {loaded=PdfEngine.render(s.base,page)}
+                value=loaded
+            }
+            awaitDispose {loaded?.recycle()}
+        } catch(e: kotlinx.coroutines.CancellationException) {loaded?.recycle();throw e}
+        catch(e: Exception) {loaded?.recycle();renderFailure=e.message ?: "페이지를 표시하지 못했습니다."}
+    }}
     val ratio=if(image!=null) image!!.width.toFloat()/image!!.height else if(slide!=null) slide.width/slide.height else if(s.format in listOf(Format.PPTX,Format.PPT)) 16f/9f else 595f/842f
-    val text=remember(s.edits,sec) {
-        if(sec==null) s.edits.text else if(s.format in listOf(Format.XLSX,Format.XLS)) {
-            val cells=sec.cells+s.edits.values.filterKeys {it.startsWith(sec.id+"#")}.mapKeys {it.key.substringAfter('#')}
-            val formula=s.calculator(sec);cells.entries.take(80).joinToString("\n") {"${it.key}    ${formula.display(it.key)}"}
-        } else sec.fields.joinToString("\n") {s.edits.values[it.id] ?: it.text}
+    val text by produceState("",sec,s.sections,s.edits.text,s.edits.values) {
+        value=withContext(Dispatchers.Default) {
+            if(sec==null) s.edits.text else if(s.format in listOf(Format.XLSX,Format.XLS)) {
+                val cells=s.sheetCells(sec)
+                val formula=s.calculator(sec);cells.entries.take(80).joinToString("\n") {"${it.key}    ${formula.display(it.key)}"}
+            } else sec.fields.joinToString("\n") {s.edits.values[it.id] ?: it.text}
+        }
     }
     Column(Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().background(Color(0xFFE5E5DF))) {
@@ -62,7 +72,11 @@ fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: Editor
                 Box(Modifier.width(pageWidth).aspectRatio(ratio).background(Color.White).border(1.dp,Color(0xFFD5D7D1))) {
                     if(s.format==Format.PDF) {
                         if(image!=null) Image(image!!.asImageBitmap(),"PDF ${page+1}페이지",modifier=Modifier.fillMaxSize())
-                        else CircularProgressIndicator(Modifier.align(Alignment.Center))
+                        else if(renderFailure==null) CircularProgressIndicator(Modifier.align(Alignment.Center))
+                        else Column(Modifier.align(Alignment.Center).padding(16.dp)) {
+                            Text("PDF 페이지 표시 실패: $renderFailure")
+                            TextButton({renderRetry++},enabled=!busy) {Text("다시 불러오기")}
+                        }
                     } else if(slide!=null) AndroidView(factory={SlideView(it)},update={it.scene=slide;it.editable=false;it.invalidate()},modifier=Modifier.fillMaxSize())
                     else AndroidView(factory={context -> NoteView(context)},update={it.text=text;it.pageRatio=ratio;it.invalidate()},modifier=Modifier.fillMaxSize())
                     if(visible && (s.format!=Format.PDF || image!=null)) AndroidView(factory={context -> InkView(context)},update={v ->

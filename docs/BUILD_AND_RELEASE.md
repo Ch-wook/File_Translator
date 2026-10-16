@@ -15,6 +15,8 @@ $env:JAVA_HOME = 'C:\Program Files\Java\jdk-17'
 
 Android 검사는 API 35 에뮬레이터를 켜고 실행합니다. connectedDebugAndroidTest는 검사 종료 시 앱을 제거할 수 있으므로 이후 다시 설치합니다.
 
+코어만 검사할 때는 `.\gradlew.bat :core:test --configure-on-demand`로 Android 네이티브 모듈 구성을 생략할 수 있습니다. 편집 흐름 추가 검증은 Android 15/API 35의 StudioReviewApi35 에뮬레이터를 사용하며, 결과와 이전 검증 이력은 [검증 결과](TEST_RESULTS.md)에 구분합니다. API 36 에뮬레이터는 앱 실행 전 시스템 UI 응답 없음이 발생해 이번 UI 통과 환경에 포함하지 않습니다. 첫 전체 빌드는 대형 엔진·의존성 처리에 메모리를 많이 사용하므로 메모리가 부족하면 에뮬레이터를 빌드 후 실행하고 `--max-workers=2`로 동시 작업을 줄이세요.
+
 | 결과 | 전달 위치 |
 |---|---|
 | 개발 서명 APK | artifacts/document-studio-debug.apk |

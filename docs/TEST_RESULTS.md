@@ -1,6 +1,6 @@
 # 검증 결과 — 0.3.1
 
-2026-10-16(Asia/Seoul). Windows/JDK 17, Android 15/API 35 x86_64 에뮬레이터 CodexBibleApi35에서 검사했습니다. 실제 기기 검증과 구분합니다.
+2026-10-16(Asia/Seoul). 이번 편집 흐름 재검증은 Windows/JDK 17, Android 15/API 35 x86_64 에뮬레이터 StudioReviewApi35에서 수행했습니다. 이전 0.3.1 검증 환경은 CodexBibleApi35입니다. 실제 기기 검증과 구분합니다. API 36 에뮬레이터는 앱 실행 전 시스템 UI 응답 없음이 발생해 이번 UI 통과 환경에 포함하지 않았습니다.
 
 ## 자동 검사
 
@@ -17,10 +17,28 @@
 | JVM | SheetOperationsTest | 9 |
 | JVM | SpreadsheetModelTest | 5 |
 | Android | DocumentIntegrationTest | 25 |
+| Android | EditingWorkflowTest | 8 |
 | Android | EditorUiTest | 6 |
 | Android | OfficeBridgeTest | 6 |
 
-**총 99개 통과, 실패·오류·건너뛰기 0.** core:test, connectedDebugAndroidTest, lintDebug, assembleDebug를 실행했습니다. lint 오류 0, 경고 29개입니다. XML·HTML과 자동 집계는 artifacts/test-results에 포함합니다.
+**총 107개 통과(JVM 62 + Android 45), 실패·오류·건너뛰기 0.** core:test, connectedDebugAndroidTest, lintDebug, assembleDebug, assembleDebugAndroidTest를 실행했습니다. lint 오류 0, 경고 29개입니다. 경고는 의존성 버전 안내 9개, DrawAllocation 7개, UseKtx 13개입니다. 이번 재검증 XML과 요약은 artifacts/editing-review에 보관하며 Git에는 생성물을 포함하지 않습니다.
+
+## 편집 흐름 추가 점검
+
+- 체크를 별도로 누르지 않은 셀 입력의 선택 변경·즉시 XLSX 저장·복구, 셀별 Undo/Redo와 화면 재생성.
+- 실제 셀 서식 대화상자에서 숫자 형식을 변경한 뒤 `7.00`이 보이는지 확인. 키보드가 열린 작은 화면에서 표 높이가 0이 되는 문제를 발견해 계산/서식 버튼을 한 줄로 배치하고 높이 부족 시 안내·행열 이동 버튼을 접도록 수정했습니다. 범위 입력은 유지합니다.
+- 범위 내용 지우기와 실행 취소 후 선택 셀 입력창 갱신, 마지막 XLSX/XLS 주소의 실제 표시와 XLS 범위를 넘는 입력 거부.
+- 최근 목록·동일 제공자 URI에서 열린 탭을 다시 선택한 뒤 실행 취소 이력 유지.
+- 포커스된 기본 텍스트 편집기의 Ctrl 단축키, 작업 중 Undo/홈 이동 거부, 명령 실패 직전 입력의 복구본 보존.
+- 정밀 편집 시작 실패 후 복구 메뉴 표시, Undo 이후 경고 유지와 보관 후 재시도.
+- 연속 설정 변경 40회와 마지막 선택의 기록, 새 ViewModel에서 같은 설정 복원.
+- 기존 텍스트/필기/회전 검사로 홈 이동이 되돌아가는 상태 경합을 재현했습니다. 중단되는 IO 호출을 `UiState.copy` 인수에서 분리해 최신 상태에 결과를 반영하도록 수정한 뒤 같은 검사와 전체 45개를 통과했습니다.
+
+기존 UI 검사도 비동기 명령의 준비 완료를 기다리도록 보완했습니다. 비트맵 수명·백그라운드 계산·변경 없는 탭의 저장 생략은 코드 검토와 기존 화면/저장 회귀 검사로 점검했습니다. 장시간 메모리·프레임 시간·실제 스타일러스 지연 벤치마크를 수행했다는 의미는 아닙니다.
+
+수동 화면 확인에서는 720×1600 px/280 dpi 휴대폰에서 키보드를 연 채 A1에 `42`를 입력하고 셀 표에서도 같은 값이 보이는 것을 확인했습니다. 별도 셀 적용 없이 상단 저장으로 실제 SAF Downloads 제공자에 `editing-review.xlsx`를 생성했으며, 저장 파일을 가져와 워크시트 XML의 A1=`42`를 확인했습니다. 1920×1200 px/240 dpi(1280×800 dp) 태블릿 창에서도 탐색 패널·입력창·표·저장 상태를 확인했습니다. 샘플 XLSX·화면 PNG·SHA-256은 artifacts/editing-review에 보관합니다.
+
+아래 정밀 엔진 수동 편집과 출시 서명·배포 검사는 **이전 0.3.1 개발 기록**입니다. 이번 추가 검토는 debug APK 기준이며 출시 키 생성·release APK/AAB 재서명·스토어 제출은 수행하지 않았습니다.
 
 이번 추가 검사는 다음을 확인합니다.
 
@@ -35,7 +53,7 @@
 - 정밀 편집 중 종료 후 원본 URI를 다시 열어도 복구본을 우선하며, 다른 화면의 새 본문 수정은 가져오기로 덮어쓰지 않습니다.
 - 기존 인코딩·ZIP/XML 제한·OOXML/OLE/HWPX 재열기·표준 Ink·양식·구조/필기 이동·원본 충돌·제공자 기록 실패/복원 실패·선택 인쇄·UI 회귀 검사.
 
-## 실제 정밀 엔진 확인
+## 실제 정밀 엔진 확인 — 기존 0.3.1 기록
 
 본 앱의 정밀 편집에서 Word 한국어 페이지를 렌더하고 IntegratedWriterProof를 입력·저장·닫았습니다. 앱의 새 DOCX 베이스에서 실제 word/document.xml 문자열과 revision 증가를 확인했습니다. 별도 앱이나 서버를 사용하지 않았습니다.
 
@@ -51,7 +69,7 @@ Impress의 실제 슬라이드에 IntegratedSlideProof를 입력·저장하고 �
 
 출시 서명 0.3.1 APK에서 실제 획을 부분 지우기로 나누고 두 페이지 PDF를 Downloads에 저장했습니다. 저장 파일의 Ink 주석 2개와 조각 사이 좌표 간격, 연속 스크롤·다음 페이지에서 같은 페이지 필기로 돌아오는 흐름을 확인했습니다. v031-phone-partial-eraser.png, v031-phone-continuous-pdf.png, native-edit-samples/partial-eraser-proof.pdf 및 v031-release-smoke.json에 증거를 보존합니다. 전달 소스 ZIP을 별도 검증 폴더에 추출해 고정 엔진 캐시로 assembleDebug 재빌드도 성공했습니다(11s).
 
-## 배포 검사
+## 배포 검사 — 기존 0.3.1 기록
 
 release-verification.json에 서명·매니페스트·APK/AAB 네이티브 일치·16 KB 정렬 결과를 기록합니다. 공식 엔진의 두 ABI 30개 라이브러리는 별도 ELF LOAD 16 KB 정렬 검사에서도 통과했습니다. 실제 16 KB 기기 실행은 미실시입니다. 공식 두 APK 인증서 SHA-256을 검사했고, 공통 자산이 두 ABI에서 동일함을 확인했습니다. 원래 APK의 ART 프로필은 포함하지 않습니다.
 

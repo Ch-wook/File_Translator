@@ -17,6 +17,15 @@ class MainActivity: ComponentActivity() {
         PDFBoxResourceLoader.init(applicationContext)
         enableEdgeToEdge()
         setContent { StudioApp(vm) }
+        // Intercept shortcuts before the focused EditText handles its own undo.
+        // Delegate through the public Window callback, preserving AndroidX dispatch.
+        // Recreation can preserve a Window carrying the previous Activity's
+        // callback. Always delegate to this Activity and its current view tree.
+        val callback: android.view.Window.Callback=this
+        window.callback=object: android.view.Window.Callback by callback {
+            override fun dispatchKeyShortcutEvent(event: android.view.KeyEvent): Boolean =
+                handleShortcut(event) || callback.dispatchKeyShortcutEvent(event)
+        }
         if(savedInstanceState==null) handle(intent)
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); handle(intent) }
@@ -29,12 +38,13 @@ class MainActivity: ComponentActivity() {
         if(uri!=null && uri.scheme=="content") vm.open(uri)
     }
     override fun onStop() { vm.flush(); super.onStop() }
-    override fun onKeyDown(keyCode: Int,event: android.view.KeyEvent): Boolean {
-        if(event.isCtrlPressed) when(keyCode) {
+    private fun handleShortcut(event: android.view.KeyEvent): Boolean {
+        if(vm.state.value.session==null || event.action!=android.view.KeyEvent.ACTION_DOWN || !event.isCtrlPressed || event.isAltPressed) return false
+        when(event.keyCode) {
             android.view.KeyEvent.KEYCODE_Z -> {if(event.isShiftPressed) vm.redo() else vm.undo();return true}
             android.view.KeyEvent.KEYCODE_Y -> {vm.redo();return true}
-            android.view.KeyEvent.KEYCODE_S -> {vm.state.value.session?.let {s -> if(s.uri!=null) vm.save(Uri.parse(s.uri)) else vm.message("처음 저장할 때는 저장 버튼으로 위치를 선택하세요.")};return true}
+            android.view.KeyEvent.KEYCODE_S -> {if(!vm.state.value.busy) vm.state.value.session?.let {s -> if(s.pdf?.archival==true) vm.message("PDF/A는 저장 버튼으로 일반 PDF 복사본을 저장하세요.") else if(s.uri!=null) vm.save(Uri.parse(s.uri)) else vm.message("처음 저장할 때는 저장 버튼으로 위치를 선택하세요.")};return true}
         }
-        return super.onKeyDown(keyCode,event)
+        return false
     }
 }

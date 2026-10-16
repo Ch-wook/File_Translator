@@ -49,12 +49,12 @@ fun PdfNavigationActions(s: Session,page: Int,vm: EditorViewModel,busy: Boolean,
 
 @Composable
 private fun Thumbnail(s: Session,index: Int,vm: EditorViewModel) {
-    val bitmap by produceState<Bitmap?>(null,s.base,index,s.edits.strokes) {
+    val bitmap by key(s.base,index,s.edits.strokes) {produceState<Bitmap?>(null) {
         var loaded: Bitmap?=null
         try {
             thumbnailSlots.withPermit {withContext(Dispatchers.IO) {loaded=PdfEngine.render(s.base,index,240,340);val bitmap=loaded!!;val canvas=android.graphics.Canvas(bitmap);s.edits.strokes.filter {it.anchor=="pdf:$index"}.forEach {drawStroke(canvas,it,bitmap.width.toFloat(),bitmap.height.toFloat())}}}
             value=loaded;awaitDispose {loaded?.recycle()}
         } catch(e: CancellationException) {loaded?.recycle();throw e} catch(e: Exception) {loaded?.recycle();vm.message("페이지 미리보기 실패: ${e.message}")}
-    }
+    }}
     bitmap?.let {Image(it.asImageBitmap(),"${index+1} 페이지 미리보기",modifier=Modifier.fillMaxWidth().height(150.dp))} ?: Box(Modifier.fillMaxWidth().height(150.dp)) {Text("불러오는 중…")}
 }

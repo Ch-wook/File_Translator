@@ -28,6 +28,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontStyle
@@ -51,6 +56,8 @@ private val Cream=Color(0xFFF6F4EF)
 fun StudioApp(vm: EditorViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context=LocalContext.current
+    val focus=LocalFocusManager.current
+    val view=LocalView.current
     var newDialog by remember { mutableStateOf(false) }
     var settingsDialog by remember { mutableStateOf(false) }
     val snackbar=remember { SnackbarHostState() }
@@ -73,6 +80,15 @@ fun StudioApp(vm: EditorViewModel) {
     }}
     val saveAs: ()->Unit = { state.session?.let { s -> saveLaunchers.getValue(s.format).launch(s.name.substringBeforeLast('.',s.name)+".${s.format.extension}") } }
     val save: ()->Unit = { state.session?.let { s -> if(s.uri==null || s.pdf?.archival==true) saveAs() else vm.save(Uri.parse(s.uri)) } }
+    LaunchedEffect(state.active) {
+        if(state.active==null) {
+            // The TXT/MD editor is a native EditText with its own IME connection.
+            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                .hideSoftInputFromWindow(view.windowToken,0)
+            view.rootView.findFocus()?.clearFocus()
+            focus.clearFocus(force=true)
+        }
+    }
     LaunchedEffect(state.message) { state.message?.let { snackbar.showSnackbar(it); vm.message(null) } }
     BackHandler(state.session!=null && !state.busy) { vm.home() }
     MaterialTheme(colorScheme=lightColorScheme(primary=Green,secondary=Color(0xFF7B6751),background=Cream,surface=Color.White,surfaceContainer=Color(0xFFEEEDE6))) {
@@ -306,41 +322,67 @@ private fun SheetEditor(s: Session,sec: Section,vm: EditorViewModel,busy: Boolea
     var address by rememberSaveable(sec.id) {mutableStateOf("A1")}
     var rowStart by rememberSaveable(sec.id) {mutableIntStateOf(1)}
     var colStart by rememberSaveable(sec.id) {mutableIntStateOf(1)}
-    var input by rememberSaveable(sec.id,address,s.edits.values) {mutableStateOf(s.edits.values[sec.id+"#"+address] ?: sec.cells[address] ?: "")}
+    var windowRequest by remember {mutableIntStateOf(0)}
+    val maxRow=if(s.format==Format.XLS) 65536 else 1048576
+    val maxColumn=if(s.format==Format.XLS) 256 else 16384
+    val lastRow=minOf(rowStart+24,maxRow)
+    val lastColumn=minOf(colStart+5,maxColumn)
+    val addressValid=validAddress(address) && column(address)<=maxColumn && address.dropWhile {it.isLetter()}.toInt()<=maxRow
+    val input=s.edits.values[sec.id+"#"+address] ?: sec.cells[address] ?: ""
+    val focus=LocalFocusManager.current
+    val goToCell: ()->Unit = {
+        if(addressValid) {
+            rowStart=address.dropWhile {it.isLetter()}.toInt()
+            colStart=column(address)
+            windowRequest++
+            focus.clearFocus()
+        } else vm.message(if(s.format==Format.XLS) "XLS 셀 범위는 A1–IV65536입니다." else "올바른 셀 주소를 입력하세요.")
+    }
     val cells=remember(sec,s.edits.values) {sec.cells+s.edits.values.filterKeys {it.startsWith(sec.id+"#")}.mapKeys {it.key.substringAfter('#')}}
-    val calculation by produceState(SheetCalculation(),sec,s.sections,s.edits.values,rowStart,colStart,address) {
+    val calculation by produceState(SheetCalculation(),sec,s.sections,s.edits.values,s.edits.styles,rowStart,colStart,address) {
         value=SheetCalculation()
         value=withContext(Dispatchers.Default) {
             val formula=s.calculator(sec)
-            val addresses=(rowStart..rowStart+24).flatMap {r -> (colStart..colStart+5).map {c -> columnName(c)+r}}+listOfNotNull(address.takeIf(::validAddress))
+            val addresses=(rowStart..lastRow).flatMap {r -> (colStart..lastColumn).map {c -> columnName(c)+r}}+listOfNotNull(address.takeIf {addressValid})
             val raw=addresses.distinct().associateWith {formula.display(it)}
             val formatted=raw.mapValues {(a,v) -> val styles=(sec.cellStyles[a] ?: emptyMap())+(s.edits.styles[sec.id+"#"+a] ?: emptyMap());CellFormatting.format(v,styles["numberFormat"],sec.date1904)}
             SheetCalculation(raw,formatted)
         }
     }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val compact=maxHeight<420.dp
     Column(Modifier.fillMaxSize().background(Color.White).padding(12.dp)) {
         Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-            OutlinedTextField(address,{address=it.uppercase()},label={Text("셀 주소")},singleLine=true,modifier=Modifier.width(94.dp),enabled=!busy)
-            OutlinedTextField(input,{input=it},label={Text("값 또는 =수식")},singleLine=true,modifier=Modifier.weight(1f),enabled=!busy)
-            FilledIconButton(onClick={if(validAddress(address)) vm.field(sec.id+"#"+address,input) else vm.message("올바른 셀 주소를 입력하세요.")},enabled=!busy){Icon(Icons.Default.Check,"셀 적용")}
+            OutlinedTextField(address,{address=it.uppercase()},label={Text("셀 주소")},singleLine=true,modifier=Modifier.width(94.dp),enabled=!busy,isError=!addressValid,
+                keyboardOptions=KeyboardOptions(imeAction=ImeAction.Go),keyboardActions=KeyboardActions(onGo={goToCell()}))
+            OutlinedTextField(input,{vm.field(sec.id+"#"+address,it)},label={Text("값 또는 =수식")},singleLine=true,modifier=Modifier.weight(1f),enabled=!busy && addressValid,
+                keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={focus.clearFocus()}))
+            FilledIconButton(onClick=goToCell,enabled=!busy){Icon(Icons.Default.Check,"셀로 이동")}
         }
-        Text("계산: ${if(validAddress(address)) calculation.raw[address] ?: "계산 중…" else "주소 오류"}",style=MaterialTheme.typography.labelMedium,modifier=Modifier.padding(vertical=6.dp))
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+            Text("계산: ${if(addressValid) calculation.raw[address] ?: "계산 중…" else "주소 오류"}",style=MaterialTheme.typography.labelMedium,modifier=Modifier.weight(1f).padding(vertical=6.dp),maxLines=1,overflow=TextOverflow.Ellipsis)
+            if(s.format==Format.XLSX) TextButton(onClick={style=true},enabled=!busy && addressValid) {Text("선택 셀 서식")}
+        }
         if(s.format==Format.XLSX) SheetRangeTools(s,sec,address,cells,vm,busy)
+        if(!compact) {
         Text("SUM · COUNTIF · SUMIF · IF/IFS · VLOOKUP · XLOOKUP · INDEX/MATCH · TEXT 등 / 같은 시트·다른 시트 계산",style=MaterialTheme.typography.labelSmall)
-        if(s.format==Format.XLSX) TextButton(onClick={style=true},enabled=!busy && validAddress(address)) {Text("선택 셀 서식")}
         Row(verticalAlignment=Alignment.CenterVertically) {
-            TextButton(onClick={rowStart=(rowStart-25).coerceAtLeast(1)}){Text("↑ 25행")};TextButton(onClick={rowStart=(rowStart+25).coerceAtMost(1048552)}){Text("↓ 25행")}
-            TextButton(onClick={colStart=(colStart-6).coerceAtLeast(1)}){Text("← 열")};TextButton(onClick={colStart=(colStart+6).coerceAtMost(16379)}){Text("열 →")}
+            TextButton(onClick={rowStart=(rowStart-25).coerceAtLeast(1)},enabled=!busy){Text("↑ 25행")};TextButton(onClick={rowStart=(rowStart+25).coerceAtMost(maxRow)},enabled=!busy){Text("↓ 25행")}
+            TextButton(onClick={colStart=(colStart-6).coerceAtLeast(1)},enabled=!busy){Text("← 열")};TextButton(onClick={colStart=(colStart+6).coerceAtMost(maxColumn)},enabled=!busy){Text("열 →")}
         }
+        }
+        key(sec.id,rowStart,colStart,windowRequest) {
         Box(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
             LazyColumn {
-                item { Row {CellBox("",false,{});for(c in colStart..colStart+5) CellBox(columnName(c),false,{})} }
-                items((rowStart..rowStart+24).toList()) {r -> Row {
+                item { Row {CellBox("",false,{});for(c in colStart..lastColumn) CellBox(columnName(c),false,{})} }
+                items((rowStart..lastRow).toList()) {r -> Row {
                     CellBox(r.toString(),false,{})
-                    for(c in colStart..colStart+5) {val a=columnName(c)+r;val styles=(sec.cellStyles[a] ?: emptyMap())+(s.edits.styles[sec.id+"#"+a] ?: emptyMap());CellBox(calculation.formatted[a] ?: "…",a==address,{address=a},styles)}
+                    for(c in colStart..lastColumn) {val a=columnName(c)+r;val styles=(sec.cellStyles[a] ?: emptyMap())+(s.edits.styles[sec.id+"#"+a] ?: emptyMap());CellBox(calculation.formatted[a] ?: "…",a==address,{if(!busy) address=a},styles)}
                 } }
             }
         }
+        }
+    }
     }
     if(style) StyleDialog(sec.id+"#"+address,s.format,(sec.cellStyles[address] ?: emptyMap())+(s.edits.styles[sec.id+"#"+address] ?: emptyMap()),vm) {style=false}
 }
