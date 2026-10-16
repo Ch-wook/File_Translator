@@ -44,6 +44,8 @@ dependencies {
     implementation("commons-io:commons-io:2.20.0")
     implementation("org.commonmark:commonmark:0.25.0")
     implementation("org.commonmark:commonmark-ext-gfm-tables:0.25.0")
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test:rules:1.7.0")

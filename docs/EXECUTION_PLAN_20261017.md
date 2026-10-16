@@ -49,3 +49,7 @@ W05 검사: JVM 전체 77개 통과(HangulFormattingTest 2개, MarkdownEditingTe
 W06 셀/슬라이드: 시트 필기 화면에 실제 XLSX 행 높이·열 너비와 셀 값의 6열×12행 뷰포트를 추가했다. 필기를 시작한 셀과 생성 프레임을 기록하며, 셀로 이동/확대·축소/크기 변경 때 재투영한다. 행열 삽입은 주소를 이동시키고 삭제된 셀의 필기는 함께 삭제(Undo 복구)한다. 시트 복제는 필기·레이어·셀 연결을 복사한다. 투영된 위치에서 지우개와 올가미 변형을 처리해 저장 좌표로 되돌린다. 셀 필기 PDF는 본문 요약 뒤 해당 셀 범위의 격자·내용·필기를 추가해 보존한다. XLS는 기본 격자 크기를 사용하며 정밀 Calc의 재배치는 자동 추적하지 않는다. 슬라이드는 기존 파트 ID/슬라이드 좌표로 순서 변경·복제·삭제를 추적한다. Word/HWPX의 전문 조판 후 문단 재배치 추적은 남아 있으며 W09에서 경계와 대안을 확인한다.
 
 W06 검사: InkAnchorsTest 3개 추가로 JVM 전체 80개 통과. CellInkIntegrationTest(행 삽입·셀 내용·Undo·너비·복사·시트 복제·ZIP·셀 필기 PDF·XLSX 저장)와 CellInkUiTest(실제 View 필기→셀 이동→투영 위치 지우개→Undo) 각 1개 통과. `.tools/w06-tests.log`, `.tools/w06-ui-test.log`.
+
+W07: 한국어+영어/영어 번들 OCR, 이미지 선택, PDF 범위(최대 20장), 필기 이미지 인식, 결과 검토·수정, 새 TXT 생성, PDF 검색 텍스트 추가를 구현했다. PDF는 원본 이미지/필기를 유지하고 표준 비표시 텍스트와 한글 subset 글꼴을 추가한다. 인식 도중 원본이 바뀌면 적용을 거부하고 중복 OCR도 보호한다. 취소한 ML 작업의 비트맵은 실제 SDK 완료 때 해제하며 동시에 한 건만 인식한다. 이미지/좌표/페이지/문자 수를 제한한다. 손글씨 전용 궤적 모델은 포함하지 않아 일반 이미지 OCR과 구분한다.
+
+W07 검사: OcrIntegrationTest 3개와 OcrUiTest 1개 통과. 한국어/영어 실제 번들 모델 인식, INTERNET 권한 부재, 스캔 PDF의 검색/새 URI 저장, 전후 픽셀 일치, 4방향 회전/CropBox 한국어 추출, 실제 화면 2쪽 범위 인식→검토→적용→Undo/Redo→TXT 생성을 확인했다. 최초 PDF 검사에서 Activity 이전의 PDFBox 자원 초기화 공백을 발견해 Application에서 초기화하도록 수정했다. `.tools/w07-tests.log`, `.tools/w07-ui-test.log`. 모델/글꼴 약관과 해시는 THIRD_PARTY.md에 기록했다.

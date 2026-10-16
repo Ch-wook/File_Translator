@@ -253,7 +253,7 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,close: ()
         Text("BOM 없는 텍스트 열기 인코딩")
         Row {listOf("UTF-8","MS949").forEach {e -> FilterChip(settings.encoding==e,{change(settings.copy(encoding=e))},label={Text(e)},modifier=Modifier.padding(end=8.dp))}}
         Text("BOM 인코딩을 우선하고 저장 시 인코딩과 원래 줄바꿈을 유지합니다. 자동 저장은 원본을 덮어쓰지 않습니다.",style=MaterialTheme.typography.bodySmall)
-        TextButton(onClick={licenses=true}) {Text("오픈소스 라이선스")}
+        TextButton(onClick={licenses=true}) {Text("오픈소스·SDK 라이선스")}
         TextButton(onClick={officeLicenses=true}) {Text("정밀 오피스 엔진 고지")}
     }},confirmButton={TextButton(onClick=close){Text("완료")}})
     if(licenses) {
@@ -263,7 +263,7 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,close: ()
                 name+"\n\n"+context.assets.open("licenses/$name").bufferedReader().use {it.readText()}
             }}
         }
-        AlertDialog(onDismissRequest={licenses=false},title={Text("오픈소스 라이선스")},text={Text(notice,style=MaterialTheme.typography.bodySmall,modifier=Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState()))},confirmButton={TextButton(onClick={licenses=false}){Text("닫기")}})
+        AlertDialog(onDismissRequest={licenses=false},title={Text("오픈소스·SDK 라이선스")},text={Text(notice,style=MaterialTheme.typography.bodySmall,modifier=Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState()))},confirmButton={TextButton(onClick={licenses=false}){Text("닫기")}})
     }
     if(officeLicenses) AlertDialog(onDismissRequest={officeLicenses=false},title={Text("Collabora·LibreOffice 고지")},text={Column {
         Text("Collabora Office 26.04.6.0 · MPL 2.0 및 구성요소별 라이선스. 수정 Java 소스와 출처는 전달 소스의 officeruntime에 포함됩니다.",style=MaterialTheme.typography.bodySmall)
@@ -279,6 +279,7 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,close: ()
 
 @Composable
 private fun Editor(s: Session,settings: Settings,vm: DocumentActions,busy: Boolean,openOffice: ()->Unit) {
+    var ocr by remember {mutableStateOf(false)}
     var draw by rememberSaveable {mutableStateOf(s.format==Format.PDF)}
     var preview by rememberSaveable {mutableStateOf(false)}
     var search by rememberSaveable {mutableStateOf(false)}
@@ -293,6 +294,7 @@ private fun Editor(s: Session,settings: Settings,vm: DocumentActions,busy: Boole
     LaunchedEffect(s.base) {section=section.coerceIn(0,(s.sections.size-1).coerceAtLeast(0));page=page.coerceIn(0,((s.pdf?.pages ?: 1)-1).coerceAtLeast(0))}
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            AssistChip({ocr=true},label={Text("문자 인식")},enabled=!busy)
             if(s.format in DocumentRepository.officeFormats) AssistChip(onClick=openOffice,label={Text("정밀 편집")},enabled=!busy)
             if(s.format!=Format.PDF) FilterChip(!draw && !preview,{draw=false;preview=false},label={Text("${s.format.label} 편집")},enabled=!busy)
             FilterChip(draw,{draw=true;preview=false;continuous=false},label={Text(if(s.format==Format.PDF) "PDF 필기" else "필기 페이지")},enabled=!busy)
@@ -344,6 +346,7 @@ private fun Editor(s: Session,settings: Settings,vm: DocumentActions,busy: Boole
             IconButton(onClick={navigate(page+1)},enabled=page<s.pdf.pages-1 && !busy){Icon(Icons.AutoMirrored.Filled.NavigateNext,"다음 페이지")}
         }
     }
+    if(ocr) OcrDialog(s,current,page,vm) {ocr=false}
     if(search) SearchDialog(s,vm){search=false}
     if(encoding) {
         var charset by remember {mutableStateOf(s.textContent!!.charset)};var bom by remember {mutableStateOf(s.textContent!!.bom)}

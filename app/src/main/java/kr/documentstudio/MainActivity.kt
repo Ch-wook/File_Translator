@@ -7,14 +7,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kr.documentstudio.ui.StudioApp
 
 class MainActivity: ComponentActivity() {
     private val vm: EditorViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        PDFBoxResourceLoader.init(applicationContext)
         enableEdgeToEdge()
         setContent { StudioApp(vm) }
         // Intercept shortcuts before the focused EditText handles its own undo.

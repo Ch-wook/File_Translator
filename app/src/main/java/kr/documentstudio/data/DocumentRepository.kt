@@ -309,6 +309,7 @@ class DocumentRepository(private val context: Context) {
         checkpointInternal(result);result
     }
     suspend fun change(s: Session,change: DocumentChange): Session = io {
+        if(change.type=="pdf.ocrPages") require(change.arguments["base"]==s.base.name) {"인식 중 PDF가 변경되었습니다. 현재 문서를 다시 인식하세요."}
         require(s.pack!=null || s.pdf!=null) {"이 형식의 구조 편집은 지원하지 않습니다."}
         val materialized=File(s.base.parentFile,"materialized-${UUID.randomUUID()}.bin")
         val next=File(s.base.parentFile,"${UUID.randomUUID()}.bin")
@@ -317,7 +318,7 @@ class DocumentRepository(private val context: Context) {
             if(s.pdf!=null) {
                 val widthRatio=if(change.type=="pdf.rotate" && (change.arguments["angle"] ?: "90") in listOf("90","270")) PdfEngine.displaySize(s.base,change.target.toInt()).let {it.first/it.second} else 1f
                 PdfEngine.write(s.base,materialized,emptyList(),false,s.edits.values)
-                val attachment=if(change.type in listOf("pdf.merge","pdf.image")) File(s.base.parentFile,"attachment-${UUID.randomUUID()}.bin").also {copyUri(Uri.parse(change.arguments.getValue("uri")),it)} else null
+                val attachment=if(change.type=="pdf.ocrPages") File(s.base.parentFile,"ocr-font-${UUID.randomUUID()}.ttf").also {font->context.assets.open("fonts/NotoSansKR.ttf").use {input->font.outputStream().use {input.copyTo(it)}}} else if(change.type in listOf("pdf.merge","pdf.image")) File(s.base.parentFile,"attachment-${UUID.randomUUID()}.bin").also {copyUri(Uri.parse(change.arguments.getValue("uri")),it)} else null
                 val mapping=try {PdfEngine.change(materialized,next,change,attachment)} finally {attachment?.delete()}
                 strokes=strokes.mapNotNull {stroke->
                     val old=stroke.anchor.removePrefix("pdf:").toIntOrNull() ?: return@mapNotNull stroke

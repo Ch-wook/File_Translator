@@ -1,0 +1,11 @@
+Google ML Kit Text Recognition (Korean and Latin), 16.0.1
+Copyright Google LLC. SDKs and bundled models are subject to ML Kit Terms of Service and Google APIs Terms of Service, not an open source model license.
+https://developers.google.com/ml-kit/terms
+https://developers.google.com/terms
+
+Recognition inputs and outputs are processed on the device. ML Kit can collect SDK performance/utilization metrics when networking is available. This app removes android.permission.INTERNET from the merged manifest, bundles both models, and does not allow SDK network communication. No cloud recognition is used.
+
+NotoSansKR.ttf, unmodified Google Fonts font, SIL Open Font License 1.1; full license in NotoSansKR-OFL.txt.
+Source revision: b38c5c93af322c45f633e17ac440ec1e6c94d489
+https://github.com/google/fonts/tree/b38c5c93af322c45f633e17ac440ec1e6c94d489/ofl/notosanskr
+SHA-256: 194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252

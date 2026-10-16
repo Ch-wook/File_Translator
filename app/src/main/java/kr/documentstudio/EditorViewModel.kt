@@ -65,6 +65,11 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         s.recoveryWarning?.let {message(it)}
     }
     fun create(format: Format) = action { attach(repository.create(format)) }
+    fun textFromOcr(text: String) = action {
+        require(text.toByteArray().size<=2*1024*1024)
+        val created=repository.create(Format.TXT);val s=created.copy(name="문자 인식.txt",edits=created.edits.copy(text=text))
+        repository.checkpoint(s);attach(s)
+    }
     fun open(uri: Uri) = action {
         mutable.value.tabs.firstOrNull {it.uri==uri.toString()}?.let {
             lastTextEdit=0;mutable.value=mutable.value.copy(active=it.id);return@action
