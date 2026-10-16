@@ -6,6 +6,8 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -25,29 +27,35 @@ private val readerSlots=Semaphore(2)
 
 /** Only composed pages own bitmaps. Leaving the lazy viewport releases them. */
 @Composable
-fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolean,
+fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolean,horizontal: Boolean=false,
                         onVisiblePage: (Int)->Unit,onEditPage: (Int)->Unit) {
     val count=s.pdf!!.pages
     val list=rememberLazyListState(page.coerceIn(0,count-1))
+    val pager=rememberPagerState(initialPage=page.coerceIn(0,count-1),pageCount={count})
     var zoom by rememberSaveable {mutableFloatStateOf(1f)}
     val visiblePage by rememberUpdatedState(onVisiblePage)
-    LaunchedEffect(s.base,navigationRequest) {list.scrollToItem(page.coerceIn(0,count-1))}
-    LaunchedEffect(list,count) {snapshotFlow {list.firstVisibleItemIndex}.collect {visiblePage(it.coerceIn(0,count-1))}}
+    LaunchedEffect(s.base,navigationRequest,horizontal) {if(horizontal) pager.scrollToPage(page.coerceIn(0,count-1)) else list.scrollToItem(page.coerceIn(0,count-1))}
+    LaunchedEffect(list,pager,count,horizontal) {snapshotFlow {if(horizontal) pager.currentPage else list.firstVisibleItemIndex}.collect {visiblePage(it.coerceIn(0,count-1))}}
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text("연속 보기 ${(zoom*100).toInt()}%",style=MaterialTheme.typography.labelSmall)
+            Text("${if(horizontal) "가로 보기" else "연속 보기"} ${(zoom*100).toInt()}%",style=MaterialTheme.typography.labelSmall)
             Slider(zoom,{zoom=it},valueRange=1f..3f,enabled=!busy,modifier=Modifier.weight(1f))
-            TextButton({onEditPage(list.firstVisibleItemIndex)},enabled=!busy) {Text("현재 페이지 필기")}
+            TextButton({onEditPage((if(horizontal) pager.currentPage else list.firstVisibleItemIndex).coerceIn(0,count-1))},enabled=!busy) {Text("현재 페이지 필기")}
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().background(Color(0xFFE5E5DF))) {
             val pageWidth=maxWidth*zoom
-            Box(Modifier.fillMaxSize().horizontalScroll(rememberScrollState())) {
+            if(horizontal) HorizontalPager(pager,modifier=Modifier.fillMaxSize().semantics {contentDescription="PDF 가로 페이지 목록"},userScrollEnabled=!busy && zoom==1f) {index ->
+                Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState()).padding(8.dp)) {
+                    Column(Modifier.width((pageWidth-16.dp).coerceAtLeast(1.dp))) {ContinuousPage(s,index,busy) {onEditPage(index)}}
+                }
+            } else Box(Modifier.fillMaxSize().horizontalScroll(rememberScrollState())) {
                 LazyColumn(Modifier.width(pageWidth).fillMaxHeight().semantics {contentDescription="PDF 연속 페이지 목록"},state=list,
                     contentPadding=PaddingValues(8.dp),verticalArrangement=Arrangement.spacedBy(12.dp),userScrollEnabled=!busy) {
                     items(count,key={it}) {index -> ContinuousPage(s,index,busy) {onEditPage(index)}}
                 }
             }
         }
+        if(horizontal && zoom>1f) Text("확대 중에는 가로로 이동합니다. 페이지는 아래 버튼으로 넘기세요.",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(horizontal=12.dp))
     }
 }
 
@@ -61,7 +69,7 @@ private fun ContinuousPage(s: Session,index: Int,busy: Boolean,edit: ()->Unit) {
         try {
             readerSlots.withPermit {
                 withContext(Dispatchers.IO) {
-                    loaded=PdfEngine.render(s.base,index)
+                    loaded=PdfEngine.render(s.base,index,annotationPages=s.pdf?.annotatedPages)
                     val image=loaded!!;val canvas=Canvas(image)
                     ink.forEach {drawStroke(canvas,it,image.width.toFloat(),image.height.toFloat())}
                 }

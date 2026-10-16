@@ -102,10 +102,13 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         mutable.value=mutable.value.copy(tabs=tabs,active=if(mutable.value.active==id) tabs.lastOrNull()?.id else mutable.value.active)
         message("작업 복구본을 보존하고 탭을 닫았습니다.")
     }
+    private fun document(id: String?) = if(id==null) mutable.value.session else mutable.value.tabs.firstOrNull {it.id==id}
+    fun documentActions(id: String) = DocumentActions(this,id)
+    private fun editFor(id: String?,edits: Edits,typing: Boolean=false,target: String?=null) = edit(edits,typing,target,id)
     private fun replace(s: Session) { mutable.value=mutable.value.copy(tabs=mutable.value.tabs.map { if(it.id==s.id) s else it }) }
-    fun edit(edits: Edits,typing: Boolean=false,target: String?=null) {
+    fun edit(edits: Edits,typing: Boolean=false,target: String?=null,sessionId: String?=null) {
         if(mutable.value.busy) return
-        val s=mutable.value.session ?: return
+        val s=document(sessionId) ?: return
         if(s.edits==edits) return
         val now=android.os.SystemClock.uptimeMillis()
         val textTarget="${s.id}:$target"
@@ -114,17 +117,17 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         lastTextTarget=if(typing) textTarget else null
         replace(s.copy(edits=edits)); scheduleCheckpoint()
     }
-    fun text(value: String) { mutable.value.session?.let { edit(it.edits.copy(text=value),true,"text") } }
-    fun field(id: String,value: String) { mutable.value.session?.let { edit(it.edits.copy(values=it.edits.values+(id to value)),true,id) } }
-    fun bold(id: String,value: Boolean) { mutable.value.session?.let { edit(it.edits.copy(bold=it.edits.bold+(id to value))) } }
-    fun style(id: String,value: Map<String,String>) {mutable.value.session?.let {edit(it.edits.copy(styles=it.edits.styles+(id to ((it.edits.styles[id] ?: emptyMap())+value))))}}
-    fun change(change: DocumentChange) = action {
-        val s=mutable.value.session ?: return@action
+    fun text(value: String,sessionId: String?=null) { document(sessionId)?.let { editFor(sessionId,it.edits.copy(text=value),true,"text") } }
+    fun field(id: String,value: String,sessionId: String?=null) { document(sessionId)?.let { editFor(sessionId,it.edits.copy(values=it.edits.values+(id to value)),true,id) } }
+    fun bold(id: String,value: Boolean,sessionId: String?=null) { document(sessionId)?.let { editFor(sessionId,it.edits.copy(bold=it.edits.bold+(id to value))) } }
+    fun style(id: String,value: Map<String,String>,sessionId: String?=null) {document(sessionId)?.let {editFor(sessionId,it.edits.copy(styles=it.edits.styles+(id to ((it.edits.styles[id] ?: emptyMap())+value))))}}
+    fun change(change: DocumentChange,sessionId: String?=null) = action {
+        val s=document(sessionId) ?: return@action
         val changed=repository.change(s,change);histories.getValue(s.id).record(s);replace(changed);lastTextEdit=0
     }
-    fun openOffice(launch: (Session,java.io.File)->Unit) = action {
+    fun openOffice(sessionId: String?=null,launch: (Session,java.io.File)->Unit) = action {
         require(android.os.Build.VERSION.SDK_INT>=30) {"정밀 오피스 편집은 Android 11 이상에서 사용할 수 있습니다. 이 기기에서는 기본 편집 도구를 사용하세요."}
-        val s=mutable.value.session ?: return@action
+        val s=document(sessionId) ?: return@action
         val file=repository.prepareOffice(s)
         officeActive=s.id
         try { launch(s,file) } catch(e: Exception) {
@@ -155,14 +158,14 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         mutable.value.session?.let {replace(repository.archiveOfficeRecovery(it))}
         message("정밀 편집 복구 파일을 보관했습니다. 문서·필기 ZIP 백업에도 포함됩니다. 다시 정밀 편집을 시작할 수 있습니다.")
     }
-    fun addStroke(stroke: Stroke) { mutable.value.session?.let {
+    fun addStroke(stroke: Stroke,sessionId: String?=null) { document(sessionId)?.let {
         if(it.edits.strokes.size>=4000 || it.edits.strokes.sumOf {s->s.points.size}+stroke.points.size>200000) message("문서 필기 용량 제한에 도달했습니다. PDF·ZIP으로 보존하고 새 문서에서 계속해 주세요.")
-        else edit(it.edits.copy(strokes=it.edits.strokes+stroke))
+        else editFor(sessionId,it.edits.copy(strokes=it.edits.strokes+stroke))
     } }
-    fun reencode(charset: String,bom: Boolean) = action {val s=mutable.value.session ?: return@action;val changed=repository.reencode(s,charset,bom);histories.getValue(s.id).record(s);replace(changed)}
-    fun erase(ids: Set<String>) { mutable.value.session?.let { edit(it.edits.copy(strokes=it.edits.strokes.filterNot { s -> s.id in ids })) } }
-    fun eraseInk(anchor: String,gesture: List<InkPoint>,radius: Float,aspect: Float,partial: Boolean) = action {
-        val s=mutable.value.session ?: return@action
+    fun reencode(charset: String,bom: Boolean,sessionId: String?=null) = action {val s=document(sessionId) ?: return@action;val changed=repository.reencode(s,charset,bom);histories.getValue(s.id).record(s);replace(changed)}
+    fun erase(ids: Set<String>,sessionId: String?=null) { document(sessionId)?.let { editFor(sessionId,it.edits.copy(strokes=it.edits.strokes.filterNot { s -> s.id in ids })) } }
+    fun eraseInk(anchor: String,gesture: List<InkPoint>,radius: Float,aspect: Float,partial: Boolean,sessionId: String?=null) = action {
+        val s=document(sessionId) ?: return@action
         val strokes=withContext(Dispatchers.Default) {InkErasure.erase(s.edits.strokes,anchor,gesture,radius,aspect,partial)}
         if(strokes!=s.edits.strokes) {
             histories.getValue(s.id).record(s)
@@ -170,21 +173,21 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
             replace(changed);lastTextEdit=0;repository.checkpoint(changed)
         }
     }
-    fun transformInk(ids: Set<String>,dx: Float=0f,dy: Float=0f,scale: Float=1f,degrees: Float=0f,duplicate: Boolean=false) {
-        mutable.value.session?.let {s->try {edit(s.edits.copy(strokes=InkGeometry.transform(s.edits.strokes,ids,dx,dy,scale,degrees,duplicate)))} catch(e: IllegalArgumentException) {message(e.message)}}
+    fun transformInk(ids: Set<String>,dx: Float=0f,dy: Float=0f,scale: Float=1f,degrees: Float=0f,duplicate: Boolean=false,sessionId: String?=null) {
+        document(sessionId)?.let {s->try {editFor(sessionId,s.edits.copy(strokes=InkGeometry.transform(s.edits.strokes,ids,dx,dy,scale,degrees,duplicate)))} catch(e: IllegalArgumentException) {message(e.message)}}
     }
     fun canUndo(id: String)=histories[id]?.canUndo==true
     fun canRedo(id: String)=histories[id]?.canRedo==true
     private fun restoreSnapshot(snapshot: Session,current: Session)=snapshot.copy(uri=current.uri,name=current.name,sourceHash=current.sourceHash,saved=current.saved,savedRevision=current.savedRevision,recoveryWarning=current.recoveryWarning)
-    fun undo() { if(mutable.value.busy) return; val s=mutable.value.session ?: return; replace(restoreSnapshot(histories.getValue(s.id).undo(s),s)); lastTextEdit=0; scheduleCheckpoint() }
-    fun redo() { if(mutable.value.busy) return; val s=mutable.value.session ?: return; replace(restoreSnapshot(histories.getValue(s.id).redo(s),s)); lastTextEdit=0; scheduleCheckpoint() }
-    fun save(uri: Uri) = action {
-        val s=mutable.value.session ?: return@action
+    fun undo(sessionId: String?=null) { if(mutable.value.busy) return; val s=document(sessionId) ?: return; replace(restoreSnapshot(histories.getValue(s.id).undo(s),s)); lastTextEdit=0; scheduleCheckpoint() }
+    fun redo(sessionId: String?=null) { if(mutable.value.busy) return; val s=document(sessionId) ?: return; replace(restoreSnapshot(histories.getValue(s.id).redo(s),s)); lastTextEdit=0; scheduleCheckpoint() }
+    fun save(uri: Uri,sessionId: String?=null) = action {
+        val s=document(sessionId) ?: return@action
         replace(repository.save(s,uri))
         message(if(s.format==Format.PDF) "PDF 표준 Ink 주석을 포함하여 저장했습니다." else "원본 형식으로 저장했습니다. 필기는 앱 내부 별도 데이터에 보존됩니다.")
     }
-    fun exportPdf(uri: Uri) = action { mutable.value.session?.let { repository.exportPdf(it,uri); message(if(it.format==Format.PPTX) "기본 슬라이드 개체와 필기 PDF를 내보냈습니다. 마스터·테마·SmartArt·그룹은 재현하지 않습니다." else if(it.format==Format.PDF) "PDF와 필기를 내보냈습니다." else "본문·필기 PDF를 내보냈습니다. 오피스 원본 배치와 다를 수 있습니다.") } }
-    fun backup(uri: Uri) = action { mutable.value.session?.let { repository.exportBackup(it,uri); message("문서 원본과 편집·필기 복구 데이터를 ZIP으로 백업했습니다.") } }
+    fun exportPdf(uri: Uri,sessionId: String?=null) = action { document(sessionId)?.let { repository.exportPdf(it,uri); message(if(it.format==Format.PPTX) "기본 슬라이드 개체와 필기 PDF를 내보냈습니다. 마스터·테마·SmartArt·그룹은 재현하지 않습니다." else if(it.format==Format.PDF) "PDF와 필기를 내보냈습니다." else "본문·필기 PDF를 내보냈습니다. 오피스 원본 배치와 다를 수 있습니다.") } }
+    fun backup(uri: Uri,sessionId: String?=null) = action { document(sessionId)?.let { repository.exportBackup(it,uri); message("문서 원본과 편집·필기 복구 데이터를 ZIP으로 백업했습니다.") } }
     fun favorite(id: String) = action { repository.favorite(id) }
     fun print(context: android.content.Context) = action {mutable.value.session?.let {s->val file=repository.printable(s);val manager=context.getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager;manager.print(s.name,kr.documentstudio.ui.DocumentPrintAdapter(file,s.name),null)}}
     fun settings(value: Settings) {

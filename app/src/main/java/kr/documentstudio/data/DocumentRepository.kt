@@ -238,7 +238,7 @@ class DocumentRepository(private val context: Context) {
     suspend fun printable(s: Session): File = io {
         File(context.cacheDir,"print-${UUID.randomUUID()}.pdf").also {file->if(s.format==Format.PDF) PdfEngine.write(s.base,file,s.edits.strokes,s.pdf!!.archival,s.edits.values) else ExportEngine.document(s,file)}
     }
-    suspend fun render(s: Session,page: Int) = withContext(Dispatchers.IO) { PdfEngine.render(s.base,page) }
+    suspend fun render(s: Session,page: Int) = withContext(Dispatchers.IO) { PdfEngine.render(s.base,page,annotationPages=s.pdf?.annotatedPages) }
     suspend fun prepareOffice(s: Session): File = io {
         require(s.format in officeFormats)
         val dir=s.base.parentFile!!

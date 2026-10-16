@@ -15,14 +15,14 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import kr.documentstudio.EditorViewModel
+import kr.documentstudio.DocumentActions
 import kr.documentstudio.core.DocumentChange
 import kr.documentstudio.data.*
 
 private val thumbnailSlots=Semaphore(2)
 
 @Composable
-fun PdfNavigationActions(s: Session,page: Int,vm: EditorViewModel,busy: Boolean,navigate: (Int)->Unit) {
+fun PdfNavigationActions(s: Session,page: Int,vm: DocumentActions,busy: Boolean,navigate: (Int)->Unit) {
     var thumbnails by remember {mutableStateOf(false)};var bookmarks by remember {mutableStateOf(false)}
     TextButton({thumbnails=true},enabled=!busy) {Text("페이지 미리보기")}
     TextButton({bookmarks=true},enabled=!busy) {Text("북마크")}
@@ -48,11 +48,11 @@ fun PdfNavigationActions(s: Session,page: Int,vm: EditorViewModel,busy: Boolean,
 }
 
 @Composable
-private fun Thumbnail(s: Session,index: Int,vm: EditorViewModel) {
+private fun Thumbnail(s: Session,index: Int,vm: DocumentActions) {
     val bitmap by key(s.base,index,s.edits.strokes) {produceState<Bitmap?>(null) {
         var loaded: Bitmap?=null
         try {
-            thumbnailSlots.withPermit {withContext(Dispatchers.IO) {loaded=PdfEngine.render(s.base,index,240,340);val bitmap=loaded!!;val canvas=android.graphics.Canvas(bitmap);s.edits.strokes.filter {it.anchor=="pdf:$index"}.forEach {drawStroke(canvas,it,bitmap.width.toFloat(),bitmap.height.toFloat())}}}
+            thumbnailSlots.withPermit {withContext(Dispatchers.IO) {loaded=PdfEngine.render(s.base,index,240,340,s.pdf?.annotatedPages);val bitmap=loaded!!;val canvas=android.graphics.Canvas(bitmap);s.edits.strokes.filter {it.anchor=="pdf:$index"}.forEach {drawStroke(canvas,it,bitmap.width.toFloat(),bitmap.height.toFloat())}}}
             value=loaded;awaitDispose {loaded?.recycle()}
         } catch(e: CancellationException) {loaded?.recycle();throw e} catch(e: Exception) {loaded?.recycle();vm.message("페이지 미리보기 실패: ${e.message}")}
     }}

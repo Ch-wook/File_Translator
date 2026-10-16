@@ -13,13 +13,13 @@ import kotlinx.coroutines.*
 import kr.documentstudio.data.PdfEngine
 import kr.documentstudio.data.PdfBodyText
 import kr.documentstudio.data.PdfBodyRun
-import kr.documentstudio.EditorViewModel
+import kr.documentstudio.DocumentActions
 import kr.documentstudio.core.*
 import kr.documentstudio.data.Session
 
 private data class Action(val label: String,val type: String,val inputs: List<Triple<String,String,String>> = emptyList())
 @Composable
-fun DocumentTools(s: Session,sec: Section?,vm: EditorViewModel,busy: Boolean,page: Int=0,navigate: (Int)->Unit = {}) {
+fun DocumentTools(s: Session,sec: Section?,vm: DocumentActions,busy: Boolean,page: Int=0,navigate: (Int)->Unit = {}) {
     val actions=when(s.format) {
         Format.DOCX -> listOf(
             Action("그림 삽입","word.image"),
@@ -97,15 +97,15 @@ fun DocumentTools(s: Session,sec: Section?,vm: EditorViewModel,busy: Boolean,pag
 }
 
 @Composable
-private fun PdfTextAndForms(s: Session,page: Int,vm: EditorViewModel,busy: Boolean,navigate: (Int)->Unit) {
+private fun PdfTextAndForms(s: Session,page: Int,vm: DocumentActions,busy: Boolean,navigate: (Int)->Unit) {
     var bodyEditor by remember {mutableStateOf(false)}
     var imageEditor by remember {mutableStateOf(false)}
-    var forms by remember {mutableStateOf(false)};var text by remember {mutableStateOf(false)};var search by remember {mutableStateOf(false)}
+    var forms by remember {mutableStateOf(false)};var text by remember {mutableStateOf(false)};var annotations by remember {mutableStateOf(false)};var search by remember {mutableStateOf(false)}
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp)) {
         PdfNavigationActions(s,page,vm,busy,navigate)
         TextButton({bodyEditor=true},enabled=!busy) {Text("기존 본문 문자열 편집")}
         TextButton({imageEditor=true},enabled=!busy) {Text("기존 이미지 편집")}
-        TextButton({text=true},enabled=!busy) {Text("텍스트 선택")};TextButton({search=true},enabled=!busy) {Text("PDF 검색")}
+        TextButton({text=true},enabled=!busy) {Text("텍스트 선택")};TextButton({annotations=true},enabled=!busy) {Text("주석 관리")};TextButton({search=true},enabled=!busy) {Text("PDF 검색")}
         TextButton({forms=true},enabled=!busy && s.pdf!!.forms.isNotEmpty()) {Text("양식 (${s.pdf!!.forms.size})")}
     }
     if(imageEditor) PdfImageTools(s,page,vm) {imageEditor=false}
@@ -127,10 +127,7 @@ private fun PdfTextAndForms(s: Session,page: Int,vm: EditorViewModel,busy: Boole
             else {OutlinedTextField(value,{vm.field(id,it)},label={Text(f.name)},enabled=enabled,modifier=Modifier.fillMaxWidth().padding(vertical=4.dp));if(f.options.isNotEmpty()) Text("선택 값: "+f.options.joinToString(", "),style=MaterialTheme.typography.labelSmall)}
         }
     }},confirmButton={TextButton({forms=false}) {Text("완료")}})
-    if(text) {
-        val content by produceState("텍스트 읽는 중…",s.base,page) {value=withContext(Dispatchers.IO) {runCatching {PdfEngine.text(s.base,page)}.getOrElse {"텍스트 읽기 실패: ${it.message}"}}}
-        AlertDialog(onDismissRequest={text=false},title={Text("${page+1} 페이지 텍스트")},text={SelectionContainer {Text(content,modifier=Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState()))}},confirmButton={TextButton({text=false}) {Text("닫기")}})
-    }
+    if(text || annotations) PdfMarkupTools(s,page,vm,annotations) {text=false;annotations=false}
     if(search) {
         var query by remember {mutableStateOf("")};var found by remember {mutableStateOf<List<Int>?>(null)};var working by remember {mutableStateOf(false)};val scope=rememberCoroutineScope()
         AlertDialog(onDismissRequest={search=false},title={Text("PDF 텍스트 검색")},text={Column {
@@ -142,7 +139,7 @@ private fun PdfTextAndForms(s: Session,page: Int,vm: EditorViewModel,busy: Boole
 }
 
 @Composable
-fun StyleDialog(id: String,format: Format,existing: Map<String,String>,vm: EditorViewModel,close: ()->Unit) {
+fun StyleDialog(id: String,format: Format,existing: Map<String,String>,vm: DocumentActions,close: ()->Unit) {
     val pending=remember {mutableStateMapOf<String,String>()}
     val spreadsheet=format==Format.XLSX
     val fields=listOf("font" to "글꼴 이름","size" to "크기 pt","color" to "글자 색 RRGGBB") + if(spreadsheet) listOf("background" to "배경색 RRGGBB","numberFormat" to "숫자 형식 (0.00, #,##0 등)","align" to "정렬 (left / center / right)") else if(format in listOf(Format.DOCX,Format.HWPX)) listOf("align" to "문단 정렬 (left / center / right / both)","lineSpacing" to "줄 간격 배수 (1~5)") + if(format==Format.DOCX) listOf("highlight" to "강조색 (yellow / green / none)") else emptyList() else emptyList()

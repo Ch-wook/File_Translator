@@ -29,6 +29,14 @@ W01부터 순서대로 수행한다. 서로 독립인 읽기/빌드 준비만 �
 
 - [x] 원격 최신 커밋 복제와 기존 문서/변경 목록 확인.
 - [x] 구현 전 실행 계획 작성.
-- [ ] W01 기준선 재현.
+- [x] W01 기준선 재현: 별도 `e540106` worktree에서 131개 통과(실패/오류/건너뛰기 0), lint 오류 0/경고 22. 원래 1 GB 검증 설정은 새 DEX 병합에서 메모리 부족으로 실패해, 검증기 기본 힙을 3 GB로 조정하고 인수로 조절하게 했다. 앱 기준 소스는 그대로 검사했다.
 - [ ] W02–W09 구현 및 기능별 검증.
 - [ ] W10 최종 회귀와 배포/원격 반영.
+
+W01 근거: `.tools/baseline-source/artifacts/acceptance-20261017-003639/summary.json`. 기존 AVD는 `-read-only`, 별도 포트 5556으로 실행해 원래 저장 자료를 변경하지 않는다. W02부터는 본 복제본의 코드와 별도 회귀 검사 결과로 추적한다.
+
+W02: 문서 ID에 묶인 편집 명령과 적응형 두 창, 창별 Undo/Redo·선택·닫기·저장 대상을 구현했다. 좁은 창은 선택한 창을 전환하고 넓은 창은 두 문서를 동시에 표시한다. 저장/내보내기 선택기가 돌아와도 요청한 문서에 반영한다. SAF 폴더 선택과 이름 검색·취소·중복/순환/작업량 보호를 추가했다. DocumentActionsTest 2개, DocumentTreeTest 3개, SplitEditorUiTest 1개가 통과했다. 동시 편집 검사는 두 실제 EditText의 입력·독립 Undo·재생성·한 창 닫기를 포함한다. 초기 UI 검사는 두 번째 문서 생성 완료를 기다리지 않아 실패했고 대기 조건을 문서 수/명령 완료로 고친 뒤 6개 전체를 통과했다.
+
+W02 수동 확인: 시스템 폴더 선택기에서 `Documents/StudioExecutionPlan`만 허용하고 `folder-proof.txt`를 열어 `SAF_FOLDER_EDITED`로 편집했다. 저장 완료를 기다린 뒤 실제 제공자 파일 바이트를 읽어 확인했다. 근거는 `artifacts/w02/folder-proof.txt`, `folder-proof.png`다. 앱 전체 저장소 권한은 추가하지 않았다.
+
+W03: 선택 문자 범위의 실제 PDF Highlight/Underline/StrikeOut 주석과 기존 메모/텍스트 주석 편집·삭제를 구현했다. 본문은 변경하지 않고 QuadPoints와 벡터 appearance를 기록한다. Android 본문 렌더 위에 주석을 합성하고 가로 페이지 모드를 추가했다. PdfAnnotationsTest 4개와 PdfMarkupUiTest 1개가 통과했다. 회전 0/90/180/270 × 세 주석 종류, CropBox, 여러 줄, 외부 주석 보존, 저장/새 URI 재열기, 오래된 편집 거부, 답글 보호, UI 선택·Undo/Redo·삭제·가로 이동을 검사했다. 첫 검사에서 회전 90도 appearance가 보이지 않아 로컬 BBox와 명시적인 주석 회전 합성으로 수정한 뒤 통과했다. 로그: `.tools/w03-tests.log`.

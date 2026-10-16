@@ -9,12 +9,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kr.documentstudio.EditorViewModel
+import kr.documentstudio.DocumentActions
 import kr.documentstudio.core.DocumentChange
 import kr.documentstudio.data.*
 
 @Composable
-fun PdfImageTools(s: Session,page: Int,vm: EditorViewModel,close: ()->Unit) {
+fun PdfImageTools(s: Session,page: Int,vm: DocumentActions,close: ()->Unit) {
     var selected by remember(s.base,page) {mutableStateOf<PdfImagePlacement?>(null)}
     val placements by produceState<List<PdfImagePlacement>?>(null,s.base,page) {
         value=withContext(Dispatchers.IO) {runCatching {PdfImages.list(s.base,page)}.getOrElse {vm.message(it.message);emptyList()}}

@@ -11,12 +11,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import kr.documentstudio.EditorViewModel
+import kr.documentstudio.DocumentActions
 import kr.documentstudio.core.*
 import kr.documentstudio.data.Session
 
 @Composable
-fun SheetRangeTools(s: Session,sec: Section,address: String,cells: Map<String,String>,vm: EditorViewModel,busy: Boolean) {
+fun SheetRangeTools(s: Session,sec: Section,address: String,cells: Map<String,String>,vm: DocumentActions,busy: Boolean) {
     val context=LocalContext.current
     var range by remember(sec.id,address) {mutableStateOf(address)}
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {

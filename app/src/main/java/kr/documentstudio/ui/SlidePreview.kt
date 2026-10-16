@@ -16,7 +16,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.*
-import kr.documentstudio.EditorViewModel
+import kr.documentstudio.DocumentActions
 import kr.documentstudio.core.*
 import kr.documentstudio.data.*
 
@@ -55,7 +55,7 @@ class SlideView(context: Context): View(context) {
     override fun performClick(): Boolean {super.performClick();return true}
 }
 @Composable
-fun SlidePreview(s: Session,sec: Section,vm: EditorViewModel,busy: Boolean) {
+fun SlidePreview(s: Session,sec: Section,vm: DocumentActions,busy: Boolean) {
     val scene=rememberSlide(s,sec)
     var show by remember {mutableStateOf(false)}
     Column(Modifier.fillMaxSize().padding(12.dp)) {

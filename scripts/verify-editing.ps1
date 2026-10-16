@@ -1,6 +1,7 @@
 ﻿param(
     [string]$DeviceId = '',
-    [switch]$SkipDevice
+    [switch]$SkipDevice,
+    [ValidateRange(1024,16384)][int]$JavaHeapMiB = 3072
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,7 +40,7 @@ try {
     # The native exit code, XML results and lint determine the gate below.
     $ErrorActionPreference = 'Continue'
     try {
-        & .\gradlew.bat @tasks --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx1024m -XX:ActiveProcessorCount=4 -Dfile.encoding=UTF-8' '-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true' --console=plain 2>&1 | Tee-Object -FilePath (Join-Path $evidence 'gradle.log')
+        & .\gradlew.bat @tasks --max-workers=2 "-Dorg.gradle.jvmargs=-Xmx${JavaHeapMiB}m -XX:ActiveProcessorCount=4 -Dfile.encoding=UTF-8" '-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true' --console=plain 2>&1 | Tee-Object -FilePath (Join-Path $evidence 'gradle.log')
         $buildExit = $LASTEXITCODE
     } finally { $ErrorActionPreference = 'Stop' }
 } catch {

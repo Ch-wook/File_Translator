@@ -27,7 +27,7 @@ import kr.documentstudio.core.*
 import kr.documentstudio.data.*
 
 @Composable
-fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: EditorViewModel,busy: Boolean) {
+fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: DocumentActions,busy: Boolean) {
     val tool=runCatching {InkTool.valueOf(settings.penTool)}.getOrDefault(InkTool.PEN)
     val color=Color(settings.penColor)
     val line=settings.penWidth

@@ -27,7 +27,7 @@ import com.tom_roush.pdfbox.util.Matrix
 import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory
 
 data class PdfForm(val name: String,val value: String,val kind: String,val options: List<String>,val readOnly: Boolean)
-data class PdfInfo(val pages: Int, val archival: Boolean,val forms: List<PdfForm> = emptyList())
+data class PdfInfo(val pages: Int, val archival: Boolean,val forms: List<PdfForm> = emptyList(),val annotatedPages: Set<Int> = emptySet())
 object PdfEngine {
     private const val PREFIX = "DocumentStudio:"
     fun inspect(file: File): PdfInfo = PDDocument.load(file).use { doc ->
@@ -39,15 +39,18 @@ object PdfEngine {
             val options=when(field) {is PDChoice -> field.options;is PDButton -> field.onValues.toList();else->emptyList()}
             PdfForm(field.fullyQualifiedName,field.valueAsString,when(field) {is PDTextField->"text";is PDCheckBox->"checkbox";is PDChoice->"choice";is PDRadioButton->"radio";else->"unsupported"},options,field.isReadOnly)
         } ?: emptyList()
-        PdfInfo(doc.numberOfPages, xmp.contains("pdfaid", ignoreCase = true),forms)
+        PdfInfo(doc.numberOfPages, xmp.contains("pdfaid", ignoreCase = true),forms,(0 until doc.numberOfPages).filter {doc.getPage(it).annotations.isNotEmpty()}.toSet())
     }
-    fun render(file: File, index: Int,maxWidth: Int=1600,maxHeight: Int=2200): Bitmap {
+    fun render(file: File, index: Int,maxWidth: Int=1600,maxHeight: Int=2200,annotationPages: Set<Int>?=null): Bitmap {
         require(maxWidth in 1..1600 && maxHeight in 1..2200)
         ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
             PdfRenderer(fd).use { renderer -> renderer.openPage(index).use { page ->
                 val scale = minOf(maxWidth.toFloat() / page.width, maxHeight.toFloat() / page.height, 2.5f)
                 return Bitmap.createBitmap((page.width * scale).toInt().coerceAtLeast(1), (page.height * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888).also {
-                    it.eraseColor(Color.WHITE); page.render(it, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    try {
+                        it.eraseColor(Color.WHITE); page.render(it, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        if(annotationPages==null || index in annotationPages) PdfAnnotations.overlay(file,index,it)
+                    } catch(failure: Throwable) {it.recycle();throw failure}
                 }
             } }
         }
@@ -153,6 +156,7 @@ object PdfEngine {
         val count=doc.numberOfPages;val mapping=(0 until count).toMutableList();val index=change.target.toIntOrNull() ?: 0
         require(index in 0 until count);val args=change.arguments
         when(change.type) {
+            "pdf.markupAdd","pdf.annotationEdit","pdf.annotationDelete" -> PdfAnnotations.change(doc,index,change)
             "pdf.bookmarkAdd","pdf.bookmarkRename","pdf.bookmarkDelete" -> PdfBookmarks.change(doc,index,change)
             "pdf.replaceText" -> PdfBodyText.replace(doc,index,args.getValue("id").toInt(),args.getValue("expected"),args.getValue("text"))
             "pdf.transformImage","pdf.deleteImage" -> PdfImages.change(doc,index,args.getValue("id").toInt(),args.getValue("expected"),if(change.type=="pdf.deleteImage") null else listOf("x","y","width","height").map {args.getValue(it).toFloat()})
