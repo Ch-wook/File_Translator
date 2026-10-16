@@ -13,7 +13,7 @@ import kotlinx.coroutines.sync.withLock
 import kr.documentstudio.core.*
 import kr.documentstudio.data.*
 
-data class Settings(val stylusOnly: Boolean=false,val fontSize: Float=16f,val encoding: String="UTF-8",val penTool: String="PEN",val penColor: Int=0xFF294E46.toInt(),val penWidth: Float=0.004f,val penOpacity: Float=1f,val wrapLines: Boolean=true,val partialEraser: Boolean=false,val eraserRadius: Float=0.025f)
+data class Settings(val stylusOnly: Boolean=false,val fontSize: Float=16f,val encoding: String="UTF-8",val penTool: String="PEN",val penColor: Int=0xFF294E46.toInt(),val penWidth: Float=0.004f,val penOpacity: Float=1f,val wrapLines: Boolean=true,val partialEraser: Boolean=false,val eraserRadius: Float=0.025f,val pressureCurve: Float=1f,val smoothing: Float=0f,val autoSnap: Boolean=false,val toolbarTop: Boolean=false,val toolbarCollapsed: Boolean=false,val presets: List<PenPreset> = emptyList(),val favoriteColors: List<Int> = emptyList())
 data class UiState(val tabs: List<Session> = emptyList(),val active: String?=null,val recents: List<Recent> = emptyList(),
     val busy: Boolean=false,val message: String?=null,val settings: Settings=Settings()) {
     val session get() = tabs.firstOrNull { it.id==active }
@@ -34,7 +34,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     private var externalOpenJob: Job?=null
     init { viewModelScope.launch {
         try {
-            val preferences=withContext(Dispatchers.IO) { application.getSharedPreferences("settings",0).let { p -> Settings(p.getBoolean("stylusOnly",false),p.getFloat("fontSize",16f),p.getString("encoding","UTF-8")!!,p.getString("penTool","PEN")!!,p.getInt("penColor",0xFF294E46.toInt()),p.getFloat("penWidth",0.004f),p.getFloat("penOpacity",1f),p.getBoolean("wrapLines",true),p.getBoolean("partialEraser",false),p.getFloat("eraserRadius",0.025f).coerceIn(0.005f,0.08f)) } }
+            val preferences=withContext(Dispatchers.IO) { application.getSharedPreferences("settings",0).let { p -> Settings(p.getBoolean("stylusOnly",false),p.getFloat("fontSize",16f),p.getString("encoding","UTF-8")!!,p.getString("penTool","PEN")!!,p.getInt("penColor",0xFF294E46.toInt()),p.getFloat("penWidth",0.004f),p.getFloat("penOpacity",1f),p.getBoolean("wrapLines",true),p.getBoolean("partialEraser",false),p.getFloat("eraserRadius",0.025f).coerceIn(0.005f,0.08f)).let {InkPreferences.extend(it,p)} } }
             val recents=repository.recents()
             mutable.value=mutable.value.copy(recents=recents,settings=if(settingsChanged) mutable.value.settings else preferences)
         } catch(e: CancellationException) {throw e}
@@ -159,14 +159,17 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         message("정밀 편집 복구 파일을 보관했습니다. 문서·필기 ZIP 백업에도 포함됩니다. 다시 정밀 편집을 시작할 수 있습니다.")
     }
     fun addStroke(stroke: Stroke,sessionId: String?=null) { document(sessionId)?.let {
-        if(it.edits.strokes.size>=4000 || it.edits.strokes.sumOf {s->s.points.size}+stroke.points.size>200000) message("문서 필기 용량 제한에 도달했습니다. PDF·ZIP으로 보존하고 새 문서에서 계속해 주세요.")
+        if(stroke.layerId !in InkLayers.editable(it.edits)) message("표시된 잠금 해제 레이어를 선택하세요.")
+        else if(it.edits.strokes.size>=4000 || it.edits.strokes.sumOf {s->s.points.size}+stroke.points.size>200000) message("문서 필기 용량 제한에 도달했습니다. PDF·ZIP으로 보존하고 새 문서에서 계속해 주세요.")
         else editFor(sessionId,it.edits.copy(strokes=it.edits.strokes+stroke))
     } }
+    fun inkLayers(layers: List<InkLayer>,sessionId: String?=null) {document(sessionId)?.let {s->try {editFor(sessionId,InkLayers.update(s.edits,layers))} catch(e: IllegalArgumentException) {message(e.message)}}}
+    fun paper(paper: Paper,sessionId: String?=null) {document(sessionId)?.let {s->if(s.format!=Format.PDF) editFor(sessionId,s.edits.copy(paper=paper))}}
     fun reencode(charset: String,bom: Boolean,sessionId: String?=null) = action {val s=document(sessionId) ?: return@action;val changed=repository.reencode(s,charset,bom);histories.getValue(s.id).record(s);replace(changed)}
-    fun erase(ids: Set<String>,sessionId: String?=null) { document(sessionId)?.let { editFor(sessionId,it.edits.copy(strokes=it.edits.strokes.filterNot { s -> s.id in ids })) } }
+    fun erase(ids: Set<String>,sessionId: String?=null) { document(sessionId)?.let { editFor(sessionId,it.edits.copy(strokes=it.edits.strokes.filterNot { s -> s.id in ids && s.layerId in InkLayers.editable(it.edits) })) } }
     fun eraseInk(anchor: String,gesture: List<InkPoint>,radius: Float,aspect: Float,partial: Boolean,sessionId: String?=null) = action {
         val s=document(sessionId) ?: return@action
-        val strokes=withContext(Dispatchers.Default) {InkErasure.erase(s.edits.strokes,anchor,gesture,radius,aspect,partial)}
+        val strokes=withContext(Dispatchers.Default) {val editable=InkLayers.editable(s.edits);val unlocked=s.edits.strokes.filter {it.layerId in editable};val erased=InkErasure.erase(unlocked,anchor,gesture,radius,aspect,partial);s.edits.strokes.filter {it.layerId !in editable}+erased}
         if(strokes!=s.edits.strokes) {
             histories.getValue(s.id).record(s)
             val changed=s.copy(edits=s.edits.copy(strokes=strokes))
@@ -174,7 +177,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         }
     }
     fun transformInk(ids: Set<String>,dx: Float=0f,dy: Float=0f,scale: Float=1f,degrees: Float=0f,duplicate: Boolean=false,sessionId: String?=null) {
-        document(sessionId)?.let {s->try {editFor(sessionId,s.edits.copy(strokes=InkGeometry.transform(s.edits.strokes,ids,dx,dy,scale,degrees,duplicate)))} catch(e: IllegalArgumentException) {message(e.message)}}
+        document(sessionId)?.let {s->try {editFor(sessionId,s.edits.copy(strokes=InkGeometry.transform(s.edits.strokes,ids.intersect(s.edits.strokes.filter {it.layerId in InkLayers.editable(s.edits)}.map {it.id}.toSet()),dx,dy,scale,degrees,duplicate)))} catch(e: IllegalArgumentException) {message(e.message)}}
     }
     fun canUndo(id: String)=histories[id]?.canUndo==true
     fun canRedo(id: String)=histories[id]?.canRedo==true
@@ -195,7 +198,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         mutable.value=mutable.value.copy(settings=value)
         viewModelScope.launch(Dispatchers.IO) {settingsMutex.withLock {
             val latest=mutable.value.settings
-            getApplication<Application>().getSharedPreferences("settings",0).edit()
+            InkPreferences.save(getApplication<Application>().getSharedPreferences("settings",0).edit(),latest)
                 .putBoolean("stylusOnly",latest.stylusOnly).putFloat("fontSize",latest.fontSize).putString("encoding",latest.encoding)
                 .putString("penTool",latest.penTool).putInt("penColor",latest.penColor).putFloat("penWidth",latest.penWidth).putFloat("penOpacity",latest.penOpacity).putBoolean("wrapLines",latest.wrapLines)
                 .putBoolean("partialEraser",latest.partialEraser).putFloat("eraserRadius",latest.eraserRadius).apply()

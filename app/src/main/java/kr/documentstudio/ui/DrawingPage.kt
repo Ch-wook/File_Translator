@@ -11,6 +11,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,6 +32,10 @@ fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: Docume
     val tool=runCatching {InkTool.valueOf(settings.penTool)}.getOrDefault(InkTool.PEN)
     val color=Color(settings.penColor)
     val line=settings.penWidth
+    var activeLayer by rememberSaveable(s.id) {mutableStateOf("default")}
+    var showLayers by remember {mutableStateOf(false)}
+    LaunchedEffect(s.edits.layers) {if(s.edits.layers.none {it.id==activeLayer}) activeLayer=s.edits.layers.first().id}
+    val visibleStrokes=remember(s.edits.strokes,s.edits.layers) {InkLayers.ordered(s.edits)}
     var zoom by remember {mutableFloatStateOf(1f)}
     var visible by remember {mutableStateOf(true)}
     val anchor=if(s.format==Format.PDF) "pdf:$page" else sec?.id ?: "text"
@@ -63,7 +68,50 @@ fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: Docume
             } else sec.fields.joinToString("\n") {s.edits.values[it.id] ?: it.text}
         }
     }
+    val toolbar: @Composable ()->Unit = {Column {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+            TextButton({vm.settings(settings.copy(toolbarCollapsed=!settings.toolbarCollapsed))}) {Text(if(settings.toolbarCollapsed) "필기 도구 펼치기" else "필기 도구 접기")}
+            TextButton({vm.settings(settings.copy(toolbarTop=!settings.toolbarTop))}) {Text(if(settings.toolbarTop) "도구 아래로" else "도구 위로")}
+            TextButton({showLayers=true},enabled=!busy) {Text("레이어")}
+        }
+        if(!settings.toolbarCollapsed) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+            InkTool.entries.forEach { t -> FilterChip(tool==t,{vm.settings(settings.copy(penTool=t.name))},label={Text(when(t){InkTool.PEN->"볼펜";InkTool.FOUNTAIN->"만년필";InkTool.PENCIL->"연필";InkTool.BRUSH->"브러시";InkTool.HIGHLIGHTER->"형광펜";InkTool.ERASER->"획 지우개";InkTool.LINE->"직선";InkTool.ARROW->"화살표";InkTool.RECTANGLE->"사각형";InkTool.ELLIPSE->"원";InkTool.LASSO->"올가미";InkTool.HAND->"손"})},enabled=!busy)}
+            FilterChip(visible,{visible=!visible},label={Text("필기 표시")},enabled=!busy)
+        }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+            (listOf(0xFF294E46.toInt(),0xFF1A1A1A.toInt(),0xFFBC4949.toInt(),0xFF315FBB.toInt(),0xFFF2C844.toInt())+settings.favoriteColors).distinct().map {Color(it)}.forEach { c ->
+                Box(Modifier.size(36.dp).padding(5.dp).background(c,androidx.compose.foundation.shape.CircleShape).border(if(c==color) 3.dp else 0.dp,Color.Gray,androidx.compose.foundation.shape.CircleShape).clickable(enabled=!busy){vm.settings(settings.copy(penColor=c.toArgb()))})
+            }
+            Text(if(tool==InkTool.ERASER) "지우개 크기" else "굵기",style=MaterialTheme.typography.labelSmall)
+            if(tool==InkTool.ERASER) Slider(settings.eraserRadius,{vm.settings(settings.copy(eraserRadius=it))},valueRange=0.005f..0.08f,modifier=Modifier.width(100.dp),enabled=!busy)
+            else Slider(line,{vm.settings(settings.copy(penWidth=it))},valueRange=0.002f..0.025f,modifier=Modifier.width(100.dp),enabled=!busy)
+            TextButton({customColor=true},enabled=!busy) {Text("설정")}
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically) {
+            Text("${(zoom*100).toInt()}%",style=MaterialTheme.typography.labelSmall)
+            Slider(zoom,{zoom=it},valueRange=1f..5f,modifier=Modifier.width(100.dp),enabled=!busy)
+            if(s.format!=Format.PDF) Text("문서 필기",style=MaterialTheme.typography.labelSmall)
+        }
+        if(selected.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=8.dp)) {
+            Text("${selected.size}획 선택",modifier=Modifier.padding(12.dp));TextButton({transform=true},enabled=!busy) {Text("이동·크기·회전")};TextButton({vm.transformInk(selected,duplicate=true)},enabled=!busy) {Text("복사")};TextButton({vm.erase(selected);selected=emptySet()},enabled=!busy) {Text("삭제")};TextButton({selected=emptySet()}) {Text("선택 해제")}
+        }
+        if(tool==InkTool.ERASER) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
+                FilterChip(!settings.partialEraser,{vm.settings(settings.copy(partialEraser=false))},label={Text("획 전체")},enabled=!busy)
+                Spacer(Modifier.width(8.dp))
+                FilterChip(settings.partialEraser,{vm.settings(settings.copy(partialEraser=true))},label={Text("지나간 부분만")},enabled=!busy)
+                TextButton({vm.erase(s.edits.strokes.filter {it.anchor==anchor}.map {it.id}.toSet())},enabled=!busy) {Text("페이지 필기 전체 지우기")}
+            }
+            Text("펜을 떼면 지우기가 적용됩니다 · 실행 취소 가능",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(horizontal=16.dp))
+        }
+        if(s.format!=Format.PDF) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=8.dp)) {
+            Paper.entries.forEach {p->FilterChip(s.edits.paper==p,{vm.paper(p)},label={Text(when(p) {Paper.BLANK->"무지";Paper.LINED->"줄노트";Paper.GRID->"격자";Paper.DOTS->"점노트"})},enabled=!busy)}
+        }
+        }
+    }}
     Column(Modifier.fillMaxSize()) {
+        if(settings.toolbarTop) toolbar()
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().background(Color(0xFFE5E5DF))) {
             val pageWidth=minOf(maxWidth-24.dp,(maxHeight-24.dp)*ratio)*zoom
             val viewportWidth=maxWidth-24.dp
@@ -78,57 +126,23 @@ fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: Docume
                             TextButton({renderRetry++},enabled=!busy) {Text("다시 불러오기")}
                         }
                     } else if(slide!=null) AndroidView(factory={SlideView(it)},update={it.scene=slide;it.editable=false;it.invalidate()},modifier=Modifier.fillMaxSize())
-                    else AndroidView(factory={context -> NoteView(context)},update={it.text=text;it.pageRatio=ratio;it.invalidate()},modifier=Modifier.fillMaxSize())
+                    else AndroidView(factory={context -> NoteView(context)},update={it.text=text;it.pageRatio=ratio;it.paper=s.edits.paper;it.invalidate()},modifier=Modifier.fillMaxSize())
                     if(visible && (s.format!=Format.PDF || image!=null)) AndroidView(factory={context -> InkView(context)},update={v ->
-                        v.strokes=s.edits.strokes;v.anchor=anchor;v.tool=tool;v.inkColor=color.toArgb();v.lineWidth=line
-                        v.opacity=settings.penOpacity;v.selected=selected;v.onSelect={selected=it}
-                        v.onLasso={polygon->val snapshot=s.edits.strokes;scope.launch {selected=withContext(Dispatchers.Default) {InkGeometry.select(snapshot,anchor,polygon)}}}
+                        v.strokes=visibleStrokes;v.anchor=anchor;v.tool=tool;v.inkColor=color.toArgb();v.lineWidth=line
+                        v.opacity=settings.penOpacity;v.pressureCurve=settings.pressureCurve;v.smoothing=settings.smoothing;v.autoSnap=settings.autoSnap;v.layerId=activeLayer;v.selected=selected;v.onSelect={selected=it}
+                        v.onLasso={polygon->val snapshot=visibleStrokes.filter {it.layerId in InkLayers.editable(s.edits)};scope.launch {selected=withContext(Dispatchers.Default) {InkGeometry.select(snapshot,anchor,polygon)}}}
                         v.onZoom={zoom=(zoom*it).coerceIn(1f,5f)};v.onPan={dx,dy->scope.launch {horizontal.scrollTo((horizontal.value-dx).toInt());vertical.scrollTo((vertical.value-dy).toInt())}}
                         v.stylusOnly=settings.stylusOnly;v.onStroke=vm::addStroke;v.eraserRadius=settings.eraserRadius
-                        v.onEraseGesture={gesture,radius,aspect->vm.eraseInk(anchor,gesture,radius,aspect,settings.partialEraser)};v.isEnabled=!busy;v.invalidate()
+                        v.onEraseGesture={gesture,radius,aspect->vm.eraseInk(anchor,gesture,radius,aspect,settings.partialEraser)};v.isEnabled=!busy && activeLayer in InkLayers.editable(s.edits);v.invalidate()
                     },modifier=Modifier.fillMaxSize())
                 }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-            InkTool.entries.forEach { t -> FilterChip(tool==t,{vm.settings(settings.copy(penTool=t.name))},label={Text(when(t){InkTool.PEN->"볼펜";InkTool.FOUNTAIN->"만년필";InkTool.PENCIL->"연필";InkTool.BRUSH->"브러시";InkTool.HIGHLIGHTER->"형광펜";InkTool.ERASER->"획 지우개";InkTool.LINE->"직선";InkTool.ARROW->"화살표";InkTool.RECTANGLE->"사각형";InkTool.ELLIPSE->"원";InkTool.LASSO->"올가미";InkTool.HAND->"손"})},enabled=!busy)}
-            FilterChip(visible,{visible=!visible},label={Text("필기 표시")},enabled=!busy)
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
-            listOf(Color(0xFF294E46),Color(0xFF1A1A1A),Color(0xFFBC4949),Color(0xFF315FBB),Color(0xFFF2C844)).forEach { c ->
-                Box(Modifier.size(36.dp).padding(5.dp).background(c,androidx.compose.foundation.shape.CircleShape).border(if(c==color) 3.dp else 0.dp,Color.Gray,androidx.compose.foundation.shape.CircleShape).clickable(enabled=!busy){vm.settings(settings.copy(penColor=c.toArgb()))})
-            }
-            Text(if(tool==InkTool.ERASER) "지우개 크기" else "굵기",style=MaterialTheme.typography.labelSmall)
-            if(tool==InkTool.ERASER) Slider(settings.eraserRadius,{vm.settings(settings.copy(eraserRadius=it))},valueRange=0.005f..0.08f,modifier=Modifier.weight(1f),enabled=!busy)
-            else Slider(line,{vm.settings(settings.copy(penWidth=it))},valueRange=0.002f..0.025f,modifier=Modifier.weight(1f),enabled=!busy)
-            TextButton({customColor=true},enabled=!busy) {Text("설정")}
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text("${(zoom*100).toInt()}%",style=MaterialTheme.typography.labelSmall)
-            Slider(zoom,{zoom=it},valueRange=1f..5f,modifier=Modifier.weight(1f),enabled=!busy)
-            if(s.format!=Format.PDF) Text("고정 필기 좌표",style=MaterialTheme.typography.labelSmall)
-        }
-        if(selected.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=8.dp)) {
-            Text("${selected.size}획 선택",modifier=Modifier.padding(12.dp));TextButton({transform=true},enabled=!busy) {Text("이동·크기·회전")};TextButton({vm.transformInk(selected,duplicate=true)},enabled=!busy) {Text("복사")};TextButton({vm.erase(selected);selected=emptySet()},enabled=!busy) {Text("삭제")};TextButton({selected=emptySet()}) {Text("선택 해제")}
-        }
-        if(tool==InkTool.ERASER) {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
-                FilterChip(!settings.partialEraser,{vm.settings(settings.copy(partialEraser=false))},label={Text("획 전체")},enabled=!busy)
-                Spacer(Modifier.width(8.dp))
-                FilterChip(settings.partialEraser,{vm.settings(settings.copy(partialEraser=true))},label={Text("지나간 부분만")},enabled=!busy)
-                TextButton({vm.erase(s.edits.strokes.filter {it.anchor==anchor}.map {it.id}.toSet())},enabled=!busy) {Text("페이지 필기 전체 지우기")}
-            }
-            Text("펜을 떼면 지우기가 적용됩니다 · 실행 취소 가능",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(horizontal=16.dp))
-        }
+        if(!settings.toolbarTop) toolbar()
     }
-    if(customColor) {
-        var hex by remember {mutableStateOf(String.format("%06X",settings.penColor and 0xffffff))}
-        AlertDialog(onDismissRequest={customColor=false},title={Text("펜 설정 · 다음에도 유지")},text={Column {
-            OutlinedTextField(hex,{hex=it.uppercase()},label={Text("색상 RRGGBB")},singleLine=true)
-            Text("투명도 ${(settings.penOpacity*100).toInt()}%");Slider(settings.penOpacity,{vm.settings(settings.copy(penOpacity=it))},valueRange=0.1f..1f)
-        }},confirmButton={TextButton({if(hex.matches(Regex("[0-9A-F]{6}"))) {vm.settings(settings.copy(penColor=AndroidColor.parseColor("#$hex")));customColor=false} else vm.message("6자리 색상 값을 입력하세요.")}) {Text("적용")}},dismissButton={TextButton({customColor=false}) {Text("닫기")}})
-    }
+    if(customColor) InkSettingsDialog(settings,vm) {customColor=false}
+    if(showLayers) InkLayersDialog(s.edits,activeLayer,vm,{activeLayer=it}) {showLayers=false}
     if(transform) {
         var x by remember {mutableStateOf("0")};var y by remember {mutableStateOf("0")};var scale by remember {mutableStateOf("1")};var rotation by remember {mutableStateOf("0")}
         AlertDialog(onDismissRequest={transform=false},title={Text("선택 필기 변형")},text={Column {
@@ -138,12 +152,14 @@ fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: Docume
 }
 
 private class NoteView(context: android.content.Context): View(context) {
+    var paper=Paper.BLANK
     var text=""
     var pageRatio=595f/842f
     private var cachedText=""
     private var layout: StaticLayout?=null
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        drawPaper(canvas,paper,width.toFloat(),height.toFloat())
         if(layout==null || cachedText!=text) {
             val paint=TextPaint(Paint.ANTI_ALIAS_FLAG).apply {textSize=12f;color=AndroidColor.BLACK}
             layout=StaticLayout.Builder.obtain(text,0,text.length,paint,511).setAlignment(Layout.Alignment.ALIGN_NORMAL).setLineSpacing(4f,1f).build()

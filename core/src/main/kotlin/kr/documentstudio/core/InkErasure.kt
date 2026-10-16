@@ -38,10 +38,10 @@ object InkErasure {
             val path=InkGeometry.path(stroke).let {points -> if(isShape) points.map {it.copy(pressure=1f,tilt=0f)} else points}
             val positions=path.map(::position)
             val response=when(stroke.tool) {
-                InkTool.BRUSH -> 0.2+path.maxOf {it.pressure.toDouble().coerceIn(0.1,2.0).pow(2)}
-                InkTool.FOUNTAIN -> 0.3+path.maxOf {it.pressure.toDouble().coerceIn(0.1,2.0)}*1.3
-                InkTool.PENCIL -> 0.6+path.maxOf {it.pressure.toDouble().coerceIn(0.1,2.0)}*0.3
-                InkTool.PEN -> 0.5+path.maxOf {it.pressure.toDouble().coerceIn(0.1,2.0)}/2
+                InkTool.BRUSH -> 0.2+path.maxOf {InkGeometry.pressure(it.pressure,stroke.pressureCurve).toDouble().pow(2)}
+                InkTool.FOUNTAIN -> 0.3+path.maxOf {InkGeometry.pressure(it.pressure,stroke.pressureCurve).toDouble()}*1.3
+                InkTool.PENCIL -> 0.6+path.maxOf {InkGeometry.pressure(it.pressure,stroke.pressureCurve).toDouble()}*0.3
+                InkTool.PEN -> 0.5+path.maxOf {InkGeometry.pressure(it.pressure,stroke.pressureCurve).toDouble()}/2
                 else -> 1.0
             }
             val reach=radius+stroke.width*response/2
@@ -88,7 +88,7 @@ object InkErasure {
             else if(partial) fragments.forEachIndexed {i,points ->
                 keep(stroke.copy(id=if(i==0) stroke.id else UUID.randomUUID().toString(),
                     tool=if(isShape) InkTool.PEN else stroke.tool,
-                    points=points))
+                    points=points,smoothing=0f))
             }
         }
         return output

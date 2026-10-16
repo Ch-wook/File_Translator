@@ -56,8 +56,11 @@ object PdfEngine {
         }
     }
     fun displaySize(file: File,index: Int): Pair<Float,Float> = PDDocument.load(file).use {doc->val page=doc.getPage(index);val r=page.cropBox;if(((page.rotation%360)+360)%360 in listOf(90,270)) r.height to r.width else r.width to r.height}
-    fun write(base: File, destination: File, strokes: List<Stroke>, ordinaryCopy: Boolean,values: Map<String,String> = emptyMap()) {
+    fun write(base: File, destination: File, strokes: List<Stroke>, ordinaryCopy: Boolean,values: Map<String,String> = emptyMap(),layers: List<InkLayer> = listOf(InkLayer())) {
+        InkLayers.validate(layers)
+        require(strokes.all {s->layers.any {it.id==s.layerId}})
         PDDocument.load(base).use { doc ->
+            doc.documentCatalog.cosObject.setString("StudioLayers",StateCodec.layers(layers).toString())
             values.filterKeys {it.startsWith("pdf:form#")}.forEach {(key,value)->
                 val field=doc.documentCatalog.acroForm?.getField(key.removePrefix("pdf:form#")) ?: error("PDF 양식 필드를 찾을 수 없습니다.")
                 require(!field.isReadOnly && field !is PDSignatureField) {"읽기 전용·서명 필드는 수정할 수 없습니다."}
@@ -69,7 +72,7 @@ object PdfEngine {
                 page.annotations = page.annotations.filterNot { it.annotationName?.startsWith(PREFIX) == true }.toMutableList()
                 val rect = page.cropBox; val rotation = ((page.rotation % 360) + 360) % 360
                 val displayWidth = if (rotation in listOf(90,270)) rect.height else rect.width
-                strokes.filter { it.anchor == "pdf:$index" }.forEach { s ->
+                layers.flatMap {l->strokes.filter {it.layerId==l.id}}.filter { it.anchor == "pdf:$index" }.forEach { s ->
                     val points = shapePoints(s)
                     fun map(p: InkPoint): Pair<Float,Float> = when(rotation) {
                         90 -> (rect.lowerLeftX + p.y * rect.width) to (rect.lowerLeftY + p.x * rect.height)
@@ -92,11 +95,17 @@ object PdfEngine {
                         val margin = s.width * displayWidth + 2
                         rectangle = PDRectangle(xy.minOf { it.first }-margin, xy.minOf { it.second }-margin,
                             xy.maxOf { it.first }-xy.minOf { it.first }+margin*2, xy.maxOf { it.second }-xy.minOf { it.second }+margin*2)
-                        isPrinted = true
+                        isPrinted = layers.first {it.id==s.layerId}.visible
+                        isHidden = !isPrinted
                     }
                     page.annotations.add(annotation)
                     annotation.cosObject.setString("StudioTool",s.tool.name)
                     annotation.cosObject.setFloat(COSName.getPDFName("StudioOpacity"),s.opacity)
+                    annotation.cosObject.setFloat(COSName.getPDFName("StudioWidth"),s.width)
+                    annotation.cosObject.setFloat(COSName.getPDFName("StudioCurve"),s.pressureCurve)
+                    annotation.cosObject.setFloat(COSName.getPDFName("StudioSmoothing"),s.smoothing)
+                    annotation.cosObject.setString("StudioLayer",s.layerId)
+                    annotation.cosObject.setBoolean(COSName.getPDFName("StudioSnapped"),s.snapped)
                     annotation.cosObject.setString("StudioPoints",org.json.JSONArray().apply {s.points.forEach {p->put(org.json.JSONArray(listOf(p.x,p.y,p.pressure,p.tilt)))}}.toString())
                     annotation.constructAppearances(doc)
                 }
@@ -124,10 +133,16 @@ object PdfEngine {
                 val original=if(stored!=null) runCatching {val array=org.json.JSONArray(stored);require(array.length()<=10000);(0 until array.length()).map {n->array.getJSONArray(n).let {p->InkPoint(p.getDouble(0).toFloat(),p.getDouble(1).toFloat(),p.getDouble(2).toFloat(),p.optDouble(3,0.0).toFloat())}}.also {points->require(points.all {it.x.isFinite() && it.y.isFinite() && it.x in 0f..1f && it.y in 0f..1f && it.pressure.isFinite() && it.tilt.isFinite()})}}.getOrNull() else null
                 val tool=runCatching {InkTool.valueOf(ann.cosObject.getString("StudioTool") ?: "")}.getOrNull() ?: if((mark?.constantOpacity ?: 1f)<0.5f) InkTool.HIGHLIGHTER else InkTool.PEN
                 strokes.add(Stroke(ann.annotationName.removePrefix(PREFIX), "pdf:$index",tool,
-                    ann.color?.toRGB()?.or(0xFF000000.toInt()) ?: Color.BLACK, (mark?.borderStyle?.width ?: 2f)/displayWidth, original ?: pts,ann.cosObject.getFloat(COSName.getPDFName("StudioOpacity"),1f).coerceIn(0f,1f)))
+                    ann.color?.toRGB()?.or(0xFF000000.toInt()) ?: Color.BLACK, ann.cosObject.getFloat(COSName.getPDFName("StudioWidth"),(mark?.borderStyle?.width ?: 2f)/displayWidth).also {require(it.isFinite() && it in .0001f..0.1f)}, original ?: pts,ann.cosObject.getFloat(COSName.getPDFName("StudioOpacity"),1f).coerceIn(0f,1f),
+                    ann.cosObject.getFloat(COSName.getPDFName("StudioCurve"),1f).also {require(it.isFinite() && it in 0.25f..3f)},
+                    ann.cosObject.getFloat(COSName.getPDFName("StudioSmoothing"),0f).also {require(it.isFinite() && it in 0f..1f)},
+                    ann.cosObject.getString("StudioLayer") ?: "default",ann.cosObject.getBoolean(COSName.getPDFName("StudioSnapped"),false)))
             }
         }
         strokes
+    }
+    fun importLayers(file: File): List<InkLayer> = PDDocument.load(file).use {doc->
+        doc.documentCatalog.cosObject.getString("StudioLayers")?.let {require(it.length<=8192);StateCodec.decodeLayers(org.json.JSONArray(it))} ?: listOf(InkLayer())
     }
     fun cleanOwned(file: File) {
         val tmp = File(file.parentFile, "clean-${System.nanoTime()}.pdf")

@@ -40,3 +40,6 @@ W02: 문서 ID에 묶인 편집 명령과 적응형 두 창, 창별 Undo/Redo·�
 W02 수동 확인: 시스템 폴더 선택기에서 `Documents/StudioExecutionPlan`만 허용하고 `folder-proof.txt`를 열어 `SAF_FOLDER_EDITED`로 편집했다. 저장 완료를 기다린 뒤 실제 제공자 파일 바이트를 읽어 확인했다. 근거는 `artifacts/w02/folder-proof.txt`, `folder-proof.png`다. 앱 전체 저장소 권한은 추가하지 않았다.
 
 W03: 선택 문자 범위의 실제 PDF Highlight/Underline/StrikeOut 주석과 기존 메모/텍스트 주석 편집·삭제를 구현했다. 본문은 변경하지 않고 QuadPoints와 벡터 appearance를 기록한다. Android 본문 렌더 위에 주석을 합성하고 가로 페이지 모드를 추가했다. PdfAnnotationsTest 4개와 PdfMarkupUiTest 1개가 통과했다. 회전 0/90/180/270 × 세 주석 종류, CropBox, 여러 줄, 외부 주석 보존, 저장/새 URI 재열기, 오래된 편집 거부, 답글 보호, UI 선택·Undo/Redo·삭제·가로 이동을 검사했다. 첫 검사에서 회전 90도 appearance가 보이지 않아 로컬 BBox와 명시적인 주석 회전 합성으로 수정한 뒤 통과했다. 로그: `.tools/w03-tests.log`.
+W04: 필압 곡선, 원시 샘플을 유지하는 획 보정, 펜을 뗄 때 도형 보정, 즐겨찾는 펜 12개/색 16개, 도구 위·아래 이동/접기, 무지·줄·격자·점 템플릿, 최대 8개 필기 레이어(표시·잠금·순서·이름)를 구현했다. 레이어 잠금은 입력뿐 아니라 지우개·올가미 변형에서도 보호한다. 숨김 필기는 PDF 표준 Hidden/Print 플래그와 앱 메타데이터를 함께 저장한다. 필압·보정·원시 좌표·레이어는 PDF와 ZIP에서 복원한다. 템플릿은 노트 화면과 본문/필기 PDF에 반영한다. 보정 경로 캐시와 입력 중 끝점만 갱신하는 버퍼로 매 프레임 전체 목록 복사를 피한다.
+
+W04 검사: InkAdvancedTest 3개와 기존 JVM 전체 71개 통과, InkAdvancedPersistenceTest 2개 + 기존 InkInputTest 2개 통과, InkAdvancedUiTest 1개 통과. UI 검사는 실제 필기 View에 입력해 새 레이어 귀속과 숨김, 도구 접기/위치, 프리셋, 격자 선택을 확인했다. PDF 왕복 검사에서 기존 굵기 환산의 소수 오차를 발견해 원래 정규화 굵기도 메타데이터로 보존했다. 증거: `.tools/w04-tests.log`, `.tools/w04-ui-test.log`. 실제 펜 지연/팜리젝션 장치 검증은 이 합성 이벤트 검사와 구분한다.

@@ -79,10 +79,11 @@ class DocumentRepository(private val context: Context) {
             val old = existing?.let { restoreInternal(it.id) }
             val hash = digest(incoming)
             val strokes = if(format==Format.PDF) PdfEngine.importOwned(incoming) else old?.edits?.strokes ?: emptyList()
+            val layers = if(format==Format.PDF) PdfEngine.importLayers(incoming) else old?.edits?.layers ?: listOf(InkLayer())
             if(format==Format.PDF) { PdfEngine.inspect(incoming); PdfEngine.cleanOwned(incoming) }
             val base = File(dir,"base.bin"); atomic(base,incoming.readBytes())
             val s = build(id,name,format,uri.toString(),hash,base,encoding).let {
-                val edits = it.edits.copy(strokes=strokes); it.copy(edits=edits,saved=edits)
+                val edits = it.edits.copy(strokes=strokes,layers=layers,paper=old?.edits?.paper ?: Paper.BLANK); it.copy(edits=edits,saved=edits)
             }
             checkpointInternal(s); s
         } finally { incoming.delete() }
@@ -164,7 +165,7 @@ class DocumentRepository(private val context: Context) {
         checkpointInternal(s)
         when(s.format) {
             Format.TXT,Format.MD -> atomic(stage,s.textContent!!.encode(s.edits.text)).also { TextContent.decode(stage.readBytes(),s.textContent.charset) }
-            Format.PDF -> PdfEngine.write(s.base,stage,s.edits.strokes,s.pdf!!.archival,s.edits.values)
+            Format.PDF -> PdfEngine.write(s.base,stage,s.edits.strokes,s.pdf!!.archival,s.edits.values,s.edits.layers)
             Format.DOC,Format.XLS,Format.PPT,Format.HWP -> if(s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty()) atomic(stage,s.base.readBytes()) else s.legacy!!.write(stage,s.edits)
             else -> s.pack!!.write(stage,s.edits)
         }
@@ -191,7 +192,7 @@ class DocumentRepository(private val context: Context) {
     suspend fun exportPdf(s: Session, destination: Uri) = io {
         require(destination.toString()!=s.uri) { "PDF 내보내기는 원본과 다른 파일을 선택하세요." }
         val stage = File(s.base.parentFile,"export.pdf")
-        if(s.format==Format.PDF) PdfEngine.write(s.base,stage,s.edits.strokes,s.pdf!!.archival,s.edits.values) else ExportEngine.document(s,stage)
+        if(s.format==Format.PDF) PdfEngine.write(s.base,stage,s.edits.strokes,s.pdf!!.archival,s.edits.values,s.edits.layers) else ExportEngine.document(s,stage)
         val backup = File(s.base.parentFile,"export-backup.bin")
         copyUri(destination,backup)
         try {
@@ -236,7 +237,7 @@ class DocumentRepository(private val context: Context) {
         } finally {stage.delete()}
     }
     suspend fun printable(s: Session): File = io {
-        File(context.cacheDir,"print-${UUID.randomUUID()}.pdf").also {file->if(s.format==Format.PDF) PdfEngine.write(s.base,file,s.edits.strokes,s.pdf!!.archival,s.edits.values) else ExportEngine.document(s,file)}
+        File(context.cacheDir,"print-${UUID.randomUUID()}.pdf").also {file->if(s.format==Format.PDF) PdfEngine.write(s.base,file,s.edits.strokes,s.pdf!!.archival,s.edits.values,s.edits.layers) else ExportEngine.document(s,file)}
     }
     suspend fun render(s: Session,page: Int) = withContext(Dispatchers.IO) { PdfEngine.render(s.base,page,annotationPages=s.pdf?.annotatedPages) }
     suspend fun prepareOffice(s: Session): File = io {
@@ -294,7 +295,7 @@ class DocumentRepository(private val context: Context) {
         val mapping=if(s.format in listOf(Format.XLSX,Format.XLS)) s.sections.associate {old ->
             old.id to (parsed.sections.firstOrNull {it.sourceName==old.sourceName}?.id ?: old.id)
         } else emptyMap()
-        val result=parsed.copy(edits=Edits(strokes=s.edits.strokes.map {it.copy(anchor=mapping[it.anchor] ?: it.anchor)}),
+        val result=parsed.copy(edits=Edits(strokes=s.edits.strokes.map {it.copy(anchor=mapping[it.anchor] ?: it.anchor)},layers=s.edits.layers,paper=s.edits.paper),
             saved=s.saved,revision=s.revision+1,savedRevision=s.savedRevision)
         checkpointInternal(result)
         marker.delete();closed.delete()
@@ -334,7 +335,7 @@ class DocumentRepository(private val context: Context) {
                 if(change.type.endsWith(".duplicate")) {val new=sections.first {sec->s.sections.none {it.id==sec.id}}.id;strokes=strokes+strokes.filter {it.anchor==change.target}.map {it.copy(id=UUID.randomUUID().toString(),anchor=new)}}
             }
             val extract=change.type=="pdf.extract"
-            val result=build(s.id,if(extract) s.name.substringBeforeLast('.')+"-추출.pdf" else s.name,s.format,if(extract) null else s.uri,if(extract) null else s.sourceHash,next).copy(edits=Edits(strokes=strokes),saved=s.saved,revision=s.revision+1,savedRevision=s.savedRevision)
+            val result=build(s.id,if(extract) s.name.substringBeforeLast('.')+"-추출.pdf" else s.name,s.format,if(extract) null else s.uri,if(extract) null else s.sourceHash,next).copy(edits=Edits(strokes=strokes,layers=s.edits.layers,paper=s.edits.paper),saved=s.saved,revision=s.revision+1,savedRevision=s.savedRevision)
             checkpointInternal(result);result
         } finally {materialized.delete()}
     }

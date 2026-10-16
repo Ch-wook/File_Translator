@@ -22,6 +22,10 @@ class InkView(context: Context): View(context) {
     var inkColor=Color.rgb(40,65,58)
     var lineWidth=0.004f
     var opacity=1f
+    var pressureCurve=1f
+    var smoothing=0f
+    var autoSnap=false
+    var layerId="default"
     var stylusOnly=false
     var onStroke: (Stroke)->Unit={}
     var eraserRadius=0.025f
@@ -50,7 +54,7 @@ class InkView(context: Context): View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         strokes.forEach {if(it.anchor==anchor) strokePainter.draw(canvas,it,width.toFloat(),height.toFloat())}
-        preview?.let {strokePainter.draw(canvas,it,width.toFloat(),height.toFloat())}
+        preview?.let {strokePainter.draw(canvas,it,width.toFloat(),height.toFloat(),cache=false)}
         strokes.forEach {s->if(s.anchor==anchor && s.id in selected) {val pts=shapePoints(s);if(pts.isNotEmpty()) canvas.drawRect(pts.minOf {it.x}*width-4,pts.minOf {it.y}*height-4,pts.maxOf {it.x}*width+4,pts.maxOf {it.y}*height+4,selectionPaint)}}
         if(strokeTool==InkTool.LASSO && points.isNotEmpty()) {gesturePath.rewind();gesturePath.moveTo(points[0].x*width,points[0].y*height);for(i in 1 until points.size) gesturePath.lineTo(points[i].x*width,points[i].y*height);gesturePath.close();canvas.drawPath(gesturePath,selectionPaint)}
         if(strokeTool==InkTool.ERASER && points.isNotEmpty()) {
@@ -97,7 +101,7 @@ class InkView(context: Context): View(context) {
                 if(event.getPointerId(index)!=activeId) return activeId!=-1
                 if(event.flags and MotionEvent.FLAG_CANCELED == 0) {
                     sample(event,index)
-                    if(strokeTool==InkTool.ERASER) onEraseGesture(points.toList(),eraserRadius,height.toFloat()/width.coerceAtLeast(1)) else if(strokeTool==InkTool.LASSO) onLasso(points.toList()) else preview?.let {onStroke(it.copy(points=points.toList()))}
+                    if(strokeTool==InkTool.ERASER) onEraseGesture(points.toList(),eraserRadius,height.toFloat()/width.coerceAtLeast(1)) else if(strokeTool==InkTool.LASSO) onLasso(points.toList()) else preview?.let {val committed=it.copy(points=points.toList());onStroke(if(autoSnap) InkGeometry.snap(committed) else committed)}
                 }
                 clear(); performClick(); return true
             }
@@ -115,7 +119,7 @@ class InkView(context: Context): View(context) {
         if(points.size<10000 && (points.isEmpty() || hypot(x-points.last().x*width,y-points.last().y*height)>0.5)) points.add(point)
         // The preview stays on this View's UI thread. Freeze the buffer once,
         // on commit, before handing it to the immutable document state.
-        preview=if(strokeTool in listOf(InkTool.LASSO,InkTool.ERASER)) null else Stroke(id=strokeId,anchor=anchor,tool=strokeTool,color=inkColor,width=lineWidth,points=points,opacity=opacity)
+        preview=if(strokeTool in listOf(InkTool.LASSO,InkTool.ERASER)) null else Stroke(id=strokeId,anchor=anchor,tool=strokeTool,color=inkColor,width=lineWidth,points=points,opacity=opacity,pressureCurve=pressureCurve,smoothing=smoothing,layerId=layerId)
         invalidate()
     }
     private fun clear() { activeId=-1; points.clear(); preview=null; parent.requestDisallowInterceptTouchEvent(false); invalidate() }

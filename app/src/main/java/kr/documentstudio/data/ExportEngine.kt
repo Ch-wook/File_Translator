@@ -36,10 +36,11 @@ object ExportEngine {
                 while(offset<height) {
                     val page=pdf.startPage(PdfDocument.PageInfo.Builder(595,842,++number).create())
                     page.canvas.drawColor(Color.WHITE)
+                    drawPaper(page.canvas,s.edits.paper,595f,842f)
                     paint.textSize=10f; page.canvas.drawText(title,42f,30f,paint); paint.textSize=12f
                     page.canvas.save(); page.canvas.clipRect(42f,48f,553f,796f); page.canvas.translate(42f,48f-offset); layout.draw(page.canvas); page.canvas.restore()
                     // Semantic text/cell export: coordinates refer to the fixed section note page, not Office pagination.
-                    if(offset==0) s.edits.strokes.filter { it.anchor==anchor }.forEach { drawStroke(page.canvas,it,595f,if(s.format==Format.PPTX) 595f*9/16 else 842f) }
+                    if(offset==0) InkLayers.ordered(s.edits).filter { it.anchor==anchor }.forEach { drawStroke(page.canvas,it,595f,if(s.format==Format.PPTX) 595f*9/16 else 842f) }
                     pdf.finishPage(page); offset+=748
                 }
             }
@@ -57,14 +58,29 @@ fun drawStroke(canvas: android.graphics.Canvas,s: Stroke,w: Float,h: Float) {
 class StrokePainter {
     private val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply {strokeCap=Paint.Cap.ROUND;strokeJoin=Paint.Join.ROUND}
     private val path=Path()
-    fun draw(canvas: android.graphics.Canvas,s: Stroke,w: Float,h: Float) {
-        val points=shapePoints(s);if(points.isEmpty()) return
+    private val cached=object: LinkedHashMap<String,Pair<Stroke,List<InkPoint>>>(32,0.75f,true) {}
+    private var cachedPoints=0
+    private var previewId=""
+    private var previewAmount=-1f
+    private val previewPoints=ArrayList<InkPoint>()
+    fun draw(canvas: android.graphics.Canvas,s: Stroke,w: Float,h: Float,cache: Boolean=true) {
+        val hit=if(cache) cached[s.id]?.takeIf {it.first===s} else null
+        val points=if(!cache && s.smoothing>0f && s.tool in setOf(InkTool.PEN,InkTool.PENCIL,InkTool.BRUSH,InkTool.FOUNTAIN,InkTool.HIGHLIGHTER)) {
+            if(previewId!=s.id || previewAmount!=s.smoothing || previewPoints.size>s.points.size) {previewPoints.clear();previewId=s.id;previewAmount=s.smoothing}
+            // Only the formerly last point changes when a new sample arrives.
+            val start=(previewPoints.size-1).coerceAtLeast(0)
+            for(i in start until s.points.size) {val p=InkGeometry.smoothPoint(s.points,i,s.smoothing);if(i<previewPoints.size) previewPoints[i]=p else previewPoints.add(p)}
+            previewPoints
+        } else hit?.second ?: shapePoints(s).also {points -> if(cache && s.smoothing>0f) {
+            cached.remove(s.id)?.let {cachedPoints-=it.second.size};cached[s.id]=s to points;cachedPoints+=points.size
+            while(cached.size>128 || cachedPoints>200000) {val first=cached.entries.first();cachedPoints-=first.value.second.size;cached.remove(first.key)}
+        }};if(points.isEmpty()) return
         paint.color=s.color;paint.alpha=(s.opacity*if(s.tool==InkTool.HIGHLIGHTER) 72 else if(s.tool==InkTool.PENCIL) 150 else 255).toInt().coerceIn(0,255)
         paint.style=Paint.Style.STROKE;paint.strokeWidth=(s.width*w).coerceAtLeast(0.5f)
         if(points.size==1) {paint.style=Paint.Style.FILL;canvas.drawCircle(points[0].x*w,points[0].y*h,paint.strokeWidth/2,paint);return}
         if(s.tool==InkTool.PEN || s.tool==InkTool.FOUNTAIN || s.tool==InkTool.PENCIL || s.tool==InkTool.BRUSH) {
             for(i in 1 until points.size) {
-                val a=points[i-1];val b=points[i];val pressure=(a.pressure+b.pressure)/2
+                val a=points[i-1];val b=points[i];val pressure=InkGeometry.pressure((a.pressure+b.pressure)/2,s.pressureCurve)
                 val response=when(s.tool) {InkTool.FOUNTAIN->0.3f+pressure*(1f+0.3f*kotlin.math.sin(a.tilt));InkTool.BRUSH->0.2f+pressure*pressure;InkTool.PENCIL->0.6f+pressure*0.3f;else->0.5f+pressure/2}
                 paint.strokeWidth=(s.width*w*response).coerceAtLeast(0.5f);canvas.drawLine(a.x*w,a.y*h,b.x*w,b.y*h,paint)
             }
@@ -74,4 +90,13 @@ class StrokePainter {
             canvas.drawPath(path,paint)
         }
     }
+}
+
+fun drawPaper(canvas: android.graphics.Canvas,paper: Paper,w: Float,h: Float) {
+    if(paper==Paper.BLANK) return
+    val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=0xFFDCE4EA.toInt();strokeWidth=w/1000f}
+    val step=w/24
+    var y=step
+    while(y<h) {if(paper!=Paper.DOTS) canvas.drawLine(0f,y,w,y,paint) else {var x=step;while(x<w) {canvas.drawCircle(x,y,w/700,paint);x+=step}};y+=step}
+    if(paper==Paper.GRID) {var x=step;while(x<w) {canvas.drawLine(x,0f,x,h,paint);x+=step}}
 }

@@ -67,10 +67,14 @@ object FormatDetector {
 data class InkPoint(val x: Float, val y: Float, val pressure: Float = 1f, val tilt: Float = 0f)
 enum class InkTool { PEN, FOUNTAIN, PENCIL, BRUSH, HIGHLIGHTER, ERASER, LINE, ARROW, RECTANGLE, ELLIPSE, LASSO, HAND }
 data class Stroke(val id: String = UUID.randomUUID().toString(), val anchor: String, val tool: InkTool,
-    val color: Int, val width: Float, val points: List<InkPoint>,val opacity: Float=1f)
+    val color: Int, val width: Float, val points: List<InkPoint>,val opacity: Float=1f,
+    val pressureCurve: Float=1f,val smoothing: Float=0f,val layerId: String="default",val snapped: Boolean=false)
+
+data class InkLayer(val id: String="default",val name: String="기본 레이어",val visible: Boolean=true,val locked: Boolean=false)
+enum class Paper { BLANK, LINED, GRID, DOTS }
 data class Edits(val text: String = "", val values: Map<String, String> = emptyMap(),
     val bold: Map<String, Boolean> = emptyMap(), val strokes: List<Stroke> = emptyList(),
-    val styles: Map<String, Map<String,String>> = emptyMap())
+    val styles: Map<String, Map<String,String>> = emptyMap(),val layers: List<InkLayer> = listOf(InkLayer()),val paper: Paper=Paper.BLANK)
 
 data class DocumentChange(val type: String,val target: String="",val arguments: Map<String,String> = emptyMap())
 

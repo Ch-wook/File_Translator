@@ -96,6 +96,6 @@ object SlideEngine {
     }
     fun export(s: Session,destination: File) {
         val pdf=android.graphics.pdf.PdfDocument()
-        try {s.sections.forEachIndexed {i,section ->val scene=load(s,section);try {val page=pdf.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(scene.width.toInt(),scene.height.toInt(),i+1).create());draw(page.canvas,scene,scene.width,scene.height);s.edits.strokes.filter {it.anchor==section.id}.forEach {drawStroke(page.canvas,it,scene.width,scene.height)};pdf.finishPage(page)} finally {scene.recycle()}};destination.outputStream().use {pdf.writeTo(it)}} finally {pdf.close()}
+        try {s.sections.forEachIndexed {i,section ->val scene=load(s,section);try {val page=pdf.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(scene.width.toInt(),scene.height.toInt(),i+1).create());draw(page.canvas,scene,scene.width,scene.height);InkLayers.ordered(s.edits).filter {it.anchor==section.id}.forEach {drawStroke(page.canvas,it,scene.width,scene.height)};pdf.finishPage(page)} finally {scene.recycle()}};destination.outputStream().use {pdf.writeTo(it)}} finally {pdf.close()}
     }
 }
