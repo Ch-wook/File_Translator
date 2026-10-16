@@ -73,6 +73,7 @@ fun StudioApp(vm: EditorViewModel) {
     var splitRight by rememberSaveable {mutableStateOf<String?>(null)}
     var pendingSaveId by rememberSaveable {mutableStateOf<String?>(null)}
     var pendingPdfId by rememberSaveable {mutableStateOf<String?>(null)}
+    var encryptedDialogId by rememberSaveable {mutableStateOf<String?>(null)}
     var pendingBackupId by rememberSaveable {mutableStateOf<String?>(null)}
     var browserUri by rememberSaveable {mutableStateOf(context.getSharedPreferences("file-browser",0).getString("tree",null))}
     var showBrowser by rememberSaveable {mutableStateOf(false)}
@@ -97,6 +98,7 @@ fun StudioApp(vm: EditorViewModel) {
     } } }
     val pdf=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) {uri -> if(uri!=null) pendingPdfId?.let {vm.exportPdf(uri,it)};pendingPdfId=null}
     val backup=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) {uri -> if(uri!=null) pendingBackupId?.let {vm.backup(uri,it)};pendingBackupId=null}
+    val encryptedBackup=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) {uri->vm.finishEncryptedBackup(uri)}
     val office=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {result -> vm.finishOffice(result.data?.getStringExtra("sessionId"))}
     val openOffice: (String)->Unit = {id -> vm.openOffice(id) {s,file ->
         office.launch(Intent(context,org.libreoffice.androidlib.StudioOfficeActivity::class.java)
@@ -148,6 +150,7 @@ fun StudioApp(vm: EditorViewModel) {
                             if(s.recoveryWarning!=null) DropdownMenuItem(text={Text("정밀 편집 복구본 보관 후 다시 시작")},onClick={menu=false;vm.archiveOfficeRecovery()})
                             DropdownMenuItem(text={Text("다른 이름으로 저장")},onClick={menu=false;saveAs()})
                             DropdownMenuItem(text={Text("필기 포함 PDF 내보내기")},onClick={menu=false;pendingPdfId=s.id;pdf.launch(s.name.substringBeforeLast('.')+"-필기.pdf")})
+                            DropdownMenuItem(text={Text("문서·필기 암호화 백업")},onClick={menu=false;encryptedDialogId=s.id})
                             DropdownMenuItem(text={Text("문서·필기 복구 ZIP 백업")},onClick={menu=false;pendingBackupId=s.id;backup.launch(s.name.substringBeforeLast('.')+"-백업.zip")})
                             DropdownMenuItem(text={Text("탭 닫기 (복구본 보존)")},onClick={menu=false;vm.close(s.id)})
                             DropdownMenuItem(text={Text("본문·필기 인쇄")},onClick={menu=false;vm.print(context)})
@@ -187,7 +190,13 @@ fun StudioApp(vm: EditorViewModel) {
                 Text(if(f==Format.DOC) "${f.label} · 기존 파일 편집" else "${f.label}  .${f.extension}")
             } }
         } },confirmButton={TextButton(onClick={newDialog=false}) {Text("닫기")}})
-        if(settingsDialog) SettingsDialog(state.settings,vm::settings) {settingsDialog=false}
+        if(state.lockedBackupUri!=null) key(state.lockedBackupUri) {BackupPasswordDialog(false,state.busy,state.message,vm::unlockBackup,vm::cancelBackupUnlock)}
+        encryptedDialogId?.let {id->BackupPasswordDialog(true,state.busy,onConfirm={password->
+            val name=state.tabs.firstOrNull {it.id==id}?.name
+            if(vm.prepareEncryptedBackup(id,password)) encryptedBackup.launch((name ?: "문서").substringBeforeLast('.')+"-백업.dsbackup")
+            encryptedDialogId=null
+        },onDismiss={encryptedDialogId=null})}
+        if(settingsDialog) SettingsDialog(state.settings,vm::settings,vm::cleanupTemporary) {settingsDialog=false}
         if(showBrowser && browserUri!=null) FolderBrowser(Uri.parse(browserUri),state.busy,vm::openExternal,{treePicker.launch(Uri.parse(browserUri))}) {showBrowser=false}
     }
 }
@@ -241,10 +250,10 @@ private fun Home(state: UiState,vm: EditorViewModel,new: ()->Unit,open: ()->Unit
 }
 
 @Composable
-private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,close: ()->Unit) {
+private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: ()->Unit,close: ()->Unit) {
     var licenses by remember {mutableStateOf(false)}
     var officeLicenses by remember {mutableStateOf(false)}
-    AlertDialog(onDismissRequest=close,title={Text("편집 설정")},text={Column {
+    AlertDialog(onDismissRequest=close,title={Text("편집 설정")},text={Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState())) {
         Row(verticalAlignment=Alignment.CenterVertically) {Text("펜 전용 필기",modifier=Modifier.weight(1f));Switch(settings.stylusOnly,{change(settings.copy(stylusOnly=it))})}
         Text("펜 전용 모드는 손가락 입력을 무시합니다. 정전식 펜은 손가락으로 인식될 수 있습니다.",style=MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(16.dp));Text("편집 글자 크기 · ${settings.fontSize.toInt()} sp")
@@ -254,6 +263,7 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,close: ()
         Row {listOf("UTF-8","MS949").forEach {e -> FilterChip(settings.encoding==e,{change(settings.copy(encoding=e))},label={Text(e)},modifier=Modifier.padding(end=8.dp))}}
         Text("BOM 인코딩을 우선하고 저장 시 인코딩과 원래 줄바꿈을 유지합니다. 자동 저장은 원본을 덮어쓰지 않습니다.",style=MaterialTheme.typography.bodySmall)
         TextButton(onClick={licenses=true}) {Text("오픈소스·SDK 라이선스")}
+        TextButton(cleanup) {Text("임시 변환 파일 정리")}
         TextButton(onClick={officeLicenses=true}) {Text("정밀 오피스 엔진 고지")}
     }},confirmButton={TextButton(onClick=close){Text("완료")}})
     if(licenses) {

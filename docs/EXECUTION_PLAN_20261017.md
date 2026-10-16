@@ -53,3 +53,10 @@ W06 검사: InkAnchorsTest 3개 추가로 JVM 전체 80개 통과. CellInkIntegr
 W07: 한국어+영어/영어 번들 OCR, 이미지 선택, PDF 범위(최대 20장), 필기 이미지 인식, 결과 검토·수정, 새 TXT 생성, PDF 검색 텍스트 추가를 구현했다. PDF는 원본 이미지/필기를 유지하고 표준 비표시 텍스트와 한글 subset 글꼴을 추가한다. 인식 도중 원본이 바뀌면 적용을 거부하고 중복 OCR도 보호한다. 취소한 ML 작업의 비트맵은 실제 SDK 완료 때 해제하며 동시에 한 건만 인식한다. 이미지/좌표/페이지/문자 수를 제한한다. 손글씨 전용 궤적 모델은 포함하지 않아 일반 이미지 OCR과 구분한다.
 
 W07 검사: OcrIntegrationTest 3개와 OcrUiTest 1개 통과. 한국어/영어 실제 번들 모델 인식, INTERNET 권한 부재, 스캔 PDF의 검색/새 URI 저장, 전후 픽셀 일치, 4방향 회전/CropBox 한국어 추출, 실제 화면 2쪽 범위 인식→검토→적용→Undo/Redo→TXT 생성을 확인했다. 최초 PDF 검사에서 Activity 이전의 PDFBox 자원 초기화 공백을 발견해 Application에서 초기화하도록 수정했다. `.tools/w07-tests.log`, `.tools/w07-ui-test.log`. 모델/글꼴 약관과 해시는 THIRD_PARTY.md에 기록했다.
+
+
+W08 백업/임시 파일: 기존 ZIP을 AES-256-GCM으로 감싼 `.dsbackup` 형식을 추가했다. PBKDF2-HMAC-SHA256 600,000회, 매번 새 16바이트 salt/12바이트 nonce, 인증된 40바이트 헤더와 128비트 태그를 사용한다. 인증 완료 전 임시 출력은 복구 문서로 가져오지 않으며 암호 오류/변조 시 기존 출력은 유지한다. 플랫폼 GCM 복호화의 버퍼 사용을 고려해 암호화 파일은 32 MiB로 제한하고, 기존 ZIP 128 MiB 읽기는 유지한다. 암호는 설정/복구 상태에 저장하지 않고 메모리 요청에만 보관한다. 선택기 대상 문서 ID를 고정하고 취소/완료/모델 정리 때 CharArray를 지운다. 원본 Office/PDF 암호 편집 지원과 이 백업 기능을 구분한다.
+
+W08 검사: EncryptedBackupTest 3개/TemporaryFilesTest 1개 추가로 JVM 전체 84개 통과. Python 표준 PBKDF2(UTF-8)와 독립 Java AES-GCM으로 만든 고정 검증 자료를 JVM/Android 양쪽에서 복호화했다. EncryptedBackupIntegrationTest 2개(틀린 암호·변조 거부/재시도·레이어/필기/복구 자료/기존 ZIP·문서 전환·암호 버퍼 정리), EncryptedBackupUiTest 1개(실제 암호 입력 재시도·복구·암호 재확인·임시 파일 정리) 통과. UI 검사 최초 실행은 에뮬레이터 설치 공간 부족으로 0건 실행되었으며, 격리 인스턴스의 테스트 앱을 재설치한 뒤 통과했다. `.tools/w08-tests.log`, `.tools/w08-ui-test.log`.
+
+임시 정리는 앱에서 생성한 변환/백업 중간 파일 중 24시간 지난 이름만 대상으로 하며, 문서 베이스/복구/정밀 편집 자료와 진행 중 인쇄 파일을 보존한다. 경로 정규화로 외부 심볼릭 링크를 따라 삭제하지 않는다. 이전 Windows 빌드 중간 파일 삭제는 자동 검토가 정책상 차단해 수행하지 않았다. C 드라이브의 약 3.9 GiB 공간을 고려해 이후 큰 출시 빌드는 여유 공간이 있는 D 드라이브의 새 빌드 폴더에서 수행한다.

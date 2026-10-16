@@ -23,6 +23,8 @@ data class Session(val id: String, val name: String, val format: Format, val uri
     val sections get() = pack?.sections ?: legacy?.sections ?: emptyList()
 }
 
+class BackupPasswordRequired(val uri: Uri): IllegalArgumentException("암호화 백업의 암호를 입력하세요.")
+
 class DocumentRepository(private val context: Context) {
     private val root = File(context.filesDir, "documents").apply { mkdirs() }
     private val index = File(root, "index.json")
@@ -31,6 +33,7 @@ class DocumentRepository(private val context: Context) {
     private val mutex = repositoryMutex
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { mutex.withLock { block() } }
     suspend fun recents(): List<Recent> = io { readIndex() }
+    suspend fun cleanupTemporary(active: Set<File>): CleanupResult = io {TemporaryFiles.cleanup(context.cacheDir,root,active)}
     private fun readIndex(): List<Recent> {
         if(!index.exists()) return emptyList()
         val list = JSONArray(AtomicFile(index).openRead().use { it.bufferedReader().readText() })
@@ -61,15 +64,21 @@ class DocumentRepository(private val context: Context) {
         val s = build(id,"새 문서.${format.extension}",format,null,null,base)
         checkpointInternal(s); s
     }
-    suspend fun open(uri: Uri, encoding: String = "UTF-8"): Session = io {
+    suspend fun open(uri: Uri, encoding: String = "UTF-8",password: CharArray?=null): Session = io {
         val existing = readIndex().firstOrNull { it.uri == uri.toString() }
         if(existing!=null && (existing.dirty || File(File(root,existing.id),"office-pending.json").exists())) return@io restoreInternal(existing.id)
         val name = displayName(uri)
         val id = existing?.id ?: UUID.randomUUID().toString()
         val dir = File(root,id).apply { mkdirs() }
         val incoming = File(dir,"incoming.bin")
+        val unlocked=File(dir,"backup-unlock-${UUID.randomUUID()}.zip")
         try {
             copyUri(uri,incoming)
+            if(EncryptedBackup.isEncrypted(incoming)) {
+                if(password==null) throw BackupPasswordRequired(uri)
+                EncryptedBackup.decrypt(incoming,unlocked,password)
+                return@io java.util.zip.ZipFile(unlocked).use {importBackup(it)}
+            }
             if(name.endsWith(".zip",ignoreCase=true)) {
                 java.util.zip.ZipFile(incoming).use {zip ->
                     if(zip.getEntry("base.bin")!=null && zip.getEntry("state.json")!=null) return@io importBackup(zip)
@@ -86,7 +95,7 @@ class DocumentRepository(private val context: Context) {
                 val edits = it.edits.copy(strokes=strokes,layers=layers,paper=old?.edits?.paper ?: Paper.BLANK); it.copy(edits=edits,saved=edits)
             }
             checkpointInternal(s); s
-        } finally { incoming.delete() }
+        } finally { incoming.delete();unlocked.delete() }
     }
     suspend fun restore(id: String): Session = io { restoreInternal(id).also { remember(it) } }
     private fun importBackup(zip: java.util.zip.ZipFile): Session {
@@ -203,10 +212,11 @@ class DocumentRepository(private val context: Context) {
             throw e
         } finally { stage.delete() }
     }
-    suspend fun exportBackup(s: Session, destination: Uri) = io {
+    suspend fun exportBackup(s: Session, destination: Uri,password: CharArray?=null) = io {
         require(destination.toString()!=s.uri) {"백업은 원본과 다른 파일을 선택하세요."}
         checkpointInternal(s)
         val stage=File(s.base.parentFile,"backup-export-${UUID.randomUUID()}.zip")
+        val encrypted=File(s.base.parentFile,"backup-encrypted-${UUID.randomUUID()}.dsbackup")
         try {
         val files=linkedMapOf("base.bin" to s.base,"state.json" to File(s.base.parentFile,"state.json"))
         val preserved=File(s.base.parentFile,"preserved-backup")
@@ -226,15 +236,16 @@ class DocumentRepository(private val context: Context) {
         }
         require(stage.length()<=128L*1024*1024) {"다시 가져올 수 있는 백업은 최대 128 MiB입니다."}
         java.util.zip.ZipFile(stage).use {zip->require(zip.getEntry("base.bin")!=null && zip.getEntry("state.json")!=null)}
+        val payload=if(password!=null) encrypted.also {EncryptedBackup.encrypt(stage,it,password)} else stage
         val previous=File(s.base.parentFile,"backup-destination.bin");copyUri(destination,previous)
         try {
-            context.contentResolver.openOutputStream(destination,"rwt")?.use {out->stage.inputStream().use {it.copyTo(out)}} ?: error("백업 쓰기 실패")
-            require(digestUri(destination)==digest(stage)) {"백업 저장 검증 실패"}
+            context.contentResolver.openOutputStream(destination,"rwt")?.use {out->payload.inputStream().use {it.copyTo(out)}} ?: error("백업 쓰기 실패")
+            require(digestUri(destination)==digest(payload)) {"백업 저장 검증 실패"}
         } catch(e: Exception) {
             val restored=runCatching {context.contentResolver.openOutputStream(destination,"rwt")!!.use {out->previous.inputStream().use {it.copyTo(out)}};require(digestUri(destination)==digest(previous))}.isSuccess
             error(if(restored) "백업 저장에 실패하여 대상 파일을 복원했습니다." else "백업 저장·복원이 실패했습니다. 앱 내부 복구 데이터를 보존했습니다.")
         }
-        } finally {stage.delete()}
+        } finally {stage.delete();encrypted.delete()}
     }
     suspend fun printable(s: Session): File = io {
         File(context.cacheDir,"print-${UUID.randomUUID()}.pdf").also {file->if(s.format==Format.PDF) PdfEngine.write(s.base,file,s.edits.strokes,s.pdf!!.archival,s.edits.values,s.edits.layers) else ExportEngine.document(s,file)}

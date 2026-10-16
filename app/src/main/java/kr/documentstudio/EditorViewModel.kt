@@ -15,7 +15,7 @@ import kr.documentstudio.data.*
 
 data class Settings(val stylusOnly: Boolean=false,val fontSize: Float=16f,val encoding: String="UTF-8",val penTool: String="PEN",val penColor: Int=0xFF294E46.toInt(),val penWidth: Float=0.004f,val penOpacity: Float=1f,val wrapLines: Boolean=true,val partialEraser: Boolean=false,val eraserRadius: Float=0.025f,val pressureCurve: Float=1f,val smoothing: Float=0f,val autoSnap: Boolean=false,val toolbarTop: Boolean=false,val toolbarCollapsed: Boolean=false,val presets: List<PenPreset> = emptyList(),val favoriteColors: List<Int> = emptyList())
 data class UiState(val tabs: List<Session> = emptyList(),val active: String?=null,val recents: List<Recent> = emptyList(),
-    val busy: Boolean=false,val message: String?=null,val settings: Settings=Settings()) {
+    val busy: Boolean=false,val message: String?=null,val settings: Settings=Settings(),val lockedBackupUri: String?=null) {
     val session get() = tabs.firstOrNull { it.id==active }
 }
 class EditorViewModel(application: Application): AndroidViewModel(application) {
@@ -29,6 +29,8 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     private var checkpointJob: Job?=null
     private var lastTextEdit=0L
     private var lastTextTarget: String?=null
+    private val backupSecrets=mutableSetOf<CharArray>()
+    private var pendingEncrypted: Pair<String,CharArray>?=null
     private var officeActive: String?=null
     private val externalOpens=ArrayDeque<Uri>()
     private var externalOpenJob: Job?=null
@@ -53,6 +55,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
                 refreshRecents()
             }
             catch(e: CancellationException) {throw e}
+            catch(e: BackupPasswordRequired) {mutable.value=mutable.value.copy(lockedBackupUri=e.uri.toString(),message=null)}
             catch(e: Exception) { message(e.message ?: "작업에 실패했습니다.") }
             finally { mutable.value=mutable.value.copy(busy=officeActive!=null) }
         }
@@ -87,7 +90,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         if(externalOpenJob?.isActive==true) return
         externalOpenJob=viewModelScope.launch {
             while(externalOpens.isNotEmpty()) {
-                state.first {!it.busy}
+                state.first {!it.busy && it.lockedBackupUri==null}
                 open(externalOpens.removeFirst())
                 state.first {!it.busy}
             }
@@ -201,7 +204,26 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     }
     fun exportPdf(uri: Uri,sessionId: String?=null) = action { document(sessionId)?.let { repository.exportPdf(it,uri); message(if(it.format==Format.PPTX) "기본 슬라이드 개체와 필기 PDF를 내보냈습니다. 마스터·테마·SmartArt·그룹은 재현하지 않습니다." else if(it.format==Format.PDF) "PDF와 필기를 내보냈습니다." else "본문·필기 PDF를 내보냈습니다. 오피스 원본 배치와 다를 수 있습니다.") } }
     fun backup(uri: Uri,sessionId: String?=null) = action { document(sessionId)?.let { repository.exportBackup(it,uri); message("문서 원본과 편집·필기 복구 데이터를 ZIP으로 백업했습니다.") } }
+    fun prepareEncryptedBackup(id: String,password: CharArray): Boolean {
+        if(!viewModelScope.isActive || mutable.value.busy || document(id)==null || password.size !in 8..256) {password.fill('\u0000');return false}
+        pendingEncrypted?.second?.fill('\u0000');pendingEncrypted=id to password;return true
+    }
+    fun finishEncryptedBackup(uri: Uri?) {
+        val pending=pendingEncrypted ?: run {if(uri!=null) message("암호를 다시 입력해 백업해 주세요.");return};pendingEncrypted=null
+        if(uri==null || !viewModelScope.isActive || mutable.value.busy) {pending.second.fill('\u0000');if(uri!=null) message("다른 작업 완료 후 암호화 백업을 다시 시작하세요.");return}
+        backupSecrets.add(pending.second)
+        action {try {document(pending.first)?.let {repository.exportBackup(it,uri,pending.second);message("문서와 필기를 암호화하여 백업했습니다.")}} finally {pending.second.fill('\u0000');backupSecrets.remove(pending.second)}}
+    }
+    fun cancelBackupUnlock() {if(!mutable.value.busy) mutable.value=mutable.value.copy(lockedBackupUri=null)}
+    fun unlockBackup(password: CharArray) {
+        val uri=mutable.value.lockedBackupUri
+        if(uri==null || !viewModelScope.isActive || mutable.value.busy) {password.fill('\u0000');return}
+        backupSecrets.add(password)
+        action {try {attach(repository.open(Uri.parse(uri),mutable.value.settings.encoding,password));mutable.value=mutable.value.copy(lockedBackupUri=null)} finally {password.fill('\u0000');backupSecrets.remove(password)}}
+    }
+    override fun onCleared() {pendingEncrypted?.second?.fill('\u0000');pendingEncrypted=null;backupSecrets.forEach {it.fill('\u0000')};backupSecrets.clear();super.onCleared()}
     fun favorite(id: String) = action { repository.favorite(id) }
+    fun cleanupTemporary() = action {val result=repository.cleanupTemporary(kr.documentstudio.ui.DocumentPrintAdapter.activeFiles());message("24시간 지난 임시 변환 파일 ${result.files}개 (${result.bytes/1024} KiB)를 정리했습니다.")}
     fun print(context: android.content.Context) = action {mutable.value.session?.let {s->val file=repository.printable(s);val manager=context.getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager;manager.print(s.name,kr.documentstudio.ui.DocumentPrintAdapter(file,s.name),null)}}
     fun settings(value: Settings) {
         settingsChanged=true

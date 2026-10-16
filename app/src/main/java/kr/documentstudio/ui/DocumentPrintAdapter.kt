@@ -9,6 +9,7 @@ import android.graphics.pdf.PdfRenderer
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 
 class DocumentPrintAdapter(private val source: File,private val title: String): PrintDocumentAdapter() {
+    init {active.add(source.canonicalFile)}
     private val scope=CoroutineScope(SupervisorJob()+Dispatchers.Main)
     override fun onLayout(oldAttributes: PrintAttributes?,newAttributes: PrintAttributes?,signal: CancellationSignal,callback: LayoutResultCallback,extras: Bundle?) {
         scope.launch {try {
@@ -22,8 +23,10 @@ class DocumentPrintAdapter(private val source: File,private val title: String): 
             callback.onWriteFinished(selected.map {PageRange(it,it)}.toTypedArray())
         } catch(_: CancellationException) {callback.onWriteCancelled()} catch(e: Exception) {callback.onWriteFailed(e.message)}}
     }
-    override fun onFinish() {scope.cancel();source.delete()}
+    override fun onFinish() {scope.cancel();active.remove(source.canonicalFile);source.delete()}
     companion object {
+        private val active=java.util.concurrent.ConcurrentHashMap.newKeySet<File>()
+        fun activeFiles(): Set<File> = active.toSet()
         fun writeSelected(source: File,pages: Array<out PageRange>,output: OutputStream,cancelled: ()->Boolean = {false}): List<Int> = PDDocument.load(source).use {input ->
             val selected=(0 until input.numberOfPages).filter {index->pages.any {index in it.start..it.end}}
             require(selected.isNotEmpty()) {"인쇄할 페이지가 없습니다."}
