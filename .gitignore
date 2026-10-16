@@ -1,0 +1,16 @@
+.gradle/
+.kotlin/
+**/build/
+local.properties
+*.jks
+*.keystore
+*.p12
+signing.properties
+.idea/
+captures/
+emulator*.log
+.tools/
+.signing/
+artifacts/
+.engine-cache/
+**/.cxx/

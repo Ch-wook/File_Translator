@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(studiooffice LANGUAGES CXX)
+add_library(studiooffice SHARED privacy.cpp)
+target_compile_features(studiooffice PRIVATE cxx_std_17)
+target_compile_options(studiooffice PRIVATE -fvisibility=hidden)
+target_link_options(studiooffice PRIVATE -Wl,--exclude-libs,ALL -Wl,-z,max-page-size=16384)
+target_link_libraries(studiooffice PRIVATE dl)

@@ -1,0 +1,347 @@
+package kr.documentstudio.data
+
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.util.AtomicFile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kr.documentstudio.core.*
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.security.MessageDigest
+import java.util.UUID
+
+data class Recent(val id: String, val name: String, val uri: String?, val modified: Long, val dirty: Boolean, val favorite: Boolean)
+data class Session(val id: String, val name: String, val format: Format, val uri: String?, val sourceHash: String?,
+    val base: File, val textContent: TextContent?, val pack: PackageDocument?, val pdf: PdfInfo?, val edits: Edits, val saved: Edits,
+    val legacy: LegacyDocument? = null, val revision: Long=0, val savedRevision: Long=0,val recoveryWarning: String?=null) {
+    val dirty get() = edits != saved || revision!=savedRevision || uri == null
+    val sections get() = pack?.sections ?: legacy?.sections ?: emptyList()
+}
+
+class DocumentRepository(private val context: Context) {
+    private val root = File(context.filesDir, "documents").apply { mkdirs() }
+    private val index = File(root, "index.json")
+    private val mutex = Mutex()
+    private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { mutex.withLock { block() } }
+    suspend fun recents(): List<Recent> = io { readIndex() }
+    private fun readIndex(): List<Recent> {
+        if(!index.exists()) return emptyList()
+        val list = JSONArray(AtomicFile(index).openRead().use { it.bufferedReader().readText() })
+        return (0 until list.length()).map { i -> list.getJSONObject(i).let { j ->
+            Recent(j.getString("id"), j.getString("name"), j.optString("uri").takeIf { it.isNotEmpty() }, j.getLong("modified"), j.getBoolean("dirty"), j.optBoolean("favorite"))
+        } }
+    }
+    private fun writeIndex(rows: List<Recent>) = atomic(index, JSONArray().apply { rows.forEach { r -> put(JSONObject().apply {
+        put("id",r.id); put("name",r.name); put("uri",r.uri ?: ""); put("modified",r.modified); put("dirty",r.dirty); put("favorite",r.favorite)
+    }) } }.toString().toByteArray())
+    suspend fun favorite(id: String) = io { writeIndex(readIndex().map { if(it.id==id) it.copy(favorite=!it.favorite) else it }) }
+    private fun remember(session: Session) {
+        val old = readIndex()
+        val favorite = old.firstOrNull { it.id == session.id }?.favorite ?: false
+        val pending=File(session.base.parentFile,"office-pending.json").exists()
+        writeIndex((listOf(Recent(session.id,session.name,session.uri,System.currentTimeMillis(),session.dirty || pending,favorite)) + old.filter { it.id != session.id }))
+    }
+    suspend fun create(format: Format): Session = io {
+        require(format != Format.DOC) { "구형 DOC 새 문서는 지원하지 않습니다. DOCX를 생성하거나 기존 DOC를 열어 주세요." }
+        val id = UUID.randomUUID().toString()
+        val dir = File(root,id).apply { mkdirs() }; val base = File(dir,"base.bin")
+        when(format) {
+            Format.TXT, Format.MD -> atomic(base, byteArrayOf())
+            Format.PDF -> ExportEngine.blank(base)
+            Format.XLS,Format.PPT,Format.HWP -> LegacyDocument.create(format,base)
+            else -> Templates.create(format,base)
+        }
+        val s = build(id,"새 문서.${format.extension}",format,null,null,base)
+        checkpointInternal(s); s
+    }
+    suspend fun open(uri: Uri, encoding: String = "UTF-8"): Session = io {
+        val existing = readIndex().firstOrNull { it.uri == uri.toString() }
+        if(existing!=null && (existing.dirty || File(File(root,existing.id),"office-pending.json").exists())) return@io restoreInternal(existing.id)
+        val name = displayName(uri)
+        val id = existing?.id ?: UUID.randomUUID().toString()
+        val dir = File(root,id).apply { mkdirs() }
+        val incoming = File(dir,"incoming.bin")
+        try {
+            copyUri(uri,incoming)
+            if(name.endsWith(".zip",ignoreCase=true)) {
+                java.util.zip.ZipFile(incoming).use {zip ->
+                    if(zip.getEntry("base.bin")!=null && zip.getEntry("state.json")!=null) return@io importBackup(zip)
+                }
+            }
+            val format = FormatDetector.detect(incoming,name,context.contentResolver.getType(uri),encoding)
+            val old = existing?.let { restoreInternal(it.id) }
+            val hash = digest(incoming)
+            val strokes = if(format==Format.PDF) PdfEngine.importOwned(incoming) else old?.edits?.strokes ?: emptyList()
+            if(format==Format.PDF) { PdfEngine.inspect(incoming); PdfEngine.cleanOwned(incoming) }
+            val base = File(dir,"base.bin"); atomic(base,incoming.readBytes())
+            val s = build(id,name,format,uri.toString(),hash,base,encoding).let {
+                val edits = it.edits.copy(strokes=strokes); it.copy(edits=edits,saved=edits)
+            }
+            checkpointInternal(s); s
+        } finally { incoming.delete() }
+    }
+    suspend fun restore(id: String): Session = io { restoreInternal(id).also { remember(it) } }
+    private fun importBackup(zip: java.util.zip.ZipFile): Session {
+        require(zip.entries().toList().map {it.name}.distinct().size==zip.size()) {"중복 백업 파트가 있습니다."}
+        fun read(name: String,limit: Long): ByteArray {
+            val entry=zip.getEntry(name) ?: error("백업 파트 누락")
+            require(entry.size in 0..limit) {"백업 크기 제한 초과"}
+            return zip.getInputStream(entry).use {input ->
+                val out=java.io.ByteArrayOutputStream();val buf=ByteArray(65536);var total=0L
+                while(true) {val n=input.read(buf);if(n<0) break;total+=n;require(total<=limit);out.write(buf,0,n)}
+                out.toByteArray()
+            }
+        }
+        val j=JSONObject(read("state.json",16L*1024*1024).toString(Charsets.UTF_8))
+        require(j.getInt("version")==1) {"지원하지 않는 백업 버전"}
+        val id=UUID.randomUUID().toString();val dir=File(root,id).apply {mkdirs()};val base=File(dir,"base.bin")
+        atomic(base,read("base.bin",128L*1024*1024))
+        val name=j.getString("name");val encoding=j.optString("encoding","UTF-8")
+        val format=FormatDetector.detect(base,name,null,encoding)
+        require(format.name==j.getString("format")) {"백업의 문서 형식이 일치하지 않습니다."}
+        val s=build(id,"복구-$name",format,null,null,base,encoding).copy(edits=StateCodec.decode(j.getJSONObject("edits")),saved=StateCodec.decode(j.getJSONObject("saved")))
+        checkpointInternal(s);return s
+    }
+    private fun restoreInternal(id: String): Session {
+        require(id.matches(Regex("[a-zA-Z0-9-]+")))
+        val dir = File(root,id)
+        val j = JSONObject(AtomicFile(File(dir,"state.json")).openRead().use { it.bufferedReader().readText() })
+        require(j.getInt("version")==1)
+        val s = build(id,j.getString("name"),Format.valueOf(j.getString("format")),j.optString("uri").takeIf { it.isNotEmpty() },
+            j.optString("sourceHash").takeIf { it.isNotEmpty() },File(dir,j.optString("baseFile","base.bin").also {require(it.matches(Regex("[a-zA-Z0-9.-]+")) && !it.contains(".."))}),j.optString("encoding","UTF-8"))
+        val restored=s.copy(edits=StateCodec.decode(j.getJSONObject("edits")),saved=StateCodec.decode(j.getJSONObject("saved")),revision=j.optLong("revision"),savedRevision=j.optLong("savedRevision"))
+        return if(File(dir,"office-pending.json").exists()) try {acceptOfficeInternal(restored)} catch(e: Exception) {
+            restored.copy(recoveryWarning="이전 작업 복구본을 열었습니다. 정밀 편집 파일도 보존했습니다: ${e.message}")
+        } else restored
+    }
+    private fun build(id: String,name: String,format: Format,uri: String?,hash: String?,base: File,encoding: String="UTF-8"): Session {
+        val text = if(format in listOf(Format.TXT,Format.MD)) TextContent.decode(base.readBytes(),encoding) else null
+        val pack = if(format in listOf(Format.DOCX,Format.XLSX,Format.PPTX,Format.HWPX)) PackageDocument.open(base) else null
+        val pdf = if(format==Format.PDF) PdfEngine.inspect(base) else null
+        val legacy = if(format in LegacyDocument.formats) LegacyDocument.open(base) else null
+        val edits = Edits(text=text?.text ?: "")
+        return Session(id,name,format,uri,hash,base,text,pack,pdf,edits,edits,legacy)
+    }
+    suspend fun checkpoint(s: Session) = io { checkpointInternal(s) }
+    private fun checkpointInternal(s: Session) {
+        val json = JSONObject().apply {
+            put("version",1); put("id",s.id); put("name",s.name); put("format",s.format.name); put("uri",s.uri ?: "")
+            put("sourceHash",s.sourceHash ?: ""); put("encoding",s.textContent?.charset ?: "UTF-8")
+            put("baseFile",s.base.name);put("revision",s.revision);put("savedRevision",s.savedRevision)
+            put("edits",StateCodec.encode(s.edits)); put("saved",StateCodec.encode(s.saved))
+        }
+        atomic(File(s.base.parentFile,"state.json"),json.toString().toByteArray()); remember(s)
+    }
+    suspend fun save(s: Session, destination: Uri): Session = io {
+        val replacing = s.uri == destination.toString()
+        require(!replacing || s.pdf?.archival != true) { "PDF/A 검증기를 제공하지 않습니다. 일반 PDF로 다른 이름으로 저장하세요." }
+        val dir = s.base.parentFile!!; val stage = File(dir,"validated.bin"); val backup = File(dir,"provider-backup.bin")
+        checkpointInternal(s)
+        when(s.format) {
+            Format.TXT,Format.MD -> atomic(stage,s.textContent!!.encode(s.edits.text)).also { TextContent.decode(stage.readBytes(),s.textContent.charset) }
+            Format.PDF -> PdfEngine.write(s.base,stage,s.edits.strokes,s.pdf!!.archival,s.edits.values)
+            Format.DOC,Format.XLS,Format.PPT,Format.HWP -> if(s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty()) atomic(stage,s.base.readBytes()) else s.legacy!!.write(stage,s.edits)
+            else -> s.pack!!.write(stage,s.edits)
+        }
+        val expected = digest(stage)
+        // Backup and compare the provider's current bytes before the first truncate.
+        copyUri(destination,backup)
+        if(replacing) require(digest(backup)==s.sourceHash) { "외부에서 원본 파일이 변경되었습니다. 다른 이름으로 저장하세요." }
+        try {
+            context.contentResolver.openOutputStream(destination,"rwt")?.use { out -> stage.inputStream().use { it.copyTo(out) } } ?: error("쓰기 권한이 없습니다. 다른 이름으로 저장하세요.")
+            require(digestUri(destination)==expected) { "제공자에 저장된 내용의 검증에 실패했습니다." }
+        } catch (e: Exception) {
+            val rolledBack = runCatching {
+                context.contentResolver.openOutputStream(destination,"rwt")?.use { out -> backup.inputStream().use { it.copyTo(out) } } ?: error("복원 실패")
+                require(digestUri(destination)==digest(backup))
+            }.isSuccess
+            error(if(rolledBack) "저장에 실패하여 원본을 복원했습니다. 작업 복구본도 보존했습니다. ${e.message}" else "저장과 제공자 복원에 실패했습니다. 앱 내부 원본 백업과 작업 복구본을 보존했습니다. ${e.message}")
+        }
+        // Keep the imported baseline and edit commands so Undo also works across a save.
+        val newBase=if(s.format==Format.PDF) File(dir,"${UUID.randomUUID()}.bin").also {atomic(it,stage.readBytes());PdfEngine.cleanOwned(it)} else s.base
+        val result = s.copy(name=displayName(destination),uri=destination.toString(),sourceHash=expected,saved=s.edits,
+            pdf=s.pdf?.copy(archival=false),base=newBase,savedRevision=s.revision)
+        checkpointInternal(result); stage.delete(); result
+    }
+    suspend fun exportPdf(s: Session, destination: Uri) = io {
+        require(destination.toString()!=s.uri) { "PDF 내보내기는 원본과 다른 파일을 선택하세요." }
+        val stage = File(s.base.parentFile,"export.pdf")
+        if(s.format==Format.PDF) PdfEngine.write(s.base,stage,s.edits.strokes,s.pdf!!.archival,s.edits.values) else ExportEngine.document(s,stage)
+        val backup = File(s.base.parentFile,"export-backup.bin")
+        copyUri(destination,backup)
+        try {
+            context.contentResolver.openOutputStream(destination,"rwt")?.use { out -> stage.inputStream().use { it.copyTo(out) } } ?: error("PDF 쓰기 실패")
+            require(digestUri(destination)==digest(stage)) { "내보내기 검증 실패" }
+        } catch(e: Exception) {
+            runCatching { context.contentResolver.openOutputStream(destination,"rwt")?.use { out -> backup.inputStream().use { it.copyTo(out) } } }
+            throw e
+        } finally { stage.delete() }
+    }
+    suspend fun exportBackup(s: Session, destination: Uri) = io {
+        require(destination.toString()!=s.uri) {"백업은 원본과 다른 파일을 선택하세요."}
+        checkpointInternal(s)
+        val stage=File(s.base.parentFile,"backup-export-${UUID.randomUUID()}.zip")
+        java.util.zip.ZipOutputStream(stage.outputStream()).use { zip ->
+            val forensic=s.base.parentFile!!.listFiles().orEmpty().filter {it.isFile && it.name.startsWith("office-") && it.length()<=128L*1024*1024}.map {"office-recovery/${it.name}" to it}
+            (listOf("base.bin" to s.base,"state.json" to File(s.base.parentFile,"state.json"),"provider-backup.bin" to File(s.base.parentFile,"provider-backup.bin"))+forensic).filter {it.second.exists()}.forEach { (name,file) ->
+                zip.putNextEntry(java.util.zip.ZipEntry(name)); file.inputStream().use { it.copyTo(zip) }; zip.closeEntry()
+            }
+        }
+        java.util.zip.ZipFile(stage).use {zip->require(zip.getEntry("base.bin")!=null && zip.getEntry("state.json")!=null)}
+        val previous=File(s.base.parentFile,"backup-destination.bin");copyUri(destination,previous)
+        try {
+            context.contentResolver.openOutputStream(destination,"rwt")?.use {out->stage.inputStream().use {it.copyTo(out)}} ?: error("백업 쓰기 실패")
+            require(digestUri(destination)==digest(stage)) {"백업 저장 검증 실패"}
+        } catch(e: Exception) {
+            val restored=runCatching {context.contentResolver.openOutputStream(destination,"rwt")!!.use {out->previous.inputStream().use {it.copyTo(out)}};require(digestUri(destination)==digest(previous))}.isSuccess
+            error(if(restored) "백업 저장에 실패하여 대상 파일을 복원했습니다." else "백업 저장·복원이 실패했습니다. 앱 내부 복구 데이터를 보존했습니다.")
+        } finally {stage.delete()}
+    }
+    suspend fun printable(s: Session): File = io {
+        File(context.cacheDir,"print-${UUID.randomUUID()}.pdf").also {file->if(s.format==Format.PDF) PdfEngine.write(s.base,file,s.edits.strokes,s.pdf!!.archival,s.edits.values) else ExportEngine.document(s,file)}
+    }
+    suspend fun render(s: Session,page: Int) = withContext(Dispatchers.IO) { PdfEngine.render(s.base,page) }
+    suspend fun prepareOffice(s: Session): File = io {
+        require(s.format in officeFormats)
+        val dir=s.base.parentFile!!
+        require(!File(dir,"office-pending.json").exists()) {"이 문서의 정밀 편집 복구본을 먼저 다시 열어 주세요."}
+        checkpointInternal(s)
+        val working=File(dir,"office-${UUID.randomUUID()}.${s.format.extension}")
+        if(s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty()) atomic(working,s.base.readBytes())
+        else if(s.pack!=null) s.pack.write(working,s.edits) else s.legacy!!.write(working,s.edits)
+        require(FormatDetector.detect(working,s.name)==s.format)
+        atomic(File(dir,"office-pending.json"),JSONObject().apply {
+            put("working",working.name);put("hash",digest(working));put("base",s.base.name);put("revision",s.revision)
+            put("edits",StateCodec.encode(s.edits.copy(strokes=emptyList())))
+        }.toString().toByteArray())
+        remember(s)
+        working
+    }
+    suspend fun acceptOffice(s: Session): Session = io { acceptOfficeInternal(s) }
+    suspend fun archiveOfficeRecovery(s: Session): Session = io {
+        val dir=s.base.parentFile!!
+        java.io.RandomAccessFile(File(dir,"office.lock"),"rw").use {file ->
+            val lock=try {file.channel.tryLock()} catch(e: java.nio.channels.OverlappingFileLockException) {null}
+            require(lock!=null) {"정밀 편집 화면을 먼저 닫아 주세요."}
+            lock.use {
+                val pending=File(dir,"office-pending.json")
+                if(pending.exists()) require(pending.renameTo(File(dir,"office-pending-${UUID.randomUUID()}.json")))
+            }
+        }
+        s.copy(recoveryWarning=null).also {remember(it)}
+    }
+    private fun acceptOfficeInternal(s: Session): Session {
+        val dir=s.base.parentFile!!;val marker=File(dir,"office-pending.json")
+        if(!marker.exists()) return s
+        val pending=JSONObject(AtomicFile(marker).openRead().use {it.bufferedReader().readText()})
+        val name=pending.getString("working")
+        require(name.matches(Regex("office-[a-zA-Z0-9-]+\\.(docx|doc|xlsx|xls|pptx|ppt)")))
+        val working=File(dir,name)
+        val closed=File(working.path+".closed")
+        // A clean close is written after BYE has stopped native writers. Otherwise a
+        // process-held file lock distinguishes a crash recovery from an active editor.
+        if(!closed.exists()) java.io.RandomAccessFile(File(dir,"office.lock"),"rw").use {file ->
+            val lock=try {file.channel.tryLock()} catch(e: java.nio.channels.OverlappingFileLockException) {null}
+            require(lock!=null) {"정밀 편집 화면을 먼저 닫아 주세요."}; lock.release()
+        }
+        require(s.base.name==pending.getString("base") && s.revision==pending.getLong("revision")) {"동시 편집이 감지되었습니다. 정밀 편집 파일을 복구 폴더에 보존했습니다."}
+        pending.optJSONObject("edits")?.let {expected -> require(s.edits.copy(strokes=emptyList())==StateCodec.decode(expected)) {"다른 화면에서 본문을 편집했습니다. 정밀 편집 파일을 보관한 뒤 병합해 주세요."}}
+        require(working.isFile && working.length() in 1..128L*1024*1024) {"정밀 편집 복구본이 없거나 크기 제한을 초과했습니다."}
+        if(digest(working)==pending.getString("hash")) {marker.delete();closed.delete();remember(s);return s}
+        require(FormatDetector.detect(working,s.name)==s.format) {"정밀 편집 결과 형식이 일치하지 않습니다. 이전 복구본과 작업 파일을 보존했습니다."}
+        val next=File(dir,"${UUID.randomUUID()}.bin"); atomic(next,working.readBytes())
+        val parsed=build(s.id,s.name,s.format,s.uri,s.sourceHash,next)
+        // Stable sheet names survive engine part renumbering. Other anchors stay
+        // available as separate ink pages even if their original section was removed.
+        val mapping=if(s.format in listOf(Format.XLSX,Format.XLS)) s.sections.associate {old ->
+            old.id to (parsed.sections.firstOrNull {it.sourceName==old.sourceName}?.id ?: old.id)
+        } else emptyMap()
+        val result=parsed.copy(edits=Edits(strokes=s.edits.strokes.map {it.copy(anchor=mapping[it.anchor] ?: it.anchor)}),
+            saved=s.saved,revision=s.revision+1,savedRevision=s.savedRevision)
+        checkpointInternal(result)
+        marker.delete();closed.delete()
+        return result
+    }
+    suspend fun reencode(s: Session,charset: String,bom: Boolean): Session = io {
+        require(s.textContent!=null && charset in listOf("UTF-8","UTF-16LE","UTF-16BE","MS949"))
+        val file=File(s.base.parentFile,"${UUID.randomUUID()}.bin")
+        atomic(file,TextContent(s.edits.text,charset,bom).encode())
+        val result=build(s.id,s.name,s.format,s.uri,s.sourceHash,file,charset).copy(edits=s.edits,saved=s.saved,revision=s.revision+1,savedRevision=s.savedRevision)
+        checkpointInternal(result);result
+    }
+    suspend fun change(s: Session,change: DocumentChange): Session = io {
+        require(s.pack!=null || s.pdf!=null) {"이 형식의 구조 편집은 지원하지 않습니다."}
+        val materialized=File(s.base.parentFile,"materialized-${UUID.randomUUID()}.bin")
+        val next=File(s.base.parentFile,"${UUID.randomUUID()}.bin")
+        try {
+            var strokes=s.edits.strokes
+            if(s.pdf!=null) {
+                val widthRatio=if(change.type=="pdf.rotate" && (change.arguments["angle"] ?: "90") in listOf("90","270")) PdfEngine.displaySize(s.base,change.target.toInt()).let {it.first/it.second} else 1f
+                PdfEngine.write(s.base,materialized,emptyList(),false,s.edits.values)
+                val attachment=if(change.type in listOf("pdf.merge","pdf.image")) File(s.base.parentFile,"attachment-${UUID.randomUUID()}.bin").also {copyUri(Uri.parse(change.arguments.getValue("uri")),it)} else null
+                val mapping=try {PdfEngine.change(materialized,next,change,attachment)} finally {attachment?.delete()}
+                strokes=strokes.mapNotNull {stroke->
+                    val old=stroke.anchor.removePrefix("pdf:").toIntOrNull() ?: return@mapNotNull stroke
+                    val new=mapping.indexOf(old);if(new<0) null else {
+                        val points=if(change.type=="pdf.rotate" && old==change.target.toInt()) stroke.points.map {p->when(change.arguments["angle"] ?: "90") {"90"->p.copy(x=1-p.y,y=p.x);"180"->p.copy(x=1-p.x,y=1-p.y);else->p.copy(x=p.y,y=1-p.x)}} else stroke.points
+                        stroke.copy(anchor="pdf:$new",points=points,width=if(change.type=="pdf.rotate" && old==change.target.toInt()) (stroke.width*widthRatio).coerceIn(0.0001f,0.1f) else stroke.width)
+                    }
+                }
+            } else {
+                s.pack!!.write(materialized,s.edits)
+                val attachment=if(change.type in listOf("word.image","slide.image")) normalizeImage(Uri.parse(change.arguments.getValue("uri")),s.base.parentFile!!) else null
+                try {PackageFeatures.apply(materialized,next,change=change,attachment=attachment)} finally {attachment?.delete()}
+                val sections=PackageDocument.open(next).sections
+                if(change.type.endsWith(".delete")) strokes=strokes.filter {it.anchor!=change.target}
+                if(change.type.endsWith(".duplicate")) {val new=sections.first {sec->s.sections.none {it.id==sec.id}}.id;strokes=strokes+strokes.filter {it.anchor==change.target}.map {it.copy(id=UUID.randomUUID().toString(),anchor=new)}}
+            }
+            val extract=change.type=="pdf.extract"
+            val result=build(s.id,if(extract) s.name.substringBeforeLast('.')+"-추출.pdf" else s.name,s.format,if(extract) null else s.uri,if(extract) null else s.sourceHash,next).copy(edits=Edits(strokes=strokes),saved=s.saved,revision=s.revision+1,savedRevision=s.savedRevision)
+            checkpointInternal(result);result
+        } finally {materialized.delete()}
+    }
+    private fun displayName(uri: Uri): String {
+        return context.contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use { c ->
+            if(c.moveToFirst()) c.getString(0) else null
+        } ?: "문서"
+    }
+    private fun normalizeImage(uri: Uri,directory: File): File {
+        val raw=File(directory,"image-source-${UUID.randomUUID()}.bin");val png=File(directory,"image-${UUID.randomUUID()}.png")
+        try {
+            copyUri(uri,raw);require(raw.length()<=16L*1024*1024) {"그림 파일은 최대 16 MiB까지 지원합니다."}
+            val bounds=android.graphics.BitmapFactory.Options().apply {inJustDecodeBounds=true};android.graphics.BitmapFactory.decodeFile(raw.path,bounds)
+            require(bounds.outWidth>0 && bounds.outHeight>0 && bounds.outWidth.toLong()*bounds.outHeight<=8_000_000) {"그림은 최대 800만 화소까지 지원합니다."}
+            val bitmap=android.graphics.BitmapFactory.decodeFile(raw.path) ?: error("그림을 읽을 수 없습니다.")
+            try {png.outputStream().use {require(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it))};require(png.length()<=16L*1024*1024) {"변환된 그림의 용량 제한을 초과했습니다."}} finally {bitmap.recycle()}
+            return png
+        } catch(e: Exception) {png.delete();throw e} finally {raw.delete()}
+    }
+    private fun copyUri(uri: Uri,target: File) {
+        val atomic = AtomicFile(target); val out = atomic.startWrite()
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val buf=ByteArray(64*1024); var count=0L
+                while(true) { val n=input.read(buf); if(n<0) break; count+=n; require(count<=128L*1024*1024) { "파일 크기 제한(128 MiB) 초과" }; out.write(buf,0,n) }
+            } ?: error("파일 읽기 권한이 없습니다.")
+            atomic.finishWrite(out)
+        } catch(e: Exception) { atomic.failWrite(out); throw e }
+    }
+    private fun digestUri(uri: Uri): String = context.contentResolver.openInputStream(uri)?.use { digestStream(it) } ?: error("저장 검증을 위한 읽기 권한이 없습니다.")
+    companion object {
+        val officeFormats=setOf(Format.DOCX,Format.DOC,Format.XLSX,Format.XLS,Format.PPTX,Format.PPT)
+        fun digest(file: File): String = file.inputStream().use { digestStream(it) }
+        private fun digestStream(input: java.io.InputStream): String {
+            val md=MessageDigest.getInstance("SHA-256"); val bytes=ByteArray(64*1024)
+            while(true) { val n=input.read(bytes); if(n<0) break; md.update(bytes,0,n) }; return md.digest().joinToString("") { "%02x".format(it) }
+        }
+        fun atomic(file: File,bytes: ByteArray) {
+            file.parentFile?.mkdirs(); val af=AtomicFile(file); val out=af.startWrite()
+            try { out.write(bytes); af.finishWrite(out) } catch(e: Exception) { af.failWrite(out); throw e }
+        }
+    }
+}

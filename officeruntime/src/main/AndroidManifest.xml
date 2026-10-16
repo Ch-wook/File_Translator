@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name="org.libreoffice.androidlib.StudioOfficeActivity" android:exported="false"
+            android:process=":office" android:theme="@style/Theme.AppCompat.DayNight.NoActionBar"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|uiMode|density"
+            android:windowSoftInputMode="adjustResize" />
+        <activity android:name="org.libreoffice.androidlib.SlideShowActivity" android:exported="false" android:process=":office" />
+        <provider android:name="org.libreoffice.androidlib.ClipboardFileProvider" android:authorities="${applicationId}.clipboard"
+            android:exported="false" android:grantUriPermissions="true" android:process=":office" />
+    </application>
+</manifest>

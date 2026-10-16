@@ -1,0 +1,64 @@
+# 검증 결과 — 0.3.1
+
+2026-10-16(Asia/Seoul). Windows/JDK 17, Android 15/API 35 x86_64 에뮬레이터 CodexBibleApi35에서 검사했습니다. 실제 기기 검증과 구분합니다.
+
+## 자동 검사
+
+| 환경 | 검사 묶음 | 통과 |
+|---|---|---:|
+| JVM | CoreTest | 15 |
+| JVM | FeatureTest | 7 |
+| JVM | FormulaLimitsTest | 3 |
+| JVM | InkErasureTest | 8 |
+| JVM | InkTest | 2 |
+| JVM | LegacyTest | 4 |
+| JVM | OfficeCompatibilityTest | 4 |
+| JVM | OfficeObjectsTest | 5 |
+| JVM | SheetOperationsTest | 9 |
+| JVM | SpreadsheetModelTest | 5 |
+| Android | DocumentIntegrationTest | 25 |
+| Android | EditorUiTest | 6 |
+| Android | OfficeBridgeTest | 6 |
+
+**총 99개 통과, 실패·오류·건너뛰기 0.** core:test, connectedDebugAndroidTest, lintDebug, assembleDebug를 실행했습니다. lint 오류 0, 경고 29개입니다. XML·HTML과 자동 집계는 artifacts/test-results에 포함합니다.
+
+이번 추가 검사는 다음을 확인합니다.
+
+- PDF 연속 스크롤·이전/다음 이동·화면 재생성·같은 페이지의 필기 진입과 앵커 보존. 페이지 렌더와 목록 가상화를 사용합니다.
+- 부분 획 지우기의 빠른 경로·화면 비율·필압/기울기 보간·도형 분할·앵커/스타일 보존. 실제 UI 제스처·Undo/Redo·설정/화면 재생성과 PDF를 새 파일로 재열었을 때의 조각/메타데이터·렌더된 빈 구간을 확인합니다.
+
+- 범위 복사/채우기·겹침·삽입/삭제·정렬·같은/다른 시트 참조와 상대/절대 수식, 인용된 시트 이름·외부/공유 수식 보호.
+- 실제 Android 클립보드 TSV 붙여넣기·Undo/Redo·화면 재생성, 날짜/백분율·1904 날짜, TEXT 날짜, 와일드카드 이스케이프와 악의적인 비교 작업량 제한.
+- 독립 POI로 표 행열/병합/분할·이미지·머리글/바닥글·링크·슬라이드 개체 순서 재열기.
+- 기존 PDF Tj/TJ 본문 교체와 후속 문자열 위치 보정, 원래 폰트가 지원하지 않는 글자 거부, 원본 보존. 북마크 추가/이름/삭제·페이지 이동/삭제 목적지와 작은 축소판.
+- 정밀 엔진 JNI 로그 보호 초기화, 작업 복사본의 기존 편집 반영, 이전 베이스 불변·필기·revision·복구 유지, 활성 엔진 잠금 거부, 손상된 종료 파일의 이전 베이스 유지와 보관 후 재시작.
+- 정밀 편집 중 종료 후 원본 URI를 다시 열어도 복구본을 우선하며, 다른 화면의 새 본문 수정은 가져오기로 덮어쓰지 않습니다.
+- 기존 인코딩·ZIP/XML 제한·OOXML/OLE/HWPX 재열기·표준 Ink·양식·구조/필기 이동·원본 충돌·제공자 기록 실패/복원 실패·선택 인쇄·UI 회귀 검사.
+
+## 실제 정밀 엔진 확인
+
+본 앱의 정밀 편집에서 Word 한국어 페이지를 렌더하고 IntegratedWriterProof를 입력·저장·닫았습니다. 앱의 새 DOCX 베이스에서 실제 word/document.xml 문자열과 revision 증가를 확인했습니다. 별도 앱이나 서버를 사용하지 않았습니다.
+
+Calc에서 A1=42, B1=SUM(A1,8)를 입력해 화면의 50과 XLSX의 실제 수식/결과를 확인했습니다. 문서 연속 열기 중 종료 지연을 발견해 엔진 프로세스를 문서 종료 후 정리하도록 수정했습니다. 종료 지연 시에도 마지막 저장 XLSX의 값·수식·새 revision이 복구됨을 확인했습니다. 최종 연속 종료/발표 화면 검증은 office-visual-smoke.json과 해당 PNG에 기록합니다.
+
+Impress의 실제 슬라이드에 IntegratedSlideProof를 입력·저장하고 앱의 PPTX 베이스에서 같은 문자열을 확인했습니다. 최종 수정본에서 저장 후 닫기·수정 없이 재열기 후 닫기·Word 수정 직후 수동 저장 없이 닫기, 엔진 프로세스 종료를 확인했습니다. 휴대폰 보기와 태블릿 편집 화면도 확인했습니다. 검사한 엔진 프로세스의 문서 표식·프로토콜 로그 유출 일치 건수는 0입니다. 실제 편집 샘플 3개와 SHA-256은 native-edit-samples 및 office-visual-smoke.json에 제공합니다.
+
+추가 복구 검사에서는 원본 URI가 저장된 깨끗한 문서의 정밀 편집 종료 후 같은 URI를 다시 열어도 원본 대신 작업 복구본을 읽고, 외부 제공자 원본은 그대로 유지하는 것을 확인했습니다. 동시에 바뀐 기본 화면의 본문은 가져오기로 덮어쓰지 않습니다.
+
+엔진 안의 모든 메뉴·수식·차트·전환·변경 추적 기능을 각각 검증한 것은 아닙니다. 엔진의 기능 제공과 문서 코퍼스 호환성 인증을 구분합니다. 실제 한컴/Word/Excel/PowerPoint 상용 앱의 모든 조판과 같음을 인증하지 않습니다.
+
+출시 서명 APK에서도 정밀 편집 후 앱으로 돌아와 실제 Downloads 제공자에 저장한 DOCX의 XML을 확인했습니다. 휴대폰의 편집 모드→보기 모드→닫기에서 엔진 프로세스 종료와 앱 복귀를 확인했습니다. 세부 검증 시점과 해시는 release-office-saf-smoke.json에 기록합니다.
+
+출시 서명 0.3.1 APK에서 실제 획을 부분 지우기로 나누고 두 페이지 PDF를 Downloads에 저장했습니다. 저장 파일의 Ink 주석 2개와 조각 사이 좌표 간격, 연속 스크롤·다음 페이지에서 같은 페이지 필기로 돌아오는 흐름을 확인했습니다. v031-phone-partial-eraser.png, v031-phone-continuous-pdf.png, native-edit-samples/partial-eraser-proof.pdf 및 v031-release-smoke.json에 증거를 보존합니다. 전달 소스 ZIP을 별도 검증 폴더에 추출해 고정 엔진 캐시로 assembleDebug 재빌드도 성공했습니다(11s).
+
+## 배포 검사
+
+release-verification.json에 서명·매니페스트·APK/AAB 네이티브 일치·16 KB 정렬 결과를 기록합니다. 공식 엔진의 두 ABI 30개 라이브러리는 별도 ELF LOAD 16 KB 정렬 검사에서도 통과했습니다. 실제 16 KB 기기 실행은 미실시입니다. 공식 두 APK 인증서 SHA-256을 검사했고, 공통 자산이 두 ABI에서 동일함을 확인했습니다. 원래 APK의 ART 프로필은 포함하지 않습니다.
+
+최종 APK/AAB는 프로젝트의 기존 출시 키를 재사용합니다. Play 계정 접근·업로드·스토어 심사·실제 다운로드 용량 정책 검증은 수행하지 않았습니다. 큰 엔진을 포함하므로 공개 제출용 크기/전달 구성이 추가로 필요할 수 있습니다. debug와 release 서명은 다릅니다.
+
+## 검증하지 않은 범위
+
+실제 Galaxy Tab/S펜·하드웨어 필압/기울기/호버/손바닥, Bluetooth 키보드·마우스, API 29/36/37, 실제 16 KB 기기, 실제 멀티윈도우·접근성 전문 감사·대용량 벤치마크·대표 외부 문서 코퍼스는 미실시입니다. 폰/태블릿 크기 에뮬레이터 화면은 하드웨어 검증을 대신하지 않습니다.
+
+한글 정밀 조판·OCR·PDF/A 적합성 검증·예측 입력·정밀 조판/셀에 부착하는 공통 필기는 구현되지 않았습니다. 악성 문서 완전 격리·암호화 백업·완전 무손실 인증도 제공하지 않습니다. 상세 상태는 SUPPORT_MATRIX.md를 기준으로 합니다.
