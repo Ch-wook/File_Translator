@@ -35,7 +35,16 @@ class MainActivity: ComponentActivity() {
             Intent.ACTION_SEND -> if(android.os.Build.VERSION.SDK_INT>=33) intent.getParcelableExtra(Intent.EXTRA_STREAM,Uri::class.java) else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_STREAM)
             else -> null
         }
-        if(uri!=null && uri.scheme=="content") vm.open(uri)
+        if(uri!=null && uri.scheme=="content") {
+            val read=intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION!=0
+            val write=intent.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION!=0
+            runCatching {when {
+                read && write->contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                read->contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                write->contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            }}
+            vm.openExternal(uri)
+        }
     }
     override fun onStop() { vm.flush(); super.onStop() }
     private fun handleShortcut(event: android.view.KeyEvent): Boolean {

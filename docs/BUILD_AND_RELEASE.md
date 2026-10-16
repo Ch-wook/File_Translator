@@ -17,6 +17,18 @@ Android 검사는 API 35 에뮬레이터를 켜고 실행합니다. connectedDeb
 
 코어만 검사할 때는 `.\gradlew.bat :core:test --configure-on-demand`로 Android 네이티브 모듈 구성을 생략할 수 있습니다. 편집 흐름 추가 검증은 Android 15/API 35의 StudioReviewApi35 에뮬레이터를 사용하며, 결과와 이전 검증 이력은 [검증 결과](TEST_RESULTS.md)에 구분합니다. API 36 에뮬레이터는 앱 실행 전 시스템 UI 응답 없음이 발생해 이번 UI 통과 환경에 포함하지 않습니다. 첫 전체 빌드는 대형 엔진·의존성 처리에 메모리를 많이 사용하므로 메모리가 부족하면 에뮬레이터를 빌드 후 실행하고 `--max-workers=2`로 동시 작업을 줄이세요.
 
+전체 기능의 반복 검증은 [계획서](IMPLEMENTATION_PLAN.md)와 [인수 확인표](FEATURE_ACCEPTANCE.md)를 기준으로 다음 명령을 사용합니다. JDK 17과 ANDROID_HOME 또는 SDK 경로를 먼저 설정하고, API 35 기기/에뮬레이터를 한 대 연결합니다.
+
+```powershell
+.\scripts\verify-editing.ps1
+# 여러 기기가 연결된 경우
+.\scripts\verify-editing.ps1 -DeviceId emulator-5554
+# 기기 없이 JVM/lint/debug 빌드만 확인 (전체 통과로 표시하지 않음)
+.\scripts\verify-editing.ps1 -SkipDevice
+```
+
+JVM 검사를 새로 실행하고 Android 전체 검사·lint·debug APK와 검사 APK 빌드를 수행합니다. 결과 XML·lint·Gradle 로그·API/ABI/화면 조건·APK SHA-256·요약 JSON은 `artifacts/acceptance-날짜-시각/`에 생성합니다. 오래된 XML은 통과 횟수에 넣지 않습니다. 실패·오류·건너뛰기나 lint 오류가 있으면 실패를 반환합니다. 기기 생략 시 상태는 `partial-device-not-tested`입니다. 검사 뒤 APK를 유지하도록 설정하므로 수동 화면/SAF 검사를 이어갈 수 있습니다. release 서명/배포·실기기·외부 호환성 인증은 별도입니다.
+
 | 결과 | 전달 위치 |
 |---|---|
 | 개발 서명 APK | artifacts/document-studio-debug.apk |

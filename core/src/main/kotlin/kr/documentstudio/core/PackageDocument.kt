@@ -87,6 +87,7 @@ class PackageDocument private constructor(val source: File, val format: Format, 
             val header=if(hwpx) Xml.parse(read("Contents/header.xml")) else null
             fun textSection(path: String, title: String): Section {
                 val doc = Xml.parse(read(path))
+                  val tableNumbers=if(format==Format.HWPX) Xml.elements(doc,"tbl").mapIndexed {i,t->t to i+1}.toMap() else emptyMap()
                 val fields = Xml.elements(doc, "t").filter { e ->
                     e.namespaceURI in listOf(W, A, "http://www.hancom.co.kr/hwpml/2011/paragraph") &&
                         (0 until e.childNodes.length).none { e.childNodes.item(it) is Element }
@@ -110,7 +111,13 @@ class PackageDocument private constructor(val source: File, val format: Format, 
                             if(char!=null) {char.getAttribute("height").toDoubleOrNull()?.let {put("size",(it/100).toString())};char.getAttribute("textColor").takeIf {it.isNotBlank()}?.let {put("color",it.removePrefix("#"))};listOf("bold","italic").forEach {put(it,(Xml.child(char,it)!=null).toString())};Xml.child(char,"underline")?.let {put("underline",(it.getAttribute("type")!="NONE").toString())}}
                         }
                     }
-                    Field("$path#$i", "텍스트 ${i + 1}", e.textContent, bold,props)
+                      val tc=if(format==Format.HWPX) generateSequence(e.parentNode) {it.parentNode}.filterIsInstance<Element>().firstOrNull {it.localName=="tc"} else null
+                      val label=tc?.let {cell ->
+                          val address=Xml.child(cell,"cellAddr")
+                          val table=generateSequence(cell.parentNode) {it.parentNode}.filterIsInstance<Element>().first {it.localName=="tbl"}
+                          "표 ${tableNumbers[table]} · ${(address?.getAttribute("rowAddr")?.toIntOrNull() ?: 0)+1}행 ${(address?.getAttribute("colAddr")?.toIntOrNull() ?: 0)+1}열 · 텍스트 ${i+1}"
+                      } ?: "텍스트 ${i + 1}"
+                      Field("$path#$i", label, e.textContent, bold,props)
                 }
                 require(fields.size <= 10000) { "편집 가능한 텍스트 수 제한을 초과했습니다." }
                 return Section(path, title, fields)

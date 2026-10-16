@@ -11,7 +11,7 @@ import java.io.File
 data class SlideShape(val id: String,val x: Float,val y: Float,val width: Float,val height: Float,val rotation: Float,
     val geometry: String,val fill: Int?,val text: CharSequence,val alignment: Layout.Alignment,val image: Bitmap?=null)
 data class SlideScene(val width: Float,val height: Float,val shapes: List<SlideShape>,val omitted: Int) {
-    fun recycle() {shapes.forEach {it.image?.recycle()}}
+    fun recycle() {shapes.mapNotNull {it.image}.distinct().forEach {it.recycle()}}
 }
 /** Basic direct shapes only; theme/master/SmartArt and grouped geometry are explicitly excluded. */
 object SlideEngine {
@@ -25,7 +25,8 @@ object SlideEngine {
         val relPath=section.id.substringBeforeLast('/')+"/_rels/"+section.id.substringAfterLast('/')+".rels"
         val rels=if(zip.getEntry(relPath)!=null) Xml.elements(xml(relPath),"Relationship").filter {it.getAttribute("TargetMode")!="External"}.associate {it.getAttribute("Id") to it.getAttribute("Target")} else emptyMap()
         var omitted=0
-        val shapes=(0 until tree.childNodes.length).map {tree.childNodes.item(it)}.filterIsInstance<Element>().mapNotNull {shape ->
+        val images=mutableMapOf<String,Bitmap?>();var decodedPixels=0L
+        val shapes=try {(0 until tree.childNodes.length).map {tree.childNodes.item(it)}.filterIsInstance<Element>().mapNotNull {shape ->
             if(shape.localName in listOf("nvGrpSpPr","grpSpPr")) return@mapNotNull null
             if(shape.localName !in listOf("sp","pic")) {omitted++;return@mapNotNull null}
             val pr=Xml.child(shape,"spPr");val transform=pr?.let {Xml.child(it,"xfrm")};val off=transform?.let {Xml.child(it,"off")};val ext=transform?.let {Xml.child(it,"ext")}
@@ -60,15 +61,22 @@ object SlideEngine {
                 rels[rid]?.let {target->
                     val normalized=java.net.URI("/"+section.id.substringBeforeLast('/')+"/"+target).normalize().path.removePrefix("/")
                     val entry=zip.getEntry(normalized)
-                    if(entry!=null && entry.size in 1..8*1024*1024) {
+                    if(normalized in images) bitmap=images[normalized]
+                    else if(entry!=null && entry.size in 1..8*1024*1024) {
                         val bytes=zip.getInputStream(entry).use {it.readBytes()};val options=BitmapFactory.Options().apply {inJustDecodeBounds=true};BitmapFactory.decodeByteArray(bytes,0,bytes.size,options)
                         options.inJustDecodeBounds=false;options.inSampleSize=1;while(options.outWidth.toLong()*options.outHeight/options.inSampleSize/options.inSampleSize>2_000_000) options.inSampleSize*=2
-                        bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.size,options)
-                    } else omitted++
+                        val pixels=((options.outWidth.toLong()+options.inSampleSize-1)/options.inSampleSize)*((options.outHeight.toLong()+options.inSampleSize-1)/options.inSampleSize)
+                        if(options.outWidth>0 && options.outHeight>0 && decodedPixels+pixels<=8_000_000) {
+                            bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.size,options)
+                            bitmap?.let {decodedPixels+=it.width.toLong()*it.height}
+                        }
+                        images[normalized]=bitmap
+                    } else images[normalized]=null
                 }
+                if(bitmap==null) omitted++
             }
             SlideShape(Xml.elements(shape,"cNvPr").first().getAttribute("id"),x,y,w,h,(transform.getAttribute("rot").toFloatOrNull() ?: 0f)/60000,geometry,fill,builder,when(align) {"ctr"->Layout.Alignment.ALIGN_CENTER;"r"->Layout.Alignment.ALIGN_OPPOSITE;else->Layout.Alignment.ALIGN_NORMAL},bitmap)
-        }
+        }} catch(e: Throwable) {images.values.filterNotNull().distinct().forEach {it.recycle()};throw e}
         SlideScene(width,height,shapes,omitted)
     }
     fun draw(canvas: Canvas,scene: SlideScene,width: Float,height: Float) {

@@ -37,7 +37,17 @@ fun DocumentTools(s: Session,sec: Section?,vm: EditorViewModel,busy: Boolean,pag
             Action("표 삽입","word.table",listOf(Triple("rows","행 수","3"),Triple("columns","열 수","3"))),
             Action("페이지 나누기","word.break"),
             Action("A4 용지·여백","word.layout",listOf(Triple("landscape","가로 방향 (true / false)","false"),Triple("marginMm","여백 mm","20"),Triple("columns","단 수 (1~4)","1"))))
-        Format.HWPX -> listOf(Action("문단 추가","hwpx.paragraph",listOf(Triple("text","문단 내용","새 문단"))),Action("쪽 나누기","hwpx.break"),Action("A4 용지·여백","hwpx.layout",listOf(Triple("landscape","가로 방향 (true / false)","false"),Triple("marginMm","여백 mm","20"))))
+        Format.HWPX -> listOf(
+            Action("표 삽입","hwpx.table",listOf(Triple("rows","행 수 (1~50)","3"),Triple("columns","열 수 (1~20)","3"),Triple("widthMm","표 너비 mm","160"))),
+            Action("표 행 삽입","hwpx.tableAddRow",listOf(Triple("table","표 번호 (1부터)","1"),Triple("row","삽입 행 위치 (1부터)","2"))),
+            Action("표 행 삭제","hwpx.tableDeleteRow",listOf(Triple("table","표 번호","1"),Triple("row","삭제 행","2"))),
+            Action("표 열 삽입","hwpx.tableAddColumn",listOf(Triple("table","표 번호","1"),Triple("column","삽입 열 위치 (1부터)","2"))),
+            Action("표 열 삭제","hwpx.tableDeleteColumn",listOf(Triple("table","표 번호","1"),Triple("column","삭제 열","2"))),
+            Action("표 셀 병합 · 내용 유지","hwpx.tableMerge",listOf(Triple("table","표 번호","1"),Triple("row","시작 행","1"),Triple("column","시작 열","1"),Triple("lastRow","끝 행","2"),Triple("lastColumn","끝 열","2"))),
+            Action("표 병합 셀 분할","hwpx.tableSplit",listOf(Triple("table","표 번호","1"),Triple("row","병합 시작 행","1"),Triple("column","병합 시작 열","1"))),
+            Action("표 셀 배경·테두리","hwpx.tableCellStyle",listOf(Triple("table","표 번호","1"),Triple("row","행","1"),Triple("column","열","1"),Triple("background","배경색 RRGGBB","EEF3EF"),Triple("border","테두리색 RRGGBB","315D54"),Triple("vertical","세로 정렬 TOP / CENTER / BOTTOM","CENTER"))),
+            Action("표 크기 · 균등 배분","hwpx.tableSize",listOf(Triple("table","표 번호","1"),Triple("widthMm","표 너비 mm","160"),Triple("heightMm","표 높이 mm","30"))),
+            Action("문단 추가","hwpx.paragraph",listOf(Triple("text","문단 내용","새 문단"))),Action("쪽 나누기","hwpx.break"),Action("A4 용지·여백","hwpx.layout",listOf(Triple("landscape","가로 방향 (true / false)","false"),Triple("marginMm","여백 mm","20"))))
         Format.XLSX -> listOf(
             Action("범위 복사 · 셀 서식 포함","sheet.copyRange",listOf(Triple("source","원본 범위","A1:B5"),Triple("destination","대상 시작 셀","D1"))),
             Action("자동 채우기","sheet.fill",listOf(Triple("source","원본 범위 (두 숫자는 등차수열)","A1:A2"),Triple("destination","채울 전체 범위 (원본 포함)","A1:A20"))),
@@ -89,13 +99,16 @@ fun DocumentTools(s: Session,sec: Section?,vm: EditorViewModel,busy: Boolean,pag
 @Composable
 private fun PdfTextAndForms(s: Session,page: Int,vm: EditorViewModel,busy: Boolean,navigate: (Int)->Unit) {
     var bodyEditor by remember {mutableStateOf(false)}
+    var imageEditor by remember {mutableStateOf(false)}
     var forms by remember {mutableStateOf(false)};var text by remember {mutableStateOf(false)};var search by remember {mutableStateOf(false)}
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp)) {
         PdfNavigationActions(s,page,vm,busy,navigate)
         TextButton({bodyEditor=true},enabled=!busy) {Text("기존 본문 문자열 편집")}
+        TextButton({imageEditor=true},enabled=!busy) {Text("기존 이미지 편집")}
         TextButton({text=true},enabled=!busy) {Text("텍스트 선택")};TextButton({search=true},enabled=!busy) {Text("PDF 검색")}
         TextButton({forms=true},enabled=!busy && s.pdf!!.forms.isNotEmpty()) {Text("양식 (${s.pdf!!.forms.size})")}
     }
+    if(imageEditor) PdfImageTools(s,page,vm) {imageEditor=false}
     if(bodyEditor) {
         var selected by remember {mutableStateOf<PdfBodyRun?>(null)};var replacement by remember {mutableStateOf("")}
         val runs by produceState<List<PdfBodyRun>?>(null,s.base,page) {value=withContext(Dispatchers.IO) {runCatching {PdfBodyText.runs(s.base,page)}.getOrElse {vm.message(it.message);emptyList()}}}

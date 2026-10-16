@@ -10,7 +10,7 @@ import android.view.ScaleGestureDetector
 import android.view.MotionEvent
 import android.view.View
 import kr.documentstudio.core.*
-import kr.documentstudio.data.drawStroke
+import kr.documentstudio.data.StrokePainter
 import kr.documentstudio.data.shapePoints
 import kotlin.math.hypot
 
@@ -32,6 +32,10 @@ class InkView(context: Context): View(context) {
     var onZoom: (Float)->Unit={}
     var onPan: (Float,Float)->Unit={_,_->}
     private var activeId=-1
+    private val strokePainter=StrokePainter()
+    private val selectionPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=Color.rgb(35,125,100);style=Paint.Style.STROKE;strokeWidth=2f;pathEffect=DashPathEffect(floatArrayOf(8f,5f),0f)}
+    private val eraserPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=0x5590A4AE;strokeCap=Paint.Cap.ROUND;strokeJoin=Paint.Join.ROUND}
+    private val gesturePath=Path()
     private val points=mutableListOf<InkPoint>()
     private var strokeTool=InkTool.PEN
     private var preview: Stroke?=null
@@ -45,15 +49,14 @@ class InkView(context: Context): View(context) {
     init { setLayerType(LAYER_TYPE_HARDWARE,null); contentDescription="필기 페이지" }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        strokes.filter { it.anchor==anchor }.forEach { drawStroke(canvas,it,width.toFloat(),height.toFloat()) }
-        preview?.let { drawStroke(canvas,it,width.toFloat(),height.toFloat()) }
-        val selectionPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=Color.rgb(35,125,100);style=Paint.Style.STROKE;strokeWidth=2f;pathEffect=DashPathEffect(floatArrayOf(8f,5f),0f)}
-        strokes.filter {it.anchor==anchor && it.id in selected}.forEach {s->val pts=shapePoints(s);if(pts.isNotEmpty()) canvas.drawRect(pts.minOf {it.x}*width-4,pts.minOf {it.y}*height-4,pts.maxOf {it.x}*width+4,pts.maxOf {it.y}*height+4,selectionPaint)}
-        if(strokeTool==InkTool.LASSO && points.isNotEmpty()) canvas.drawPath(Path().apply {moveTo(points[0].x*width,points[0].y*height);points.drop(1).forEach {lineTo(it.x*width,it.y*height)};close()},selectionPaint)
+        strokes.forEach {if(it.anchor==anchor) strokePainter.draw(canvas,it,width.toFloat(),height.toFloat())}
+        preview?.let {strokePainter.draw(canvas,it,width.toFloat(),height.toFloat())}
+        strokes.forEach {s->if(s.anchor==anchor && s.id in selected) {val pts=shapePoints(s);if(pts.isNotEmpty()) canvas.drawRect(pts.minOf {it.x}*width-4,pts.minOf {it.y}*height-4,pts.maxOf {it.x}*width+4,pts.maxOf {it.y}*height+4,selectionPaint)}}
+        if(strokeTool==InkTool.LASSO && points.isNotEmpty()) {gesturePath.rewind();gesturePath.moveTo(points[0].x*width,points[0].y*height);for(i in 1 until points.size) gesturePath.lineTo(points[i].x*width,points[i].y*height);gesturePath.close();canvas.drawPath(gesturePath,selectionPaint)}
         if(strokeTool==InkTool.ERASER && points.isNotEmpty()) {
-            val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=0x5590A4AE;style=Paint.Style.STROKE;strokeWidth=eraserRadius*width*2;strokeCap=Paint.Cap.ROUND;strokeJoin=Paint.Join.ROUND}
-            if(points.size==1) canvas.drawCircle(points[0].x*width,points[0].y*height,eraserRadius*width,paint.apply {style=Paint.Style.FILL})
-            else canvas.drawPath(Path().apply {moveTo(points[0].x*width,points[0].y*height);points.drop(1).forEach {lineTo(it.x*width,it.y*height)}},paint)
+            eraserPaint.style=if(points.size==1) Paint.Style.FILL else Paint.Style.STROKE;eraserPaint.strokeWidth=eraserRadius*width*2
+            if(points.size==1) canvas.drawCircle(points[0].x*width,points[0].y*height,eraserRadius*width,eraserPaint)
+            else {gesturePath.rewind();gesturePath.moveTo(points[0].x*width,points[0].y*height);for(i in 1 until points.size) gesturePath.lineTo(points[i].x*width,points[i].y*height);canvas.drawPath(gesturePath,eraserPaint)}
         }
         hover?.let {p->canvas.drawCircle(p.x*width,p.y*height,(if(tool==InkTool.ERASER) eraserRadius*width else lineWidth*width/2).coerceAtLeast(4f),selectionPaint)}
     }
@@ -94,7 +97,7 @@ class InkView(context: Context): View(context) {
                 if(event.getPointerId(index)!=activeId) return activeId!=-1
                 if(event.flags and MotionEvent.FLAG_CANCELED == 0) {
                     sample(event,index)
-                    if(strokeTool==InkTool.ERASER) onEraseGesture(points.toList(),eraserRadius,height.toFloat()/width.coerceAtLeast(1)) else if(strokeTool==InkTool.LASSO) onLasso(points.toList()) else preview?.let(onStroke)
+                    if(strokeTool==InkTool.ERASER) onEraseGesture(points.toList(),eraserRadius,height.toFloat()/width.coerceAtLeast(1)) else if(strokeTool==InkTool.LASSO) onLasso(points.toList()) else preview?.let {onStroke(it.copy(points=points.toList()))}
                 }
                 clear(); performClick(); return true
             }
@@ -107,9 +110,12 @@ class InkView(context: Context): View(context) {
         val x=if(history<0) e.getX(i) else e.getHistoricalX(i,history)
         val y=if(history<0) e.getY(i) else e.getHistoricalY(i,history)
         val pressure=if(history<0) e.getPressure(i) else e.getHistoricalPressure(i,history)
-        val point=InkPoint((x/width).coerceIn(0f,1f),(y/height).coerceIn(0f,1f),pressure.coerceIn(0.1f,2f),e.getAxisValue(MotionEvent.AXIS_TILT,i))
+        val tilt=if(history<0) e.getAxisValue(MotionEvent.AXIS_TILT,i) else e.getHistoricalAxisValue(MotionEvent.AXIS_TILT,i,history)
+        val point=InkPoint((x/width).coerceIn(0f,1f),(y/height).coerceIn(0f,1f),pressure.coerceIn(0.1f,2f),tilt)
         if(points.size<10000 && (points.isEmpty() || hypot(x-points.last().x*width,y-points.last().y*height)>0.5)) points.add(point)
-        preview=if(strokeTool in listOf(InkTool.LASSO,InkTool.ERASER)) null else Stroke(id=strokeId,anchor=anchor,tool=strokeTool,color=inkColor,width=lineWidth,points=points.toList(),opacity=opacity)
+        // The preview stays on this View's UI thread. Freeze the buffer once,
+        // on commit, before handing it to the immutable document state.
+        preview=if(strokeTool in listOf(InkTool.LASSO,InkTool.ERASER)) null else Stroke(id=strokeId,anchor=anchor,tool=strokeTool,color=inkColor,width=lineWidth,points=points,opacity=opacity)
         invalidate()
     }
     private fun clear() { activeId=-1; points.clear(); preview=null; parent.requestDisallowInterceptTouchEvent(false); invalidate() }

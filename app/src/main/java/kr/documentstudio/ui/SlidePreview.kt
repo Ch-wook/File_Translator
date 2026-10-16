@@ -22,12 +22,12 @@ import kr.documentstudio.data.*
 
 @Composable
 fun rememberSlide(s: Session,sec: Section?): SlideScene? {
-    val scene by produceState<SlideScene?>(null,s.base,sec?.id,s.edits.values,s.edits.styles) {
+    val scene by key(s.base,sec?.id,s.edits.values,s.edits.styles) {produceState<SlideScene?>(null) {
         var loaded: SlideScene?=null
-        try {if(sec!=null) {loaded=withContext(Dispatchers.IO) {SlideEngine.load(s,sec)};value=loaded};awaitDispose {loaded?.recycle()}}
+        try {if(sec!=null) {withContext(Dispatchers.IO) {loaded=SlideEngine.load(s,sec)};value=loaded};awaitDispose {loaded?.recycle()}}
         catch(e: CancellationException) {loaded?.recycle();throw e}
         catch(_: Exception) {value=null;loaded?.recycle()}
-    };return scene
+    }};return scene
 }
 class SlideView(context: Context): View(context) {
     var scene: SlideScene?=null
@@ -35,11 +35,13 @@ class SlideView(context: Context): View(context) {
     var editable=false
     var onMove: (SlideShape,Float,Float)->Unit={_,_,_->}
     private var selected: SlideShape?=null;private var x=0f;private var y=0f;private var dx=0f;private var dy=0f
+    private val strokePainter=StrokePainter()
+    private val selectionPaint=Paint().apply {color=android.graphics.Color.rgb(40,120,95);style=Paint.Style.STROKE;strokeWidth=2f}
     init {contentDescription="슬라이드 기본 개체 미리보기"}
     override fun onDraw(canvas: Canvas) {
         // Ink uses the same normalized slide coordinates as the preview and PDF export.
-        if(strokes.isNotEmpty()) {scene?.let {SlideEngine.draw(canvas,it,width.toFloat(),height.toFloat())};strokes.forEach {drawStroke(canvas,it,width.toFloat(),height.toFloat())};return}
-        scene?.let {s->SlideEngine.draw(canvas,s,width.toFloat(),height.toFloat());selected?.let {shape->val paint=Paint().apply {color=android.graphics.Color.rgb(40,120,95);style=Paint.Style.STROKE;strokeWidth=2f};canvas.drawRect((shape.x+dx)*width/s.width,(shape.y+dy)*height/s.height,(shape.x+shape.width+dx)*width/s.width,(shape.y+shape.height+dy)*height/s.height,paint)}}
+        if(strokes.isNotEmpty()) {scene?.let {SlideEngine.draw(canvas,it,width.toFloat(),height.toFloat())};strokes.forEach {strokePainter.draw(canvas,it,width.toFloat(),height.toFloat())};return}
+        scene?.let {s->SlideEngine.draw(canvas,s,width.toFloat(),height.toFloat());selected?.let {shape->canvas.drawRect((shape.x+dx)*width/s.width,(shape.y+dy)*height/s.height,(shape.x+shape.width+dx)*width/s.width,(shape.y+shape.height+dy)*height/s.height,selectionPaint)}}
     }
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if(!editable) return false;val s=scene ?: return false

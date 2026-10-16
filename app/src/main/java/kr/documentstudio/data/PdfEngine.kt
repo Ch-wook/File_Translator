@@ -155,6 +155,7 @@ object PdfEngine {
         when(change.type) {
             "pdf.bookmarkAdd","pdf.bookmarkRename","pdf.bookmarkDelete" -> PdfBookmarks.change(doc,index,change)
             "pdf.replaceText" -> PdfBodyText.replace(doc,index,args.getValue("id").toInt(),args.getValue("expected"),args.getValue("text"))
+            "pdf.transformImage","pdf.deleteImage" -> PdfImages.change(doc,index,args.getValue("id").toInt(),args.getValue("expected"),if(change.type=="pdf.deleteImage") null else listOf("x","y","width","height").map {args.getValue(it).toFloat()})
             "pdf.add" -> {doc.pages.insertAfter(PDPage(doc.getPage(index).mediaBox),doc.getPage(index));mapping.add(index+1,-1)}
             "pdf.delete" -> {require(count>1) {"마지막 페이지는 삭제할 수 없습니다."};require(doc.getPage(index).annotations.none {it.subtype=="Widget"}) {"양식 위젯이 있는 페이지는 삭제할 수 없습니다."};PdfBookmarks.beforePageDeletion(doc,index);doc.removePage(index);mapping.removeAt(index)}
             "pdf.rotate" -> {val angle=args["angle"]?.toInt() ?: 90;require(angle in listOf(90,180,270));val p=doc.getPage(index);p.rotation=((p.rotation+angle)%360+360)%360}

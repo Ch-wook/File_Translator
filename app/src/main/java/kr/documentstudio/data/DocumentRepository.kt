@@ -26,7 +26,9 @@ data class Session(val id: String, val name: String, val format: Format, val uri
 class DocumentRepository(private val context: Context) {
     private val root = File(context.filesDir, "documents").apply { mkdirs() }
     private val index = File(root, "index.json")
-    private val mutex = Mutex()
+    // Activities and recovery tests may own different repository instances.
+    // They still share one index and must serialize the complete transaction.
+    private val mutex = repositoryMutex
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { mutex.withLock { block() } }
     suspend fun recents(): List<Recent> = io { readIndex() }
     private fun readIndex(): List<Recent> {
@@ -87,7 +89,12 @@ class DocumentRepository(private val context: Context) {
     }
     suspend fun restore(id: String): Session = io { restoreInternal(id).also { remember(it) } }
     private fun importBackup(zip: java.util.zip.ZipFile): Session {
+        require(zip.size()<=256) {"백업 파트 수 제한(256개)을 초과했습니다."}
         require(zip.entries().toList().map {it.name}.distinct().size==zip.size()) {"중복 백업 파트가 있습니다."}
+        val entries=zip.entries().toList()
+        require(entries.all {entry -> !entry.isDirectory && (entry.name in setOf("base.bin","state.json","provider-backup.bin") ||
+            entry.name.startsWith("office-recovery/") && entry.name.removePrefix("office-recovery/").split('/').all {it.matches(Regex("[a-zA-Z0-9._-]+")) && it!="." && it!=".."})}) {"지원하지 않거나 안전하지 않은 백업 경로가 있습니다."}
+        require(entries.all {it.size in 0..128L*1024*1024} && entries.sumOf {it.size}<=256L*1024*1024) {"백업의 압축 해제 용량 제한(256 MiB)을 초과했습니다."}
         fun read(name: String,limit: Long): ByteArray {
             val entry=zip.getEntry(name) ?: error("백업 파트 누락")
             require(entry.size in 0..limit) {"백업 크기 제한 초과"}
@@ -100,12 +107,25 @@ class DocumentRepository(private val context: Context) {
         val j=JSONObject(read("state.json",16L*1024*1024).toString(Charsets.UTF_8))
         require(j.getInt("version")==1) {"지원하지 않는 백업 버전"}
         val id=UUID.randomUUID().toString();val dir=File(root,id).apply {mkdirs()};val base=File(dir,"base.bin")
-        atomic(base,read("base.bin",128L*1024*1024))
-        val name=j.getString("name");val encoding=j.optString("encoding","UTF-8")
-        val format=FormatDetector.detect(base,name,null,encoding)
-        require(format.name==j.getString("format")) {"백업의 문서 형식이 일치하지 않습니다."}
-        val s=build(id,"복구-$name",format,null,null,base,encoding).copy(edits=StateCodec.decode(j.getJSONObject("edits")),saved=StateCodec.decode(j.getJSONObject("saved")))
-        checkpointInternal(s);return s
+        try {
+            atomic(base,read("base.bin",128L*1024*1024))
+            val name=j.getString("name");val encoding=j.optString("encoding","UTF-8")
+            val format=FormatDetector.detect(base,name,null,encoding)
+            require(format.name==j.getString("format")) {"백업의 문서 형식이 일치하지 않습니다."}
+            val s=build(id,"복구-$name",format,null,null,base,encoding).copy(edits=StateCodec.decode(j.getJSONObject("edits")),saved=StateCodec.decode(j.getJSONObject("saved")),revision=j.optLong("revision"),savedRevision=j.optLong("savedRevision"))
+            // Quarantine imported recovery files. Pending markers contain paths
+            // from another session and must never run automatically here.
+            entries.filter {it.name !in setOf("base.bin","state.json")}.forEach {entry ->
+                val target=File(File(dir,"preserved-backup"),entry.name)
+                target.parentFile!!.mkdirs()
+                zip.getInputStream(entry).use {input -> target.outputStream().use {out ->
+                    val buffer=ByteArray(65536);var count=0L
+                    while(true) {val n=input.read(buffer);if(n<0) break;count+=n;require(count<=entry.size);out.write(buffer,0,n)}
+                    require(count==entry.size) {"백업 복구 자료가 잘렸습니다."}
+                } }
+            }
+            checkpointInternal(s);return s
+        } catch(e: Exception) {dir.deleteRecursively();throw e}
     }
     private fun restoreInternal(id: String): Session {
         require(id.matches(Regex("[a-zA-Z0-9-]+")))
@@ -186,12 +206,24 @@ class DocumentRepository(private val context: Context) {
         require(destination.toString()!=s.uri) {"백업은 원본과 다른 파일을 선택하세요."}
         checkpointInternal(s)
         val stage=File(s.base.parentFile,"backup-export-${UUID.randomUUID()}.zip")
+        try {
+        val files=linkedMapOf("base.bin" to s.base,"state.json" to File(s.base.parentFile,"state.json"))
+        val preserved=File(s.base.parentFile,"preserved-backup")
+        if(preserved.isDirectory) preserved.walkTopDown().filter {it.isFile}.forEach {files[it.relativeTo(preserved).invariantSeparatorsPath]=it}
+        fun include(name: String,file: File) {
+            if(!file.isFile) return
+            files[name]?.let {old -> if(digest(old)!=digest(file)) files["office-recovery/retained-${digest(old)}-${old.name}"]=old}
+            files[name]=file
+        }
+        include("provider-backup.bin",File(s.base.parentFile,"provider-backup.bin"))
+        s.base.parentFile!!.listFiles().orEmpty().filter {it.isFile && it.name.startsWith("office-")}.forEach {include("office-recovery/${it.name}",it)}
+        require(files.size<=256 && files.values.all {it.length()<=128L*1024*1024} && files.values.sumOf {it.length()}<=256L*1024*1024) {"백업 용량 또는 파트 수 제한을 초과했습니다. 복구 자료를 별도로 보존해 주세요."}
         java.util.zip.ZipOutputStream(stage.outputStream()).use { zip ->
-            val forensic=s.base.parentFile!!.listFiles().orEmpty().filter {it.isFile && it.name.startsWith("office-") && it.length()<=128L*1024*1024}.map {"office-recovery/${it.name}" to it}
-            (listOf("base.bin" to s.base,"state.json" to File(s.base.parentFile,"state.json"),"provider-backup.bin" to File(s.base.parentFile,"provider-backup.bin"))+forensic).filter {it.second.exists()}.forEach { (name,file) ->
+            files.forEach { (name,file) ->
                 zip.putNextEntry(java.util.zip.ZipEntry(name)); file.inputStream().use { it.copyTo(zip) }; zip.closeEntry()
             }
         }
+        require(stage.length()<=128L*1024*1024) {"다시 가져올 수 있는 백업은 최대 128 MiB입니다."}
         java.util.zip.ZipFile(stage).use {zip->require(zip.getEntry("base.bin")!=null && zip.getEntry("state.json")!=null)}
         val previous=File(s.base.parentFile,"backup-destination.bin");copyUri(destination,previous)
         try {
@@ -200,6 +232,7 @@ class DocumentRepository(private val context: Context) {
         } catch(e: Exception) {
             val restored=runCatching {context.contentResolver.openOutputStream(destination,"rwt")!!.use {out->previous.inputStream().use {it.copyTo(out)}};require(digestUri(destination)==digest(previous))}.isSuccess
             error(if(restored) "백업 저장에 실패하여 대상 파일을 복원했습니다." else "백업 저장·복원이 실패했습니다. 앱 내부 복구 데이터를 보존했습니다.")
+        }
         } finally {stage.delete()}
     }
     suspend fun printable(s: Session): File = io {
@@ -333,6 +366,7 @@ class DocumentRepository(private val context: Context) {
     }
     private fun digestUri(uri: Uri): String = context.contentResolver.openInputStream(uri)?.use { digestStream(it) } ?: error("저장 검증을 위한 읽기 권한이 없습니다.")
     companion object {
+        private val repositoryMutex=Mutex()
         val officeFormats=setOf(Format.DOCX,Format.DOC,Format.XLSX,Format.XLS,Format.PPTX,Format.PPT)
         fun digest(file: File): String = file.inputStream().use { digestStream(it) }
         private fun digestStream(input: java.io.InputStream): String {

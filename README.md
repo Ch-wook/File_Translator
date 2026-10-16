@@ -10,10 +10,12 @@ Kotlin·Compose 앱에 로컬 Collabora/LibreOffice 엔진을 통합했습니다
 - 기본 DOCX 도구: 글자·문단·자간·장평·위아래 첨자, 다단, 표 행열/병합/분할/배경/테두리, 이미지·링크·머리글·바닥글·쪽 번호.
 - 기본 XLSX 도구: 범위 복사/붙여넣기·채우기·삭제·정렬, 행열 삽입/삭제와 참조 갱신, 시트·병합·서식, 다른 시트 참조와 날짜·백분율 계산 표시. 무거운 표 계산은 백그라운드에서 처리합니다.
 - 기본 PPTX 도구: 슬라이드·개체 이동/크기/회전/순서/삭제, 이미지 삽입, 기본 개체 미리보기·발표·PDF 출력.
-- PDF 페이지 조작·병합·추출·축소판·연속 스크롤·북마크, 검색·선택·양식, 본문/이미지 추가, 원래 폰트가 지원하는 기존 가로 본문 문자열 교체, 표준 Ink 저장.
-- HWPX 텍스트·글자/문단 서식·용지와 실제 새 문서, HWP 일반 문자 구간 편집. TXT/MD 입력·검색·인코딩·줄 번호·CommonMark/GFM 표 미리보기.
+- PDF 페이지 조작·병합·추출·축소판·연속 스크롤·북마크, 검색·선택·양식, 본문/이미지 추가, 직접 이미지의 위치·크기·삭제, 원래 폰트가 지원하는 기존 가로 본문 문자열 교체, 표준 Ink 저장.
+- HWPX 텍스트·글자/문단 서식·용지·표 생성/행열/병합/서식과 실제 새 문서, HWP 일반 문자 구간 편집. TXT/MD 입력·검색·인코딩·줄 번호·CommonMark/GFM 표 미리보기.
 - 공통 필기: 필압·기울기 입력, 여러 펜·형광펜·도형, 획 전체/부분 지우기, 올가미·이동·복사·회전·크기·삭제, 확대·손가락 탐색.
 - 탭·즐겨찾기·복구·Undo/Redo, SAF 원본 백업·해시 충돌 검사·저장 검증, ZIP 백업·필기 포함 PDF·인쇄. INTERNET/전체 저장소 접근 권한 없음.
+
+기본 Excel은 구현된 16개 함수의 이름·한국어 설명 검색과 입력 끝 함수 이름 완성을 제공합니다. 외부 열기/공유 요청은 진행 중인 명령이 끝난 뒤 순서대로 처리하며, 가져온 ZIP의 정밀 편집 실패 파일과 원본 백업은 재백업에도 보존합니다.
 
 ## 설치·빌드
 
@@ -29,6 +31,7 @@ JDK 17, SDK 36, NDK 28.2.13676358, CMake 3.22.1을 사용합니다. 첫 빌드�
 $env:JAVA_HOME = 'C:\Program Files\Java\jdk-17'
 .\gradlew.bat :core:test :app:assembleDebug :app:lintDebug
 .\gradlew.bat :app:connectedDebugAndroidTest
+.\scripts\verify-editing.ps1
 .\scripts\build-release.ps1
 .\scripts\verify-release.ps1
 .\scripts\package-delivery.ps1
@@ -44,6 +47,8 @@ PDF 필기는 표준 Ink 주석에 포함합니다. 나머지는 **앱 내부 �
 
 ## 문서
 
+- [전체 기능 검증·보완 계획과 진행 기록](docs/IMPLEMENTATION_PLAN.md)
+- [원문 기능별 인수 확인표](docs/FEATURE_ACCEPTANCE.md)
 - [형식별 지원과 남은 요구사항](docs/SUPPORT_MATRIX.md)
 - [테스트 결과](docs/TEST_RESULTS.md)
 - [빌드·서명·배포](docs/BUILD_AND_RELEASE.md)

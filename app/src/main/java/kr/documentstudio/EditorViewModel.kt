@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kr.documentstudio.core.*
@@ -29,6 +30,8 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     private var lastTextEdit=0L
     private var lastTextTarget: String?=null
     private var officeActive: String?=null
+    private val externalOpens=ArrayDeque<Uri>()
+    private var externalOpenJob: Job?=null
     init { viewModelScope.launch {
         try {
             val preferences=withContext(Dispatchers.IO) { application.getSharedPreferences("settings",0).let { p -> Settings(p.getBoolean("stylusOnly",false),p.getFloat("fontSize",16f),p.getString("encoding","UTF-8")!!,p.getString("penTool","PEN")!!,p.getInt("penColor",0xFF294E46.toInt()),p.getFloat("penWidth",0.004f),p.getFloat("penOpacity",1f),p.getBoolean("wrapLines",true),p.getBoolean("partialEraser",false),p.getFloat("eraserRadius",0.025f).coerceIn(0.005f,0.08f)) } }
@@ -70,6 +73,20 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         val ext=s.name.substringAfterLast('.',"").lowercase()
         if(ext.isNotEmpty() && ext != s.format.extension && ext != "markdown") message("파일 내용은 ${s.format.extension.uppercase()} 형식입니다. 저장할 때 올바른 확장자를 사용하세요.")
         else if(s.dirty && s.uri!=null) message("저장되지 않은 작업 복구본을 열었습니다.")
+    }
+    /** External intents cannot be disabled like UI buttons: retain them while busy. */
+    fun openExternal(uri: Uri) {
+        if(uri in externalOpens) return
+        if(externalOpens.size>=32) {message("열기 요청이 너무 많습니다. 현재 작업이 끝난 뒤 다시 선택해 주세요.");return}
+        externalOpens.addLast(uri)
+        if(externalOpenJob?.isActive==true) return
+        externalOpenJob=viewModelScope.launch {
+            while(externalOpens.isNotEmpty()) {
+                state.first {!it.busy}
+                open(externalOpens.removeFirst())
+                state.first {!it.busy}
+            }
+        }
     }
     fun restore(id: String) = action {
         if(mutable.value.tabs.any {it.id==id}) {lastTextEdit=0;mutable.value=mutable.value.copy(active=id)}

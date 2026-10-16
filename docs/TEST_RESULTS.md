@@ -8,20 +8,50 @@
 |---|---|---:|
 | JVM | CoreTest | 15 |
 | JVM | FeatureTest | 7 |
+| JVM | FormulaCatalogTest | 3 |
 | JVM | FormulaLimitsTest | 3 |
+| JVM | HangulTablesTest | 5 |
 | JVM | InkErasureTest | 8 |
 | JVM | InkTest | 2 |
 | JVM | LegacyTest | 4 |
 | JVM | OfficeCompatibilityTest | 4 |
-| JVM | OfficeObjectsTest | 5 |
+| JVM | OfficeObjectsTest | 6 |
 | JVM | SheetOperationsTest | 9 |
 | JVM | SpreadsheetModelTest | 5 |
 | Android | DocumentIntegrationTest | 25 |
 | Android | EditingWorkflowTest | 8 |
 | Android | EditorUiTest | 6 |
 | Android | OfficeBridgeTest | 6 |
+| Android | BackupSafetyTest | 3 |
+| Android | FeatureAcceptanceUiTest | 5 |
+| Android | InkInputTest | 2 |
+| Android | PdfImageEditingTest | 4 |
+| Android | SlideMemoryTest | 1 |
 
-**총 107개 통과(JVM 62 + Android 45), 실패·오류·건너뛰기 0.** core:test, connectedDebugAndroidTest, lintDebug, assembleDebug, assembleDebugAndroidTest를 실행했습니다. lint 오류 0, 경고 29개입니다. 경고는 의존성 버전 안내 9개, DrawAllocation 7개, UseKtx 13개입니다. 이번 재검증 XML과 요약은 artifacts/editing-review에 보관하며 Git에는 생성물을 포함하지 않습니다.
+**총 131개 통과(JVM 71 + Android 60), 실패·오류·건너뛰기 0.** `scripts/verify-editing.ps1`로 cleanTest/core:test, connectedDebugAndroidTest, lintDebug, assembleDebug, assembleDebugAndroidTest를 실행했습니다. lint 오류 0, 경고 22개입니다. 경고는 의존성 버전 안내 9개, UseKtx 13개이며 DrawAllocation 진단은 7개에서 0개로 줄었습니다. 이는 모든 간접 그리기 경로의 할당이나 하드웨어 지연이 없어졌다는 의미가 아닙니다.
+
+최종 자동 검사 근거는 `artifacts/acceptance-20261016-180215/`의 summary.json·JVM/Android XML·lint·Gradle 로그입니다. 상태 passed, full_automated_gate=true이며 모든 집계 XML이 이번 실행에서 새로 생성되었습니다. 환경은 API 35/x86_64/4 KB 페이지, 720×1600 px/280 dpi입니다. debug APK SHA-256은 `DFC3A4C2F850085AB930C9D98C2065216C19B93ACF33C361B3EFF355189F8C2B`입니다. 생성물은 Git에 포함하지 않습니다. 이전 107개 재검증 근거는 `artifacts/editing-review/`에 별도로 유지합니다.
+
+## 계획에 따른 기능 보완·인수 검사
+
+[계획서](IMPLEMENTATION_PLAN.md)를 먼저 작성하고 [인수 확인표](FEATURE_ACCEPTANCE.md)에 원문의 세부 기능·지원 경로·증거·남은 검증을 연결했습니다. 이번에 24개 검사(JVM 9 + Android 15)를 추가했습니다.
+
+| 문제·공백 | 변경과 검증 |
+|---|---|
+| ZIP 복원 뒤 실패 작업 파일/원본 백업이 다음 ZIP에서 누락 | 격리 보관·재내보내기·이름 충돌 시 두 자료 유지. 두 번 복원/재백업 및 안전하지 않은 경로 거부 검사 |
+| 여러 Repository의 인덱스 수정 경합 | 프로세스 공용 Mutex. 12개 동시 생성/즐겨찾기의 누락 없음 검사 |
+| 작업 중 ACTION_VIEW/SEND 무시 | 외부 요청 대기열과 허용되는 지속 URI 권한. 실제 onNewIntent 두 번·기존 입력/재생성 검사 |
+| 함수 검색/완성 없음 | 16개 함수의 한국어/이름 검색·사용법/예제·접두어 완성. 예제 전부 계산, 실제 UI/저장 파일의 결과 검사 |
+| HWPX 표 도구 없음 | 생성·행열·내용 보존 병합/분할·크기·서식·위치 라벨. 별도 hwpxlib의 스팬/크기/문단/서식 확인, 잘못된 범위/최소 행열 보호, UI 생성/Undo/입력/저장 |
+| 기존 PDF 이미지 이동/크기 도구 없음 | 직접 이미지 출현 단위 변환/삭제. 공유 이미지의 다른 출현 유지, 0/90/180/270°·CropBox·실제 렌더 픽셀, 클리핑/오래된 선택/범위 거부, UI/Undo/파일 검사 |
+| 필기 역사 기울기와 반복 할당 | 각 역사 기울기 보존, 완료 획 불변성, 도구/압력/투명도 렌더 검사. Paint/Path 재사용·샘플별 전체 복사 제거 |
+| 슬라이드 이미지 수명·합계 메모리·숫자 순번 | 키별 새 장면과 IO 소유권, 공유 자원 재사용·800만 화소 한도, 해제 확인. 그림이 포함된 연속 구조 수정/Undo/재생성/그리기와 독립 POI의 숫자 순번 이동/크기/회전/이미지 바이트 검사 |
+
+초기 검사에서 Android의 ZIP 선제 차단 예외와 ActivityScenario의 인텐트 식별 조건을 확인해 검사 자체도 보완했습니다. 실패한 실행의 보고서를 최종 통과 보고서로 재사용하지 않았습니다. URI 플래그의 lint 오류는 허용 상수로 분기하도록 수정했고 마지막 전체 게이트에서 오류 0을 확인했습니다.
+
+수동으로 최종 APK의 휴대폰 창에서 `=su` 입력·SUM 완성 버튼·키보드와 함께 보이는 셀 표를 확인했습니다. 태블릿 창(1920×1200 px/240 dpi)에서는 HWPX 3×3 표를 실제 메뉴로 만들고 첫 셀에 `TABLE_OK`를 입력해 SAF Downloads의 `acceptance-table.hwpx`로 저장했습니다. 가져온 실제 파일(6,896바이트)의 section0.xml에서 rowCnt=3/colCnt=3/첫 셀 TABLE_OK를 확인했습니다. 샘플 SHA-256은 `A350709FE7405760BB6A9730856387BE662B16C4558A50FB861A8830D14D5059`입니다. 키보드 입력/저장됨 화면과 샘플도 위 근거 디렉터리에 보관합니다. 한컴 프로그램의 시각적 재열기 검사는 아닙니다.
+
+원문의 미지원 전문 기능, 정밀 엔진 세부 메뉴의 독립 검증, 실제 Galaxy/S펜·외부 앱·PDF/A 표준 인증은 이 자동 게이트와 별개이며 확인표에 남겼습니다. “원문 기능 모두 완벽”으로 판정하지 않습니다.
 
 ## 편집 흐름 추가 점검
 

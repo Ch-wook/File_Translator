@@ -20,6 +20,15 @@ class OfficeObjectsTest {
         val slides=change(create(Format.PPTX),"slide.image",mapOf("width" to "8","x" to "2","y" to "3"),image)
         XMLSlideShow(slides.inputStream()).use {doc->val shape=doc.slides[0].shapes.last() as XSLFPictureShape;assertArrayEquals(image.readBytes(),shape.pictureData.data);assertEquals(8*72/2.54,shape.anchor.width,0.01);assertEquals(4*72/2.54,shape.anchor.height,0.01);assertEquals(2*72/2.54,shape.anchor.x,0.01)}
     }
+    @Test fun numericObjectTransformIncludesPicturesAndPreservesTheirRelationships() {
+        val image=png();val source=change(create(Format.PPTX),"slide.image",mapOf("width" to "8"),image)
+        val moved=change(source,"slide.transform",mapOf("shape" to "1","x" to "3","y" to "4","width" to "5","height" to "2","rotation" to "15"))
+        XMLSlideShow(moved.inputStream()).use {show->
+            val picture=show.slides.first().shapes[1] as XSLFPictureShape
+            assertArrayEquals(image.readBytes(),picture.pictureData.data)
+            assertEquals(3*72/2.54,picture.anchor.x,0.01);assertEquals(5*72/2.54,picture.anchor.width,0.01);assertEquals(15.0,picture.rotation,0.01)
+        }
+    }
     @Test fun hyperlinksHeadersAndPageFieldsRetainNativeRelationships() {
         val source=create(Format.DOCX)
         val linked=change(source,"word.hyperlink",mapOf("url" to "https://example.com/?a=1&b=2","text" to "실제 링크"))

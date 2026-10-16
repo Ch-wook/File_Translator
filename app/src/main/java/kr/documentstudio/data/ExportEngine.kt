@@ -50,16 +50,28 @@ object ExportEngine {
 }
 
 fun drawStroke(canvas: android.graphics.Canvas,s: Stroke,w: Float,h: Float) {
-    val points=shapePoints(s); if(points.isEmpty()) return
-    val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=s.color; alpha=(s.opacity*if(s.tool==InkTool.HIGHLIGHTER) 72 else if(s.tool==InkTool.PENCIL) 150 else 255).toInt().coerceIn(0,255); style=Paint.Style.STROKE; strokeCap=Paint.Cap.ROUND; strokeJoin=Paint.Join.ROUND; strokeWidth=(s.width*w).coerceAtLeast(0.5f) }
-    if(points.size==1) { canvas.drawCircle(points[0].x*w,points[0].y*h,paint.strokeWidth/2,Paint(paint).apply { style=Paint.Style.FILL }); return }
-    if(s.tool in listOf(InkTool.PEN,InkTool.FOUNTAIN,InkTool.PENCIL,InkTool.BRUSH)) points.zipWithNext().forEach { (a,b) ->
-        val pressure=(a.pressure+b.pressure)/2
-        val response=when(s.tool) {InkTool.FOUNTAIN->0.3f+pressure*(1f+0.3f*kotlin.math.sin(a.tilt));InkTool.BRUSH->0.2f+pressure*pressure;InkTool.PENCIL->0.6f+pressure*0.3f;else->0.5f+pressure/2}
-        paint.strokeWidth=(s.width*w*response).coerceAtLeast(0.5f)
-        canvas.drawLine(a.x*w,a.y*h,b.x*w,b.y*h,paint)
-    } else {
-        val path=Path().apply {moveTo(points[0].x*w,points[0].y*h);points.drop(1).forEach {lineTo(it.x*w,it.y*h)}}
-        canvas.drawPath(path,paint)
+    StrokePainter().draw(canvas,s,w,h)
+}
+
+/** Reuse on a single rendering thread. Input paths allocate no per-segment pairs. */
+class StrokePainter {
+    private val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply {strokeCap=Paint.Cap.ROUND;strokeJoin=Paint.Join.ROUND}
+    private val path=Path()
+    fun draw(canvas: android.graphics.Canvas,s: Stroke,w: Float,h: Float) {
+        val points=shapePoints(s);if(points.isEmpty()) return
+        paint.color=s.color;paint.alpha=(s.opacity*if(s.tool==InkTool.HIGHLIGHTER) 72 else if(s.tool==InkTool.PENCIL) 150 else 255).toInt().coerceIn(0,255)
+        paint.style=Paint.Style.STROKE;paint.strokeWidth=(s.width*w).coerceAtLeast(0.5f)
+        if(points.size==1) {paint.style=Paint.Style.FILL;canvas.drawCircle(points[0].x*w,points[0].y*h,paint.strokeWidth/2,paint);return}
+        if(s.tool==InkTool.PEN || s.tool==InkTool.FOUNTAIN || s.tool==InkTool.PENCIL || s.tool==InkTool.BRUSH) {
+            for(i in 1 until points.size) {
+                val a=points[i-1];val b=points[i];val pressure=(a.pressure+b.pressure)/2
+                val response=when(s.tool) {InkTool.FOUNTAIN->0.3f+pressure*(1f+0.3f*kotlin.math.sin(a.tilt));InkTool.BRUSH->0.2f+pressure*pressure;InkTool.PENCIL->0.6f+pressure*0.3f;else->0.5f+pressure/2}
+                paint.strokeWidth=(s.width*w*response).coerceAtLeast(0.5f);canvas.drawLine(a.x*w,a.y*h,b.x*w,b.y*h,paint)
+            }
+        } else {
+            path.rewind();path.moveTo(points[0].x*w,points[0].y*h)
+            for(i in 1 until points.size) path.lineTo(points[i].x*w,points[i].y*h)
+            canvas.drawPath(path,paint)
+        }
     }
 }

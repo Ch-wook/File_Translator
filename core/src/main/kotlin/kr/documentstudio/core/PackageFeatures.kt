@@ -35,6 +35,7 @@ object PackageFeatures {
         if(change!=null) {
             val args=change.arguments
             when(change.type) {
+                in HangulTables.operations -> {require(format==Format.HWPX);HangulTables.apply(xml(change.target),xml("Contents/header.xml"),change)}
                 in SheetOperations.operations -> {require(format==Format.XLSX);SheetOperations.apply(parts,::xml,change)}
                 in WordTables.operations -> {require(format==Format.DOCX);WordTables.apply(xml("word/document.xml"),change)}
                 in OfficeObjects.operations -> {require(format==if(change.type.startsWith("word.")) Format.DOCX else Format.PPTX);OfficeObjects.apply(parts,::xml,change,attachment)}
@@ -172,8 +173,10 @@ object PackageFeatures {
                 "slide.text","slide.rectangle","slide.transform" -> {
                     require(format==Format.PPTX);val doc=xml(change.target);val tree=Xml.elements(doc,"spTree").single()
                     if(change.type=="slide.transform") {
-                        val shape=if(args["shapeId"]!=null) Xml.elements(tree,"cNvPr").firstOrNull {it.getAttribute("id")==args["shapeId"]}?.parentNode?.parentNode as? Element else Xml.elements(tree,"sp").getOrNull(args.getValue("shape").toInt())
+                        val objects=(0 until tree.childNodes.length).mapNotNull {tree.childNodes.item(it) as? Element}.filter {it.localName in listOf("sp","pic","graphicFrame","grpSp","cxnSp")}
+                        val shape=if(args["shapeId"]!=null) objects.firstOrNull {Xml.elements(it,"cNvPr").firstOrNull()?.getAttribute("id")==args["shapeId"]} else objects.getOrNull(args.getValue("shape").toInt())
                         require(shape!=null) {"도형이 없습니다."}
+                        require(shape.localName in listOf("sp","pic","cxnSp")) {"그룹·표·차트 변환은 정밀 편집을 사용하세요."}
                         val pr=Xml.child(shape,"spPr") ?: error("도형 속성이 없습니다.");val xfrm=Xml.child(pr,"xfrm") ?: doc.element(A,"a:xfrm").also {pr.insertBefore(it,pr.firstChild)}
                         transform(doc,xfrm,args)
                     } else {

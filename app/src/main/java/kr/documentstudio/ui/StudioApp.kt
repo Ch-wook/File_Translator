@@ -361,6 +361,7 @@ private fun SheetEditor(s: Session,sec: Section,vm: EditorViewModel,busy: Boolea
         }
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
             Text("계산: ${if(addressValid) calculation.raw[address] ?: "계산 중…" else "주소 오류"}",style=MaterialTheme.typography.labelMedium,modifier=Modifier.weight(1f).padding(vertical=6.dp),maxLines=1,overflow=TextOverflow.Ellipsis)
+              FormulaTools(input,!busy && addressValid) {vm.field(sec.id+"#"+address,it)}
             if(s.format==Format.XLSX) TextButton(onClick={style=true},enabled=!busy && addressValid) {Text("선택 셀 서식")}
         }
         if(s.format==Format.XLSX) SheetRangeTools(s,sec,address,cells,vm,busy)

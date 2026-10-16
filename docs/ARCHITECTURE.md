@@ -30,7 +30,7 @@ Hilt/Room/DataStore 대신 현재 규모에 맞는 생성자 주입·AtomicFile�
 | DOCX | PackageDocument/PackageFeatures | 기존 w:t, run/paragraph 속성, 문단/표/용지 |
 | XLSX | PackageDocument/PackageFeatures/Formula | 셀·서식·시트·병합·열/행·수식 |
 | PPTX | PackageDocument/PackageFeatures/SlideEngine | 슬라이드·런·직접 도형·좌표 |
-| HWPX | PackageDocument/PackageFeatures | hp:t, header 글자/문단 속성, 용지 |
+| HWPX | PackageDocument/PackageFeatures/HangulTables | hp:t, header 글자/문단 속성, 용지, 직사각형 표 구조 |
 | DOC/XLS/PPT | Apache POI binary modules | 기존 런·셀, 원본 OLE 저장 |
 | HWP | hwplib | 일반 문자 구간·원본 바이너리 저장 |
 
@@ -79,7 +79,7 @@ PPTX 필기는 슬라이드 좌표에 연결됩니다. 다른 문서는 문서/�
 5. 제공자 기록과 앱 상태 기록은 한 트랜잭션이 아닙니다. 중간 종료 시 충돌 경고 후 다른 이름으로 복구할 수 있습니다.
 6. XML의 미수정 파트는 내용 바이트를 복사합니다. 변경 XML은 DOM 직렬화됩니다. 수식 캐시/calcChain을 지워 외부 재계산을 요청합니다.
 7. OLE는 라이브러리가 쓴 스트림을 원본과 합쳐 미해석 스트림을 보존합니다. 라이브러리가 해석한 레코드 내부의 완전 무손실은 검증하지 않았습니다.
-8. ZIP 백업은 베이스·편집·필기를 포함하며 가져오기는 새 ID/원본 URI 없음 상태로 복원합니다. ZIP 자체는 암호화되지 않습니다.
+8. ZIP 백업은 베이스·편집·필기·정밀 편집 실패 자료·제공자 원본 백업을 포함하며 가져오기는 새 ID/원본 URI 없음 상태로 복원합니다. 실패 자료는 `preserved-backup/`에 격리해 외부 pending을 실행하지 않고 다음 백업에서 원래 ZIP 경로로 다시 내보냅니다. 새 자료와 충돌하면 SHA-256을 포함한 별도 이름으로 이전 자료도 보존합니다. ZIP 파일 128 MiB/해제 합계 256 MiB/256파트 한도와 경로 화이트리스트를 검사합니다. ZIP 자체는 암호화되지 않습니다.
 9. 외부 원본 삭제를 추적하지 않고 복구본을 유지합니다. 앱 데이터 삭제 시 로컬 작업은 사라집니다. 불변 구조 베이스는 보수적으로 보존해 문서 편집 횟수에 따라 내부 저장 공간이 증가할 수 있습니다.
 
 ## 제한·보안
@@ -170,3 +170,18 @@ PdfContinuousReader는 LazyColumn으로 필요한 페이지만 표시하고 두 
 - DrawingPage의 시트 계산/본문 조합은 Default 디스패처에서 수행하고 필기 목록 변경에는 다시 계산하지 않습니다. 단일 PDF 페이지와 축소판은 베이스/페이지별 produceState 수명에 비트맵 소유권을 연결합니다. IO 완료 직후 취소된 경우도 해제하고, 새 작업은 null 이미지로 시작해 이전의 해제된 비트맵을 그리지 않습니다. 단일 페이지 렌더 실패에는 재시도를 제공합니다.
 
 회귀 검사는 EditingWorkflowTest에서 입력→탐색→저장/복구→실행 취소 흐름을 연결해 검사합니다. 측정하지 않은 하드웨어 지연이나 전체 문서 호환성을 통과로 간주하지 않습니다. 실행 결과와 환경은 TEST_RESULTS.md를 확인하세요.
+
+## 요구사항별 보완 — 2026-10-16
+
+[계획서](IMPLEMENTATION_PLAN.md)를 코드 변경 전에 작성하고 [인수 확인표](FEATURE_ACCEPTANCE.md)로 원문의 세부 기능을 추적합니다. 미지원·정밀 엔진의 미검증 기능·외부 인증을 완료 항목으로 합산하지 않습니다.
+
+- `HangulTables`는 OWPML 표의 주소/스팬으로 격자를 검사한 뒤 수정합니다. 텍스트는 `hp:subList`의 문단으로 보존하고 새 셀은 기존 글자/문단 속성을 참조합니다. 배경/테두리는 header의 새 borderFill을 만들어 적용하므로 다른 셀의 공유 서식을 바꾸지 않습니다. 중첩/보호/불규칙 격자, 기존 병합과 겹치는 병합은 거부하며 행열 변경 전에 병합 해제를 요구합니다. 새 표는 실제 OWPML이며 기본 화면은 조판 대신 위치를 표시한 런 편집입니다. 구조 참고: [hwpxlib TableWriter](https://github.com/neolord0/hwpxlib/blob/main/src/main/java/kr/dogfoot/hwpxlib/writer/section_xml/object/TableWriter.java), [TcWriter](https://github.com/neolord0/hwpxlib/blob/main/src/main/java/kr/dogfoot/hwpxlib/writer/section_xml/object/table/TcWriter.java). 독립 hwpxlib로 크기·스팬·내용·서식 참조를 검사합니다.
+- `FormulaCatalog`에는 실제 계산기가 구현한 16개 함수만 등록합니다. 전체 예제의 결과를 검사하며 이름/한국어 설명 검색과 입력 끝 식별자 완성을 제공합니다. 인용 문자열 안이나 셀 참조·완성된 수식은 교체하지 않습니다. `FormulaTools`는 기존 계산/서식 행에 배치해 키보드 사용 중 표 높이를 유지합니다.
+- `PdfImages`는 [PDFStreamParser](https://pdfbox.apache.org/docs/2.0.13/javadocs/org/apache/pdfbox/pdfparser/PDFStreamParser.html)로 해제된 페이지 스트림을 제한된 크기/연산자 수 안에서 순회합니다. q/Q·cm 상태를 추적하고 선택한 직접 이미지의 Do 한 번에만 국소 변환을 적용합니다. 원래 CTM의 역행렬과 표시 페이지/CropBox/회전 변환을 합성하므로 공유 자원의 다른 위치는 유지합니다. 클리핑/ExtGState/태그/스텐실/중첩 이미지는 보호합니다. 삭제해도 공유 자원 바이트는 남을 수 있어 보안 삭제가 아닙니다.
+- 외부 열기 인텐트는 `openExternal` 대기열에 남기고 busy가 풀린 뒤 기존 열기 경로로 처리합니다. 최대 32개이며 중복 대기 요청을 합칩니다. MainActivity는 singleTop으로 최상단의 중복 인스턴스를 줄이고 허용되는 URI 지속 권한을 확보합니다. Repository의 프로세스 공용 Mutex로 여러 인스턴스의 index 읽기/수정/쓰기를 직렬화합니다. 다중 프로세스/동시 편집 충돌을 완전히 해결했다는 의미는 아닙니다.
+- ZIP 복원은 보존 자료를 별도 디렉터리에 격리하고 원래 경로로 재백업합니다. 이름 충돌 시 두 파일을 모두 보존합니다. 외부 pending 표식을 현재 베이스에 적용하지 않으며 실패한 복원은 자신이 생성한 임시 세션을 정리합니다. 내보내기 용량을 쓰기 전에 검사하고 실패 시 스테이징 파일도 정리합니다.
+- `InkView`는 Paint/Path/StrokePainter를 재사용하고 필터/선분 Pair/부분 리스트 생성을 그리기 루프에서 제거했습니다. 진행 중 점 버퍼는 UI 스레드 안에서 참조하고 펜을 뗄 때 한 번만 불변 복사합니다. 완료 획이 다음 입력/clear에 변하지 않는지 검사합니다. MotionEvent 역사 샘플의 기울기는 각 샘플의 getHistoricalAxisValue로 읽습니다. 이 변경은 실제 S펜 지연 수치를 인증하지 않습니다.
+- `rememberSlide`는 베이스/섹션/입력/서식 키마다 새 producer 상태를 만들고 IO 안에서 이미지 소유권을 확보합니다. 이전 장면이 해제된 뒤 새 로딩 동안 그 장면을 다시 그리지 않습니다. `SlideView`도 선택 Paint/StrokePainter를 재사용합니다. 한 장면은 같은 이미지 자원을 한 번만 디코딩하고 합계 800만 화소 안에서 유지하며, 로딩 실패 시 확보한 이미지도 정리합니다. 초과 이미지는 제외 수로 안내하고 원본 파트는 보존합니다. 장시간 프레임/메모리 벤치마크를 대신하는 보증은 아닙니다.
+- 슬라이드 변환의 숫자 개체 순번은 삭제/계층 도구와 같은 직접 개체 목록을 사용합니다. `p:sp`만 세어 이미지 순번을 놓치던 경로를 고쳤으며 그림·일반 도형·연결선을 변환합니다. 그룹/표/차트 변환은 정밀 편집 안내로 거부합니다. HWPX 표의 런 라벨용 표 번호도 구역마다 한 번 계산해 각 셀에서 XML 전체를 재탐색하지 않습니다.
+
+`scripts/verify-editing.ps1`은 JVM 재실행·전체 Android 검사·lint·debug 빌드와 XML/환경/APK SHA-256 수집을 묶습니다. 오래된 검사 XML은 fresh=false로 기록하고 통과 횟수에서 제외합니다. `-SkipDevice`는 부분 검사이며 전체 게이트 통과로 표시하지 않습니다.
