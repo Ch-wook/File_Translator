@@ -167,17 +167,22 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     fun paper(paper: Paper,sessionId: String?=null) {document(sessionId)?.let {s->if(s.format!=Format.PDF) editFor(sessionId,s.edits.copy(paper=paper))}}
     fun reencode(charset: String,bom: Boolean,sessionId: String?=null) = action {val s=document(sessionId) ?: return@action;val changed=repository.reencode(s,charset,bom);histories.getValue(s.id).record(s);replace(changed)}
     fun erase(ids: Set<String>,sessionId: String?=null) { document(sessionId)?.let { editFor(sessionId,it.edits.copy(strokes=it.edits.strokes.filterNot { s -> s.id in ids && s.layerId in InkLayers.editable(it.edits) })) } }
-    fun eraseInk(anchor: String,gesture: List<InkPoint>,radius: Float,aspect: Float,partial: Boolean,sessionId: String?=null) = action {
+    fun eraseInk(anchor: String,gesture: List<InkPoint>,radius: Float,aspect: Float,partial: Boolean,projection: InkProjection?=null,sessionId: String?=null) = action {
         val s=document(sessionId) ?: return@action
-        val strokes=withContext(Dispatchers.Default) {val editable=InkLayers.editable(s.edits);val unlocked=s.edits.strokes.filter {it.layerId in editable};val erased=InkErasure.erase(unlocked,anchor,gesture,radius,aspect,partial);s.edits.strokes.filter {it.layerId !in editable}+erased}
+        val strokes=withContext(Dispatchers.Default) {val editable=InkLayers.editable(s.edits);val unlocked=s.edits.strokes.filter {it.layerId in editable};val visible=unlocked.mapNotNull {projection?.display(it) ?: if(projection==null) it else null};val visibleIds=visible.map {it.id}.toSet();val erased=InkErasure.erase(visible,anchor,gesture,radius,aspect,partial).map {projection?.stored(it) ?: it};s.edits.strokes.filter {it.layerId !in editable || it.id !in visibleIds}+erased}
         if(strokes!=s.edits.strokes) {
             histories.getValue(s.id).record(s)
             val changed=s.copy(edits=s.edits.copy(strokes=strokes))
             replace(changed);lastTextEdit=0;repository.checkpoint(changed)
         }
     }
-    fun transformInk(ids: Set<String>,dx: Float=0f,dy: Float=0f,scale: Float=1f,degrees: Float=0f,duplicate: Boolean=false,sessionId: String?=null) {
-        document(sessionId)?.let {s->try {editFor(sessionId,s.edits.copy(strokes=InkGeometry.transform(s.edits.strokes,ids.intersect(s.edits.strokes.filter {it.layerId in InkLayers.editable(s.edits)}.map {it.id}.toSet()),dx,dy,scale,degrees,duplicate)))} catch(e: IllegalArgumentException) {message(e.message)}}
+    fun transformInk(ids: Set<String>,dx: Float=0f,dy: Float=0f,scale: Float=1f,degrees: Float=0f,duplicate: Boolean=false,projection: InkProjection?=null,sessionId: String?=null) {
+        document(sessionId)?.let {s->try {
+            val editable=InkLayers.editable(s.edits);val selected=ids.intersect(s.edits.strokes.filter {it.layerId in editable && (projection==null || projection.display(it)!=null)}.map {it.id}.toSet())
+            val source=s.edits.strokes.map {if(it.id in selected && projection!=null) projection.display(it)!! else it}
+            val transformed=InkGeometry.transform(source,selected,dx,dy,scale,degrees,duplicate).map {if(duplicate && it.id in selected) s.edits.strokes.first {old->old.id==it.id} else if(projection!=null && (it.id in selected || s.edits.strokes.none {old->old.id==it.id})) projection.rebase(it) else it}
+            editFor(sessionId,s.edits.copy(strokes=transformed))
+        } catch(e: IllegalArgumentException) {message(e.message)}}
     }
     fun canUndo(id: String)=histories[id]?.canUndo==true
     fun canRedo(id: String)=histories[id]?.canRedo==true

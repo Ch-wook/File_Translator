@@ -40,8 +40,24 @@ object ExportEngine {
                     paint.textSize=10f; page.canvas.drawText(title,42f,30f,paint); paint.textSize=12f
                     page.canvas.save(); page.canvas.clipRect(42f,48f,553f,796f); page.canvas.translate(42f,48f-offset); layout.draw(page.canvas); page.canvas.restore()
                     // Semantic text/cell export: coordinates refer to the fixed section note page, not Office pagination.
-                    if(offset==0) InkLayers.ordered(s.edits).filter { it.anchor==anchor }.forEach { drawStroke(page.canvas,it,595f,if(s.format==Format.PPTX) 595f*9/16 else 842f) }
+                    if(offset==0) InkLayers.ordered(s.edits).filter { it.anchor==anchor && it.cell==null }.forEach { drawStroke(page.canvas,it,595f,if(s.format==Format.PPTX) 595f*9/16 else 842f) }
                     pdf.finishPage(page); offset+=748
+                }
+                if(s.format in listOf(Format.XLSX,Format.XLS)) {
+                    val section=s.sections.first {it.id==anchor}
+                    val ink=InkLayers.ordered(s.edits).filter {it.anchor==anchor && it.cell!=null}
+                    val windows=ink.map {stroke->val a=stroke.cell!!.address;((a.dropWhile(Char::isLetter).toInt()-1)/12*12+1) to ((column(a)-1)/6*6+1)}.distinct()
+                    require(windows.size<=100 && number+windows.size<=2000) {"셀 필기 PDF 페이지 제한을 초과했습니다. 범위를 나누어 주세요."}
+                    val formula=s.calculator(section)
+                    for((row,col) in windows) {
+                        val grid=SheetInkMeasurements.read(s,section,row,col);val projection=InkProjection(anchor,grid)
+                        val values=grid.rows.flatMap {r->grid.columns.map {c->columnName(c.index)+r.index}}.associateWith {formula.display(it)}
+                        val page=pdf.startPage(PdfDocument.PageInfo.Builder(595,842,++number).create())
+                        page.canvas.drawColor(Color.WHITE);paint.textSize=10f;page.canvas.drawText("$title · 셀 필기 ${columnName(col)}$row",20f,24f,paint)
+                        page.canvas.save();page.canvas.translate(0f,36f);drawSheetInk(page.canvas,grid,values,595f,790f)
+                        ink.mapNotNull {projection.display(it)}.forEach {drawStroke(page.canvas,it,595f,790f)}
+                        page.canvas.restore();pdf.finishPage(page)
+                    }
                 }
             }
             destination.outputStream().use { pdf.writeTo(it) }

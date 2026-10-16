@@ -35,11 +35,25 @@ fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: Docume
     var activeLayer by rememberSaveable(s.id) {mutableStateOf("default")}
     var showLayers by remember {mutableStateOf(false)}
     LaunchedEffect(s.edits.layers) {if(s.edits.layers.none {it.id==activeLayer}) activeLayer=s.edits.layers.first().id}
-    val visibleStrokes=remember(s.edits.strokes,s.edits.layers) {InkLayers.ordered(s.edits)}
+    val sheet=s.format in listOf(Format.XLSX,Format.XLS) && sec!=null
+    var startCell by rememberSaveable(s.id,sec?.id) {mutableStateOf("A1")}
+    var firstRow by rememberSaveable(s.id,sec?.id) {mutableIntStateOf(1)}
+    var firstColumn by rememberSaveable(s.id,sec?.id) {mutableIntStateOf(1)}
+    var bindCell by rememberSaveable(s.id) {mutableStateOf(true)}
+    var gridError by remember(s.base,firstRow,firstColumn) {mutableStateOf<String?>(null)}
+    val grid by produceState<SheetInkGrid?>(null,s.base,sec,firstRow,firstColumn) {
+        if(sheet) try {value=withContext(Dispatchers.IO) {SheetInkMeasurements.read(s,sec!!,firstRow,firstColumn)}} catch(e: kotlinx.coroutines.CancellationException) {throw e} catch(e: Exception) {gridError=e.message}
+    }
+    val cellValues by produceState<Map<String,String>>(emptyMap(),s.sections,s.edits.values,grid) {
+        if(sheet && grid!=null) value=withContext(Dispatchers.Default) {val formula=s.calculator(sec!!);grid!!.rows.flatMap {r->grid!!.columns.map {c->columnName(c.index)+r.index}}.associateWith {formula.display(it)}}
+    }
+    val projection=remember(sec?.id,grid) {if(sheet && grid!=null) InkProjection(sec!!.id,grid!!) else null}
+    val visibleStrokes=remember(s.edits.strokes,s.edits.layers,projection) {InkLayers.ordered(s.edits).mapNotNull {projection?.display(it) ?: if(projection==null) it else null}}
     var zoom by remember {mutableFloatStateOf(1f)}
     var visible by remember {mutableStateOf(true)}
     val anchor=if(s.format==Format.PDF) "pdf:$page" else sec?.id ?: "text"
     var selected by remember(anchor) {mutableStateOf<Set<String>>(emptySet())}
+    LaunchedEffect(projection) {selected=emptySet()}
     var transform by remember {mutableStateOf(false)};var customColor by remember {mutableStateOf(false)}
     val vertical=rememberScrollState();val horizontal=rememberScrollState();val scope=rememberCoroutineScope()
     val keyboard=LocalSoftwareKeyboardController.current
@@ -94,7 +108,7 @@ fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: Docume
             if(s.format!=Format.PDF) Text("문서 필기",style=MaterialTheme.typography.labelSmall)
         }
         if(selected.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=8.dp)) {
-            Text("${selected.size}획 선택",modifier=Modifier.padding(12.dp));TextButton({transform=true},enabled=!busy) {Text("이동·크기·회전")};TextButton({vm.transformInk(selected,duplicate=true)},enabled=!busy) {Text("복사")};TextButton({vm.erase(selected);selected=emptySet()},enabled=!busy) {Text("삭제")};TextButton({selected=emptySet()}) {Text("선택 해제")}
+            Text("${selected.size}획 선택",modifier=Modifier.padding(12.dp));TextButton({transform=true},enabled=!busy) {Text("이동·크기·회전")};TextButton({vm.transformInk(selected,duplicate=true,projection=projection)},enabled=!busy) {Text("복사")};TextButton({vm.erase(selected);selected=emptySet()},enabled=!busy) {Text("삭제")};TextButton({selected=emptySet()}) {Text("선택 해제")}
         }
         if(tool==InkTool.ERASER) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -111,6 +125,14 @@ fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: Docume
         }
     }}
     Column(Modifier.fillMaxSize()) {
+        if(sheet) {
+            Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
+                OutlinedTextField(startCell,{startCell=it.uppercase().take(10)},label={Text("필기 시작 셀")},singleLine=true,modifier=Modifier.width(120.dp))
+                TextButton({if(validAddress(startCell)) {firstRow=startCell.dropWhile(Char::isLetter).toInt();firstColumn=column(startCell)} else vm.message("올바른 셀 주소를 입력하세요.")},enabled=!busy) {Text("셀로 이동")}
+                Checkbox(bindCell,{bindCell=it},enabled=!busy);Text("셀 연결",style=MaterialTheme.typography.labelSmall)
+            }
+            Text(gridError ?: "필기를 시작한 셀에 연결 · 행/열 삭제 시 해당 필기도 삭제 · 실행 취소 가능",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(horizontal=12.dp))
+        }
         if(settings.toolbarTop) toolbar()
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().background(Color(0xFFE5E5DF))) {
             val pageWidth=minOf(maxWidth-24.dp,(maxHeight-24.dp)*ratio)*zoom
@@ -125,15 +147,21 @@ fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: Docume
                             Text("PDF 페이지 표시 실패: $renderFailure")
                             TextButton({renderRetry++},enabled=!busy) {Text("다시 불러오기")}
                         }
-                    } else if(slide!=null) AndroidView(factory={SlideView(it)},update={it.scene=slide;it.editable=false;it.invalidate()},modifier=Modifier.fillMaxSize())
+                    } else if(sheet) AndroidView(factory={SheetInkPage(it)},update={it.grid=grid;it.cells=cellValues;it.invalidate()},modifier=Modifier.fillMaxSize())
+                    else if(slide!=null) AndroidView(factory={SlideView(it)},update={it.scene=slide;it.editable=false;it.invalidate()},modifier=Modifier.fillMaxSize())
                     else AndroidView(factory={context -> NoteView(context)},update={it.text=text;it.pageRatio=ratio;it.paper=s.edits.paper;it.invalidate()},modifier=Modifier.fillMaxSize())
                     if(visible && (s.format!=Format.PDF || image!=null)) AndroidView(factory={context -> InkView(context)},update={v ->
                         v.strokes=visibleStrokes;v.anchor=anchor;v.tool=tool;v.inkColor=color.toArgb();v.lineWidth=line
                         v.opacity=settings.penOpacity;v.pressureCurve=settings.pressureCurve;v.smoothing=settings.smoothing;v.autoSnap=settings.autoSnap;v.layerId=activeLayer;v.selected=selected;v.onSelect={selected=it}
                         v.onLasso={polygon->val snapshot=visibleStrokes.filter {it.layerId in InkLayers.editable(s.edits)};scope.launch {selected=withContext(Dispatchers.Default) {InkGeometry.select(snapshot,anchor,polygon)}}}
                         v.onZoom={zoom=(zoom*it).coerceIn(1f,5f)};v.onPan={dx,dy->scope.launch {horizontal.scrollTo((horizontal.value-dx).toInt());vertical.scrollTo((vertical.value-dy).toInt())}}
-                        v.stylusOnly=settings.stylusOnly;v.onStroke=vm::addStroke;v.eraserRadius=settings.eraserRadius
-                        v.onEraseGesture={gesture,radius,aspect->vm.eraseInk(anchor,gesture,radius,aspect,settings.partialEraser)};v.isEnabled=!busy && activeLayer in InkLayers.editable(s.edits);v.invalidate()
+                        v.stylusOnly=settings.stylusOnly;v.onStroke={stroke ->
+                            if(sheet && bindCell) {
+                                val address=grid?.addressAt(stroke.points.first());val frame=address?.let {grid?.frame(it)}
+                                if(address!=null && frame!=null) vm.addStroke(stroke.copy(cell=CellInkBinding(address,frame))) else vm.message("표의 셀 안에서 필기를 시작하세요.")
+                            } else vm.addStroke(stroke)
+                        };v.eraserRadius=settings.eraserRadius
+                        v.onEraseGesture={gesture,radius,aspect->vm.eraseInk(anchor,gesture,radius,aspect,settings.partialEraser,projection)};v.isEnabled=!busy && (!sheet || grid!=null) && activeLayer in InkLayers.editable(s.edits);v.invalidate()
                     },modifier=Modifier.fillMaxSize())
                 }
                 }
@@ -147,7 +175,7 @@ fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: Docume
         var x by remember {mutableStateOf("0")};var y by remember {mutableStateOf("0")};var scale by remember {mutableStateOf("1")};var rotation by remember {mutableStateOf("0")}
         AlertDialog(onDismissRequest={transform=false},title={Text("선택 필기 변형")},text={Column {
             listOf(Triple("가로 이동 %",x,{v: String->x=v}),Triple("세로 이동 %",y,{v: String->y=v}),Triple("크기 배수",scale,{v: String->scale=v}),Triple("회전 각도",rotation,{v: String->rotation=v})).forEach {(label,value,change)->OutlinedTextField(value,change,label={Text(label)},singleLine=true)}
-        }},confirmButton={TextButton({val numbers=listOf(x,y,scale,rotation).map {it.toFloatOrNull()};if(numbers.all {it!=null && it.isFinite()}) {vm.transformInk(selected,numbers[0]!!/100,numbers[1]!!/100,numbers[2]!!,numbers[3]!!);transform=false} else vm.message("숫자를 입력하세요.")}) {Text("적용")}},dismissButton={TextButton({transform=false}) {Text("취소")}})
+        }},confirmButton={TextButton({val numbers=listOf(x,y,scale,rotation).map {it.toFloatOrNull()};if(numbers.all {it!=null && it.isFinite()}) {vm.transformInk(selected,numbers[0]!!/100,numbers[1]!!/100,numbers[2]!!,numbers[3]!!,projection=projection);transform=false} else vm.message("숫자를 입력하세요.")}) {Text("적용")}},dismissButton={TextButton({transform=false}) {Text("취소")}})
     }
 }
 

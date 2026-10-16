@@ -13,6 +13,7 @@ object StateCodec {
             put("id", s.id); put("anchor", s.anchor); put("tool", s.tool.name); put("color", s.color); put("width", s.width.toDouble())
             put("opacity",s.opacity.toDouble())
             put("curve",s.pressureCurve.toDouble());put("smoothing",s.smoothing.toDouble());put("layer",s.layerId);put("snapped",s.snapped)
+            s.cell?.let {b->put("cell",JSONObject().apply {put("address",b.address);put("frame",JSONArray(listOf(b.frame.x,b.frame.y,b.frame.width,b.frame.height)))})}
             put("points", JSONArray().apply { s.points.forEach { p -> put(JSONArray(listOf(p.x.toDouble(), p.y.toDouble(), p.pressure.toDouble(), p.tilt.toDouble()))) } })
         }) } })
     }
@@ -35,7 +36,8 @@ object StateCodec {
                         InkPoint(x,y,pressure,tilt)
                     } },s.optDouble("opacity",1.0).toFloat().also {require(it.isFinite() && it in 0f..1f)},
                     s.optDouble("curve",1.0).toFloat().also {require(it.isFinite() && it in 0.25f..3f)},
-                    s.optDouble("smoothing",0.0).toFloat().also {require(it.isFinite() && it in 0f..1f)},s.optString("layer","default"),s.optBoolean("snapped"))
+                    s.optDouble("smoothing",0.0).toFloat().also {require(it.isFinite() && it in 0f..1f)},s.optString("layer","default"),s.optBoolean("snapped"),
+                    s.optJSONObject("cell")?.let {b->val f=b.getJSONArray("frame");require(f.length()==4);val n=(0..3).map {f.getDouble(it).toFloat()};require(n.all {it.isFinite() && it in 0f..1f});CellInkBinding(b.getString("address"),InkFrame(n[0],n[1],n[2],n[3]))})
             }, styles.keys().asSequence().associateWith {key -> val value=styles.getJSONObject(key);value.keys().asSequence().associateWith {value.getString(it)}},
             decodeLayers(json.optJSONArray("layers")),Paper.valueOf(json.optString("paper","BLANK")))
         require(result.strokes.all {s->result.layers.any {it.id==s.layerId}}) {"필기의 레이어가 없습니다."}

@@ -331,6 +331,7 @@ class DocumentRepository(private val context: Context) {
                 val attachment=if(change.type in listOf("word.image","slide.image")) normalizeImage(Uri.parse(change.arguments.getValue("uri")),s.base.parentFile!!) else null
                 try {PackageFeatures.apply(materialized,next,change=change,attachment=attachment)} finally {attachment?.delete()}
                 val sections=PackageDocument.open(next).sections
+                strokes=InkAnchors.change(strokes,change)
                 if(change.type.endsWith(".delete")) strokes=strokes.filter {it.anchor!=change.target}
                 if(change.type.endsWith(".duplicate")) {val new=sections.first {sec->s.sections.none {it.id==sec.id}}.id;strokes=strokes+strokes.filter {it.anchor==change.target}.map {it.copy(id=UUID.randomUUID().toString(),anchor=new)}}
             }
