@@ -9,7 +9,7 @@
 | PDFBox Android / FontBox | 2.0.27.0 포트 | Apache 2.0, PDF 읽기/쓰기 |
 | Apache POI / scratchpad | 5.4.1 | Apache 2.0, DOC/XLS/PPT 런타임 |
 | hwplib | 1.1.10 | Apache 2.0, HWP 런타임, 자체 재배치 POI 포함 |
-| hwp2hwpx | edc05278506b663d5bdd98050a51f54b7ff5e0bc | Apache 2.0, 소스 포함 및 4개 결함 수정. [출처/변경](HANGUL_CONVERTER_PROVENANCE.md) |
+| hwp2hwpx | edc05278506b663d5bdd98050a51f54b7ff5e0bc | Apache 2.0, 소스 포함 및 5개 결함 수정. [출처/변경](HANGUL_CONVERTER_PROVENANCE.md) |
 | hwpxlib | 1.0.9 | Apache 2.0, HWPX 변환 모델·쓰기 런타임 및 독립 읽기 검사 |
 | HWPX 빈 문서 | hwpxlib upstream commit f9fd2255ac0fc57414e0b657d115e7de51d31c65 | Apache 2.0, 템플릿 자산 |
 | Commons IO / Codec | 2.20.0 / 1.18.0 | Apache 2.0 |

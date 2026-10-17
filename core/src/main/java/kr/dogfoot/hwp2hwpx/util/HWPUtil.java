@@ -1,3 +1,4 @@
+// Modified by Document Studio (2026-10-18): recognize image extensions case-insensitively.
 package kr.dogfoot.hwp2hwpx.util;
 
 import kr.dogfoot.hwp2hwpx.Parameter;
@@ -49,7 +50,7 @@ public class HWPUtil {
     }
 
     public static String mediaType(String extension) {
-        switch (extension) {
+        switch (extension.toLowerCase(java.util.Locale.ROOT)) {
             case "emf":
                 return "image/emf";
             case "gif":

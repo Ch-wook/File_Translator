@@ -20,6 +20,7 @@ hwp2hwpx: Copyright Park Sungkyon (neolord0), Apache License 2.0.
 Source: https://github.com/neolord0/hwp2hwpx, edc05278506b663d5bdd98050a51f54b7ff5e0bc.
 Modified ForChars (hyphen buffer and last-run bounds) and ForPicture (right inner margin).
 Modified ForContentHPFFile (optional summary metadata null handling).
+Modified HWPUtil (case-insensitive image MIME extensions).
 hwpxlib: https://github.com/neolord0/hwpxlib, Apache License 2.0.
 Apache POI legacy.doc test fixture: Apache POI REL_5_4_1 test-data/document/simple.doc, Apache License 2.0; debug test APK only.
 

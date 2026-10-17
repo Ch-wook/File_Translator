@@ -10,3 +10,5 @@
 `ForContentHPFFile`의 선택 메타데이터가 null인 경우 날짜/문자열을 생략하도록 수정했다. 생성 앱 이름은 Document Studio, appVersion은 `0.5.0 Android`, 숫자 OS 필드는 `0`으로 기록한다. OS가 숫자임은 [한컴 공개 모델](https://github.com/hancom-io/hwpx-owpml-model/blob/main/OWPML/Class/Etc/version.h)의 `GetOS/SetOS(UINT)`와 writer를 확인했다.
 
 이 모듈은 페이지 조판 엔진이 아니다. 시각적 동일성, 한컴 인증, HWPX→HWP 역변환은 제공하지 않는다. 변환 전 HWP와 검증 보고서는 새 작업의 백업 자료에 보존한다.
+
+추가 수정: `HWPUtil.mediaType`은 `Locale.ROOT` 기준 대소문자 구분 없이 이미지 확장자를 처리한다. Kotlin 래퍼는 모든 ZIP 파트 내용을 유지하며 첫 `mimetype` 항목을 무압축으로 정규화한 결과를 검사·반환한다.

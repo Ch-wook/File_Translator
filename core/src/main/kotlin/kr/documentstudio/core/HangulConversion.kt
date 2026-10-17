@@ -49,13 +49,17 @@ object HangulConversion {
         val model = Hwp2Hwpx.toHWPX(hwp)
         model.versionXMLFile().applicationAnd("Document Studio").osAnd("0").appVersion("0.5.0 Android")
         val stage = File.createTempFile("hangul-conversion-", ".hwpx", destination.absoluteFile.parentFile)
+        val normalized = File.createTempFile("hangul-conversion-", ".hwpx", destination.absoluteFile.parentFile)
         try {
             stage.outputStream().use { HWPXWriter.toStream(model, it) }
-            val report = verifyInventory(before, source, stage)
+            // The upstream writer deflates mimetype. Use the package writer to retain every part's
+            // bytes while publishing the conventional first, uncompressed mimetype entry.
+            PackageDocument.open(stage).write(normalized, Edits())
+            val report = verifyInventory(before, source, normalized)
             // Only publish a fully checked file. Existing destinations are never truncated by failed conversion.
-            java.nio.file.Files.move(stage.toPath(), destination.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            java.nio.file.Files.move(normalized.toPath(), destination.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             return report
-        } finally { stage.delete() }
+        } finally { stage.delete(); normalized.delete() }
     }
 
     /** Re-check an exported candidate against the HWP; also useful for independent regression probes. */

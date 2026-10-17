@@ -33,7 +33,10 @@ class HangulConversionTest {
         assertEquals(1,HWPXReader.fromFile(out).sectionXMLFileList().count())
         assertArrayEquals(before,src.readBytes())
         assertEquals(report,HangulConversion.verify(src,out))
-        ZipFile(out).use {assertTrue(it.getInputStream(it.getEntry("version.xml")).reader().readText().contains("Document Studio"))}
+        ZipFile(out).use {
+            assertEquals("mimetype",it.entries().nextElement().name);assertEquals(ZipEntry.STORED,it.getEntry("mimetype").method)
+            assertTrue(it.getInputStream(it.getEntry("version.xml")).reader().readText().contains("Document Studio"))
+        }
     }
     @Test fun hyphenLineBreakTabAndFixedSpacesRetainPrecedingText() {
         val hwp=BlankFileMaker.make();val p=hwp.bodyText.sectionList[0].getParagraph(0)
@@ -107,12 +110,14 @@ class HangulConversionTest {
         assertTrue(runCatching {HangulConversion.convert(wrong,out)}.isFailure);assertEquals("keep",out.readText())
     }
     @Test fun pictureResourceAndEquationScriptAreRetained() {
+        assertEquals("image/png",kr.dogfoot.hwp2hwpx.util.HWPUtil.mediaType("PNG"))
+        assertEquals("image/jpeg",kr.dogfoot.hwp2hwpx.util.HWPUtil.mediaType("JpG"))
         val hwp=BlankFileMaker.make();val p=hwp.bodyText.sectionList[0].getParagraph(0)
         val png=java.util.Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==")
         val mode=kr.dogfoot.hwplib.`object`.docinfo.bindata.BinDataCompress.ByStorageDefault
-        hwp.binData.addNewEmbeddedBinaryData("Bin0001.png",png,mode)
+        hwp.binData.addNewEmbeddedBinaryData("Bin0001.PNG",png,mode)
         hwp.docInfo.addNewBinData().apply {
-            property.type=kr.dogfoot.hwplib.`object`.docinfo.bindata.BinDataType.Embedding;property.compress=mode;binDataID=1;extensionForEmbedding="png"
+            property.type=kr.dogfoot.hwplib.`object`.docinfo.bindata.BinDataType.Embedding;property.compress=mode;binDataID=1;extensionForEmbedding="PNG"
         }
         p.text.addExtendCharForGSO()
         val pic=p.addNewGsoControl(kr.dogfoot.hwplib.`object`.bodytext.control.gso.GsoControlType.Picture) as kr.dogfoot.hwplib.`object`.bodytext.control.gso.ControlPicture
@@ -124,7 +129,8 @@ class HangulConversionTest {
         val report=HangulConversion.convert(src,out)
         assertEquals(1,report.pictures);assertEquals(1,report.binaries);assertEquals(1,report.equations);assertEquals(1,report.paragraphs)
         ZipFile(out).use {zip ->
-            assertArrayEquals(png,zip.getInputStream(zip.getEntry("BinData/image1.png")).use {it.readBytes()})
+            assertArrayEquals(png,zip.getInputStream(zip.getEntry("BinData/image1.PNG")).use {it.readBytes()})
+            assertTrue(zip.getInputStream(zip.getEntry("Contents/content.hpf")).reader().readText().contains("media-type=\"image/png\""))
             val xml=Xml.parse(zip.getInputStream(zip.getEntry("Contents/section0.xml")).use {it.readBytes()})
             val margin=Xml.child(Xml.elements(xml,"pic").single(),"inMargin")!!
             assertEquals("123",margin.getAttribute("right"));assertEquals("456",margin.getAttribute("top"))
