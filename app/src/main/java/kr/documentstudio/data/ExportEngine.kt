@@ -93,11 +93,10 @@ class StrokePainter {
         }};if(points.isEmpty()) return
         paint.color=s.color;paint.alpha=(s.opacity*if(s.tool==InkTool.HIGHLIGHTER) 72 else if(s.tool==InkTool.PENCIL) 150 else 255).toInt().coerceIn(0,255)
         paint.style=Paint.Style.STROKE;paint.strokeWidth=(s.width*w).coerceAtLeast(0.5f)
-        if(points.size==1) {paint.style=Paint.Style.FILL;canvas.drawCircle(points[0].x*w,points[0].y*h,paint.strokeWidth/2,paint);return}
+        if(points.size==1) {paint.style=Paint.Style.FILL;canvas.drawCircle(points[0].x*w,points[0].y*h,paint.strokeWidth*InkGeometry.widthResponse(s.tool,points[0].pressure,s.pressureCurve,points[0].tilt)/2,paint);return}
         if(s.tool==InkTool.PEN || s.tool==InkTool.FOUNTAIN || s.tool==InkTool.PENCIL || s.tool==InkTool.BRUSH) {
             for(i in 1 until points.size) {
-                val a=points[i-1];val b=points[i];val pressure=InkGeometry.pressure((a.pressure+b.pressure)/2,s.pressureCurve)
-                val response=when(s.tool) {InkTool.FOUNTAIN->0.3f+pressure*(1f+0.3f*kotlin.math.sin(a.tilt));InkTool.BRUSH->0.2f+pressure*pressure;InkTool.PENCIL->0.6f+pressure*0.3f;else->0.5f+pressure/2}
+                val a=points[i-1];val b=points[i];val response=InkGeometry.widthResponse(s.tool,(a.pressure+b.pressure)/2,s.pressureCurve,a.tilt)
                 paint.strokeWidth=(s.width*w*response).coerceAtLeast(0.5f);canvas.drawLine(a.x*w,a.y*h,b.x*w,b.y*h,paint)
             }
         } else {

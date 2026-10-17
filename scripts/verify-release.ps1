@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$AndroidSdk = "$env:LOCALAPPDATA/Android/Sdk",
     [string]$JavaHome = 'C:/Program Files/Java/jdk-17'
 )
@@ -23,7 +23,7 @@ try {
     if (($permissions -join "`n") -match 'android.permission.(INTERNET|MANAGE_EXTERNAL_STORAGE|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE)') { throw 'Unexpected network/global storage permission.' }
     $manifest = & (Join-Path $buildTools 'aapt2.exe') dump xmltree $apkPath --file AndroidManifest.xml
     if ($LASTEXITCODE -ne 0) { throw 'Manifest inspection failed.' }
-    if (($manifest -join "`n") -match 'kr.documentstudio.(faults|testfiles)|FailingProvider|android:debuggable.*0xffffffff') { throw 'Debug component found in release manifest.' }
+    if (($manifest -join "`n") -match 'kr.documentstudio.(faults|testfiles|officeprobe)|FailingProvider|OfficeProbeProvider|android:debuggable.*0xffffffff') { throw 'Debug component found in release manifest.' }
     $libraries = @()
     $apk = [IO.Compression.ZipFile]::OpenRead($apkPath)
     $aab = [IO.Compression.ZipFile]::OpenRead($aabPath)

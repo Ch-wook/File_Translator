@@ -1,6 +1,13 @@
-﻿param([string]$JavaHome = $env:JAVA_HOME)
+﻿param([string]$JavaHome = $env:JAVA_HOME, [string]$BuildRoot = '', [ValidateRange(1024,16384)][int]$JavaHeapMiB = 3072)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
+$appBuild = Join-Path $projectRoot 'app/build'
+$buildArguments = @()
+if ($BuildRoot) {
+    $BuildRoot = [IO.Path]::GetFullPath($BuildRoot)
+    $appBuild = Join-Path $BuildRoot 'app'
+    $buildArguments += "-Pstudio.buildRoot=$BuildRoot"
+}
 if (-not $JavaHome) { $JavaHome = 'C:\Program Files\Java\jdk-17' }
 $keytool = Join-Path $JavaHome 'bin/keytool.exe'
 if (-not (Test-Path -LiteralPath $keytool)) { throw 'JDK 17 keytool is required. Pass -JavaHome.' }
@@ -47,11 +54,11 @@ try {
     Push-Location $projectRoot
     try {
         $oldPreference = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-        & .\gradlew.bat :app:assembleRelease :app:bundleRelease --console=plain 2>&1 | Out-File (Join-Path $outputDir 'release-build.log') -Encoding UTF8 -Width 400
+        & .\gradlew.bat :app:assembleRelease :app:bundleRelease @buildArguments --max-workers=2 "-Dorg.gradle.jvmargs=-Xmx${JavaHeapMiB}m -XX:ActiveProcessorCount=4 -Dfile.encoding=UTF-8" --console=plain 2>&1 | Out-File (Join-Path $outputDir 'release-build.log') -Encoding UTF8 -Width 400
         $buildExit = $LASTEXITCODE; $ErrorActionPreference = $oldPreference
         if ($buildExit -ne 0) { throw 'Release build failed. Check artifacts/release-build.log.' }
-        Copy-Item -LiteralPath app/build/outputs/apk/release/app-release.apk -Destination (Join-Path $outputDir 'document-studio-release.apk') -Force
-        Copy-Item -LiteralPath app/build/outputs/bundle/release/app-release.aab -Destination (Join-Path $outputDir 'document-studio-release.aab') -Force
+        Copy-Item -LiteralPath (Join-Path $appBuild 'outputs/apk/release/app-release.apk') -Destination (Join-Path $outputDir 'document-studio-release.apk') -Force
+        Copy-Item -LiteralPath (Join-Path $appBuild 'outputs/bundle/release/app-release.aab') -Destination (Join-Path $outputDir 'document-studio-release.aab') -Force
     } finally { Pop-Location }
     Write-Output 'Built signed APK and AAB in artifacts. No store upload was performed.'
 } finally {

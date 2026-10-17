@@ -1,11 +1,21 @@
 ﻿param(
     [string]$DeviceId = '',
     [switch]$SkipDevice,
-    [ValidateRange(1024,16384)][int]$JavaHeapMiB = 3072
+    [ValidateRange(1024,16384)][int]$JavaHeapMiB = 3072,
+    [string]$BuildRoot = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+$appBuild = Join-Path $repo 'app/build'
+$coreBuild = Join-Path $repo 'core/build'
+$buildArguments = @()
+if ($BuildRoot) {
+    $BuildRoot = [IO.Path]::GetFullPath($BuildRoot)
+    $appBuild = Join-Path $BuildRoot 'app'
+    $coreBuild = Join-Path $BuildRoot 'core'
+    $buildArguments += "-Pstudio.buildRoot=$BuildRoot"
+}
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $evidence = Join-Path $repo "artifacts/acceptance-$stamp"
 New-Item -ItemType Directory -Path $evidence -Force | Out-Null
@@ -40,7 +50,7 @@ try {
     # The native exit code, XML results and lint determine the gate below.
     $ErrorActionPreference = 'Continue'
     try {
-        & .\gradlew.bat @tasks --max-workers=2 "-Dorg.gradle.jvmargs=-Xmx${JavaHeapMiB}m -XX:ActiveProcessorCount=4 -Dfile.encoding=UTF-8" '-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true' --console=plain 2>&1 | Tee-Object -FilePath (Join-Path $evidence 'gradle.log')
+        & .\gradlew.bat @tasks @buildArguments --max-workers=2 "-Dorg.gradle.jvmargs=-Xmx${JavaHeapMiB}m -XX:ActiveProcessorCount=4 -Dfile.encoding=UTF-8" '-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true' --console=plain 2>&1 | Tee-Object -FilePath (Join-Path $evidence 'gradle.log')
         $buildExit = $LASTEXITCODE
     } finally { $ErrorActionPreference = 'Stop' }
 } catch {
@@ -51,10 +61,10 @@ try {
     $groups = @('jvm')
     if (!$SkipDevice) { $groups += 'android' }
     foreach ($group in $groups) {
-        $source = if ($group -eq 'jvm') { 'core/build/test-results/test' } else { 'app/build/outputs/androidTest-results/connected/debug' }
+        $source = if ($group -eq 'jvm') { Join-Path $coreBuild 'test-results/test' } else { Join-Path $appBuild 'outputs/androidTest-results/connected/debug' }
         $target = Join-Path $evidence $group
         New-Item -ItemType Directory -Path $target -Force | Out-Null
-        $reports = @(Get-ChildItem -LiteralPath (Join-Path $repo $source) -Filter 'TEST-*.xml' -Recurse -ErrorAction SilentlyContinue)
+        $reports = @(Get-ChildItem -LiteralPath $source -Filter 'TEST-*.xml' -Recurse -ErrorAction SilentlyContinue)
         foreach ($report in $reports) {
             # If Gradle never reached a test, retain the old report as evidence
             # but don't count it as a new successful execution.
@@ -70,13 +80,13 @@ try {
         }
     }
     $lint = [ordered]@{ errors = $null; warnings = $null }
-    $lintPath = Join-Path $repo 'app/build/reports/lint-results-debug.xml'
+    $lintPath = Join-Path $appBuild 'reports/lint-results-debug.xml'
     if (Test-Path -LiteralPath $lintPath) {
         [xml]$lintXml = Get-Content -LiteralPath $lintPath -Raw -Encoding UTF8
         $lint.errors = @($lintXml.SelectNodes('//issue[@severity="Error" or @severity="Fatal"]')).Count
         $lint.warnings = @($lintXml.SelectNodes('//issue[@severity="Warning"]')).Count
         Copy-Item -LiteralPath $lintPath -Destination (Join-Path $evidence 'lint.xml')
-        Copy-Item -LiteralPath (Join-Path $repo 'app/build/reports/lint-results-debug.html') -Destination (Join-Path $evidence 'lint.html') -ErrorAction SilentlyContinue
+        Copy-Item -LiteralPath (Join-Path $appBuild 'reports/lint-results-debug.html') -Destination (Join-Path $evidence 'lint.html') -ErrorAction SilentlyContinue
     }
     $freshSuites = @($suites | Where-Object { $_.fresh })
     $counts = [ordered]@{}
@@ -84,7 +94,7 @@ try {
     $jvmRan = @($freshSuites | Where-Object { $_.group -eq 'jvm' -and $_.tests -gt 0 }).Count -gt 0
     $androidRan = @($freshSuites | Where-Object { $_.group -eq 'android' -and $_.tests -gt 0 }).Count -gt 0
     $passed = $buildExit -eq 0 -and !$failure -and $jvmRan -and ($SkipDevice -or $androidRan) -and $lint.errors -eq 0 -and $counts.failures -eq 0 -and $counts.errors -eq 0 -and $counts.skipped -eq 0
-    $apk = Join-Path $repo 'app/build/outputs/apk/debug/app-debug.apk'
+    $apk = Join-Path $appBuild 'outputs/apk/debug/app-debug.apk'
     $apkHash = if (Test-Path -LiteralPath $apk) { (Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash } else { $null }
     $summary = [ordered]@{
         started = $started.ToString('o'); finished = (Get-Date).ToString('o')
@@ -92,7 +102,7 @@ try {
         source_dirty = @(& git status --porcelain).Count -gt 0
         status = if (!$passed) { 'failed' } elseif ($SkipDevice) { 'partial-device-not-tested' } else { 'passed' }
         full_automated_gate = $passed -and !$SkipDevice
-        build_exit = $buildExit; failure = $failure; device = $device
+        build_root = $BuildRoot; build_exit = $buildExit; failure = $failure; device = $device
         counts = $counts; suites = $suites; lint = $lint; debug_apk_sha256 = $apkHash
         scope = 'Automated debug checks only. See docs/FEATURE_ACCEPTANCE.md for unsupported features, physical-device and external-compatibility checks.'
     }

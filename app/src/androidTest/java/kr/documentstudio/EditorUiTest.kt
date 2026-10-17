@@ -10,9 +10,14 @@ import kr.documentstudio.ui.InkView
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Before
 
 class EditorUiTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
+    @Before fun resetPersistedInputPreferences() {
+        val vm=androidx.lifecycle.ViewModelProvider(compose.activity)[EditorViewModel::class.java]
+        compose.runOnUiThread {vm.settings(Settings())}
+    }
     private fun awaitReady() {
         val vm=androidx.lifecycle.ViewModelProvider(compose.activity)[EditorViewModel::class.java]
         compose.waitUntil(15000) {!vm.state.value.busy && vm.state.value.session!=null}
@@ -129,7 +134,7 @@ class EditorUiTest {
         compose.onNodeWithText("PowerPoint  .pptx").performScrollTo().performClick()
         compose.waitUntil(15000) {compose.onAllNodesWithText("개체 미리보기").fetchSemanticsNodes().isNotEmpty()}
         awaitReady()
-        compose.onNodeWithText("개체 미리보기").performClick()
+        compose.onNodeWithText("개체 미리보기").performScrollTo().performClick()
         compose.waitUntil(15000) {compose.onAllNodesWithText("슬라이드 쇼").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("슬라이드 쇼").assertIsDisplayed().performClick()
         compose.onNodeWithText("종료").assertIsDisplayed().performClick()

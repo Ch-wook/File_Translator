@@ -51,6 +51,10 @@ fun DocumentTools(s: Session,sec: Section?,vm: DocumentActions,busy: Boolean,pag
             Action("표 크기 · 균등 배분","hwpx.tableSize",listOf(Triple("table","표 번호","1"),Triple("widthMm","표 너비 mm","160"),Triple("heightMm","표 높이 mm","30"))),
             Action("문단 추가","hwpx.paragraph",listOf(Triple("text","문단 내용","새 문단"))),Action("쪽 나누기","hwpx.break"),Action("A4 용지·여백","hwpx.layout",listOf(Triple("landscape","가로 방향 (true / false)","false"),Triple("marginMm","여백 mm","20"))))
         Format.XLSX -> listOf(
+            Action("범위 테두리","sheet.borders",listOf(Triple("range","범위","A1:B5"),Triple("style","thin / medium / dashed / dotted / double / none","thin"),Triple("color","색 RRGGBB","315D54"))),
+            Action("조건부 서식","sheet.conditional",listOf(Triple("range","범위","B2:B20"),Triple("kind","greaterThan / lessThan / equal / duplicateValues / clear","greaterThan"),Triple("value","비교 숫자 (중복·지우기는 무시)","100"),Triple("color","배경색 RRGGBB","FFF2CC"))),
+            Action("드롭다운 목록","sheet.validation",listOf(Triple("range","범위","C2:C20"),Triple("items","고유한 항목 (|로 구분, 쉼표·따옴표 제외)","대기|진행|완료"))),
+            Action("데이터 표 만들기","sheet.table",listOf(Triple("range","범위 (첫 행에 고유한 열 이름 필요)","A1:C5"))),
             Action("범위 복사 · 셀 서식 포함","sheet.copyRange",listOf(Triple("source","원본 범위","A1:B5"),Triple("destination","대상 시작 셀","D1"))),
             Action("자동 채우기","sheet.fill",listOf(Triple("source","원본 범위 (두 숫자는 등차수열)","A1:A2"),Triple("destination","채울 전체 범위 (원본 포함)","A1:A20"))),
             Action("데이터 정렬","sheet.sort",listOf(Triple("range","정렬 범위","A1:D20"),Triple("column","기준 열 번호 (A=1)","1"),Triple("header","첫 행이 제목 (true / false)","true"),Triple("descending","내림차순 (true / false)","false"))),

@@ -56,7 +56,7 @@ Hilt/Room/DataStore 대신 현재 규모에 맞는 생성자 주입·AtomicFile�
 
 ## 오프라인·비용
 
-구현된 엔진은 기기 내부에서 실행하며 INTERNET 권한·서버·분석 SDK·업로드가 없습니다. Markdown WebView는 JavaScript/네트워크/파일/콘텐츠 접근과 링크 이동을 막습니다. Drive 등 SAF 제공자 자체의 네트워크 동작은 제공자에 따릅니다.
+구현된 엔진은 기기 내부에서 실행하며 앱 INTERNET 권한·문서 서버·문서 업로드가 없습니다. OCR SDK는 통계 구성요소를 포함할 수 있으나 앱 INTERNET 권한 제거로 직접 전송을 차단합니다. Markdown WebView는 JavaScript/네트워크/파일/콘텐츠 접근과 링크 이동을 막습니다. Drive 등 SAF 제공자 자체의 네트워크 동작은 제공자에 따릅니다.
 
 채택한 오픈소스의 구매 비용은 없습니다. 개발·감사·호환성 검증 비용은 별도입니다. 상용 SDK의 가격은 배포 범위별 견적 대상이며 금액을 임의로 제시하지 않습니다. ONLYOFFICE 방식은 서버 운영비도 필요합니다.
 
@@ -185,3 +185,15 @@ PdfContinuousReader는 LazyColumn으로 필요한 페이지만 표시하고 두 
 - 슬라이드 변환의 숫자 개체 순번은 삭제/계층 도구와 같은 직접 개체 목록을 사용합니다. `p:sp`만 세어 이미지 순번을 놓치던 경로를 고쳤으며 그림·일반 도형·연결선을 변환합니다. 그룹/표/차트 변환은 정밀 편집 안내로 거부합니다. HWPX 표의 런 라벨용 표 번호도 구역마다 한 번 계산해 각 셀에서 XML 전체를 재탐색하지 않습니다.
 
 `scripts/verify-editing.ps1`은 JVM 재실행·전체 Android 검사·lint·debug 빌드와 XML/환경/APK SHA-256 수집을 묶습니다. 오래된 검사 XML은 fresh=false로 기록하고 통과 횟수에서 제외합니다. `-SkipDevice`는 부분 검사이며 전체 게이트 통과로 표시하지 않습니다.
+
+## 2026-10-17 확장 설계
+
+문서 ID를 캡처한 DocumentActions로 분할 창/SAF 선택기 콜백을 처리한다. 닫힌 대상을 활성 문서로 대체하지 않는다. Session별 History/선택/저장 대상은 독립적이다. DocumentTree는 허용된 tree URI 아래만 탐색하고 취소/노드 한도/중복 ID를 처리한다.
+
+Stroke는 원시 샘플과 pressureCurve/smoothing/layerId/snapped, 선택적 CellInkBinding을 보존한다. InkGeometry가 표시 경로를 계산하고 StrokePainter가 경로와 입력 중 끝점을 캐시한다. Edits의 레이어/종이는 Undo/복구/ZIP/PDF에 포함된다. InkProjection은 현재 셀/저장 프레임 사이의 가역 투영, InkAnchors는 기본 행열 변경의 주소/소유권 변경을 담당한다. 정밀 엔진 재조판은 자동 추적하지 않는다.
+
+PdfAnnotations는 표시 좌표를 CropBox/회전이 반영된 QuadPoints와 로컬 appearance로 변환한다. PdfInkAppearance는 표준 InkList에 필압을 반영한 벡터 appearance를 더한다. OCR은 번들 모델을 한 번에 한 건으로 제한하고 취소 후에도 SDK 완료까지 Bitmap을 소유한다. PdfOcrText는 원본 픽셀을 바꾸지 않는 비표시 텍스트와 한글 subset 폰트를 저장한다.
+
+EncryptedBackup은 bounded ZIP을 AES-GCM 인증 봉투로 감싼다. 인증이 끝난 private 임시 ZIP에 기존 복원 검사를 적용하며 암호 오류 시 인덱스/출력을 갱신하지 않는다. 암호 CharArray는 요청 생명주기에 묶어 정리하며 복구 상태에 기록하지 않는다.
+
+OfficeProbeProvider는 debug에만 존재하는 비공개 동일 UID 검사 접점이다. 실제 네이티브 엔진을 열고 클라이언트 명령을 보낸 뒤 저장한 OOXML을 검사한다. WebView 원격 디버깅은 켜지 않는다. release 검증은 검사 provider/authority가 없는지 확인한다.

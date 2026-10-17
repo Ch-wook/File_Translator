@@ -45,7 +45,7 @@ class PdfMarkupUiTest {
         compose.waitUntil(15000) {!vm.state.value.busy && PdfAnnotations.list(vm.state.value.session!!.base,0).isEmpty()}
         compose.runOnUiThread {vm.change(DocumentChange("pdf.add","0"))}
         compose.waitUntil(15000) {!vm.state.value.busy && vm.state.value.session!!.pdf!!.pages==2}
-        compose.onNodeWithText("가로 보기").performClick()
+        compose.onNodeWithText("가로 보기").performScrollTo().performClick()
         compose.onNodeWithContentDescription("PDF 가로 페이지 목록").performTouchInput {swipeLeft()}
         compose.waitUntil(15000) {compose.onAllNodesWithText("2 / 2").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("현재 페이지 필기").performClick();compose.onNodeWithText("2 / 2").assertExists()

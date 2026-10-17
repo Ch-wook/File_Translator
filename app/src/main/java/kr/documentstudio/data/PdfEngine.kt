@@ -92,7 +92,7 @@ object PdfEngine {
                         color = PDColor(floatArrayOf(Color.red(s.color)/255f, Color.green(s.color)/255f, Color.blue(s.color)/255f), PDDeviceRGB.INSTANCE)
                         constantOpacity = s.opacity * if(s.tool == InkTool.HIGHLIGHTER) 0.28f else if(s.tool==InkTool.PENCIL) 0.6f else 1f
                         borderStyle = PDBorderStyleDictionary().apply { width = s.width * displayWidth }
-                        val margin = s.width * displayWidth + 2
+                        val margin = PdfInkAppearance.margin(s,points,displayWidth)
                         rectangle = PDRectangle(xy.minOf { it.first }-margin, xy.minOf { it.second }-margin,
                             xy.maxOf { it.first }-xy.minOf { it.first }+margin*2, xy.maxOf { it.second }-xy.minOf { it.second }+margin*2)
                         isPrinted = layers.first {it.id==s.layerId}.visible
@@ -107,7 +107,7 @@ object PdfEngine {
                     annotation.cosObject.setString("StudioLayer",s.layerId)
                     annotation.cosObject.setBoolean(COSName.getPDFName("StudioSnapped"),s.snapped)
                     annotation.cosObject.setString("StudioPoints",org.json.JSONArray().apply {s.points.forEach {p->put(org.json.JSONArray(listOf(p.x,p.y,p.pressure,p.tilt)))}}.toString())
-                    annotation.constructAppearances(doc)
+                    PdfInkAppearance.write(doc,annotation,s,points,xy,displayWidth)
                 }
             }
             doc.save(destination)

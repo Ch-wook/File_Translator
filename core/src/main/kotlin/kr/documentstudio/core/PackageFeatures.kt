@@ -45,6 +45,7 @@ object PackageFeatures {
                 }
                 in HangulTables.operations -> {require(format==Format.HWPX);HangulTables.apply(xml(change.target),xml("Contents/header.xml"),change)}
                 in SheetOperations.operations -> {require(format==Format.XLSX);SheetOperations.apply(parts,::xml,change)}
+                in SheetDataFeatures.operations -> {require(format==Format.XLSX);SheetDataFeatures.apply(parts,::xml,change)}
                 in WordTables.operations -> {require(format==Format.DOCX);WordTables.apply(xml("word/document.xml"),change)}
                 in OfficeObjects.operations -> {require(format==if(change.type.startsWith("word.")) Format.DOCX else Format.PPTX);OfficeObjects.apply(parts,::xml,change,attachment)}
                 "hwpx.paragraph","hwpx.break","hwpx.layout" -> {
@@ -199,7 +200,7 @@ object PackageFeatures {
                 else -> error("지원하지 않는 구조 편집입니다.")
             }
         }
-        if(format==Format.XLSX && change!=null && change.type.startsWith("sheet.")) {
+        if(format==Format.XLSX && change!=null && change.type.startsWith("sheet.") && change.type !in SheetDataFeatures.operations) {
             parts.keys.filter {it.startsWith("xl/worksheets/") && it.endsWith(".xml")}.forEach {path->val doc=xml(path);Xml.elements(doc,"c").filter {Xml.child(it,"f")!=null}.forEach {c->Xml.child(c,"v")?.let {c.removeChild(it)}}}
             invalidateCalc(xml("xl/workbook.xml"));parts.remove("xl/calcChain.xml")
             listOf("xl/_rels/workbook.xml.rels","[Content_Types].xml").forEach {path->val doc=xml(path);(Xml.elements(doc,"Relationship")+Xml.elements(doc,"Override")).filter {it.getAttribute("Type").endsWith("/calcChain") || it.getAttribute("PartName")=="/xl/calcChain.xml"}.forEach {it.parentNode.removeChild(it)}}

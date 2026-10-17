@@ -1,12 +1,19 @@
-﻿param()
+﻿param([string]$BuildRoot = '')
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent))
+$appBuild = Join-Path $projectRoot 'app/build'
+$coreBuild = Join-Path $projectRoot 'core/build'
+if ($BuildRoot) {
+    $BuildRoot = [IO.Path]::GetFullPath($BuildRoot)
+    $appBuild = Join-Path $BuildRoot 'app'
+    $coreBuild = Join-Path $BuildRoot 'core'
+}
 $outputDir = Join-Path $projectRoot 'artifacts'
 New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
 
-$debug = Join-Path $projectRoot 'app/build/outputs/apk/debug/app-debug.apk'
+$debug = Join-Path $appBuild 'outputs/apk/debug/app-debug.apk'
 foreach ($required in @($debug, (Join-Path $outputDir 'document-studio-release.apk'), (Join-Path $outputDir 'document-studio-release.aab'))) {
     if (-not (Test-Path -LiteralPath $required)) { throw "Build debug and signed release first: $required" }
 }
@@ -19,8 +26,8 @@ Copy-Item -LiteralPath $debug -Destination (Join-Path $outputDir 'document-studi
 $reportDir = Join-Path $outputDir 'test-results'
 New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
 $suites = @()
-foreach ($source in @('core/build/test-results/test','app/build/outputs/androidTest-results/connected/debug')) {
-    $reports = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot $source) -Filter 'TEST-*.xml' -File)
+foreach ($source in @((Join-Path $coreBuild 'test-results/test'),(Join-Path $appBuild 'outputs/androidTest-results/connected/debug'))) {
+    $reports = @(Get-ChildItem -LiteralPath $source -Filter 'TEST-*.xml' -File)
     if ($reports.Count -eq 0) { throw "Run tests before packaging: $source" }
     foreach ($report in $reports) {
         [xml]$document = Get-Content -LiteralPath $report.FullName -Encoding UTF8 -Raw
@@ -30,18 +37,18 @@ foreach ($source in @('core/build/test-results/test','app/build/outputs/androidT
         Copy-Item -LiteralPath $report.FullName -Destination $reportDir -Force
     }
 }
-$lintPath = Join-Path $projectRoot 'app/build/reports/lint-results-debug.xml'
+$lintPath = Join-Path $appBuild 'reports/lint-results-debug.xml'
 [xml]$lint = Get-Content -LiteralPath $lintPath -Encoding UTF8 -Raw
 $blocking = @($lint.issues.issue | Where-Object { $_.severity -in @('Error','Fatal') })
 if ($blocking.Count -gt 0) { throw 'Lint contains errors.' }
 Copy-Item -LiteralPath $lintPath -Destination $reportDir -Force
-Copy-Item -LiteralPath (Join-Path $projectRoot 'app/build/reports/lint-results-debug.html') -Destination $reportDir -Force
-Copy-Item -LiteralPath (Join-Path $projectRoot 'app/build/reports/lint-results-debug.txt') -Destination $reportDir -Force
-foreach ($report in @('core/build/reports/tests/test','app/build/reports/androidTests/connected/debug')) {
-    $name = if ($report.StartsWith('core/')) { 'jvm-report' } else { 'android-report' }
+Copy-Item -LiteralPath (Join-Path $appBuild 'reports/lint-results-debug.html') -Destination $reportDir -Force
+Copy-Item -LiteralPath (Join-Path $appBuild 'reports/lint-results-debug.txt') -Destination $reportDir -Force
+foreach ($report in @((Join-Path $coreBuild 'reports/tests/test'),(Join-Path $appBuild 'reports/androidTests/connected/debug'))) {
+    $name = if ($report.StartsWith($coreBuild)) { 'jvm-report' } else { 'android-report' }
     $destination = Join-Path $reportDir $name
     New-Item -ItemType Directory -Path $destination -Force | Out-Null
-    Copy-Item -Path ((Join-Path $projectRoot $report) + '/*') -Destination $destination -Recurse -Force
+    Copy-Item -Path ($report + '/*') -Destination $destination -Recurse -Force
 }
 $version = [regex]::Match((Get-Content -LiteralPath (Join-Path $projectRoot 'app/build.gradle.kts') -Raw), 'versionName\s*=\s*"([^"]+)"').Groups[1].Value
 $total = ($suites | ForEach-Object { $_['tests'] } | Measure-Object -Sum).Sum

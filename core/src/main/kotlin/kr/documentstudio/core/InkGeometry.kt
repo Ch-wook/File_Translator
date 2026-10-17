@@ -30,6 +30,10 @@ object InkGeometry {
         return p.copy(x=p.x+(points[i-1].x+points[i+1].x-2*p.x)*0.25f*blend,y=p.y+(points[i-1].y+points[i+1].y-2*p.y)*0.25f*blend)
     }
     fun pressure(value: Float,curve: Float)=value.coerceIn(0.1f,2f).pow(curve.coerceIn(0.25f,3f))
+    fun widthResponse(tool: InkTool,value: Float,curve: Float,tilt: Float): Float {
+        val p=pressure(value,curve)
+        return when(tool) {InkTool.FOUNTAIN->.3f+p*(1f+.3f*sin(tilt));InkTool.BRUSH->.2f+p*p;InkTool.PENCIL->.6f+p*.3f;InkTool.PEN->.5f+p/2;else->1f}
+    }
     /** Explicit opt-in recognition on pen-up; raw samples remain in the stroke. */
     fun snap(s: Stroke): Stroke {
         if(s.tool !in setOf(InkTool.PEN,InkTool.PENCIL,InkTool.FOUNTAIN,InkTool.BRUSH) || s.points.size<4) return s

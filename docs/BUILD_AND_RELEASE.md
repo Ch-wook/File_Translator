@@ -1,4 +1,4 @@
-# 빌드·서명·배포 — 0.3.1
+# 빌드·서명·배포 — 0.4.0
 
 ## 환경
 
@@ -38,7 +38,7 @@ JVM 검사를 새로 실행하고 Android 전체 검사·lint·debug APK와 검�
 | 파일 SHA-256 | artifacts/SHA256SUMS.txt |
 | 검사 보고서 | artifacts/test-results/ |
 
-AAB는 직접 설치 파일이 아니라 스토어용 번들입니다. APK는 Android 10 이상에서 설치합니다. 패키지 ID는 kr.documentstudio, versionCode 4, versionName 0.3.1입니다. 이 결과를 Play에 업로드하거나 계정 설정을 변경하지 않았습니다.
+AAB는 직접 설치 파일이 아니라 스토어용 번들입니다. APK는 Android 10 이상에서 설치합니다. 패키지 ID는 kr.documentstudio, versionCode 5, versionName 0.4.0입니다. 이 결과를 Play에 업로드하거나 계정 설정을 변경하지 않았습니다.
 
 ## 서명 키 관리
 
@@ -64,11 +64,11 @@ $env:STUDIO_KEY_ALIAS = 'upload'
 
 ## Play 및 기기 검증 범위
 
-targetSdk 36으로 설정했습니다. Play의 최신 조건은 [공식 target SDK 안내](https://developer.android.google.cn/google/play/requirements/target-sdk?hl=en)를 기준으로 실제 제출 시 다시 확인해야 합니다. API 35 에뮬레이터 실행이 Android 16/17 실기기 검증을 대신하지 않습니다. [Android 17](https://developer.android.com/about/versions/17).
+2026-10-17 공식 정책을 재확인했습니다. 2026-08-31부터 일반 Android 신규 앱/업데이트에는 API 36 이상이 요구되며 이 앱은 targetSdk 36입니다. Play의 최신 조건은 [공식 target SDK 안내](https://developer.android.google.cn/google/play/requirements/target-sdk?hl=en)를 기준으로 실제 제출 시 다시 확인해야 합니다. API 35 에뮬레이터 실행이 Android 16/17 실기기 검증을 대신하지 않습니다. [Android 17](https://developer.android.com/about/versions/17).
 
 APK 서명·ZIP 정렬과 포함 네이티브 라이브러리 정렬을 검사하지만 실제 16 KB 페이지 크기 실행은 미실시입니다. [공식 16 KB 안내](https://developer.android.com/guide/practices/page-sizes). API 29/36/37, Galaxy Tab/S펜, 외부 키보드·마우스, SAF 제공자별 장애, 실제 사용자 문서 코퍼스와 보안·접근성 검증을 마친 뒤 공개 출시를 판단해야 합니다.
 
-앱은 INTERNET/전체 저장소 권한, 분석 SDK, 문서 업로드를 포함하지 않습니다. OS 자동 백업/기기 전송은 꺼져 있으며 사용자가 선택한 SAF 저장·내보내기만 수행합니다. 소스 내 라이브러리 고지는 앱에 포함했습니다.
+앱은 INTERNET/전체 저장소 권한과 문서 업로드를 포함하지 않습니다. 번들 OCR SDK의 통계 전송도 앱 INTERNET 권한 제거로 차단합니다. OS 자동 백업/기기 전송은 꺼져 있으며 사용자가 선택한 SAF 저장·내보내기만 수행합니다. 소스 내 라이브러리 고지는 앱에 포함했습니다.
 
 ## 복구 smoke
 
@@ -89,3 +89,17 @@ officeruntime의 preBuild가 prepare-office-engine.ps1을 실행합니다. 최�
 빌드는 Windows PowerShell을 사용합니다. CMake/NDK가 없으면 SDK Manager로 위 버전을 설치하세요. 두 ABI 라이브러리를 포함해 APK와 설치 공간이 커졌습니다. 32비트 ARM/x86은 이번 번들에서 제외했습니다. 정밀 편집은 프로세스 로그 보호 API 때문에 Android 11 이상입니다.
 
 AAB 생성·서명은 스토어 업로드 승인이나 용량 정책 검증을 뜻하지 않습니다. 대형 엔진을 포함하므로 실제 스토어 제출에는 기기별 다운로드 크기 검사와 필요 시 모듈/자산 전달 구성 변경이 추가로 필요합니다. 이 프로젝트에서 계정 접근·업로드·출시는 수행하지 않습니다.
+
+## 별도 빌드 드라이브
+
+내장 엔진 중간 파일이 크므로 여유 공간이 있는 절대 경로를 지정할 수 있습니다. 같은 경로를 검증·출시·패키징에 전달합니다. 기존 build 폴더를 삭제하거나 이동하지 않습니다.
+
+```powershell
+$buildRoot = 'D:\CodexBuilds\DocumentStudio'
+.\scripts\verify-editing.ps1 -DeviceId emulator-5556 -BuildRoot $buildRoot
+.\scripts\build-release.ps1 -BuildRoot $buildRoot
+.\scripts\verify-release.ps1
+.\scripts\package-delivery.ps1 -BuildRoot $buildRoot
+```
+
+Gradle 직접 호출에는 `-Pstudio.buildRoot=<절대 경로>`를 사용합니다. 기본 Java 힙은 3 GiB이며 `-JavaHeapMiB`로 조정합니다. 기존 앱 업데이트에는 이전 키를 비공개 환경 변수로 지정하세요. 새 복제본에서 다른 키를 만들면 이전 앱을 업데이트할 수 없습니다. 이번 빌드도 기존 비공개 키를 재사용합니다.
