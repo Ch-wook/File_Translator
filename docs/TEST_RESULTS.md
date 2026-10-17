@@ -1,3 +1,88 @@
+# 검증 결과 — 0.4.0
+
+2026-10-17 (Asia/Seoul). 업데이트된 원격 e540106을 새로 복제한 뒤 실행 계획에 따라 구현하고 다시 검사했다. 코드 기준은 f561ea5이며 이후에는 결과 문서만 갱신했다. 이전 0.3.1 검사와 이번 결과를 합산하지 않는다.
+
+## 최종 자동 회귀
+
+**178개 통과(JVM 88 + Android 90), 실패·오류·건너뛰기 0.** 휴대폰 전체 게이트는 `artifacts/acceptance-20261017-104157/summary.json`에 있으며 status=passed, full_automated_gate=true다. 모든 집계 XML은 해당 실행에서 새로 생성됐다. lint 오류 0, 경고 31개. 경고의 세부 ID는 같은 폴더의 lint.xml을 따른다.
+
+환경은 Windows/JDK 17, Android 15/API 35 x86_64, 원래 CodexBibleApi35 AVD의 포트 5556 읽기 전용 인스턴스다. 폰은 1080×2400 px/420 dpi/4 KB 페이지, 태블릿 창은 2560×1600 px/240 dpi다. 원래 AVD 사용자 자료를 변경하지 않았다. 태블릿에서도 **Android 90개 전체**를 새로 실행해 실패/오류/건너뛰기 0을 확인했다. 별도 `artifacts/tablet-regression/`에 보관하며 두 화면의 같은 검사를 고유 검사 수에 중복 합산하지 않는다.
+
+| 환경 | 검사 묶음 | 통과 |
+|---|---|---:|
+| jvm | CoreTest | 15 |
+| jvm | EncryptedBackupTest | 3 |
+| jvm | FeatureTest | 7 |
+| jvm | FormulaCatalogTest | 3 |
+| jvm | FormulaLimitsTest | 3 |
+| jvm | HangulFormattingTest | 2 |
+| jvm | HangulTablesTest | 5 |
+| jvm | InkAdvancedTest | 3 |
+| jvm | InkAnchorsTest | 3 |
+| jvm | InkErasureTest | 8 |
+| jvm | InkTest | 2 |
+| jvm | LegacyTest | 4 |
+| jvm | MarkdownEditingTest | 1 |
+| jvm | OfficeCompatibilityTest | 4 |
+| jvm | OfficeObjectsTest | 6 |
+| jvm | SheetDataFeaturesTest | 4 |
+| jvm | SheetOperationsTest | 9 |
+| jvm | SpreadsheetModelTest | 5 |
+| jvm | TemporaryFilesTest | 1 |
+| Android | BackupSafetyTest | 3 |
+| Android | CellInkIntegrationTest | 1 |
+| Android | CellInkUiTest | 1 |
+| Android | DocumentActionsTest | 2 |
+| Android | DocumentIntegrationTest | 25 |
+| Android | DocumentTreeTest | 3 |
+| Android | EditingWorkflowTest | 8 |
+| Android | EditorUiTest | 6 |
+| Android | EncryptedBackupIntegrationTest | 2 |
+| Android | EncryptedBackupUiTest | 1 |
+| Android | FeatureAcceptanceUiTest | 5 |
+| Android | InkAdvancedPersistenceTest | 2 |
+| Android | InkAdvancedUiTest | 1 |
+| Android | InkInputTest | 2 |
+| Android | MarkdownTasksTest | 1 |
+| Android | MarkdownUiTest | 1 |
+| Android | OcrIntegrationTest | 3 |
+| Android | OcrUiTest | 1 |
+| Android | OfficeBridgeTest | 6 |
+| Android | OfficeProfessionalFeaturesTest | 3 |
+| Android | PdfAnnotationsTest | 4 |
+| Android | PdfImageEditingTest | 4 |
+| Android | PdfInkAppearanceTest | 1 |
+| Android | PdfMarkupUiTest | 1 |
+| Android | SheetDataUiTest | 1 |
+| Android | SlideMemoryTest | 1 |
+| Android | SplitEditorUiTest | 1 |
+
+추가 기능은 분할 문서/SAF 폴더, PDF 문자 주석/관리/가로 보기, 필압/보정/프리셋/레이어/종이, Markdown/HWPX, 셀 연결 필기, OCR, 암호 백업/임시 정리, 시트 규칙/표다. 실제 UI 입력·Undo/Redo·저장/새 URI 재열기와 POI/hwpxlib/PDFBox 독립 검사를 연결했다. 상세는 [실행 계획](EXECUTION_PLAN_20261017.md)과 [인수 확인표](FEATURE_ACCEPTANCE.md)를 따른다.
+
+## 실제 전문 엔진
+
+OfficeProfessionalFeaturesTest는 앱 내부의 실제 네이티브 엔진을 실행한다. Writer 제목 1/번호/각주 텍스트/추적 삽입·설정, Calc 셀 12/30·SUM(A1:B1)의 수식과 캐시 42/통화 서식, Impress 슬라이드 추가·레이아웃 관계 유지를 저장한 OOXML에서 확인한다. Impress의 특정 레이아웃별 시각적 배치 일치까지 검사한 것은 아니다. debug 전용 동일 UID 검사 provider를 사용하며 WebView 원격 디버깅은 켜지 않는다. 메뉴가 존재한다는 이유로 모든 고급 기능·외부 프로그램 호환성이 검증된 것으로 세지 않는다.
+
+## 출시와 전달 파일
+
+0.4.0/code 5의 APK/AAB를 기존 비공개 출시 키로 서명했다. apksigner/jarsigner, 권한·디버그 provider 제외, 16 KB ZIP 정렬과 36개 ELF LOAD 정렬·APK/AAB 라이브러리 일치를 확인했다. 실제 16 KB 기기 실행/Play 업로드는 하지 않았다. `artifacts/test-results/release-verification.json`에 인증서 지문/해시/정렬 근거가 있다.
+
+격리 에뮬레이터에서 debug 테스트 앱을 출시 APK로 교체 설치하고 TXT 생성·입력·복구 상태 저장·프로세스 강제 종료/재시작·재열기를 확인했다. 실제 릴리스 앱의 입력 바이트와 화면은 `artifacts/release-smoke/`에 있다.
+
+전달 ZIP을 D 드라이브의 새 폴더에 풀어 고정 엔진 캐시/로컬 SDK 경로만 제공하고 JVM 88개, debug APK와 검사 APK를 새로 빌드했다. 최종 ZIP의 253개 빌드 입력이 이 새 빌드 소스와 바이트 단위로 일치하며 키/암호/빌드/캐시를 제외했다. 결과 문서만 이후 갱신했다. `artifacts/test-results/source-verification.json`, `artifacts/source-rebuild.log`, 최종 `artifacts/SHA256SUMS.txt`를 따른다.
+
+## 실패 실행과 제한
+
+첫 전체 실행은 178개 중 UI 3개가 실패했다. 앞선 검사의 접힌 펜 도구/지우개 설정 의존성과 OCR 버튼 추가로 화면 밖으로 이동한 미리보기 조작을 발견했다. 검사별 입력 설정 초기화와 실제 스크롤 후 클릭으로 고친 뒤 위 전체 게이트와 태블릿 전체를 통과했다. 초기 전문 엔진 테스트의 모바일 Base64 규약, 셀 TSV 가져오기 UI, 시트 테스트의 출력 파일 준비도 보완했다. 에뮬레이터 연결 없음/설치 공간 부족으로 실행하지 못한 시도도 성공으로 합산하지 않았다.
+
+한글 전문 조판/변환, 정밀 조판 뒤 문단·셀 필기 재배치, PDF/A 전체 적합성, 실제 Galaxy/S펜·Bluetooth·다른 API/16 KB, 외부 Microsoft Office/한컴 코퍼스와 공개 출시 감사는 남아 있다. [남은 인수 조건](PROFESSIONAL_VALIDATION.md)을 참고한다. 전체 원문이 완벽히 구현됐다는 판정은 아니다.
+
+이전 Windows 빌드 중간 파일 삭제는 자동 승인 검토에서 정책상 차단되어 수행하지 않았다. 별도 D 드라이브 빌드를 사용했으며 이를 다른 수단으로 삭제하지 않았다.
+
+---
+
+## 이전 0.3.1 기록 (현재 실행 횟수에 합산하지 않음)
+
 # 검증 결과 — 0.3.1
 
 2026-10-16(Asia/Seoul). 이번 편집 흐름 재검증은 Windows/JDK 17, Android 15/API 35 x86_64 에뮬레이터 StudioReviewApi35에서 수행했습니다. 이전 0.3.1 검증 환경은 CodexBibleApi35입니다. 실제 기기 검증과 구분합니다. API 36 에뮬레이터는 앱 실행 전 시스템 UI 응답 없음이 발생해 이번 UI 통과 환경에 포함하지 않았습니다.

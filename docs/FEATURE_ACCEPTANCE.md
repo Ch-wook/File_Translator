@@ -14,10 +14,10 @@
 | F01.2 | 화면 회전·적응형 배치·여러 탭 | 검증 | EditorUI/Workflow의 재생성·탭·입력 보존. 실제 OS 멀티윈도우는 미검증 |
 | F01.3 | 분할 화면·동시 문서 편집·우측 속성 패널 | 두 문서 동시 편집 검증, 상시 패널 제한 | DocumentActions/SplitEditorUi: 독립 입력·Undo·저장·재생성·닫기. 크기에 따라 좌우/위아래/창 전환. 상시 우측 속성 패널 없음 |
 | F01.4 | S펜·스타일러스·손가락·마우스·Bluetooth 키보드 | 입력 코드와 합성 이벤트 검증, 장치 미검증 | InkInput/EditorUI/Workflow. 실제 지연·버튼·호버·팜리젝션은 별도 |
-| F01.5 | APK·AAB·서명 | debug APK 빌드, release/AAB 절차 구현 | 이전 release 증거와 이번 debug 검사를 구분. Play 제출 없음 |
+| F01.5 | APK·AAB·서명 | 0.4.0/code 5 APK/AAB 생성·기존 키 서명·설치 검증 | apksigner/jarsigner·권한·검사 provider 제외·16 KB ZIP/ELF·36개 라이브러리 일치. 출시 APK의 SAF 저장/미저장 입력 강제 종료 복구. Play 제출 없음 |
 | F02.1 | TXT/MD/PDF/DOCX/DOC/XLSX/XLS/PPTX/PPT/HWPX/HWP 열기 | 검증(제한 있는 형식 포함) | Integration에서 형식별 열기·편집·저장·재열기; Core/Legacy/Compatibility |
 | F02.2 | 내부 MIME·헤더·ZIP/OLE 구조 판별, 잘못된 확장자 | 검증 | Core/Legacy/Integration. 이름만으로 오피스 형식을 신뢰하지 않음 |
-| F02.3 | 암호화·서명·매크로·손상 파일 오류 | 거부 경로 검증 | Core/Legacy/Integration. 암호 입력·서명 보존 편집·매크로 실행은 미지원 |
+| F02.3 | 암호화·서명·매크로·손상 파일 오류 | 거부 경로 검증 | Core/Legacy/Integration. Office/PDF 자체 암호 입력·서명 보존 편집·매크로 실행은 미지원. 별도 .dsbackup 암호 복원은 지원 |
 | F02.4 | SAF 열기/생성, Downloads/Documents/SD/제공자 | FileProvider/실제 Downloads 검증, 나머지 제공자 미검증 | Integration/Workflow. SD·Drive는 시스템 제공자/권한에 의존 |
 | F02.5 | ACTION_VIEW/ACTION_SEND·URI 권한·연속 열기 | 검증 | AcceptanceUI: 작업 중 두 인텐트 대기, 기존 입력 보존, 재생성. 제공자가 허용할 때만 지속 권한 |
 | F03.1 | 새 문서 형식별 생성·미지원 선택 안내 | 검증 | Integration/EditorUI; DOC 새 생성은 이유와 함께 비활성 |
