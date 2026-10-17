@@ -1,4 +1,4 @@
-# 빌드·서명·배포 — 0.4.0
+# 빌드·서명·배포 — 0.5.0
 
 ## 환경
 
@@ -38,7 +38,7 @@ JVM 검사를 새로 실행하고 Android 전체 검사·lint·debug APK와 검�
 | 파일 SHA-256 | artifacts/SHA256SUMS.txt |
 | 검사 보고서 | artifacts/test-results/ |
 
-AAB는 직접 설치 파일이 아니라 스토어용 번들입니다. APK는 Android 10 이상에서 설치합니다. 패키지 ID는 kr.documentstudio, versionCode 5, versionName 0.4.0입니다. 이 결과를 Play에 업로드하거나 계정 설정을 변경하지 않았습니다.
+AAB는 직접 설치 파일이 아니라 스토어용 번들입니다. APK는 Android 10 이상에서 설치합니다. 패키지 ID는 kr.documentstudio, versionCode 6, versionName 0.5.0입니다. 이 결과를 Play에 업로드하거나 계정 설정을 변경하지 않았습니다.
 
 ## 서명 키 관리
 

@@ -1,6 +1,6 @@
-# 기술 설계와 개발 범위 — 0.3.1
+# 기술 설계와 개발 범위 — 0.5.0
 
-검토일: 2026-10-16. 구현된 기능은 오프라인 우선이며, 전문 오피스 전체 기능과 조판 품질은 아직 달성하지 않았습니다.
+검토일: 2026-10-18. 구현된 기능은 오프라인 우선이며, 전문 오피스 전체 기능과 조판 품질은 아직 달성하지 않았습니다.
 
 ## 기술 스택
 
@@ -46,7 +46,7 @@ Hilt/Room/DataStore 대신 현재 규모에 맞는 생성자 주입·AtomicFile�
 | PDFBox Android | Apache 2.0. PDF 구조·주석·페이지·양식 쓰기에 채택. 오래된 포트의 보안/업스트림 차이는 감사 과제. [원본](https://github.com/TomRoush/PdfBox-Android) |
 | Apache POI | Apache 2.0. OLE 처리 경로를 Android에서 실제 검사해 채택. OOXML 모듈은 JVM 독립 검증용이며 앱에 포함하지 않음. 전체 AWT 렌더링을 Android에서 제공하지 않음. [공식 구성](https://poi.apache.org/components/index.html), [Android 호환성 참고](https://github.com/centic9/poi-on-android) |
 | OOXML 직접 처리 | 제한된 수정·미수정 파트 보존에 적합하나 조판·차트·테마 전체 엔진은 별개 |
-| hwplib/hwpxlib | Apache 2.0. HWP 런타임·HWPX 빈 템플릿·독립 HWPX 검사에 사용. [hwplib](https://github.com/neolord0/hwplib), [hwpxlib](https://github.com/neolord0/hwpxlib) |
+| hwplib/hwpxlib | Apache 2.0. HWP 런타임·HWPX 변환/쓰기 런타임·빈 템플릿·별도 HWPX 읽기 검사에 사용. [hwplib](https://github.com/neolord0/hwplib), [hwpxlib](https://github.com/neolord0/hwpxlib) |
 | 한컴 공개 명세 | HWP 바이너리/OWPML 구조 자료이며 전문 편집 SDK 자체는 아님. [공식 명세](https://www2.hancom.com/support/downloadCenter/hwpOwpml), [HWPX 구조](https://tech.hancom.com/hwpxformat/) |
 | Collabora/LibreOffice | Android/iOS의 실제 로컬 오피스 엔진 후보. MPL 2.0 및 여러 구성요소 라이선스 검토·대형 네이티브 빌드/제품 통합 필요. 0.3.1에서 공식 Android 바이너리와 대응 라이브러리를 통합. [모바일](https://www.collaboraonline.com/collabora-office-android-ios/), [라이선스 고지](https://www.collaboraonline.com/collabora-office-for-android-ios-credits/) |
 | ONLYOFFICE | 모바일 WebView 통합은 문서 서버/스토리지/콜백 및 상용 모바일 배포 조건 검토 필요. 현재 미통합. [모바일 통합](https://api.onlyoffice.com/docs/docs-api/get-started/how-it-works/mobile-integration) |

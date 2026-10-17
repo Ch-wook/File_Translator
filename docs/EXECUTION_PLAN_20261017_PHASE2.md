@@ -10,6 +10,6 @@
 
 - [x] 변환기 Android 실행/구조 대조 검증. 표/머리말/각주 실제 변환 포함.
 - [x] 앱 변환·보고서·보존 자료·필기/백업 연결. Android 통합/UI 5개 통과.
-- [ ] 기능/전체 검사·배포 파일·문서·GitHub 반영.
+- [x] 기능/전체 검사·배포 파일·문서 갱신. GitHub 반영은 최종 정상 push 후 HEAD로 확인한다.
 
 근거: [제작자 변환기](https://github.com/neolord0/hwp2hwpx), [HWPX 모델/리더·라이터](https://github.com/neolord0/hwpxlib). 변환기는 페이지 렌더러가 아니며 HWPX→HWP 기능은 제공하지 않는다.

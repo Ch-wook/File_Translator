@@ -51,7 +51,9 @@ PDF 필기는 표준 Ink 주석에 포함합니다. 나머지는 **앱 내부 �
 
 ## 문서
 
-- [2026-10-17 실행 계획](docs/EXECUTION_PLAN_20261017.md)
+- [0.5.0 후속 실행 계획](docs/EXECUTION_PLAN_20261017_PHASE2.md)
+- [HWP→HWPX 변환](docs/HANGUL_CONVERSION.md)
+- [0.4.0 실행 계획](docs/EXECUTION_PLAN_20261017.md)
 - [암호 백업](docs/BACKUP_ENCRYPTION.md)
 - [남은 전문 기능 인수 조건](docs/PROFESSIONAL_VALIDATION.md)
 - [전체 기능 검증·보완 계획과 진행 기록](docs/IMPLEMENTATION_PLAN.md)
