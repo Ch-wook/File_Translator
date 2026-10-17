@@ -20,6 +20,19 @@ import kr.documentstudio.data.Session
 private data class Action(val label: String,val type: String,val inputs: List<Triple<String,String,String>> = emptyList())
 @Composable
 fun DocumentTools(s: Session,sec: Section?,vm: DocumentActions,busy: Boolean,page: Int=0,navigate: (Int)->Unit = {}) {
+    if(s.format==Format.HWP) {
+        var confirm by remember(s.id) {mutableStateOf(false)}
+        OutlinedButton({confirm=true},enabled=!busy,modifier=Modifier.padding(horizontal=12.dp)) {Text("HWPX로 변환")}
+        if(confirm) AlertDialog(onDismissRequest={confirm=false},title={Text("HWPX로 변환")},text={Text("현재 편집 내용을 새 HWPX 작업으로 변환합니다. 기존 HWP와 필기를 보존합니다.\n\n지원하지 않는 필드·그리기·OLE/차트·외부 연결 자원은 변환을 중단합니다. 글꼴과 쪽 배치의 시각적 동일성은 보장하지 않습니다. 결과의 점검 보고서를 확인하고 다른 이름으로 저장하세요.")},confirmButton={TextButton({confirm=false;vm.convertHangul()}) {Text("새 작업으로 변환")}},dismissButton={TextButton({confirm=false}) {Text("취소")}})
+    }
+    if(s.format==Format.HWPX) {
+        val report by produceState<HangulConversionReport?>(null,s.id) {value=runCatching {vm.repository.conversionReport(s)}.getOrElse {vm.message(it.message);null}}
+        var show by remember(s.id) {mutableStateOf(false)}
+        report?.let {r ->
+            TextButton({show=true},enabled=!busy,modifier=Modifier.padding(horizontal=12.dp)) {Text("변환 시점 점검 결과")}
+            if(show) AlertDialog(onDismissRequest={show=false},title={Text("변환 시점 점검 결과")},text={SelectionContainer {Text(r.description(),modifier=Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState()))}},confirmButton={TextButton({show=false}) {Text("닫기")}})
+        }
+    }
     val actions=when(s.format) {
         Format.DOCX -> listOf(
             Action("그림 삽입","word.image"),

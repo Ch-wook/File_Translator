@@ -68,6 +68,11 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         s.recoveryWarning?.let {message(it)}
     }
     fun create(format: Format) = action { attach(repository.create(format)) }
+    fun convertHangul(sessionId: String) = action {
+        val source=document(sessionId) ?: return@action
+        attach(repository.convertHangul(source))
+        message("HWPX를 새 작업으로 열었습니다. 변환 시점 점검 결과를 확인해 주세요.")
+    }
     fun textFromOcr(text: String) = action {
         require(text.toByteArray().size<=2*1024*1024)
         val created=repository.create(Format.TXT);val s=created.copy(name="문자 인식.txt",edits=created.edits.copy(text=text))

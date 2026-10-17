@@ -197,3 +197,10 @@ PdfAnnotations는 표시 좌표를 CropBox/회전이 반영된 QuadPoints와 로
 EncryptedBackup은 bounded ZIP을 AES-GCM 인증 봉투로 감싼다. 인증이 끝난 private 임시 ZIP에 기존 복원 검사를 적용하며 암호 오류 시 인덱스/출력을 갱신하지 않는다. 암호 CharArray는 요청 생명주기에 묶어 정리하며 복구 상태에 기록하지 않는다.
 
 OfficeProbeProvider는 debug에만 존재하는 비공개 동일 UID 검사 접점이다. 실제 네이티브 엔진을 열고 클라이언트 명령을 보낸 뒤 저장한 OOXML을 검사한다. WebView 원격 디버깅은 켜지 않는다. release 검증은 검사 provider/authority가 없는지 확인한다.
+
+
+## HWP 변환 트랜잭션 (0.5.0)
+
+`HangulConversion`은 고정 upstream Java 변환기를 감싸며, OLE/압축 스트림과 레코드 중첩을 먼저 제한한다. hwplib 모델의 제어 선별·구역/하위 문단/셀·자원 인벤토리 → HWPX 쓰기 → 안전 DOM 재열기와 범위별 해시/구조 대조 → 검증 후 이동 순서다. 결과 앱/OS 메타데이터도 실제 제작 앱으로 지정한다.
+
+Repository는 원본 작업을 체크포인트하고 새 UUID 디렉터리에서 편집 HWP를 materialize한다. 검증한 새 HWPX와 이전 원본/편집본/보고서만 새 탭으로 연결한다. 실패 시 새 디렉터리를 폐기한다. 원본 URI에는 쓰지 않는다. 구역 순서로 필기 앵커를 재연결하며 편집 명령은 새 기본 파일에 반영하고 새 Undo 이력을 시작한다. 보존 자료는 `preserved-backup/conversion`에 두고 백업 가져오기는 허용한 세 경로만 격리 복원한다. 보고서 읽기는 버전/크기/범위·원본 해시를 검사하며 변환 시점의 기록으로 표시한다.

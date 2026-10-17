@@ -1,4 +1,4 @@
-# 라이브러리·라이선스·제약 — 0.4.0
+# 라이브러리·라이선스·제약 — 0.5.0
 
 검토일: 2026-10-17. 고지·라이선스 원문은 app/src/main/assets/licenses에 포함하고 앱 설정에서 표시합니다.
 
@@ -9,13 +9,15 @@
 | PDFBox Android / FontBox | 2.0.27.0 포트 | Apache 2.0, PDF 읽기/쓰기 |
 | Apache POI / scratchpad | 5.4.1 | Apache 2.0, DOC/XLS/PPT 런타임 |
 | hwplib | 1.1.10 | Apache 2.0, HWP 런타임, 자체 재배치 POI 포함 |
+| hwp2hwpx | edc05278506b663d5bdd98050a51f54b7ff5e0bc | Apache 2.0, 소스 포함 및 4개 결함 수정. [출처/변경](HANGUL_CONVERTER_PROVENANCE.md) |
+| hwpxlib | 1.0.9 | Apache 2.0, HWPX 변환 모델·쓰기 런타임 및 독립 읽기 검사 |
 | HWPX 빈 문서 | hwpxlib upstream commit f9fd2255ac0fc57414e0b657d115e7de51d31c65 | Apache 2.0, 템플릿 자산 |
 | Commons IO / Codec | 2.20.0 / 1.18.0 | Apache 2.0 |
 | Commons Collections4 / Math3 | 4.4 / 3.6.1 | Apache 2.0 |
 | Log4j API / SparseBitSet | 2.24.3 / 1.3 | Apache 2.0 |
 | CommonMark Java/GFM Tables | 0.25.0 | BSD 2-Clause |
 | LiberationSans-Regular | 2.1.5, 포트 내장 | SIL OFL 1.1, PDFBox fallback 폰트 |
-| POI OOXML / hwpxlib | 5.4.1 / 1.0.8, JVM 테스트 전용 | Apache 2.0, 독립 저장 검증 |
+| POI OOXML | 5.4.1, JVM 테스트 전용 | Apache 2.0, 독립 저장 검증 |
 | JUnit/AndroidX Test | 테스트 전용 | EPL 1.0/Apache 2.0 |
 | Collabora Office / LibreOffice | 26.04.6.0 build 951 | MPL 2.0 및 구성요소별 고지, 실제 로컬 오피스 엔진 |
 | R8 keepanno annotations | 9.3.16 | Apache 2.0, JNI 보존 메타데이터 |

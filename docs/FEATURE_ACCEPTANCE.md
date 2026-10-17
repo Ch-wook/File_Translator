@@ -1,6 +1,6 @@
 # 원문 요구사항별 인수 확인표
 
-기준: [최신 실행 계획](EXECUTION_PLAN_20261017.md), [원문](REQUIREMENTS.ko.md) §2–§20. 2026-10-17.
+기준: [0.5.0 실행 계획](EXECUTION_PLAN_20261017_PHASE2.md), [원문](REQUIREMENTS.ko.md) §2–§20. 2026-10-18.
 
 아래 표는 지원 여부와 확인 근거를 분리한다. **검증**은 기재한 입력·환경에 한정한다. **정밀/미검증**은 내장 엔진의 기능 경로가 있지만 해당 전문 기능을 각각 검사하지 못했다는 뜻이다. 전체 행이 통과한 것으로 집계하지 않는다. UI 경로·제약은 [사용 안내](USER_GUIDE.md)와 [지원표](SUPPORT_MATRIX.md), 실제 실행 횟수는 [검사 결과](TEST_RESULTS.md)를 따른다.
 
@@ -45,7 +45,7 @@
 | F07.2 | HWP 표 구조·표 정렬·개별 셀 삽입/삭제 | HWPX 표 가로 정렬 검증, 나머지 제한 | HangulFormatting/HangulTables: LEFT/CENTER/RIGHT. HWP는 일반 문자열만. HWPX 셀 구조는 직사각형 행열 단위 |
 | F07.3 | HWPX 편집 용지·여백·쪽 나누기·문단 추가 | 검증(A4) | Feature/Integration |
 | F07.4 | 한글 다단·구역·머리말/꼬리말·쪽 번호·각주/미주·개체·글상자·수식·차례 | HWPX 균등 다단 검증, 나머지 미지원 | HangulFormatting: 1–4단/간격 OWPML 저장. 복잡한 다단·전문 조판/개체 엔진 없음 |
-| F07.5 | HWP↔HWPX 변환·변환 손실 검사 | 미지원 | 원본 형식 저장 우선. 변환을 성공한 것으로 표시하지 않음 |
+| F07.5 | HWP↔HWPX 변환·변환 손실 검사 | HWP→HWPX 구조 변환·대조 구현, 역변환/시각 일치 미지원 | HangulConversion JVM/Android/UI: 문단/셀 텍스트, 표/셀/개체 수, 그림 해시·참조와 수식 대조. 새 탭·원본/작업본·필기/레이어·보고서·ZIP/암호 백업 보존. [제한](HANGUL_CONVERSION.md) |
 
 ## Excel·PowerPoint
 

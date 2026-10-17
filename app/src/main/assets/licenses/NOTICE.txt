@@ -15,7 +15,12 @@ Digitized data copyright (c) 2010 Google Corporation. Copyright (c) 2012 Red Hat
 SIL Open Font License 1.1.
 
 License texts and upstream Apache notices accompany this file.
-POI OOXML/XMLBeans and hwpxlib runtime are used only in JVM tests. POI binary-format modules and hwplib are bundled in the app.
+POI OOXML/XMLBeans are used only in JVM tests. POI binary-format modules, hwplib and hwpxlib 1.0.9 are bundled in the app.
+hwp2hwpx: Copyright Park Sungkyon (neolord0), Apache License 2.0.
+Source: https://github.com/neolord0/hwp2hwpx, edc05278506b663d5bdd98050a51f54b7ff5e0bc.
+Modified ForChars (hyphen buffer and last-run bounds) and ForPicture (right inner margin).
+Modified ForContentHPFFile (optional summary metadata null handling).
+hwpxlib: https://github.com/neolord0/hwpxlib, Apache License 2.0.
 Apache POI legacy.doc test fixture: Apache POI REL_5_4_1 test-data/document/simple.doc, Apache License 2.0; debug test APK only.
 
 본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.

@@ -98,11 +98,50 @@ class DocumentRepository(private val context: Context) {
         } finally { incoming.delete();unlocked.delete() }
     }
     suspend fun restore(id: String): Session = io { restoreInternal(id).also { remember(it) } }
+    suspend fun convertHangul(source: Session): Session = io {
+        require(source.format==Format.HWP) {"HWP 문서에서 변환해 주세요."}
+        checkpointInternal(source)
+        val id=UUID.randomUUID().toString();val dir=File(root,id).apply {mkdirs()}
+        try {
+            val provenance=File(dir,"preserved-backup/conversion").apply {mkdirs()}
+            val working=File(provenance,"working.hwp")
+            if(source.edits.values.isEmpty() && source.edits.bold.isEmpty() && source.edits.styles.isEmpty()) atomic(working,source.base.readBytes())
+            else source.legacy!!.write(working,source.edits)
+            val base=File(dir,"base.bin");val report=HangulConversion.convert(working,base)
+            atomic(File(provenance,"original.hwp"),source.base.readBytes())
+            atomic(File(provenance,"report.json"),conversionJson(report).toString().toByteArray())
+            val target=build(id,source.name.substringBeforeLast('.',source.name)+"-변환.hwpx",Format.HWPX,null,null,base)
+            val anchors=source.sections.mapIndexed {i,s->s.id to target.sections[i].id}.toMap()
+            val strokes=source.edits.strokes.map {stroke->stroke.copy(anchor=anchors[stroke.anchor] ?: error("필기 구역을 변환 결과에 연결하지 못했습니다."))}
+            val result=target.copy(edits=target.edits.copy(strokes=strokes,layers=source.edits.layers,paper=source.edits.paper))
+            checkpointInternal(result);result
+        } catch(e: Exception) {dir.deleteRecursively();throw e}
+    }
+    /** A historical report: later edits do not re-certify the conversion's layout or content. */
+    suspend fun conversionReport(s: Session): HangulConversionReport? = io {
+        val dir=File(s.base.parentFile,"preserved-backup/conversion");val file=File(dir,"report.json")
+        if(!file.isFile) return@io null
+        require(file.length() in 1..16384) {"변환 보고서 크기가 올바르지 않습니다."}
+        val j=JSONObject(file.readText());require(j.getInt("version")==1)
+        fun count(name: String)=j.getInt(name).also {require(it in 0..10000)}
+        fun hash(name: String)=j.getString(name).also {require(it.matches(Regex("[0-9a-f]{64}")))}
+        val report=HangulConversionReport(count("sections"),count("paragraphs"),count("tables"),count("cells"),count("pictures"),count("binaries"),
+            count("headers"),count("footers"),count("footnotes"),count("endnotes"),count("equations"),hash("sourceSha256"),hash("resultSha256"))
+        val working=File(dir,"working.hwp")
+        require(working.isFile && working.length()<=16L*1024*1024 && digest(working)==report.sourceSha256) {"변환 원본 보존 자료가 보고서와 일치하지 않습니다."}
+        report
+    }
+    private fun conversionJson(r: HangulConversionReport)=JSONObject().apply {
+        put("version",1);put("converter","hwp2hwpx-edc0527/hwpxlib-1.0.9");put("sections",r.sections);put("paragraphs",r.paragraphs)
+        put("tables",r.tables);put("cells",r.cells);put("pictures",r.pictures);put("binaries",r.binaries);put("headers",r.headers);put("footers",r.footers)
+        put("footnotes",r.footnotes);put("endnotes",r.endnotes);put("equations",r.equations);put("sourceSha256",r.sourceSha256);put("resultSha256",r.resultSha256)
+    }
     private fun importBackup(zip: java.util.zip.ZipFile): Session {
         require(zip.size()<=256) {"백업 파트 수 제한(256개)을 초과했습니다."}
         require(zip.entries().toList().map {it.name}.distinct().size==zip.size()) {"중복 백업 파트가 있습니다."}
         val entries=zip.entries().toList()
         require(entries.all {entry -> !entry.isDirectory && (entry.name in setOf("base.bin","state.json","provider-backup.bin") ||
+            entry.name in setOf("conversion/original.hwp","conversion/working.hwp","conversion/report.json") ||
             entry.name.startsWith("office-recovery/") && entry.name.removePrefix("office-recovery/").split('/').all {it.matches(Regex("[a-zA-Z0-9._-]+")) && it!="." && it!=".."})}) {"지원하지 않거나 안전하지 않은 백업 경로가 있습니다."}
         require(entries.all {it.size in 0..128L*1024*1024} && entries.sumOf {it.size}<=256L*1024*1024) {"백업의 압축 해제 용량 제한(256 MiB)을 초과했습니다."}
         fun read(name: String,limit: Long): ByteArray {

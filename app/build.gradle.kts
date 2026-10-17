@@ -7,8 +7,8 @@ android {
         minSdk = 29
         targetSdk = 36
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
-        versionCode = 5
-        versionName = "0.4.0"
+        versionCode = 6
+        versionName = "0.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }
@@ -28,6 +28,7 @@ android {
     packaging { resources.excludes += setOf("META-INF/DEPENDENCIES", "META-INF/LICENSE", "META-INF/LICENSE.txt", "META-INF/NOTICE", "META-INF/NOTICE.txt", "META-INF/versions/**", "META-INF/services/javax.xml.stream.*"); jniLibs.keepDebugSymbols += "**/*.so" }
 }
 dependencies {
+    androidTestImplementation("kr.dogfoot:hwplib:1.1.10") { exclude(group="org.apache.poi") }
     implementation(project(":officeruntime"))
     implementation(project(":core"))
     implementation(platform("androidx.compose:compose-bom:2025.09.01"))
