@@ -31,7 +31,7 @@ W01부터 순서대로 수행한다. 서로 독립인 읽기/빌드 준비만 �
 - [x] 구현 전 실행 계획 작성.
 - [x] W01 기준선 재현: 별도 `e540106` worktree에서 131개 통과(실패/오류/건너뛰기 0), lint 오류 0/경고 22. 원래 1 GB 검증 설정은 새 DEX 병합에서 메모리 부족으로 실패해, 검증기 기본 힙을 3 GB로 조정하고 인수로 조절하게 했다. 앱 기준 소스는 그대로 검사했다.
 - [x] W02–W09 구현·기능별 검사·전문 지원 경계 감사. 원문 전체 전문 기능 완료와 구분한다.
-- [ ] W10 최종 회귀와 배포/원격 반영.
+- [x] W10 최종 회귀·출시 APK/AAB·새 소스 재빌드·문서 갱신·GitHub 정상 push/원격 커밋 일치.
 
 W01 근거: `.tools/baseline-source/artifacts/acceptance-20261017-003639/summary.json`. 기존 AVD는 `-read-only`, 별도 포트 5556으로 실행해 원래 저장 자료를 변경하지 않는다. W02부터는 본 복제본의 코드와 별도 회귀 검사 결과로 추적한다.
 
@@ -77,3 +77,4 @@ W10 최종 로컬 결과: 코드 f561ea5의 휴대폰 전체 게이트 `artifact
 기존 출시 인증서와 같은 0.4.0/code 5 APK/AAB 생성·서명·권한/검사 provider 제외·16 KB ZIP/ELF·36개 라이브러리 일치 검사를 통과했다. 출시 APK를 격리 인스턴스에 설치해 SAF Downloads에 ReleaseSavedProof040을 저장하고, 저장하지 않은 ReleaseRecoveryProof040을 강제 종료 후 복구했다. 실제 16 KB 기기/Play/외부 Office·한컴 검증과 구분한다.
 
 전달 소스 ZIP을 D 드라이브의 새 폴더에 풀어 JVM 88개·debug APK/검사 APK를 98개 작업 전부 새로 실행해 3분 43초에 빌드했다. 최종 소스의 코드/설정/자산은 재빌드 입력과 바이트 단위로 확인하며, 결과 문서만 이후 갱신한다. 키/암호/캐시/생성물은 소스 ZIP과 Git에서 제외한다. 최종 SHA256SUMS와 검사 보고서는 artifacts에 있다. GitHub 정상 push/원격 일치 확인은 마감 커밋 후 기록한다.
+GitHub 반영 확인: 2026-10-17, 원격 main에 d421e0f12a4f77fa3e0bb588fa2e3c27cef92938 을 정상 push했고 git ls-remote의 동일 커밋을 확인했다. 이후 마감 커밋은 이 완료 기록만 갱신한다. 원문에 남은 전문 구현/외부 검증은 PROFESSIONAL_VALIDATION.md와 FEATURE_ACCEPTANCE.md에 그대로 남겼다.
