@@ -141,6 +141,10 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     }
     fun text(value: String,sessionId: String?=null) { document(sessionId)?.let { editFor(sessionId,it.edits.copy(text=value),true,"text") } }
     fun field(id: String,value: String,sessionId: String?=null) { document(sessionId)?.let { editFor(sessionId,it.edits.copy(values=it.edits.values+(id to value)),true,id) } }
+    fun paragraph(fields: List<Field>,value: String,sessionId: String) {
+        val s=document(sessionId) ?: return
+        editFor(sessionId,s.edits.copy(values=s.edits.values+ParagraphEditing.replace(fields,s.edits,value)),true,fields.first().paragraph)
+    }
     fun bold(id: String,value: Boolean,sessionId: String?=null) { document(sessionId)?.let { editFor(sessionId,it.edits.copy(bold=it.edits.bold+(id to value))) } }
     fun style(id: String,value: Map<String,String>,sessionId: String?=null) {document(sessionId)?.let {editFor(sessionId,it.edits.copy(styles=it.edits.styles+(id to ((it.edits.styles[id] ?: emptyMap())+value))))}}
     fun change(change: DocumentChange,sessionId: String?=null) = action {

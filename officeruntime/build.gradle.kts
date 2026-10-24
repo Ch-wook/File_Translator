@@ -1,9 +1,14 @@
 plugins { id("com.android.library") }
 val runtimeDir = rootProject.layout.projectDirectory.dir(".engine-cache/runtime/main")
 val prepareEngine by tasks.registering(Exec::class) {
-    commandLine("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-        rootProject.file("scripts/prepare-office-engine.ps1").absolutePath)
+    if (System.getProperty("os.name").startsWith("Windows", ignoreCase=true)) {
+        commandLine("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+            rootProject.file("scripts/prepare-office-engine.ps1").absolutePath)
+    } else {
+        commandLine("python3", rootProject.file("scripts/prepare-office-engine.py").absolutePath)
+    }
     inputs.file(rootProject.file("scripts/prepare-office-engine.ps1"))
+    inputs.file(rootProject.file("scripts/prepare-office-engine.py"))
     outputs.dir(runtimeDir)
 }
 android {

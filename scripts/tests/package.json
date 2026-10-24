@@ -1,0 +1,6 @@
+{
+  "name": "document-studio-office-tests",
+  "private": true,
+  "scripts": { "test": "node --test office-workspace.test.cjs" },
+  "devDependencies": { "jsdom": "26.1.0" }
+}

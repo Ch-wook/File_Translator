@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import androidx.compose.ui.test.*
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
@@ -55,8 +56,9 @@ class WorkspaceRedesignUiTest {
         create(Format.HWPX)
         val field=vm.state.value.session!!.sections.first().fields.first()
         compose.onNodeWithContentDescription(field.label).performTextReplacement("사용하기 쉬운 문서 편집")
-        compose.onNodeWithContentDescription("굵게").performClick()
-        assertEquals("true",vm.state.value.session!!.edits.styles[field.id]?.get("bold"))
+        compose.onNodeWithContentDescription(field.label).performTextInputSelection(TextRange(0,"사용하기 쉬운 문서 편집".length))
+        compose.onNodeWithContentDescription("굵게").performClick();ready()
+        assertEquals("true",vm.state.value.session!!.sections.first().fields.first().styles["bold"])
         compose.onNodeWithContentDescription("실행 취소").performClick()
         compose.onNodeWithContentDescription("다시 실행").performClick()
         compose.runOnUiThread {vm.style(field.id,mapOf("size" to "36","lineSpacing" to "1.5"))}
@@ -92,8 +94,9 @@ class WorkspaceRedesignUiTest {
         val fields=vm.state.value.session!!.sections.first().fields.filter {it.label.startsWith("표 ")}
         assertEquals(4,fields.size)
         fields.forEachIndexed {i,f->compose.onNodeWithContentDescription(f.label).performScrollTo().performTextReplacement("셀 ${i+1}")}
-        compose.onNodeWithContentDescription("굵게").performClick()
-        assertEquals("true",vm.state.value.session!!.edits.styles[fields.last().id]?.get("bold"))
+        compose.onNodeWithContentDescription(fields.last().label).performTextInputSelection(TextRange(0,"셀 4".length))
+        compose.onNodeWithContentDescription("굵게").performClick();ready()
+        assertEquals("true",vm.state.value.session!!.sections.first().fields.last().styles["bold"])
         screenshot("hangul-table")
         val reopened=PackageDocument.open(save("hwpx")).sections.first().fields.associateBy {it.id}
         fields.forEachIndexed {i,f->assertEquals("셀 ${i+1}",reopened.getValue(f.id).text)}
@@ -153,13 +156,14 @@ class WorkspaceRedesignUiTest {
     @Test fun customFontColorAndNumberFormatsRemainEditableAlongsidePresets() {
         create(Format.DOCX)
         val field=vm.state.value.session!!.sections.first().fields.first()
+        compose.onNodeWithContentDescription(field.label).performTextInputSelection(TextRange(0,field.text.length))
         compose.onNodeWithText("글자·문단 서식").performClick()
         compose.onNodeWithContentDescription("글꼴 직접 입력").performScrollTo().performClick()
         compose.onNodeWithText("글꼴 이름").performTextReplacement("Noto Serif CJK KR")
         compose.onNodeWithText("다른 색상 직접 입력").performScrollTo().performClick()
         compose.onNodeWithText("사용자 지정 색상").performTextReplacement("4A3F8F")
-        compose.onNodeWithText("적용").performClick();compose.waitForIdle()
-        assertEquals("Noto Serif CJK KR",vm.state.value.session!!.edits.styles[field.id]?.get("font"))
+        compose.onNodeWithText("적용").performClick();ready()
+        assertEquals("Noto Serif CJK KR",vm.state.value.session!!.sections.first().fields.first().styles["font"])
         val word=PackageDocument.open(save("docx")).sections.first().fields.first()
         assertEquals("Noto Serif CJK KR",word.styles["font"])
         assertEquals("4A3F8F",word.styles["color"])

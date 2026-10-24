@@ -32,13 +32,16 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     var horizontal by rememberSaveable {mutableStateOf(false)}
     var navigationRequest by remember {mutableIntStateOf(0)}
     var navigator by rememberSaveable {mutableStateOf(false)}
-    var selectedField by rememberSaveable {mutableStateOf<String?>(null)}
+    var selectedParagraph by rememberSaveable {mutableStateOf<String?>(null)}
+    var selectionStart by rememberSaveable {mutableIntStateOf(0)}
+    var selectionEnd by rememberSaveable {mutableIntStateOf(0)}
+    var readOnly by rememberSaveable {mutableStateOf(false)}
     var ocr by remember {mutableStateOf(false)}
     var search by remember {mutableStateOf(false)}
     var encoding by remember {mutableStateOf(false)}
     var help by remember {mutableStateOf(false)}
     val current=s.sections.getOrNull(section)
-    val field=current?.fields?.firstOrNull {it.id==selectedField} ?: current?.fields?.firstOrNull()
+    val selection=selectedParagraph?.let {PaperSelection(it,selectionStart,selectionEnd)}
     val navigate: (Int)->Unit = {page=it.coerceIn(0,((s.pdf?.pages ?: 1)-1).coerceAtLeast(0));navigationRequest++}
     val selectTab: (String)->Unit = {name ->
         tab=name;expanded=true;draw=name=="그리기"
@@ -49,11 +52,21 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
         page=page.coerceIn(0,((s.pdf?.pages ?: 1)-1).coerceAtLeast(0))
     }
     Column(Modifier.fillMaxSize().testTag("workspace-${family.name.lowercase()}")) {
+        if(s.format in DocumentRepository.officeFormats) Surface(color=family.accent.copy(alpha=0.07f)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically) {
+                Icon(family.icon,null,tint=family.accent,modifier=Modifier.size(22.dp))
+                Column(Modifier.weight(1f).padding(horizontal=10.dp)) {
+                    Text("${family.title} 문서 편집",style=MaterialTheme.typography.labelLarge)
+                    Text(when(family) {WorkspaceFamily.SHEET->"셀·수식·행과 열·차트";WorkspaceFamily.SLIDE->"개체 선택·이동·크기·슬라이드";else->"본문·표·그림·개체 배치"},style=MaterialTheme.typography.labelSmall)
+                }
+                FilledTonalButton(openOffice,enabled=!busy,contentPadding=PaddingValues(horizontal=12.dp)) {Text("편집기 열기")}
+            }
+        }
         WorkspaceRibbon(family,tab,expanded,busy,selectTab,{expanded=!expanded}) {
             if(tab!="그리기") {
                 if(tab=="보기" || family==WorkspaceFamily.TEXT || (tab=="홈" && family==WorkspaceFamily.WORD)) {
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
-                        if(s.format in DocumentRepository.officeFormats && tab=="홈") Button(openOffice,enabled=!busy,contentPadding=PaddingValues(horizontal=12.dp)) {Icon(family.icon,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text("문서에서 편집")}
+
                         if(s.format==Format.PDF && tab=="보기") {
                             FilterChip(continuous && !horizontal,{continuous=true;horizontal=false;draw=false},label={Text("연속 보기")},enabled=!busy)
                             Spacer(Modifier.width(6.dp))
@@ -69,13 +82,14 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                             TextButton({preview=false},enabled=!busy) {Text("텍스트 편집")}
                         }
                         if(tab=="보기") {
+                            if(family in listOf(WorkspaceFamily.WORD,WorkspaceFamily.HANGUL)) FilterChip(readOnly,{readOnly=!readOnly},label={Text(if(readOnly) "읽기 모드" else "편집 모드")},enabled=!busy)
                             if(s.sections.size>1) TextButton({navigator=!navigator},enabled=!busy) {Icon(Icons.AutoMirrored.Filled.ViewSidebar,null,Modifier.size(18.dp));Text("문서 탐색")}
                             TextButton({help=true}) {Icon(Icons.Default.Info,null,Modifier.size(18.dp));Text("편집 안내")}
                         }
                         if(tab=="홈" || tab=="보기" || (s.format==Format.PDF && tab=="주석")) TextButton({ocr=true},enabled=!busy) {Icon(Icons.Default.DocumentScanner,null,Modifier.size(18.dp));Spacer(Modifier.width(4.dp));Text("문자 인식")}
                     }
                 }
-                if(tab=="홈" && field!=null && family in listOf(WorkspaceFamily.WORD,WorkspaceFamily.HANGUL)) SelectionTextTools(s,field,vm,busy)
+                if(tab=="홈" && current!=null && family in listOf(WorkspaceFamily.WORD,WorkspaceFamily.HANGUL)) PaperTextTools(s,current,selection,vm,busy || readOnly)
                 if(family!=WorkspaceFamily.TEXT) DocumentTools(s,current,vm,busy,page,navigate,tab) {ocr=true}
             }
         }
@@ -99,7 +113,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                             preview && s.format==Format.PPTX && current!=null->SlidePreview(s,current,vm,busy)
                             family==WorkspaceFamily.TEXT->NativeTextEditor(s.edits.text,settings.fontSize,busy,settings.wrapLines,vm::focus,vm::text,s.format==Format.MD)
                             family==WorkspaceFamily.SHEET && current!=null->SheetEditor(s,current,vm,busy,tab)
-                            current!=null->DocumentPaper(s,current,vm,busy) {selectedField=it}
+                            current!=null->DocumentPaper(s,current,vm,busy,readOnly) {selectedParagraph=it.paragraph;selectionStart=it.start;selectionEnd=it.end}
                         }
                     }
                 }
@@ -144,23 +158,6 @@ private fun SectionRail(s: Session,index: Int,busy: Boolean,select: (Int)->Unit,
             }
         }
     }
-}
-
-@Composable
-private fun SelectionTextTools(s: Session,f: Field,vm: DocumentActions,busy: Boolean) {
-    val props=f.styles+(s.edits.styles[f.id] ?: emptyMap())
-    var style by remember {mutableStateOf(false)}
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
-        val bold=s.edits.bold[f.id] ?: props["bold"]?.toBoolean() ?: f.bold
-        if(s.format in listOf(Format.DOCX,Format.DOC)) IconToggleButton(bold,{vm.bold(f.id,it)},enabled=!busy) {Icon(Icons.Default.FormatBold,"굵게")}
-        else if(s.format==Format.HWPX) IconToggleButton(props["bold"]=="true",{vm.style(f.id,mapOf("bold" to it.toString()))},enabled=!busy) {Icon(Icons.Default.FormatBold,"굵게")}
-        if(s.format in listOf(Format.DOCX,Format.HWPX)) {
-            IconToggleButton(props["italic"]=="true",{vm.style(f.id,mapOf("italic" to it.toString()))},enabled=!busy) {Icon(Icons.Default.FormatItalic,"기울임")}
-            IconToggleButton(props["underline"]=="true",{vm.style(f.id,mapOf("underline" to it.toString()))},enabled=!busy) {Icon(Icons.Default.FormatUnderlined,"밑줄")}
-            TextButton({style=true},enabled=!busy) {Icon(Icons.Default.TextFormat,null);Text("글자·문단 서식")}
-        }
-    }
-    if(style) StyleDialog(f.id,s.format,props,vm) {style=false}
 }
 
 @Composable

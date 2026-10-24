@@ -40,7 +40,6 @@ class OfficeProfessionalFeaturesTest {
         compose.onNodeWithContentDescription("문서 메뉴").performClick()
         compose.onNodeWithText("정밀 오피스 편집").performScrollTo().performClick()
         compose.waitUntil(45000) {runCatching {call("state").getBoolean("ready")}.getOrDefault(false)}
-        click("Edit document")
         compose.waitUntil(20000) {call("state").getBoolean("editing") && eval("Boolean(window.app && app.map && app.map._docLoaded && app.map.isEditMode())")=="true"}
         Thread.sleep(1200);return vm
     }

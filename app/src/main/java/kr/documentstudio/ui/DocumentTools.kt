@@ -183,7 +183,7 @@ private fun PdfTextAndForms(s: Session,page: Int,vm: DocumentActions,busy: Boole
 }
 
 @Composable
-fun StyleDialog(id: String,format: Format,existing: Map<String,String>,vm: DocumentActions,close: ()->Unit) {
+fun StyleDialog(id: String,format: Format,existing: Map<String,String>,vm: DocumentActions,apply: ((Map<String,String>)->Unit)?=null,close: ()->Unit) {
     val pending=remember {mutableStateMapOf<String,String>()}
     var advanced by remember {mutableStateOf(false)}
     val spreadsheet=format==Format.XLSX
@@ -196,5 +196,5 @@ fun StyleDialog(id: String,format: Format,existing: Map<String,String>,vm: Docum
         allFields.filter {it.first in setOf("font","size","color","background","numberFormat","align","lineSpacing","highlight")}.forEach {(key,label)->CommandInput(key,label,pending[key] ?: existing[key] ?: "") {pending[key]=it}}
         TextButton({advanced=!advanced}) {Text(if(advanced) "세부 문단 설정 접기" else "세부 문단 설정")}
         if(advanced) allFields.filter {it.first !in setOf("font","size","color","background","numberFormat","align","lineSpacing","highlight")}.forEach {(key,label)->CommandInput(key,label,pending[key] ?: existing[key] ?: "") {pending[key]=it}}
-    }},confirmButton={TextButton(onClick={vm.style(id,pending.filterValues {it.isNotBlank()});close()},enabled=pending.isNotEmpty()) {Text("적용")}},dismissButton={TextButton(onClick=close) {Text("취소")}})
+    }},confirmButton={TextButton(onClick={val properties=pending.filterValues {it.isNotBlank()};if(apply!=null) apply(properties) else vm.style(id,properties);close()},enabled=pending.isNotEmpty()) {Text("적용")}},dismissButton={TextButton(onClick=close) {Text("취소")}})
 }
