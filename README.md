@@ -11,7 +11,7 @@ Kotlin·Compose 앱에 로컬 Collabora/LibreOffice 엔진을 통합했습니다
 - 기본 편집도 형식별 도구 탭을 제공합니다. 본문은 종이 위에서 입력하고, 한글 표는 셀 격자에서 편집합니다. 스프레드시트는 셀을 두 번 눌러 입력하고 하단에서 시트를 바꿉니다. 발표는 슬라이드 캔버스, PDF는 읽기 화면으로 시작합니다.
 - 도구 이름 검색, 색상 팔레트, 방향/정렬 선택, 접이식 세부 서식을 제공합니다. 펜·형광펜·지우개·올가미·손과 레이어를 간결한 필기 막대에서 선택합니다.
 
-[설치 APK 다운로드](https://github.com/Ch-wook/File_Translator/releases/latest/download/document-studio-release.apk) · [릴리스](https://github.com/Ch-wook/File_Translator/releases) · [개편 실행 계획](docs/UI_REDESIGN_PLAN_20261024.md)
+[설치 APK 다운로드](https://github.com/Ch-wook/File_Translator/releases/latest/download/document-studio-release.apk) · [릴리스](https://github.com/Ch-wook/File_Translator/releases) · [개편 실행 계획](docs/UI_REDESIGN_PLAN_20261024.md) · [화면 예시](docs/UI_SCREENSHOTS.md)
 
 ## 주요 기능
 

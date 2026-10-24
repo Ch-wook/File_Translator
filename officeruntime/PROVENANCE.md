@@ -39,3 +39,7 @@ initial build downloads; the installed editor has no INTERNET permission.
 Bundled `assets/license.html` and `assets/notice.txt` retain the upstream engine,
 fonts and other third party notices. Collabora and LibreOffice trademarks belong
 to their respective owners; this independent application is not endorsed by them.
+
+## 0.6.0 파일 표시 이름
+
+호스트가 원래 문서의 표시 이름을 전달하고, LOActivity의 내보내기 파일 이름에 사용한다. 파일 URI에서는 마지막 경로 요소를 기본 이름으로 사용한다. 개인 작업 파일 경로·검증·격리·원본 저장 보호는 기존 경로를 유지한다. 수정 Java 소스는 이 모듈에 포함된다.
