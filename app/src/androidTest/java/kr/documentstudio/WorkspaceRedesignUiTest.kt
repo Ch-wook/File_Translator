@@ -150,4 +150,25 @@ class WorkspaceRedesignUiTest {
         compose.runOnUiThread {assertEquals("첫 줄\n두 번째 줄",find(compose.activity.window.decorView,EditText::class.java)!!.text.toString())}
         assertEquals("첫 줄\n두 번째 줄",save("txt").readText())
     }
+    @Test fun customFontColorAndNumberFormatsRemainEditableAlongsidePresets() {
+        create(Format.DOCX)
+        val field=vm.state.value.session!!.sections.first().fields.first()
+        compose.onNodeWithText("글자·문단 서식").performClick()
+        compose.onNodeWithContentDescription("글꼴 직접 입력").performScrollTo().performClick()
+        compose.onNodeWithText("글꼴 이름").performTextReplacement("Noto Serif CJK KR")
+        compose.onNodeWithText("다른 색상 직접 입력").performScrollTo().performClick()
+        compose.onNodeWithText("사용자 지정 색상").performTextReplacement("4A3F8F")
+        compose.onNodeWithText("적용").performClick();compose.waitForIdle()
+        assertEquals("Noto Serif CJK KR",vm.state.value.session!!.edits.styles[field.id]?.get("font"))
+        val word=PackageDocument.open(save("docx")).sections.first().fields.first()
+        assertEquals("Noto Serif CJK KR",word.styles["font"])
+        assertEquals("4A3F8F",word.styles["color"])
+        create(Format.XLSX)
+        compose.onNodeWithText("값 또는 =수식").performTextReplacement("1.25")
+        compose.onNodeWithText("선택 셀 서식").performClick()
+        compose.onNodeWithContentDescription("숫자 형식 직접 입력").performScrollTo().performClick()
+        compose.onNodeWithText("사용자 지정 숫자 형식").performTextReplacement("0.000")
+        compose.onNodeWithText("적용").performClick();compose.waitForIdle()
+        assertEquals("0.000",PackageDocument.open(save("xlsx")).sections.first().cellStyles["A1"]?.get("numberFormat"))
+    }
 }

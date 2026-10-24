@@ -35,14 +35,21 @@ fun CommandInput(key: String,label: String,value: String,change: (String)->Unit)
         else->emptyList()
     }
     if(options.isNotEmpty()) {
+        var custom by remember(key) {mutableStateOf(false)}
         var menu by remember {mutableStateOf(false)}
         Text(when(key) {"font"->"글꼴";"align"->"정렬";"position"->"글자 위치";"headingType"->"번호·글머리표";"highlight"->"강조색";else->label.substringBefore(" (").substringBefore(" TOP").substringBefore(" thin").substringBefore(" greater")},style=MaterialTheme.typography.labelMedium)
         Box {OutlinedButton({menu=true},modifier=Modifier.fillMaxWidth().semantics {contentDescription=when(key) {"numberFormat"->"숫자 형식 선택";"font"->"글꼴 선택";else->label.substringBefore(" (")+" 선택"}}) {Text(options.firstOrNull {it.first==value}?.second ?: value.ifBlank {"선택"})}
             DropdownMenu(menu,{menu=false}) {options.forEach {(v,title)->DropdownMenuItem(text={Text(title)},onClick={change(v);menu=false})}}
         }
+        if(key in setOf("font","numberFormat")) {
+            val title=if(key=="font") "글꼴" else "숫자 형식"
+            TextButton({custom=!custom},modifier=Modifier.semantics {contentDescription=title+" 직접 입력"}) {Text(if(custom) "직접 입력 접기" else "직접 입력")}
+            if(custom) OutlinedTextField(value,change,label={Text(if(key=="font") "글꼴 이름" else "사용자 지정 숫자 형식")},singleLine=true,modifier=Modifier.fillMaxWidth())
+        }
         return
     }
     if(key in setOf("color","background","border")) {
+        var custom by remember(key) {mutableStateOf(false)}
         Text(when(key) {"background"->"배경색";"border"->"테두리색";else->"색상"},style=MaterialTheme.typography.labelMedium,modifier=Modifier.padding(top=8.dp))
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical=6.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             (listOf(value,"1E2633","FFFFFF","2858A5","217346","C45332","FFF2CC","EEF3EF")).distinct().forEach {hex ->
@@ -50,6 +57,8 @@ fun CommandInput(key: String,label: String,value: String,change: (String)->Unit)
                 Box(Modifier.size(40.dp).background(color,CircleShape).border(if(hex==value) 3.dp else 1.dp,if(hex==value) MaterialTheme.colorScheme.primary else Color.LightGray,CircleShape).clickable {change(hex)}.semantics {contentDescription="색상 $hex"})
             }
         }
+        TextButton({custom=!custom}) {Text(if(custom) "색상 직접 입력 접기" else "다른 색상 직접 입력")}
+        if(custom) OutlinedTextField(value,change,label={Text("사용자 지정 색상")},supportingText={Text("RRGGBB 색상 코드")},singleLine=true,modifier=Modifier.fillMaxWidth())
         return
     }
     val numeric=key in setOf("rows","columns","row","column","lastRow","lastColumn","count","index","shape","widthMm","heightMm","gapMm","marginMm","x","y","width","height","rotation","size","first","last")
