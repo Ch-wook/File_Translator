@@ -323,7 +323,7 @@ internal fun SheetEditor(s: Session,sec: Section,vm: DocumentActions,busy: Boole
             SheetCalculation(raw,formatted)
         }
     }
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().background(Color.White)) {
         Row(Modifier.padding(horizontal=8.dp,vertical=4.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
             OutlinedTextField(address,{address=it.uppercase()},label={Text("셀 주소")},singleLine=true,modifier=Modifier.width(80.dp),enabled=!busy,isError=!addressValid,
