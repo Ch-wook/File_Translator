@@ -13,9 +13,11 @@ import kotlinx.coroutines.sync.withLock
 import kr.documentstudio.core.*
 import kr.documentstudio.data.*
 
-data class Settings(val stylusOnly: Boolean=false,val fontSize: Float=16f,val encoding: String="UTF-8",val penTool: String="PEN",val penColor: Int=0xFF294E46.toInt(),val penWidth: Float=0.004f,val penOpacity: Float=1f,val wrapLines: Boolean=true,val partialEraser: Boolean=false,val eraserRadius: Float=0.025f,val pressureCurve: Float=1f,val smoothing: Float=0f,val autoSnap: Boolean=false,val toolbarTop: Boolean=false,val toolbarCollapsed: Boolean=false,val presets: List<PenPreset> = emptyList(),val favoriteColors: List<Int> = emptyList())
+data class Settings(val stylusOnly: Boolean=false,val fontSize: Float=16f,val encoding: String="UTF-8",val penTool: String="PEN",val penColor: Int=0xFF294E46.toInt(),val penWidth: Float=0.004f,val penOpacity: Float=1f,val wrapLines: Boolean=true,val partialEraser: Boolean=false,val eraserRadius: Float=0.025f,val pressureCurve: Float=1f,val smoothing: Float=0f,val autoSnap: Boolean=false,val toolbarTop: Boolean=false,val toolbarCollapsed: Boolean=false,val presets: List<PenPreset> = emptyList(),val favoriteColors: List<Int> = emptyList(),val visualOffice: Boolean=true)
+data class OfficeLaunchRequest(val sessionId: String,val token: String=java.util.UUID.randomUUID().toString())
+
 data class UiState(val tabs: List<Session> = emptyList(),val active: String?=null,val recents: List<Recent> = emptyList(),
-    val busy: Boolean=false,val message: String?=null,val settings: Settings=Settings(),val lockedBackupUri: String?=null) {
+    val busy: Boolean=false,val message: String?=null,val settings: Settings=Settings(),val lockedBackupUri: String?=null,val officeLaunch: OfficeLaunchRequest?=null) {
     val session get() = tabs.firstOrNull { it.id==active }
 }
 class EditorViewModel(application: Application): AndroidViewModel(application) {
@@ -67,7 +69,14 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         mutable.value=mutable.value.copy(tabs=mutable.value.tabs.filter { it.id!=s.id }+s,active=s.id)
         s.recoveryWarning?.let {message(it)}
     }
-    fun create(format: Format) = action { attach(repository.create(format)) }
+    private fun requestVisual(s: Session,visual: Boolean) {
+        if(visual && mutable.value.settings.visualOffice && s.format in DocumentRepository.officeFormats && android.os.Build.VERSION.SDK_INT>=30)
+            mutable.value=mutable.value.copy(officeLaunch=OfficeLaunchRequest(s.id))
+    }
+    fun consumeOfficeLaunch(request: OfficeLaunchRequest) {
+        if(mutable.value.officeLaunch==request) mutable.value=mutable.value.copy(officeLaunch=null)
+    }
+    fun create(format: Format,visual: Boolean=false) = action {val s=repository.create(format);attach(s);requestVisual(s,visual)}
     fun convertHangul(sessionId: String) = action {
         val source=document(sessionId) ?: return@action
         attach(repository.convertHangul(source))
@@ -78,11 +87,11 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         val created=repository.create(Format.TXT);val s=created.copy(name="문자 인식.txt",edits=created.edits.copy(text=text))
         repository.checkpoint(s);attach(s)
     }
-    fun open(uri: Uri) = action {
+    fun open(uri: Uri,visual: Boolean=false) = action {
         mutable.value.tabs.firstOrNull {it.uri==uri.toString()}?.let {
-            lastTextEdit=0;mutable.value=mutable.value.copy(active=it.id);return@action
+            lastTextEdit=0;mutable.value=mutable.value.copy(active=it.id);requestVisual(it,visual);return@action
         }
-        val s=repository.open(uri,mutable.value.settings.encoding); attach(s)
+        val s=repository.open(uri,mutable.value.settings.encoding); attach(s);requestVisual(s,visual)
         val ext=s.name.substringAfterLast('.',"").lowercase()
         if(ext.isNotEmpty() && ext != s.format.extension && ext != "markdown") message("파일 내용은 ${s.format.extension.uppercase()} 형식입니다. 저장할 때 올바른 확장자를 사용하세요.")
         else if(s.dirty && s.uri!=null) message("저장되지 않은 작업 복구본을 열었습니다.")
@@ -96,16 +105,16 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         externalOpenJob=viewModelScope.launch {
             while(externalOpens.isNotEmpty()) {
                 state.first {!it.busy && it.lockedBackupUri==null}
-                open(externalOpens.removeFirst())
+                open(externalOpens.removeFirst(),visual=true)
                 state.first {!it.busy}
             }
         }
     }
-    fun restore(id: String) = action {
-        if(mutable.value.tabs.any {it.id==id}) {lastTextEdit=0;mutable.value=mutable.value.copy(active=id)}
-        else attach(repository.restore(id))
+    fun restore(id: String,visual: Boolean=false) = action {
+        val s=mutable.value.tabs.firstOrNull {it.id==id} ?: repository.restore(id).also {attach(it)}
+        lastTextEdit=0;mutable.value=mutable.value.copy(active=id);requestVisual(s,visual)
     }
-    fun home() { if(mutable.value.busy) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=null) }
+    fun home() { if(mutable.value.busy) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=null,officeLaunch=null) }
     fun select(id: String) { if(mutable.value.busy || mutable.value.tabs.none {it.id==id}) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=id) }
     fun close(id: String) = action {
         mutable.value.tabs.firstOrNull { it.id==id }?.let { repository.checkpoint(it) }
@@ -238,7 +247,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
             InkPreferences.save(getApplication<Application>().getSharedPreferences("settings",0).edit(),latest)
                 .putBoolean("stylusOnly",latest.stylusOnly).putFloat("fontSize",latest.fontSize).putString("encoding",latest.encoding)
                 .putString("penTool",latest.penTool).putInt("penColor",latest.penColor).putFloat("penWidth",latest.penWidth).putFloat("penOpacity",latest.penOpacity).putBoolean("wrapLines",latest.wrapLines)
-                .putBoolean("partialEraser",latest.partialEraser).putFloat("eraserRadius",latest.eraserRadius).apply()
+                .putBoolean("visualOffice",latest.visualOffice).putBoolean("partialEraser",latest.partialEraser).putFloat("eraserRadius",latest.eraserRadius).apply()
         }}
     }
     private fun scheduleCheckpoint() {

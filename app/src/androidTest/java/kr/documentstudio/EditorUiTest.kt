@@ -16,7 +16,7 @@ class EditorUiTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
     @Before fun resetPersistedInputPreferences() {
         val vm=androidx.lifecycle.ViewModelProvider(compose.activity)[EditorViewModel::class.java]
-        compose.runOnUiThread {vm.settings(Settings())}
+        compose.runOnUiThread {vm.settings(Settings(visualOffice=false))}
     }
     private fun awaitReady() {
         val vm=androidx.lifecycle.ViewModelProvider(compose.activity)[EditorViewModel::class.java]
@@ -31,11 +31,11 @@ class EditorUiTest {
     private inline fun <reified T: View> find(root: View): T? = find(root,T::class.java)
     @Test fun createEditDrawUndoAndRotationPreserveWork() {
         compose.onNodeWithText("새 문서",useUnmergedTree=true).performClick()
-        compose.onNodeWithText("텍스트  .txt").performClick()
-        compose.waitUntil(15000) {compose.onAllNodesWithText("텍스트 편집").fetchSemanticsNodes().isNotEmpty()}
+        compose.onNodeWithText("텍스트  .txt").performScrollTo().performClick()
+        compose.waitUntil(15000) {compose.onAllNodesWithTag("workspace-text").fetchSemanticsNodes().isNotEmpty()}
         awaitReady()
         compose.runOnUiThread {val edit=find<EditText>(compose.activity.window.decorView)!!;edit.setText("화면 회전 후에도 유지\n두 번째 줄")}
-        compose.onNodeWithText("필기 페이지").performClick()
+        compose.onNodeWithTag("ribbon-그리기").performScrollTo().performClick()
         compose.waitForIdle()
         compose.runOnUiThread {
             val ink=find<InkView>(compose.activity.window.decorView)!!
@@ -52,7 +52,7 @@ class EditorUiTest {
         compose.activityRule.scenario.recreate()
         compose.waitForIdle()
         compose.onNodeWithText("자동 복구 저장 실패",substring=true).assertDoesNotExist()
-        compose.onNodeWithText("텍스트 편집").performClick()
+        compose.onNodeWithTag("ribbon-홈").performClick()
         compose.waitForIdle()
         compose.runOnUiThread {assertEquals("화면 회전 후에도 유지\n두 번째 줄",find<EditText>(compose.activity.window.decorView)!!.text.toString())}
         compose.onNodeWithContentDescription("홈").performClick()
@@ -61,10 +61,10 @@ class EditorUiTest {
     }
     @Test fun partialEraserGestureUndoRedoAndSettingsSurviveRecreation() {
         compose.onNodeWithText("새 문서",useUnmergedTree=true).performClick()
-        compose.onNodeWithText("텍스트  .txt").performClick()
-        compose.waitUntil(15000) {compose.onAllNodesWithText("텍스트 편집").fetchSemanticsNodes().isNotEmpty()}
+        compose.onNodeWithText("텍스트  .txt").performScrollTo().performClick()
+        compose.waitUntil(15000) {compose.onAllNodesWithTag("workspace-text").fetchSemanticsNodes().isNotEmpty()}
         awaitReady()
-        compose.onNodeWithText("필기 페이지").performClick();compose.waitForIdle()
+        compose.onNodeWithTag("ribbon-그리기").performScrollTo().performClick();compose.waitForIdle()
         val vm=androidx.lifecycle.ViewModelProvider(compose.activity)[EditorViewModel::class.java]
         val original=kr.documentstudio.core.Stroke(anchor="text",tool=kr.documentstudio.core.InkTool.PEN,color=android.graphics.Color.BLUE,width=0.006f,
             points=listOf(kr.documentstudio.core.InkPoint(0.1f,0.5f),kr.documentstudio.core.InkPoint(0.9f,0.5f)))
@@ -132,9 +132,9 @@ class EditorUiTest {
     @Test fun slidePreviewAndPresentationControlsFitTheWindow() {
         compose.onNodeWithText("새 문서",useUnmergedTree=true).performClick()
         compose.onNodeWithText("PowerPoint  .pptx").performScrollTo().performClick()
-        compose.waitUntil(15000) {compose.onAllNodesWithText("개체 미리보기").fetchSemanticsNodes().isNotEmpty()}
+        compose.waitUntil(15000) {compose.onAllNodesWithTag("workspace-slide").fetchSemanticsNodes().isNotEmpty()}
         awaitReady()
-        compose.onNodeWithText("개체 미리보기").performScrollTo().performClick()
+        compose.onNodeWithTag("ribbon-보기").performScrollTo().performClick();compose.onNodeWithText("개체 미리보기").performScrollTo().performClick()
         compose.waitUntil(15000) {compose.onAllNodesWithText("슬라이드 쇼").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("슬라이드 쇼").assertIsDisplayed().performClick()
         compose.onNodeWithText("종료").assertIsDisplayed().performClick()
@@ -142,6 +142,8 @@ class EditorUiTest {
     }
     @Test fun spreadsheetClipboardStructureUndoAndRecreationWorkThroughUi() {
         compose.onNodeWithText("새 문서",useUnmergedTree=true).performClick();compose.onNodeWithText("Excel  .xlsx").performScrollTo().performClick()
+        awaitReady()
+        compose.onNodeWithTag("ribbon-데이터").performScrollTo().performClick()
         compose.waitUntil(15000) {compose.onAllNodesWithText("붙여넣기").fetchSemanticsNodes().isNotEmpty()}
         awaitReady()
         compose.runOnUiThread {(compose.activity.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("test","1\t=A1*2\n3\t=A2*2"))}

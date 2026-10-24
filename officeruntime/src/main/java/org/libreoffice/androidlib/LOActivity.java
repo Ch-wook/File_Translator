@@ -1707,9 +1707,11 @@ public class LOActivity extends AppCompatActivity {
 
     private String getFileName(boolean withExtension) {
         Cursor cursor = null;
-        String filename = null;
+        String filename = this instanceof StudioOfficeActivity ? getIntent().getStringExtra("displayName") : null;
+        if (filename != null && (filename.contains("/") || filename.contains("\\") || filename.contains("\n") || filename.contains("\r"))) filename = null;
+        if (filename == null && "file".equals(getIntent().getData().getScheme())) filename = getIntent().getData().getLastPathSegment();
         try {
-            cursor = getContentResolver().query(getIntent().getData(), null, null, null, null);
+            if (filename == null) cursor = getContentResolver().query(getIntent().getData(), null, null, null, null);
             if (cursor != null && cursor.moveToFirst())
                 filename = cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME));
         } catch (Exception e) {

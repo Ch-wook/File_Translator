@@ -19,13 +19,13 @@ import kr.documentstudio.data.Session
 
 private data class Action(val label: String,val type: String,val inputs: List<Triple<String,String,String>> = emptyList())
 @Composable
-fun DocumentTools(s: Session,sec: Section?,vm: DocumentActions,busy: Boolean,page: Int=0,navigate: (Int)->Unit = {}) {
-    if(s.format==Format.HWP) {
+fun DocumentTools(s: Session,sec: Section?,vm: DocumentActions,busy: Boolean,page: Int=0,navigate: (Int)->Unit = {},category: String="홈",onOcr: ()->Unit={}) {
+    if(s.format==Format.HWP && category in listOf("홈","삽입")) {
         var confirm by remember(s.id) {mutableStateOf(false)}
         OutlinedButton({confirm=true},enabled=!busy,modifier=Modifier.padding(horizontal=12.dp)) {Text("HWPX로 변환")}
         if(confirm) AlertDialog(onDismissRequest={confirm=false},title={Text("HWPX로 변환")},text={Text("현재 편집 내용을 새 HWPX 작업으로 변환합니다. 기존 HWP와 필기를 보존합니다.\n\n지원하지 않는 필드·그리기·OLE/차트·외부 연결 자원은 변환을 중단합니다. 글꼴과 쪽 배치의 시각적 동일성은 보장하지 않습니다. 결과의 점검 보고서를 확인하고 다른 이름으로 저장하세요.")},confirmButton={TextButton({confirm=false;vm.convertHangul()}) {Text("새 작업으로 변환")}},dismissButton={TextButton({confirm=false}) {Text("취소")}})
     }
-    if(s.format==Format.HWPX) {
+    if(s.format==Format.HWPX && category=="홈") {
         val report by produceState<HangulConversionReport?>(null,s.id) {value=runCatching {vm.repository.conversionReport(s)}.getOrElse {vm.message(it.message);null}}
         var show by remember(s.id) {mutableStateOf(false)}
         report?.let {r ->
@@ -102,30 +102,55 @@ fun DocumentTools(s: Session,sec: Section?,vm: DocumentActions,busy: Boolean,pag
     val merge=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {uri->if(uri!=null) vm.change(DocumentChange("pdf.merge",page.toString(),mapOf("uri" to uri.toString())))}
     var imageAction by remember {mutableStateOf("pdf.image")}
     val image=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {uri->if(uri!=null) vm.change(DocumentChange(imageAction,if(s.format==Format.PDF) page.toString() else sec?.id ?: "",mapOf("uri" to uri.toString())))}
-    Box {OutlinedButton(onClick={menu=true},enabled=!busy,modifier=Modifier.padding(horizontal=12.dp)) {Text("삽입·문서 도구")}
-        DropdownMenu(menu,{menu=false}) {actions.forEach {a->DropdownMenuItem(text={Text(a.label)},onClick={menu=false;when(a.type) {"pdf.merge"->merge.launch(arrayOf("application/pdf"));"pdf.image","word.image","slide.image"->{imageAction=a.type;image.launch(arrayOf("image/*"))};else->selected=a}})}}
+    val choose: (Action)->Unit = {a->menu=false;when(a.type) {"pdf.merge"->merge.launch(arrayOf("application/pdf"));"pdf.image","word.image","slide.image"->{imageAction=a.type;image.launch(arrayOf("image/*"))};else->selected=a}}
+    val quick=actions.filter {a->when(category) {
+        "삽입"->a.type.substringAfter('.') in setOf("image","hyperlink","table","paragraph","text","rectangle")
+        "레이아웃"->a.type.substringAfter('.') in setOf("layout","columns","break","header","footer")
+        "데이터"->a.type.substringAfter('.') in setOf("sort","filter","validation","table","conditional")
+        "슬라이드"->a.type.substringAfter('.') in setOf("add","duplicate","delete","move")
+        "페이지"->a.type.substringAfter('.') in setOf("add","delete","rotate","move","extract","merge")
+        "주석"->a.type=="pdf.note"
+        "편집"->a.type in setOf("pdf.text","pdf.image")
+        "홈"->a.type.substringAfter('.') in setOf("paragraph","merge","table","borders")
+        else->false
+    }}.take(2)
+    if(category!="보기" && category!="수식") Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+        OutlinedButton(onClick={menu=true},enabled=!busy) {Text("삽입·문서 도구")}
+        if(category=="주석") TextButton(onOcr,enabled=!busy) {Text("문자 인식")}
+        if(!menu) quick.forEach {a->TextButton({choose(a)},enabled=!busy) {Text(a.label)}}
+    }
+    if(menu) {
+        var query by remember {mutableStateOf("")}
+        AlertDialog(onDismissRequest={menu=false},title={Text("문서 도구")},text={Column {
+            OutlinedTextField(query,{query=it},label={Text("도구 이름 검색")},singleLine=true,modifier=Modifier.fillMaxWidth())
+            Column(Modifier.heightIn(max=360.dp).verticalScroll(rememberScrollState())) {
+                val found=actions.filter {it.label.contains(query,true)}
+                if(found.isEmpty()) Text("일치하는 도구가 없습니다.",modifier=Modifier.padding(12.dp))
+                found.forEach {a->TextButton({choose(a)},modifier=Modifier.fillMaxWidth()) {Text(a.label,modifier=Modifier.fillMaxWidth())}}
+            }
+        }},confirmButton={TextButton({menu=false}) {Text("닫기")}})
     }
     selected?.let {a ->
         val values=remember(a) {mutableStateMapOf<String,String>().apply {a.inputs.forEach {put(it.first,it.third)}}}
         AlertDialog(onDismissRequest={selected=null},title={Text(a.label)},text={Column(Modifier.verticalScroll(rememberScrollState())) {
             if(a.inputs.isEmpty()) Text(if(a.type.endsWith("delete")) "삭제한 내용과 필기는 실행 취소로 복원할 수 있습니다." else "현재 문서에 추가합니다. 실행 취소와 복구 저장을 지원합니다.")
-            a.inputs.forEach {(key,label,_)->OutlinedTextField(values[key] ?: "",{values[key]=it},label={Text(label)},modifier=Modifier.fillMaxWidth().padding(vertical=4.dp),singleLine=key!="text")}
+            a.inputs.forEach {(key,label,_)->CommandInput(key,label,values[key] ?: "") {values[key]=it}}
         }},confirmButton={TextButton(onClick={vm.change(DocumentChange(a.type,if(s.format==Format.PDF) page.toString() else sec?.id ?: "",values.toMap()));selected=null}) {Text("적용")}},dismissButton={TextButton(onClick={selected=null}) {Text("취소")}})
     }
-    if(s.format==Format.PDF) PdfTextAndForms(s,page,vm,busy,navigate)
+    if(s.format==Format.PDF) PdfTextAndForms(s,page,vm,busy,navigate,category)
 }
 
 @Composable
-private fun PdfTextAndForms(s: Session,page: Int,vm: DocumentActions,busy: Boolean,navigate: (Int)->Unit) {
+private fun PdfTextAndForms(s: Session,page: Int,vm: DocumentActions,busy: Boolean,navigate: (Int)->Unit,category: String) {
     var bodyEditor by remember {mutableStateOf(false)}
     var imageEditor by remember {mutableStateOf(false)}
     var forms by remember {mutableStateOf(false)};var text by remember {mutableStateOf(false)};var annotations by remember {mutableStateOf(false)};var search by remember {mutableStateOf(false)}
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp)) {
-        PdfNavigationActions(s,page,vm,busy,navigate)
-        TextButton({bodyEditor=true},enabled=!busy) {Text("기존 본문 문자열 편집")}
-        TextButton({imageEditor=true},enabled=!busy) {Text("기존 이미지 편집")}
-        TextButton({text=true},enabled=!busy) {Text("텍스트 선택")};TextButton({annotations=true},enabled=!busy) {Text("주석 관리")};TextButton({search=true},enabled=!busy) {Text("PDF 검색")}
-        TextButton({forms=true},enabled=!busy && s.pdf!!.forms.isNotEmpty()) {Text("양식 (${s.pdf!!.forms.size})")}
+        if(category in listOf("보기","페이지")) PdfNavigationActions(s,page,vm,busy,navigate)
+        if(category=="편집") TextButton({bodyEditor=true},enabled=!busy) {Text("기존 본문 문자열 편집")}
+        if(category=="편집") TextButton({imageEditor=true},enabled=!busy) {Text("기존 이미지 편집")}
+        if(category=="주석") TextButton({text=true},enabled=!busy) {Text("텍스트 선택")};if(category=="주석") TextButton({annotations=true},enabled=!busy) {Text("주석 관리")};if(category=="보기") TextButton({search=true},enabled=!busy) {Text("PDF 검색")}
+        if(category=="편집") TextButton({forms=true},enabled=!busy && s.pdf!!.forms.isNotEmpty()) {Text("양식 (${s.pdf!!.forms.size})")}
     }
     if(imageEditor) PdfImageTools(s,page,vm) {imageEditor=false}
     if(bodyEditor) {
@@ -160,6 +185,7 @@ private fun PdfTextAndForms(s: Session,page: Int,vm: DocumentActions,busy: Boole
 @Composable
 fun StyleDialog(id: String,format: Format,existing: Map<String,String>,vm: DocumentActions,close: ()->Unit) {
     val pending=remember {mutableStateMapOf<String,String>()}
+    var advanced by remember {mutableStateOf(false)}
     val spreadsheet=format==Format.XLSX
     val fields=listOf("font" to "글꼴 이름","size" to "크기 pt","color" to "글자 색 RRGGBB") + if(spreadsheet) listOf("background" to "배경색 RRGGBB","numberFormat" to "숫자 형식 (0.00, #,##0 등)","align" to "정렬 (left / center / right)") else if(format in listOf(Format.DOCX,Format.HWPX)) listOf("align" to "문단 정렬 (left / center / right / both)","lineSpacing" to "줄 간격 배수 (1~5)") + if(format==Format.DOCX) listOf("highlight" to "강조색 (yellow / green / none)") else emptyList() else emptyList()
     AlertDialog(onDismissRequest=close,title={Text(if(spreadsheet) "셀 서식" else "글자·문단 서식")},text={Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState())) {
@@ -167,6 +193,8 @@ fun StyleDialog(id: String,format: Format,existing: Map<String,String>,vm: Docum
         val booleans=if(spreadsheet || format==Format.PPTX) listOf("bold" to "굵게","italic" to "기울임") else (if(format==Format.HWPX) listOf("bold" to "굵게") else emptyList())+listOf("italic" to "기울임","underline" to "밑줄","strike" to "취소선")
         booleans.forEach {(key,label)->Row {Checkbox((pending[key] ?: existing[key])=="true",{pending[key]=it.toString()});Text(label,modifier=Modifier.padding(top=12.dp))}}
         val allFields=fields+if(format==Format.DOCX) listOf("position" to "위치 superscript / subscript / baseline","spacing" to "문자 간격 pt (-20~100)","scale" to "문자 가로 폭 % (20~400)","beforePt" to "문단 앞 간격 pt","afterPt" to "문단 뒤 간격 pt","indentMm" to "왼쪽 들여쓰기 mm","firstLineMm" to "첫 줄 mm (음수는 내어쓰기)") else if(format==Format.HWPX) listOf("tracking" to "자간 % (-50~50)","scale" to "장평 % (50~200)","offset" to "글자 위치 % (-100~100)","beforePt" to "문단 앞 간격 pt","afterPt" to "문단 뒤 간격 pt","indentMm" to "왼쪽 들여쓰기 mm","firstLineMm" to "첫 줄 mm (음수는 내어쓰기)","styleId" to "기존 스타일 ID","headingType" to "머리 NONE / NUMBER / BULLET","headingLevel" to "번호 수준 (1~7)","numberingId" to "기존 번호/글머리표 ID (비우면 생성)") else emptyList()
-        allFields.forEach {(key,label)->OutlinedTextField(pending[key] ?: "",{pending[key]=it},label={Text(label)},placeholder={Text(existing[key] ?: "원래 값 유지")},singleLine=true,modifier=Modifier.fillMaxWidth().padding(vertical=4.dp))}
+        allFields.filter {it.first in setOf("font","size","color","background","numberFormat","align","lineSpacing","highlight")}.forEach {(key,label)->CommandInput(key,label,pending[key] ?: existing[key] ?: "") {pending[key]=it}}
+        TextButton({advanced=!advanced}) {Text(if(advanced) "세부 문단 설정 접기" else "세부 문단 설정")}
+        if(advanced) allFields.filter {it.first !in setOf("font","size","color","background","numberFormat","align","lineSpacing","highlight")}.forEach {(key,label)->CommandInput(key,label,pending[key] ?: existing[key] ?: "") {pending[key]=it}}
     }},confirmButton={TextButton(onClick={vm.style(id,pending.filterValues {it.isNotBlank()});close()},enabled=pending.isNotEmpty()) {Text("적용")}},dismissButton={TextButton(onClick=close) {Text("취소")}})
 }

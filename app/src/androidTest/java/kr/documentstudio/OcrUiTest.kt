@@ -28,6 +28,7 @@ class OcrUiTest {
         compose.runOnUiThread {vm.open(FileProvider.getUriForFile(compose.activity,"kr.documentstudio.testfiles",file))}
         compose.waitUntil(15000) {!vm.state.value.busy && vm.state.value.session?.pdf!=null}
         val original=vm.state.value.session!!.base
+        compose.onNodeWithTag("ribbon-주석").performScrollTo().performClick()
         compose.onNodeWithText("문자 인식").performScrollTo().performClick();compose.onNodeWithText("영어").performClick()
         compose.onNodeWithText("끝 페이지 · 최대 20장").performTextReplacement("2")
         compose.onNodeWithText("PDF 범위 인식").performScrollTo().performClick()

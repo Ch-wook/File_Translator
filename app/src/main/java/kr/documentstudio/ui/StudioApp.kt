@@ -28,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.semantics.contentDescription
@@ -57,8 +58,8 @@ import kr.documentstudio.*
 import kr.documentstudio.core.*
 import kr.documentstudio.data.*
 
-private val Green=Color(0xFF315D54)
-private val Cream=Color(0xFFF6F4EF)
+private val Green=Color(0xFF2858A5)
+private val Cream=Color(0xFFF3F5FA)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,7 +82,7 @@ fun StudioApp(vm: EditorViewModel) {
     val open=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if(uri!=null) {
         runCatching { context.contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
             .recoverCatching { context.contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-        vm.open(uri)
+        vm.open(uri,visual=true)
     } }
     val treePicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) {uri -> if(uri!=null) {
         runCatching {context.contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)}
@@ -102,8 +103,12 @@ fun StudioApp(vm: EditorViewModel) {
     val office=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {result -> vm.finishOffice(result.data?.getStringExtra("sessionId"))}
     val openOffice: (String)->Unit = {id -> vm.openOffice(id) {s,file ->
         office.launch(Intent(context,org.libreoffice.androidlib.StudioOfficeActivity::class.java)
-            .putExtra("sessionId",s.id).putExtra("workingPath",file.absolutePath))
+            .putExtra("sessionId",s.id).putExtra("workingPath",file.absolutePath).putExtra("displayName",s.name))
     }}
+    LaunchedEffect(state.officeLaunch,state.busy) {
+        val request=state.officeLaunch
+        if(request!=null && !state.busy) {vm.consumeOfficeLaunch(request);openOffice(request.sessionId)}
+    }
     val saveAs: ()->Unit = { state.session?.let { s -> pendingSaveId=s.id;saveLaunchers.getValue(s.format).launch(s.name.substringBeforeLast('.',s.name)+".${s.format.extension}") } }
     val save: ()->Unit = { state.session?.let { s -> if(s.uri==null || s.pdf?.archival==true) saveAs() else vm.save(Uri.parse(s.uri),s.id) } }
     val selectTab: (String)->Unit = {id ->
@@ -126,14 +131,15 @@ fun StudioApp(vm: EditorViewModel) {
     }
     LaunchedEffect(state.message) { state.message?.let { snackbar.showSnackbar(it); vm.message(null) } }
     BackHandler(state.session!=null && !state.busy) { vm.home() }
-    MaterialTheme(colorScheme=lightColorScheme(primary=Green,secondary=Color(0xFF7B6751),background=Cream,surface=Color.White,surfaceContainer=Color(0xFFEEEDE6))) {
+    val accent=state.session?.let {WorkspaceFamily.of(it.format).accent} ?: Green
+    MaterialTheme(colorScheme=lightColorScheme(primary=accent,secondary=Color(0xFF596A82),background=Cream,surface=Color.White,surfaceContainer=Color(0xFFEEF1F7))) {
         Scaffold(snackbarHost={ SnackbarHost(snackbar) },topBar={
             if(state.session==null) TopAppBar(title={ Text("문서 스튜디오",fontWeight=FontWeight.Bold) },actions={
                 IconButton(onClick={settingsDialog=true}) { Icon(Icons.Default.Settings,"설정") }
             }) else {
                 val s=state.session!!
                 TopAppBar(title={ Column { Text(s.name,maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleMedium)
-                    Text(if(s.dirty) "수정됨 · 복구본 자동 저장" else "저장됨",style=MaterialTheme.typography.labelSmall,color=Green) } },
+                    Text(if(s.dirty) "수정됨 · 복구본 자동 저장" else "저장됨",style=MaterialTheme.typography.labelSmall,color=accent) } },
                     navigationIcon={ IconButton(onClick=vm::home,enabled=!state.busy) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"홈") } },actions={
                         IconButton(onClick={vm.undo()},enabled=!state.busy && vm.canUndo(s.id)) { Icon(Icons.AutoMirrored.Filled.Undo,"실행 취소") }
                         IconButton(onClick={vm.redo()},enabled=!state.busy && vm.canRedo(s.id)) { Icon(Icons.AutoMirrored.Filled.Redo,"다시 실행") }
@@ -141,6 +147,8 @@ fun StudioApp(vm: EditorViewModel) {
                         var menu by remember { mutableStateOf(false) }
                         IconButton(onClick={menu=true},enabled=!state.busy) { Icon(Icons.Default.MoreVert,"문서 메뉴") }
                         DropdownMenu(expanded=menu,onDismissRequest={menu=false}) {
+                            DropdownMenuItem(text={Text("새 문서")},onClick={menu=false;newDialog=true})
+                            DropdownMenuItem(text={Text("파일 열기")},onClick={menu=false;open.launch(arrayOf("*/*"))})
                             if(s.format in DocumentRepository.officeFormats) DropdownMenuItem(text={Text("정밀 오피스 편집")},onClick={menu=false;openOffice(s.id)})
                             DropdownMenuItem(text={Text(if(splitLeft==null) "두 문서 나란히 편집" else "분할 편집 끝내기")},enabled=splitLeft!=null || state.tabs.size>=2,onClick={
                                 menu=false
@@ -161,13 +169,13 @@ fun StudioApp(vm: EditorViewModel) {
         }) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
                 if(state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                if(state.tabs.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                if(state.tabs.size>1 || (state.session==null && state.tabs.isNotEmpty())) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     state.tabs.forEach { s -> FilterChip(selected=state.active==s.id,onClick={if(!state.busy) selectTab(s.id)},label={Text((if(s.dirty) "• " else "")+s.name,maxLines=1)},enabled=!state.busy) }
                     AssistChip(onClick={newDialog=true},label={Text("새 문서")},enabled=!state.busy)
                 }
-                if(state.session==null) Home(state,vm,{newDialog=true},{open.launch(arrayOf("*/*"))}) {
+                if(state.session==null) WorkspaceHome(state,vm,{newDialog=true},{open.launch(arrayOf("*/*"))},{
                     if(browserUri==null) treePicker.launch(null) else showBrowser=true
-                }
+                },{vm.create(it,visual=true)})
                 else {
                     val left=state.tabs.firstOrNull {it.id==splitLeft};val right=state.tabs.firstOrNull {it.id==splitRight}
                     if(left!=null && right!=null) BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
@@ -185,11 +193,7 @@ fun StudioApp(vm: EditorViewModel) {
                 }
             }
         }
-        if(newDialog) AlertDialog(onDismissRequest={newDialog=false},title={Text("새 문서")},text={ Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState())) {
-            Format.entries.forEach { f -> TextButton(onClick={newDialog=false;vm.create(f)},enabled=f!=Format.DOC && !state.busy,modifier=Modifier.fillMaxWidth()) {
-                Text(if(f==Format.DOC) "${f.label} · 기존 파일 편집" else "${f.label}  .${f.extension}")
-            } }
-        } },confirmButton={TextButton(onClick={newDialog=false}) {Text("닫기")}})
+        if(newDialog) NewDocumentDialog(state.busy,{newDialog=false;vm.create(it,visual=true)}) {newDialog=false}
         if(state.lockedBackupUri!=null) key(state.lockedBackupUri) {BackupPasswordDialog(false,state.busy,state.message,vm::unlockBackup,vm::cancelBackupUnlock)}
         encryptedDialogId?.let {id->BackupPasswordDialog(true,state.busy,onConfirm={password->
             val name=state.tabs.firstOrNull {it.id==id}?.name
@@ -213,39 +217,7 @@ private fun EditorPane(s: Session,state: UiState,model: EditorViewModel,openOffi
             IconButton({model.undo(s.id)},enabled=!state.busy && model.canUndo(s.id)) {Icon(Icons.AutoMirrored.Filled.Undo,"$label 실행 취소")}
             IconButton({model.redo(s.id)},enabled=!state.busy && model.canRedo(s.id)) {Icon(Icons.AutoMirrored.Filled.Redo,"$label 다시 실행")}
         }
-        key(s.id) {Editor(s,state.settings,actions,state.busy) {openOffice(s.id)}}
-    }
-}
-
-@Composable
-private fun Home(state: UiState,vm: EditorViewModel,new: ()->Unit,open: ()->Unit,folder: ()->Unit) {
-    var query by rememberSaveable {mutableStateOf("")}
-    var favorites by rememberSaveable {mutableStateOf(false)}
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(bottom=24.dp)) {
-        item { Spacer(Modifier.height(18.dp)); Text("문서를 편집하고,\n생각을 기록하세요.",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.SemiBold); Spacer(Modifier.height(10.dp)); Text("기기 안에서 작업하는 문서와 필기 공간",color=Color(0xFF626861)) }
-        item { Row(Modifier.fillMaxWidth().padding(vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-            Button(onClick=new,enabled=!state.busy,modifier=Modifier.weight(1f).height(54.dp)) {Icon(Icons.Default.Add,null); Spacer(Modifier.width(6.dp));Text("새 문서")}
-            OutlinedButton(onClick=open,enabled=!state.busy,modifier=Modifier.weight(1f).height(54.dp)) {Icon(Icons.Default.FolderOpen,null);Spacer(Modifier.width(6.dp));Text("파일 열기")}
-        } }
-        item {OutlinedButton(folder,enabled=!state.busy,modifier=Modifier.fillMaxWidth()) {Icon(Icons.Default.FolderOpen,null);Spacer(Modifier.width(8.dp));Text("폴더 탐색·파일 검색")}}
-        item { Surface(shape=RoundedCornerShape(16.dp),color=Color(0xFFE4ECE5)) { Column(Modifier.padding(16.dp)) {
-            Text("현재 지원 범위",fontWeight=FontWeight.Bold,color=Green)
-            Text("TXT·MD / PDF / DOCX·DOC / XLSX·XLS / PPTX·PPT / HWPX·HWP",style=MaterialTheme.typography.bodyMedium,modifier=Modifier.padding(top=6.dp))
-            Text("Word·Excel·PowerPoint는 정밀 편집으로 페이지·시트·슬라이드를 볼 수 있습니다. 한글은 구조 기반 편집을 제공합니다. 필기는 별도 보존됩니다. 복구 ZIP은 파일 열기로 가져오세요.",style=MaterialTheme.typography.bodySmall,modifier=Modifier.padding(top=6.dp))
-        } } }
-        item { Row(verticalAlignment=Alignment.CenterVertically) {
-            Text("최근 작업 · 복구",style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f))
-            FilterChip(selected=favorites,onClick={favorites=!favorites},label={Text("즐겨찾기")})
-        }; OutlinedTextField(value=query,onValueChange={query=it},singleLine=true,placeholder={Text("최근 파일 이름 검색")},leadingIcon={Icon(Icons.Default.Search,null)},modifier=Modifier.fillMaxWidth()) }
-        val rows=state.recents.filter { (!favorites || it.favorite) && it.name.contains(query,ignoreCase=true) }
-        if(rows.isEmpty()) item { Text("아직 문서가 없습니다. 새 문서를 만들거나 파일을 열어주세요.",color=Color.Gray,modifier=Modifier.padding(vertical=20.dp)) }
-        items(rows,key={it.id}) { r -> Surface(onClick={if(!state.busy) vm.restore(r.id)},shape=RoundedCornerShape(12.dp),color=Color.White) {
-            Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically) {
-                Icon(Icons.Default.Description,null,tint=Green,modifier=Modifier.padding(end=12.dp))
-                Column(Modifier.weight(1f)) {Text(r.name,fontWeight=FontWeight.Medium,maxLines=1,overflow=TextOverflow.Ellipsis);Text(if(r.dirty) "저장되지 않은 작업 복구" else "최근 문서",style=MaterialTheme.typography.bodySmall,color=Color.Gray)}
-                IconButton(onClick={vm.favorite(r.id)},enabled=!state.busy) {Icon(if(r.favorite) Icons.Default.Star else Icons.Default.StarBorder,"즐겨찾기",tint=Green)}
-            }
-        } }
+        key(s.id) {FormatWorkspace(s,state.settings,actions,state.busy) {openOffice(s.id)}}
     }
 }
 
@@ -254,6 +226,9 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
     var licenses by remember {mutableStateOf(false)}
     var officeLicenses by remember {mutableStateOf(false)}
     AlertDialog(onDismissRequest=close,title={Text("편집 설정")},text={Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState())) {
+        Row(verticalAlignment=Alignment.CenterVertically) {Text("오피스 파일을 실제 편집기로 바로 열기",modifier=Modifier.weight(1f));Switch(settings.visualOffice,{change(settings.copy(visualOffice=it))})}
+        Text("Word·Excel·PowerPoint · Android 11 이상. 기본 편집과 필기는 뒤로 돌아와 사용할 수 있습니다.",style=MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(12.dp))
         Row(verticalAlignment=Alignment.CenterVertically) {Text("펜 전용 필기",modifier=Modifier.weight(1f));Switch(settings.stylusOnly,{change(settings.copy(stylusOnly=it))})}
         Text("펜 전용 모드는 손가락 입력을 무시합니다. 정전식 펜은 손가락으로 인식될 수 있습니다.",style=MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(16.dp));Text("편집 글자 크기 · ${settings.fontSize.toInt()} sp")
@@ -288,88 +263,7 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
 }
 
 @Composable
-private fun Editor(s: Session,settings: Settings,vm: DocumentActions,busy: Boolean,openOffice: ()->Unit) {
-    var ocr by remember {mutableStateOf(false)}
-    var draw by rememberSaveable {mutableStateOf(s.format==Format.PDF)}
-    var preview by rememberSaveable {mutableStateOf(false)}
-    var search by rememberSaveable {mutableStateOf(false)}
-    var encoding by remember {mutableStateOf(false)}
-    var section by rememberSaveable {mutableIntStateOf(0)}
-    var page by rememberSaveable {mutableIntStateOf(0)}
-    var continuous by rememberSaveable {mutableStateOf(false)}
-    var horizontalPages by rememberSaveable {mutableStateOf(false)}
-    var navigationRequest by remember {mutableIntStateOf(0)}
-    val navigate: (Int)->Unit = {page=it;navigationRequest++}
-    val current=s.sections.getOrNull(section)
-    LaunchedEffect(s.base) {section=section.coerceIn(0,(s.sections.size-1).coerceAtLeast(0));page=page.coerceIn(0,((s.pdf?.pages ?: 1)-1).coerceAtLeast(0))}
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            AssistChip({ocr=true},label={Text("문자 인식")},enabled=!busy)
-            if(s.format in DocumentRepository.officeFormats) AssistChip(onClick=openOffice,label={Text("정밀 편집")},enabled=!busy)
-            if(s.format!=Format.PDF) FilterChip(!draw && !preview,{draw=false;preview=false},label={Text("${s.format.label} 편집")},enabled=!busy)
-            FilterChip(draw,{draw=true;preview=false;continuous=false},label={Text(if(s.format==Format.PDF) "PDF 필기" else "필기 페이지")},enabled=!busy)
-            if(s.format==Format.PDF) {
-                FilterChip(continuous && !horizontalPages,{continuous=true;horizontalPages=false;draw=false;preview=false},label={Text("연속 보기")},enabled=!busy)
-                FilterChip(continuous && horizontalPages,{continuous=true;horizontalPages=true;draw=false;preview=false},label={Text("가로 보기")},enabled=!busy)
-            }
-            if(s.format==Format.MD) FilterChip(preview,{preview=!preview;draw=false},label={Text("미리보기")},enabled=!busy)
-            if(s.format==Format.PPTX) FilterChip(preview,{preview=!preview;draw=false},label={Text("개체 미리보기")},enabled=!busy)
-            if(s.format in listOf(Format.TXT,Format.MD)) AssistChip({search=true},label={Text("검색·바꾸기")},enabled=!busy)
-            if(s.textContent!=null) AssistChip({encoding=true},label={Text("저장 인코딩")},enabled=!busy)
-        }
-        Text(when(s.format) {
-            Format.PDF -> if(s.pdf!!.archival) "PDF/A 표식 감지 · 일반 PDF로만 별도 저장" else "페이지·양식·본문 문자열 편집 · 원래 폰트가 지원하는 가로 본문 · 표준 Ink 저장"
-            Format.TXT,Format.MD -> "필기는 고정 페이지에 별도 보존 · 인코딩 ${s.textContent!!.charset}"
-            Format.XLSX,Format.XLS -> "기본 셀 편집 · 차트·전체 시트는 정밀 편집에서 보기 · 필기 별도 보존"
-            Format.DOCX,Format.DOC,Format.PPTX,Format.PPT -> "텍스트·개체 도구 · 원본 배치는 정밀 편집에서 보기 · 필기 별도 보존"
-            else -> "기존 텍스트 런 편집 · 원본 배치 보기 미지원 · 필기 별도 보존"
-        },style=MaterialTheme.typography.labelSmall,color=Color(0xFF686B65),modifier=Modifier.padding(horizontal=16.dp,vertical=4.dp))
-        if(s.format==Format.PDF || (!draw && !preview)) DocumentTools(s,current,vm,busy,page,navigate)
-        if(s.sections.size>1) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp)) {
-            s.sections.forEachIndexed {i,sec -> FilterChip(section==i,{section=i},label={Text(sec.title)},modifier=Modifier.padding(end=6.dp),enabled=!busy)}
-        }
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val wide=maxWidth>=840.dp
-            Row(Modifier.fillMaxSize()) {
-                if(wide) LazyColumn(Modifier.width(200.dp).fillMaxHeight().background(Color(0xFFEEEDE6)).padding(12.dp)) {
-                    item {Text("문서 탐색",style=MaterialTheme.typography.titleSmall,modifier=Modifier.padding(vertical=12.dp))}
-                    if(s.format==Format.PDF) {
-                        items(s.pdf!!.pages) {i -> TextButton(onClick={navigate(i)},enabled=!busy,modifier=Modifier.fillMaxWidth()) {Text("${i+1} 페이지")}}
-                    } else if(s.sections.isNotEmpty()) {
-                        items(s.sections.size) {i -> TextButton(onClick={section=i},enabled=!busy,modifier=Modifier.fillMaxWidth()) {Text(s.sections[i].title)}}
-                    } else item {Text("텍스트 본문\n고정 필기 페이지",style=MaterialTheme.typography.bodySmall)}
-                }
-                Box(Modifier.weight(1f).fillMaxHeight()) {
-                    if(draw) DrawingPage(s,current,page,settings,vm,busy)
-                    else if(continuous && s.format==Format.PDF) PdfContinuousReader(s,page,navigationRequest,busy,horizontalPages,{page=it}) {page=it;continuous=false;draw=true}
-                    else if(preview && s.format==Format.MD) MarkdownPreview(s.edits.text,busy,vm::text)
-                    else if(preview && s.format==Format.PPTX && current!=null) SlidePreview(s,current,vm,busy)
-                    else if(s.format in listOf(Format.TXT,Format.MD)) NativeTextEditor(s.edits.text,settings.fontSize,busy,settings.wrapLines,vm::focus,vm::text,s.format==Format.MD)
-                    else if(s.format in listOf(Format.XLSX,Format.XLS) && current!=null) SheetEditor(s,current,vm,busy)
-                    else if(current!=null) RunEditor(s,current,vm,busy)
-                }
-            }
-        }
-        if(s.format==Format.PDF) Row(Modifier.fillMaxWidth().padding(8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.Center) {
-            IconButton(onClick={navigate(page-1)},enabled=page>0 && !busy){Icon(Icons.AutoMirrored.Filled.NavigateBefore,"이전 페이지")}
-            Text("${page+1} / ${s.pdf!!.pages}")
-            IconButton(onClick={navigate(page+1)},enabled=page<s.pdf.pages-1 && !busy){Icon(Icons.AutoMirrored.Filled.NavigateNext,"다음 페이지")}
-        }
-    }
-    if(ocr) OcrDialog(s,current,page,vm) {ocr=false}
-    if(search) SearchDialog(s,vm){search=false}
-    if(encoding) {
-        var charset by remember {mutableStateOf(s.textContent!!.charset)};var bom by remember {mutableStateOf(s.textContent!!.bom)}
-        AlertDialog(onDismissRequest={encoding=false},title={Text("저장 인코딩")},text={Column {
-            listOf("UTF-8","UTF-16LE","UTF-16BE","MS949").forEach {cs->Row(verticalAlignment=Alignment.CenterVertically) {RadioButton(charset==cs,{charset=cs});Text(cs)}}
-            Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(bom,{bom=it},enabled=charset!="MS949");Text("BOM 포함")}
-            Text("표현할 수 없는 문자가 있으면 변환을 거부합니다. 원본은 저장 버튼을 누를 때 변경됩니다.")
-        }},confirmButton={TextButton({vm.reencode(charset,bom && charset!="MS949");encoding=false}) {Text("적용")}},dismissButton={TextButton({encoding=false}) {Text("취소")}})
-    }
-}
-
-@Composable
-private fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false) {
+internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false) {
     val onChange by rememberUpdatedState(change)
     val onFocused by rememberUpdatedState(focused)
     var editor by remember {mutableStateOf<LineNumberEditText?>(null)}
@@ -394,26 +288,11 @@ private fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Bo
 }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RunEditor(s: Session,sec: Section,vm: DocumentActions,busy: Boolean) {
-    var styleField by remember {mutableStateOf<Field?>(null)}
-    LazyColumn(Modifier.fillMaxSize().background(Color.White),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-        if(sec.fields.isEmpty()) item {Text("표시할 기존 텍스트 런이 없습니다.")}
-        items(sec.fields,key={it.id}) {f -> Column {
-            val properties=f.styles+(s.edits.styles[f.id] ?: emptyMap())
-            val ink=properties["color"]?.let {runCatching {Color(AndroidColor.parseColor("#"+it.removePrefix("#")))}.getOrNull()} ?: Color.Unspecified
-            val decoration=listOfNotNull(if(properties["underline"]=="true") TextDecoration.Underline else null,if(properties["strike"]=="true") TextDecoration.LineThrough else null)
-            OutlinedTextField(s.edits.values[f.id] ?: f.text,{vm.field(f.id,it)},label={Text(f.label)},singleLine=true,enabled=!busy,modifier=Modifier.fillMaxWidth(),textStyle=LocalTextStyle.current.copy(fontWeight=if(s.edits.bold[f.id] ?: properties["bold"]?.toBoolean() ?: f.bold) FontWeight.Bold else FontWeight.Normal,fontStyle=if(properties["italic"]=="true") FontStyle.Italic else FontStyle.Normal,color=ink,textDecoration=if(decoration.isEmpty()) TextDecoration.None else TextDecoration.combine(decoration),fontSize=(properties["size"]?.toFloatOrNull() ?: 16f).coerceIn(8f,32f).sp))
-            if(s.format in listOf(Format.DOCX,Format.DOC,Format.PPT)) Row(verticalAlignment=Alignment.CenterVertically) { Checkbox(s.edits.bold[f.id] ?: f.bold,{vm.bold(f.id,it)},enabled=!busy);Text("굵게",style=MaterialTheme.typography.labelMedium) }
-            if(s.format in listOf(Format.DOCX,Format.PPTX,Format.HWPX)) TextButton(onClick={styleField=f},enabled=!busy) {Text("글자·문단 서식")}
-        } }
-    }
-    styleField?.let {f -> StyleDialog(f.id,s.format,f.styles+(s.edits.styles[f.id] ?: emptyMap()),vm) {styleField=null}}
-}
-
-@Composable
-private fun SheetEditor(s: Session,sec: Section,vm: DocumentActions,busy: Boolean) {
+internal fun SheetEditor(s: Session,sec: Section,vm: DocumentActions,busy: Boolean,tab: String="홈") {
     var style by remember {mutableStateOf(false)}
+    var editingCell by remember {mutableStateOf(false)}
     var address by rememberSaveable(sec.id) {mutableStateOf("A1")}
     var rowStart by rememberSaveable(sec.id) {mutableIntStateOf(1)}
     var colStart by rememberSaveable(sec.id) {mutableIntStateOf(1)}
@@ -421,7 +300,7 @@ private fun SheetEditor(s: Session,sec: Section,vm: DocumentActions,busy: Boolea
     val maxRow=if(s.format==Format.XLS) 65536 else 1048576
     val maxColumn=if(s.format==Format.XLS) 256 else 16384
     val lastRow=minOf(rowStart+24,maxRow)
-    val lastColumn=minOf(colStart+5,maxColumn)
+    val lastColumn=minOf(colStart+19,maxColumn)
     val addressValid=validAddress(address) && column(address)<=maxColumn && address.dropWhile {it.isLetter()}.toInt()<=maxRow
     val input=s.edits.values[sec.id+"#"+address] ?: sec.cells[address] ?: ""
     val focus=LocalFocusManager.current
@@ -445,10 +324,9 @@ private fun SheetEditor(s: Session,sec: Section,vm: DocumentActions,busy: Boolea
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-    val compact=maxHeight<420.dp
-    Column(Modifier.fillMaxSize().background(Color.White).padding(12.dp)) {
-        Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-            OutlinedTextField(address,{address=it.uppercase()},label={Text("셀 주소")},singleLine=true,modifier=Modifier.width(94.dp),enabled=!busy,isError=!addressValid,
+    Column(Modifier.fillMaxSize().background(Color.White)) {
+        Row(Modifier.padding(horizontal=8.dp,vertical=4.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
+            OutlinedTextField(address,{address=it.uppercase()},label={Text("셀 주소")},singleLine=true,modifier=Modifier.width(80.dp),enabled=!busy,isError=!addressValid,
                 keyboardOptions=KeyboardOptions(imeAction=ImeAction.Go),keyboardActions=KeyboardActions(onGo={goToCell()}))
             OutlinedTextField(input,{vm.field(sec.id+"#"+address,it)},label={Text("값 또는 =수식")},singleLine=true,modifier=Modifier.weight(1f),enabled=!busy && addressValid,
                 keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={focus.clearFocus()}))
@@ -456,24 +334,26 @@ private fun SheetEditor(s: Session,sec: Section,vm: DocumentActions,busy: Boolea
         }
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
             Text("계산: ${if(addressValid) calculation.raw[address] ?: "계산 중…" else "주소 오류"}",style=MaterialTheme.typography.labelMedium,modifier=Modifier.weight(1f).padding(vertical=6.dp),maxLines=1,overflow=TextOverflow.Ellipsis)
-              FormulaTools(input,!busy && addressValid) {vm.field(sec.id+"#"+address,it)}
+              if(tab=="수식" || tab=="홈") FormulaTools(input,!busy && addressValid) {vm.field(sec.id+"#"+address,it)}
             if(s.format==Format.XLSX) TextButton(onClick={style=true},enabled=!busy && addressValid) {Text("선택 셀 서식")}
         }
-        if(s.format==Format.XLSX) SheetRangeTools(s,sec,address,cells,vm,busy)
-        if(!compact) {
-        Text("SUM · COUNTIF · SUMIF · IF/IFS · VLOOKUP · XLOOKUP · INDEX/MATCH · TEXT 등 / 같은 시트·다른 시트 계산",style=MaterialTheme.typography.labelSmall)
-        Row(verticalAlignment=Alignment.CenterVertically) {
-            TextButton(onClick={rowStart=(rowStart-25).coerceAtLeast(1)},enabled=!busy){Text("↑ 25행")};TextButton(onClick={rowStart=(rowStart+25).coerceAtMost(maxRow)},enabled=!busy){Text("↓ 25행")}
-            TextButton(onClick={colStart=(colStart-6).coerceAtLeast(1)},enabled=!busy){Text("← 열")};TextButton(onClick={colStart=(colStart+6).coerceAtMost(maxColumn)},enabled=!busy){Text("열 →")}
-        }
-        }
+        if(s.format==Format.XLSX && tab=="데이터") SheetRangeTools(s,sec,address,cells,vm,busy)
         key(sec.id,rowStart,colStart,windowRequest) {
         Box(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
             LazyColumn {
-                item { Row {CellBox("",false,{});for(c in colStart..lastColumn) CellBox(columnName(c),false,{})} }
+                stickyHeader { Row {CellBox("",false,{},mapOf("background" to "F4F6FA"),Modifier.width(44.dp));for(c in colStart..lastColumn) CellBox(columnName(c),false,{},mapOf("background" to "F4F6FA","bold" to "true"))} }
                 items((rowStart..lastRow).toList()) {r -> Row {
-                    CellBox(r.toString(),false,{})
-                    for(c in colStart..lastColumn) {val a=columnName(c)+r;val styles=(sec.cellStyles[a] ?: emptyMap())+(s.edits.styles[sec.id+"#"+a] ?: emptyMap());CellBox(calculation.formatted[a] ?: "…",a==address,{if(!busy) address=a},styles)}
+                    CellBox(r.toString(),false,{},mapOf("background" to "F4F6FA"),Modifier.width(44.dp))
+                    for(c in colStart..lastColumn) {
+                        val a=columnName(c)+r;val styles=(sec.cellStyles[a] ?: emptyMap())+(s.edits.styles[sec.id+"#"+a] ?: emptyMap())
+                        if(a==address && editingCell) {
+                            val requester=remember {androidx.compose.ui.focus.FocusRequester()}
+                            androidx.compose.foundation.text.BasicTextField(cells[a] ?: "",{vm.field(sec.id+"#"+a,it)},enabled=!busy,singleLine=true,
+                                modifier=Modifier.width(112.dp).height(44.dp).border(2.dp,MaterialTheme.colorScheme.primary).padding(8.dp).focusRequester(requester).semantics {contentDescription="선택 셀 입력"},
+                                keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={editingCell=false;focus.clearFocus()}))
+                            LaunchedEffect(a) {requester.requestFocus()}
+                        } else CellBox(calculation.formatted[a] ?: "…",a==address,{if(!busy) {editingCell=a==address;address=a}},styles,Modifier.testTag("cell-"+a))
+                    }
                 } }
             }
         }
@@ -483,17 +363,17 @@ private fun SheetEditor(s: Session,sec: Section,vm: DocumentActions,busy: Boolea
     if(style) StyleDialog(sec.id+"#"+address,s.format,(sec.cellStyles[address] ?: emptyMap())+(s.edits.styles[sec.id+"#"+address] ?: emptyMap()),vm) {style=false}
 }
 private data class SheetCalculation(val raw: Map<String,String> = emptyMap(),val formatted: Map<String,String> = emptyMap())
-@Composable private fun CellBox(text: String,selected: Boolean,click: ()->Unit,styles: Map<String,String> = emptyMap()) {
+@Composable private fun CellBox(text: String,selected: Boolean,click: ()->Unit,styles: Map<String,String> = emptyMap(),modifier: Modifier=Modifier) {
     val background=styles["background"]?.let {runCatching {Color(AndroidColor.parseColor("#$it"))}.getOrNull()} ?: Color.White
     val color=styles["color"]?.let {runCatching {Color(AndroidColor.parseColor("#$it"))}.getOrNull()} ?: Color.Unspecified
     val formatted=text
-    Box(Modifier.width(112.dp).height(44.dp).border(0.5.dp,if(selected) Green else Color(0xFFDDDFDA)).background(if(selected) Color(0xFFE4ECE5) else background).clickable(onClick=click).padding(8.dp),contentAlignment=when(styles["align"]) {"center"->Alignment.Center;"right"->Alignment.CenterEnd;else->Alignment.CenterStart}) {
+    Box(modifier.width(112.dp).height(44.dp).border(if(selected) 2.dp else 0.5.dp,if(selected) Color(0xFF217346) else Color(0xFFE0E4EA)).background(if(selected) Color(0xFFEAF4EF) else background).clickable(onClick=click).padding(8.dp),contentAlignment=when(styles["align"]) {"center"->Alignment.Center;"right"->Alignment.CenterEnd;else->Alignment.CenterStart}) {
         Text(formatted,maxLines=1,overflow=TextOverflow.Ellipsis,fontSize=(styles["size"]?.toFloatOrNull() ?: 13f).coerceIn(8f,28f).sp,color=color,fontWeight=if(styles["bold"]=="true") FontWeight.Bold else FontWeight.Normal)
     }
 }
 
 @Composable
-private fun SearchDialog(s: Session,vm: DocumentActions,close: ()->Unit) {
+internal fun SearchDialog(s: Session,vm: DocumentActions,close: ()->Unit) {
     var find by remember {mutableStateOf("")};var replacement by remember {mutableStateOf("")}
     val count=remember(s.edits.text,find) {var count=0;var from=0;if(find.isNotEmpty()) while(true) {val next=s.edits.text.indexOf(find,from);if(next<0) break;count++;from=next+find.length};count}
     AlertDialog(onDismissRequest=close,title={Text("검색·바꾸기")},text={Column {

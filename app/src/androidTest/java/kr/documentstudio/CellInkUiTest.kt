@@ -23,7 +23,7 @@ class CellInkUiTest {
         val vm=ViewModelProvider(compose.activity)[EditorViewModel::class.java]
         compose.runOnUiThread {vm.settings(Settings(toolbarCollapsed=true));vm.create(Format.XLSX)}
         compose.waitUntil(15000) {!vm.state.value.busy && vm.state.value.session?.format==Format.XLSX}
-        compose.onNodeWithText("필기 페이지").performClick()
+        compose.onNodeWithTag("ribbon-그리기").performScrollTo().performClick()
         compose.waitUntil(15000) {var ready=false;compose.runOnUiThread {ready=ink(compose.activity.window.decorView)?.isEnabled==true};ready}
         gesture(.26f,.25f,.04f);compose.waitForIdle()
         val stored=vm.state.value.session!!.edits.strokes.single();assertEquals("B3",stored.cell!!.address)

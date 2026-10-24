@@ -50,7 +50,7 @@ class FeatureAcceptanceUiTest {
         assertEquals(0,vm.state.value.session!!.sections.first().fields.count {it.label.startsWith("표 ")})
         compose.onNodeWithContentDescription("다시 실행").performClick()
         val cell=vm.state.value.session!!.sections.first().fields.first {it.label.contains("1행 1열")}
-        compose.onNodeWithText(cell.label).performScrollTo().performTextReplacement("표 셀 편집")
+        compose.onNodeWithContentDescription(cell.label).performScrollTo().performTextReplacement("표 셀 편집")
         val output=file("hwpx");compose.runOnUiThread {vm.save(uri(output))};ready()
         assertEquals("표 셀 편집",PackageDocument.open(output).sections.first().fields.single {it.id==cell.id}.text)
         val recovered=runBlocking {DocumentRepository(compose.activity).restore(vm.state.value.active!!)}
@@ -88,6 +88,7 @@ class FeatureAcceptanceUiTest {
         try {image.outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}} finally {bitmap.recycle()}
         compose.runOnUiThread {vm.change(DocumentChange("pdf.image","0",mapOf("uri" to uri(image).toString())))};ready()
         val before=PdfImages.list(vm.state.value.session!!.base,0).single()
+        compose.onNodeWithTag("ribbon-편집").performScrollTo().performClick()
         compose.onNodeWithText("기존 이미지 편집").performScrollTo().performClick()
         compose.waitUntil(15000) {compose.onAllNodesWithText("이미지 1 ·",substring=true).fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("이미지 1 ·",substring=true).performClick()
@@ -106,7 +107,7 @@ class FeatureAcceptanceUiTest {
         try {image.outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}} finally {bitmap.recycle()}
         val section=vm.state.value.session!!.sections.first().id
         compose.runOnUiThread {vm.change(DocumentChange("slide.image",section,mapOf("uri" to uri(image).toString())))};ready()
-        compose.onNodeWithText("개체 미리보기").performScrollTo().performClick()
+        compose.onNodeWithTag("ribbon-보기").performScrollTo().performClick();compose.onNodeWithText("개체 미리보기").performScrollTo().performClick()
         fun view(root: android.view.View): kr.documentstudio.ui.SlideView? {
             if(root is kr.documentstudio.ui.SlideView && root.isShown && root.width>0 && root.height>0) return root
             if(root is android.view.ViewGroup) for(i in 0 until root.childCount) view(root.getChildAt(i))?.let {return it}

@@ -81,7 +81,8 @@ class EditingWorkflowTest {
         val section=vm.state.value.session!!.sections.first().id
         compose.runOnUiThread {assertEquals("7",vm.state.value.session!!.edits.values["$section#A1"])}
         compose.onNodeWithText("선택 셀 서식").performClick()
-        compose.onNodeWithText("숫자 형식 (0.00, #,##0 등)").performScrollTo().performTextReplacement("0.00")
+        compose.onNodeWithContentDescription("숫자 형식 선택").performScrollTo().performClick()
+        compose.onNodeWithText("소수 2자리").performClick()
         compose.onNodeWithText("적용").performClick()
         compose.onNodeWithContentDescription("셀로 이동").performClick()
         compose.runOnUiThread {assertEquals("0.00",vm.state.value.session!!.edits.styles["$section#A1"]?.get("numberFormat"))}

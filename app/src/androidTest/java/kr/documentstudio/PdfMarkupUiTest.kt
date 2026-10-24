@@ -27,6 +27,7 @@ class PdfMarkupUiTest {
         compose.runOnUiThread {vm.open(uri)}
         compose.waitUntil(15000) {!vm.state.value.busy && vm.state.value.session?.pdf!=null}
         val original=vm.state.value.session!!.base
+        compose.onNodeWithTag("ribbon-주석").performScrollTo().performClick()
         compose.onNodeWithText("텍스트 선택").performScrollTo().performClick()
         compose.waitUntil(15000) {compose.onAllNodesWithText("주석을 넣을 텍스트 선택").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("주석을 넣을 텍스트 선택").performTextInputSelection(TextRange(6,10))
@@ -45,6 +46,7 @@ class PdfMarkupUiTest {
         compose.waitUntil(15000) {!vm.state.value.busy && PdfAnnotations.list(vm.state.value.session!!.base,0).isEmpty()}
         compose.runOnUiThread {vm.change(DocumentChange("pdf.add","0"))}
         compose.waitUntil(15000) {!vm.state.value.busy && vm.state.value.session!!.pdf!!.pages==2}
+        compose.onNodeWithTag("ribbon-보기").performScrollTo().performClick()
         compose.onNodeWithText("가로 보기").performScrollTo().performClick()
         compose.onNodeWithContentDescription("PDF 가로 페이지 목록").performTouchInput {swipeLeft()}
         compose.waitUntil(15000) {compose.onAllNodesWithText("2 / 2").fetchSemanticsNodes().isNotEmpty()}

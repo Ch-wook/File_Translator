@@ -1,6 +1,8 @@
 # 원문 요구사항별 인수 확인표
 
-기준: [0.5.0 실행 계획](EXECUTION_PLAN_20261017_PHASE2.md), [원문](REQUIREMENTS.ko.md) §2–§20. 2026-10-18.
+0.6.0 UI 개편은 [사용성 실행 계획](UI_REDESIGN_PLAN_20261024.md)을 따르며 엔진 지원 범위를 확대했다고 주장하지 않는다. 기본 UI/저장 회귀는 WorkspaceRedesignUiTest, 기본 오피스 진입은 OfficeDefaultRoutingTest로 추가 확인한다.
+
+기준: [0.5.0 실행 계획](EXECUTION_PLAN_20261017_PHASE2.md), [원문](REQUIREMENTS.ko.md) §2–§20. 2026-10-24.
 
 아래 표는 지원 여부와 확인 근거를 분리한다. **검증**은 기재한 입력·환경에 한정한다. **정밀/미검증**은 내장 엔진의 기능 경로가 있지만 해당 전문 기능을 각각 검사하지 못했다는 뜻이다. 전체 행이 통과한 것으로 집계하지 않는다. UI 경로·제약은 [사용 안내](USER_GUIDE.md)와 [지원표](SUPPORT_MATRIX.md), 실제 실행 횟수는 [검사 결과](TEST_RESULTS.md)를 따른다.
 

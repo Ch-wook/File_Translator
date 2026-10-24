@@ -204,3 +204,9 @@ OfficeProbeProvider는 debug에만 존재하는 비공개 동일 UID 검사 접�
 `HangulConversion`은 고정 upstream Java 변환기를 감싸며, OLE/압축 스트림과 레코드 중첩을 먼저 제한한다. hwplib 모델의 제어 선별·구역/하위 문단/셀·자원 인벤토리 → HWPX 쓰기 → 안전 DOM 재열기와 범위별 해시/구조 대조 → 검증 후 이동 순서다. 결과 앱/OS 메타데이터도 실제 제작 앱으로 지정한다.
 
 Repository는 원본 작업을 체크포인트하고 새 UUID 디렉터리에서 편집 HWP를 materialize한다. 검증한 새 HWPX와 이전 원본/편집본/보고서만 새 탭으로 연결한다. 실패 시 새 디렉터리를 폐기한다. 원본 URI에는 쓰지 않는다. 구역 순서로 필기 앵커를 재연결하며 편집 명령은 새 기본 파일에 반영하고 새 Undo 이력을 시작한다. 보존 자료는 `preserved-backup/conversion`에 두고 백업 가져오기는 허용한 세 경로만 격리 복원한다. 보고서 읽기는 버전/크기/범위·원본 해시를 검사하며 변환 시점의 기록으로 표시한다.
+
+## 0.6.0 형식별 작업 공간
+
+WorkspaceHome은 형식별 생성과 최근 파일 필터, WorkspaceComponents는 형식별 색/아이콘/도구 탭, FormatWorkspace는 도구 탭과 본문·시트·슬라이드·PDF·필기를 연결합니다. DocumentPaper는 기존 필드 ID를 유지하며 본문과 한글 표 격자를 입력합니다. CommandInput은 엔진 인수를 스위치·목록·팔레트로 표현합니다. 기존 DocumentActions의 세션 고정을 유지합니다.
+
+UI에서 요청한 새 문서·열기·최근 작업과 외부 열기는 visual 옵션으로 오피스 편집을 요청합니다. EditorViewModel은 파일을 성공적으로 붙인 뒤 세션 ID와 일회성 토큰을 발급합니다. Compose는 작업이 끝났을 때 토큰을 소비하고 기존 안전한 openOffice 경로를 호출합니다. 회전이나 정밀 편집 복귀로 다시 실행하지 않으며, 일반 저장소/모델 연산은 명시적 visual 요청 없이 편집기를 띄우지 않습니다. Android 10과 설정을 끈 경우 기본 편집을 사용합니다.

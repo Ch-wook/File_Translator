@@ -37,7 +37,8 @@ class OfficeProfessionalFeaturesTest {
         automation.rootInActiveWindow
         val vm=ViewModelProvider(compose.activity)[EditorViewModel::class.java]
         compose.runOnUiThread {vm.create(format)};compose.waitUntil(15000) {!vm.state.value.busy && vm.state.value.session?.format==format}
-        compose.onNodeWithText("정밀 편집").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("문서 메뉴").performClick()
+        compose.onNodeWithText("정밀 오피스 편집").performScrollTo().performClick()
         compose.waitUntil(45000) {runCatching {call("state").getBoolean("ready")}.getOrDefault(false)}
         click("Edit document")
         compose.waitUntil(20000) {call("state").getBoolean("editing") && eval("Boolean(window.app && app.map && app.map._docLoaded && app.map.isEditMode())")=="true"}

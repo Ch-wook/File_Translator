@@ -21,8 +21,9 @@ class SplitEditorUiTest {
         try {
             val vm=ViewModelProvider(compose.activity)[EditorViewModel::class.java]
             repeat(2) {index ->
+                if(index>0) compose.onNodeWithContentDescription("문서 메뉴").performClick()
                 compose.onNodeWithText("새 문서",useUnmergedTree=true).performClick()
-                compose.onNodeWithText("텍스트  .txt").performClick()
+                compose.onNodeWithText("텍스트  .txt").performScrollTo().performClick()
                 compose.waitUntil(15000) {!vm.state.value.busy && vm.state.value.tabs.size==index+1}
                 compose.waitForIdle()
             }

@@ -1,4 +1,4 @@
-# 빌드·서명·배포 — 0.5.0
+# 빌드·서명·배포 — 0.6.0
 
 ## 환경
 
@@ -38,7 +38,7 @@ JVM 검사를 새로 실행하고 Android 전체 검사·lint·debug APK와 검�
 | 파일 SHA-256 | artifacts/SHA256SUMS.txt |
 | 검사 보고서 | artifacts/test-results/ |
 
-AAB는 직접 설치 파일이 아니라 스토어용 번들입니다. APK는 Android 10 이상에서 설치합니다. 패키지 ID는 kr.documentstudio, versionCode 6, versionName 0.5.0입니다. 이 결과를 Play에 업로드하거나 계정 설정을 변경하지 않았습니다.
+AAB는 직접 설치 파일이 아니라 스토어용 번들입니다. APK는 Android 10 이상에서 설치합니다. 패키지 ID는 kr.documentstudio, versionCode 7, versionName 0.6.0입니다. 이 결과를 Play에 업로드하거나 계정 설정을 변경하지 않았습니다.
 
 ## 서명 키 관리
 
@@ -103,3 +103,7 @@ $buildRoot = 'D:\CodexBuilds\DocumentStudio'
 ```
 
 Gradle 직접 호출에는 `-Pstudio.buildRoot=<절대 경로>`를 사용합니다. 기본 Java 힙은 3 GiB이며 `-JavaHeapMiB`로 조정합니다. 기존 앱 업데이트에는 이전 키를 비공개 환경 변수로 지정하세요. 새 복제본에서 다른 키를 만들면 이전 앱을 업데이트할 수 없습니다. 이번 빌드도 기존 비공개 키를 재사용합니다.
+
+## GitHub 설치 파일
+
+설치 APK는 Git 소스 폴더가 아닌 [Releases](https://github.com/Ch-wook/File_Translator/releases)에 첨부합니다. 서명·검사를 마친 APK와 해당 파일의 SHA-256을 업로드하고, 공개 다운로드 응답·파일 크기·서버 SHA-256을 대조합니다. 새 버전은 별도의 태그/릴리스로 배포하며 기존 릴리스를 교체하지 않습니다.

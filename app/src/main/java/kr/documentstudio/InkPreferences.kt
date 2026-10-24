@@ -12,7 +12,7 @@ data class PenPreset(val name: String,val tool: String,val color: Int,val width:
 object InkPreferences {
     fun extend(s: Settings,p: SharedPreferences): Settings = s.copy(
         pressureCurve=p.getFloat("pressureCurve",1f).finite(0.25f,3f,1f),smoothing=p.getFloat("smoothing",0f).finite(0f,1f,0f),
-        autoSnap=p.getBoolean("autoSnap",false),toolbarTop=p.getBoolean("toolbarTop",false),toolbarCollapsed=p.getBoolean("toolbarCollapsed",false),
+        visualOffice=p.getBoolean("visualOffice",true),autoSnap=p.getBoolean("autoSnap",false),toolbarTop=p.getBoolean("toolbarTop",false),toolbarCollapsed=p.getBoolean("toolbarCollapsed",false),
         favoriteColors=runCatching {val a=JSONArray(p.getString("favoriteColors","[]"));require(a.length()<=16);(0 until a.length()).map {a.getInt(it)}.distinct()}.getOrDefault(emptyList()),
         presets=runCatching {val a=JSONArray(p.getString("penPresets","[]"));require(a.length()<=12);(0 until a.length()).map {i->a.getJSONObject(i).let {j->
             val name=j.getString("name");val tool=j.getString("tool");require(name.length in 1..40 && tool in InkTool.entries.map {it.name})

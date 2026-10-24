@@ -19,16 +19,20 @@ class InkAdvancedUiTest {
         val vm=ViewModelProvider(compose.activity)[EditorViewModel::class.java]
         compose.runOnUiThread {vm.settings(Settings());vm.create(Format.TXT)}
         compose.waitUntil(15000) {!vm.state.value.busy && vm.state.value.session?.format==Format.TXT}
-        compose.onNodeWithText("필기 페이지").performClick()
+        compose.onNodeWithTag("ribbon-그리기").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("추가 필기 도구").performClick()
         compose.onNodeWithText("격자").performScrollTo().performClick();assertEquals(Paper.GRID,vm.state.value.session!!.edits.paper)
-        compose.onNodeWithText("설정").performClick()
+        compose.onNodeWithText("닫기").performClick()
+        compose.onNodeWithContentDescription("펜 설정").performClick()
         compose.onNodeWithText("펜 이름").performScrollTo().performTextInput("회의펜")
         compose.onNodeWithText("현재 설정 저장").performScrollTo().performClick()
         compose.onNodeWithText("닫기").performClick();assertEquals("회의펜",vm.state.value.settings.presets.single().name)
-        compose.onNodeWithText("레이어").performClick()
+        compose.onNodeWithContentDescription("레이어").performClick()
         compose.onNodeWithText("레이어 이름").performScrollTo().performTextInput("검토 필기")
         compose.onNodeWithText("새 레이어").performScrollTo().performClick();compose.onNodeWithText("닫기").performClick()
-        compose.onNodeWithText("도구 위로").performClick();compose.onNodeWithText("필기 도구 접기").performClick()
+        compose.onNodeWithContentDescription("추가 필기 도구").performClick()
+        compose.onNodeWithText("도구 위로").performScrollTo().performClick();compose.onNodeWithText("필기 도구 접기").performScrollTo().performClick()
+        compose.onNodeWithText("닫기").performClick()
         compose.waitUntil(10000) {ink(compose.activity.window.decorView)!=null}
         compose.runOnUiThread {
             val view=ink(compose.activity.window.decorView)!!;val time=android.os.SystemClock.uptimeMillis()
@@ -38,9 +42,10 @@ class InkAdvancedUiTest {
         }
         compose.waitForIdle();val s=vm.state.value.session!!
         assertEquals(s.edits.layers.last().id,s.edits.strokes.single().layerId)
-        compose.onNodeWithText("레이어").performClick();compose.onAllNodesWithText("숨기기").onLast().performClick();compose.onNodeWithText("닫기").performClick()
+        compose.onNodeWithContentDescription("레이어").performClick();compose.onAllNodesWithText("숨기기").onLast().performClick();compose.onNodeWithText("닫기").performClick()
         compose.runOnUiThread {assertTrue(ink(compose.activity.window.decorView)!!.strokes.isEmpty())}
-        compose.onNodeWithText("필기 도구 펼치기").performClick();compose.onNodeWithText("도구 아래로").performClick()
+        compose.onNodeWithContentDescription("추가 필기 도구").performClick()
+        compose.onNodeWithText("필기 도구 펼치기").performScrollTo().performClick();compose.onNodeWithText("도구 아래로").performScrollTo().performClick()
         assertFalse(vm.state.value.settings.toolbarTop);assertFalse(vm.state.value.settings.toolbarCollapsed)
     }
 }
