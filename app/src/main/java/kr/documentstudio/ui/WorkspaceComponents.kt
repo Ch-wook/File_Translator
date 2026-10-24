@@ -49,8 +49,8 @@ fun WorkspaceRibbon(family: WorkspaceFamily,tab: String,expanded: Boolean,busy: 
                 Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(start=6.dp)) {
                     family.tabs.forEach {name ->
                         val selected=name==tab
-                        Column(Modifier.width(IntrinsicSize.Min).selectableTab(selected,!busy) {onTab(name)}.testTag("ribbon-$name"),horizontalAlignment=Alignment.CenterHorizontally) {
-                            Text(name,Modifier.padding(horizontal=16.dp,vertical=13.dp),color=if(selected) family.accent else Color(0xFF5D6470),fontWeight=if(selected) FontWeight.Bold else FontWeight.Normal,style=MaterialTheme.typography.labelLarge)
+                        Column(Modifier.width(IntrinsicSize.Max).selectableTab(selected,!busy) {onTab(name)}.testTag("ribbon-$name"),horizontalAlignment=Alignment.CenterHorizontally) {
+                            Text(name,Modifier.padding(horizontal=16.dp,vertical=13.dp),maxLines=1,softWrap=false,color=if(selected) family.accent else Color(0xFF5D6470),fontWeight=if(selected) FontWeight.Bold else FontWeight.Normal,style=MaterialTheme.typography.labelLarge)
                             Box(Modifier.height(3.dp).fillMaxWidth().background(if(selected) family.accent else Color.Transparent))
                         }
                     }
