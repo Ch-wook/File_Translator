@@ -1246,6 +1246,8 @@ public class LOActivity extends AppCompatActivity {
     /** Show the Saving progress and finish the app. */
     private volatile java.util.concurrent.CountDownLatch closeSave;
     private volatile boolean closeSaveSucceeded;
+    private boolean studioSaveOriginal;
+    protected boolean shouldSaveOriginal() { return studioSaveOriginal; }
     protected void onOfficeClosed() { }
 
     private void confirmCloseSave(JSONObject result) {
@@ -1554,6 +1556,10 @@ public class LOActivity extends AppCompatActivity {
      */
     private boolean beforeMessageFromWebView(String[] messageAndParam) {
         switch (messageAndParam[0]) {
+            case "DOCUMENT_STUDIO_SAVE_AND_CLOSE":
+                studioSaveOriginal = true;
+                runOnUiThread(this::finishWithProgress);
+                return false;
             case "BYE":
                 finishWithProgress();
                 return false;

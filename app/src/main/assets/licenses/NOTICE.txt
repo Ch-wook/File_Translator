@@ -1,4 +1,4 @@
-﻿Document Studio third-party notices (0.2.0)
+Document Studio third-party notices (0.7.0-preview)
 
 AndroidX / Jetpack Compose / Material: Copyright The Android Open Source Project, Apache License 2.0.
 Kotlin / Coroutines: Copyright JetBrains s.r.o. and contributors, Apache License 2.0.
@@ -25,4 +25,10 @@ hwpxlib: https://github.com/neolord0/hwpxlib, Apache License 2.0.
 Apache POI legacy.doc test fixture: Apache POI REL_5_4_1 test-data/document/simple.doc, Apache License 2.0; debug test APK only.
 
 본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.
-HWP 바이너리는 hwplib로 일부 본문 텍스트를 편집·저장합니다. 한컴 조판 엔진을 포함하지 않습니다.
+HWP/HWPX 화면 편집은 Rhwp 0.8.7 (MIT) Rust/WASM 엔진을 사용합니다. 한컴 조판 엔진을 포함하지 않습니다.
+
+Rhwp 0.8.7: Copyright Edward Kim and contributors; MIT.
+https://github.com/edwardkim/rhwp, 1a76570e833917d15817415a53c09ad61ab3203f.
+CanvasKit 0.42.0: Google Inc., BSD 3-Clause; included with upstream license notices.
+Bundled fonts: Noto Sans/Serif KR, Nanum, Gowun, Pretendard, D2Coding, Spoqa Han Sans, Source Han Serif K (SIL OFL 1.1); Latin Modern Math (GUST). Full licenses accompany this file. Cafe24/Happiness fonts are excluded.
+Local modifications: offline Android bridge, pinned build, embedded chrome, private working-copy save/loss checks.

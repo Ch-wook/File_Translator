@@ -100,9 +100,9 @@ fun StudioApp(vm: EditorViewModel) {
     val pdf=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) {uri -> if(uri!=null) pendingPdfId?.let {vm.exportPdf(uri,it)};pendingPdfId=null}
     val backup=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) {uri -> if(uri!=null) pendingBackupId?.let {vm.backup(uri,it)};pendingBackupId=null}
     val encryptedBackup=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) {uri->vm.finishEncryptedBackup(uri)}
-    val office=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {result -> vm.finishOffice(result.data?.getStringExtra("sessionId"))}
+    val office=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {result -> vm.finishOffice(result.data?.getStringExtra("sessionId"),result.data?.getBooleanExtra("saveOriginal",false)==true)}
     val openOffice: (String)->Unit = {id -> vm.openOffice(id) {s,file ->
-        office.launch(Intent(context,org.libreoffice.androidlib.StudioOfficeActivity::class.java)
+        office.launch(Intent(context,if(s.format in setOf(Format.HWP,Format.HWPX)) HangulEditorActivity::class.java else org.libreoffice.androidlib.StudioOfficeActivity::class.java)
             .putExtra("sessionId",s.id).putExtra("workingPath",file.absolutePath).putExtra("displayName",s.name))
     }}
     LaunchedEffect(state.officeLaunch,state.busy) {
@@ -111,11 +111,19 @@ fun StudioApp(vm: EditorViewModel) {
     }
     val saveAs: ()->Unit = { state.session?.let { s -> pendingSaveId=s.id;saveLaunchers.getValue(s.format).launch(s.name.substringBeforeLast('.',s.name)+".${s.format.extension}") } }
     val save: ()->Unit = { state.session?.let { s -> if(s.uri==null || s.pdf?.archival==true) saveAs() else vm.save(Uri.parse(s.uri),s.id) } }
+    LaunchedEffect(state.saveRequest,state.busy) {
+        val id=state.saveRequest
+        if(id!=null && !state.busy) {
+            val target=state.tabs.firstOrNull {it.id==id}
+            vm.consumeSaveRequest(id)
+            if(target!=null) {pendingSaveId=id;saveLaunchers.getValue(target.format).launch(target.name)}
+        }
+    }
     val selectTab: (String)->Unit = {id ->
         if(splitLeft!=null && id!=splitLeft && id!=splitRight) {
             if(state.active==splitLeft) splitLeft=id else splitRight=id
         }
-        vm.select(id)
+        vm.restore(id,visual=true)
     }
     LaunchedEffect(state.tabs.map {it.id}) {
         if(state.tabs.none {it.id==splitLeft} || state.tabs.none {it.id==splitRight}) {splitLeft=null;splitRight=null}
@@ -149,19 +157,19 @@ fun StudioApp(vm: EditorViewModel) {
                         DropdownMenu(expanded=menu,onDismissRequest={menu=false}) {
                             DropdownMenuItem(text={Text("새 문서")},onClick={menu=false;newDialog=true})
                             DropdownMenuItem(text={Text("파일 열기")},onClick={menu=false;open.launch(arrayOf("*/*"))})
-                            if(s.format in DocumentRepository.officeFormats) DropdownMenuItem(text={Text("정밀 오피스 편집")},onClick={menu=false;openOffice(s.id)})
-                            DropdownMenuItem(text={Text(if(splitLeft==null) "두 문서 나란히 편집" else "분할 편집 끝내기")},enabled=splitLeft!=null || state.tabs.size>=2,onClick={
+                            if(s.format in DocumentRepository.visualFormats) DropdownMenuItem(text={Text("원본 문서 편집")},onClick={menu=false;openOffice(s.id)})
+                            DropdownMenuItem(text={Text(if(splitLeft==null) "두 문서 나란히 편집" else "분할 편집 끝내기")},enabled=splitLeft!=null || (state.tabs.count {it.format !in DocumentRepository.visualFormats}>=2 && s.format !in DocumentRepository.visualFormats),onClick={
                                 menu=false
                                 if(splitLeft!=null) {splitLeft=null;splitRight=null}
-                                else {splitLeft=s.id;splitRight=state.tabs.last {it.id!=s.id}.id}
+                                else {splitLeft=s.id;splitRight=state.tabs.last {it.id!=s.id && it.format !in DocumentRepository.visualFormats}.id}
                             })
                             if(s.recoveryWarning!=null) DropdownMenuItem(text={Text("정밀 편집 복구본 보관 후 다시 시작")},onClick={menu=false;vm.archiveOfficeRecovery()})
                             DropdownMenuItem(text={Text("다른 이름으로 저장")},onClick={menu=false;saveAs()})
-                            DropdownMenuItem(text={Text("필기 포함 PDF 내보내기")},onClick={menu=false;pendingPdfId=s.id;pdf.launch(s.name.substringBeforeLast('.')+"-필기.pdf")})
+                            if(s.format !in EditorPolicy.visualFormats) DropdownMenuItem(text={Text("필기 포함 PDF 내보내기")},onClick={menu=false;pendingPdfId=s.id;pdf.launch(s.name.substringBeforeLast('.')+"-필기.pdf")})
                             DropdownMenuItem(text={Text("문서·필기 암호화 백업")},onClick={menu=false;encryptedDialogId=s.id})
                             DropdownMenuItem(text={Text("문서·필기 복구 ZIP 백업")},onClick={menu=false;pendingBackupId=s.id;backup.launch(s.name.substringBeforeLast('.')+"-백업.zip")})
                             DropdownMenuItem(text={Text("탭 닫기 (복구본 보존)")},onClick={menu=false;vm.close(s.id)})
-                            DropdownMenuItem(text={Text("본문·필기 인쇄")},onClick={menu=false;vm.print(context)})
+                            if(s.format !in EditorPolicy.visualFormats) DropdownMenuItem(text={Text("본문·필기 인쇄")},onClick={menu=false;vm.print(context)})
                             DropdownMenuItem(text={Text("설정")},onClick={menu=false;settingsDialog=true})
                         }
                     })
@@ -226,8 +234,7 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
     var licenses by remember {mutableStateOf(false)}
     var officeLicenses by remember {mutableStateOf(false)}
     AlertDialog(onDismissRequest=close,title={Text("편집 설정")},text={Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState())) {
-        Row(verticalAlignment=Alignment.CenterVertically) {Text("오피스 파일을 실제 편집기로 바로 열기",modifier=Modifier.weight(1f));Switch(settings.visualOffice,{change(settings.copy(visualOffice=it))})}
-        Text("Word·Excel·PowerPoint · Android 11 이상. 기본 편집과 필기는 뒤로 돌아와 사용할 수 있습니다.",style=MaterialTheme.typography.bodySmall)
+        Text("한글은 전용 한글 엔진, Word·Excel·PowerPoint는 각 형식의 오피스 엔진에서 원본을 직접 편집합니다. 오피스 엔진은 Android 11 이상이 필요합니다.",style=MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment=Alignment.CenterVertically) {Text("펜 전용 필기",modifier=Modifier.weight(1f));Switch(settings.stylusOnly,{change(settings.copy(stylusOnly=it))})}
         Text("펜 전용 모드는 손가락 입력을 무시합니다. 정전식 펜은 손가락으로 인식될 수 있습니다.",style=MaterialTheme.typography.bodySmall)
@@ -286,90 +293,6 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
         if(view.text.toString()!=text) {view.tag=true;val position=view.selectionStart.coerceAtLeast(0).coerceAtMost(text.length);view.setText(text);view.setSelection(position);view.tag=false}
     },modifier=Modifier.fillMaxWidth().weight(1f))
 }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-internal fun SheetEditor(s: Session,sec: Section,vm: DocumentActions,busy: Boolean,tab: String="홈") {
-    var style by remember {mutableStateOf(false)}
-    var editingCell by remember {mutableStateOf(false)}
-    var address by rememberSaveable(sec.id) {mutableStateOf("A1")}
-    var rowStart by rememberSaveable(sec.id) {mutableIntStateOf(1)}
-    var colStart by rememberSaveable(sec.id) {mutableIntStateOf(1)}
-    var windowRequest by remember {mutableIntStateOf(0)}
-    val maxRow=if(s.format==Format.XLS) 65536 else 1048576
-    val maxColumn=if(s.format==Format.XLS) 256 else 16384
-    val lastRow=minOf(rowStart+24,maxRow)
-    val lastColumn=minOf(colStart+19,maxColumn)
-    val addressValid=validAddress(address) && column(address)<=maxColumn && address.dropWhile {it.isLetter()}.toInt()<=maxRow
-    val input=s.edits.values[sec.id+"#"+address] ?: sec.cells[address] ?: ""
-    val focus=LocalFocusManager.current
-    val goToCell: ()->Unit = {
-        if(addressValid) {
-            rowStart=address.dropWhile {it.isLetter()}.toInt()
-            colStart=column(address)
-            windowRequest++
-            focus.clearFocus()
-        } else vm.message(if(s.format==Format.XLS) "XLS 셀 범위는 A1–IV65536입니다." else "올바른 셀 주소를 입력하세요.")
-    }
-    val cells=remember(sec,s.edits.values) {sec.cells+s.edits.values.filterKeys {it.startsWith(sec.id+"#")}.mapKeys {it.key.substringAfter('#')}}
-    val calculation by produceState(SheetCalculation(),sec,s.sections,s.edits.values,s.edits.styles,rowStart,colStart,address) {
-        value=SheetCalculation()
-        value=withContext(Dispatchers.Default) {
-            val formula=s.calculator(sec)
-            val addresses=(rowStart..lastRow).flatMap {r -> (colStart..lastColumn).map {c -> columnName(c)+r}}+listOfNotNull(address.takeIf {addressValid})
-            val raw=addresses.distinct().associateWith {formula.display(it)}
-            val formatted=raw.mapValues {(a,v) -> val styles=(sec.cellStyles[a] ?: emptyMap())+(s.edits.styles[sec.id+"#"+a] ?: emptyMap());CellFormatting.format(v,styles["numberFormat"],sec.date1904)}
-            SheetCalculation(raw,formatted)
-        }
-    }
-    Box(Modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxSize().background(Color.White)) {
-        Row(Modifier.padding(horizontal=8.dp,vertical=4.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-            OutlinedTextField(address,{address=it.uppercase()},label={Text("셀 주소")},singleLine=true,modifier=Modifier.width(80.dp),enabled=!busy,isError=!addressValid,
-                keyboardOptions=KeyboardOptions(imeAction=ImeAction.Go),keyboardActions=KeyboardActions(onGo={goToCell()}))
-            OutlinedTextField(input,{vm.field(sec.id+"#"+address,it)},label={Text("값 또는 =수식")},singleLine=true,modifier=Modifier.weight(1f),enabled=!busy && addressValid,
-                keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={focus.clearFocus()}))
-            FilledIconButton(onClick=goToCell,enabled=!busy){Icon(Icons.Default.Check,"셀로 이동")}
-        }
-        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-            Text("계산: ${if(addressValid) calculation.raw[address] ?: "계산 중…" else "주소 오류"}",style=MaterialTheme.typography.labelMedium,modifier=Modifier.weight(1f).padding(vertical=6.dp),maxLines=1,overflow=TextOverflow.Ellipsis)
-              if(tab=="수식" || tab=="홈") FormulaTools(input,!busy && addressValid) {vm.field(sec.id+"#"+address,it)}
-            if(s.format==Format.XLSX) TextButton(onClick={style=true},enabled=!busy && addressValid) {Text("선택 셀 서식")}
-        }
-        if(s.format==Format.XLSX && tab=="데이터") SheetRangeTools(s,sec,address,cells,vm,busy)
-        key(sec.id,rowStart,colStart,windowRequest) {
-        Box(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
-            LazyColumn {
-                stickyHeader { Row {CellBox("",false,{},mapOf("background" to "F4F6FA"),Modifier.width(44.dp));for(c in colStart..lastColumn) CellBox(columnName(c),false,{},mapOf("background" to "F4F6FA","bold" to "true"))} }
-                items((rowStart..lastRow).toList()) {r -> Row {
-                    CellBox(r.toString(),false,{},mapOf("background" to "F4F6FA"),Modifier.width(44.dp))
-                    for(c in colStart..lastColumn) {
-                        val a=columnName(c)+r;val styles=(sec.cellStyles[a] ?: emptyMap())+(s.edits.styles[sec.id+"#"+a] ?: emptyMap())
-                        if(a==address && editingCell) {
-                            val requester=remember {androidx.compose.ui.focus.FocusRequester()}
-                            androidx.compose.foundation.text.BasicTextField(cells[a] ?: "",{vm.field(sec.id+"#"+a,it)},enabled=!busy,singleLine=true,
-                                modifier=Modifier.width(112.dp).height(44.dp).border(2.dp,MaterialTheme.colorScheme.primary).padding(8.dp).focusRequester(requester).semantics {contentDescription="선택 셀 입력"},
-                                keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={editingCell=false;focus.clearFocus()}))
-                            LaunchedEffect(a) {requester.requestFocus()}
-                        } else CellBox(calculation.formatted[a] ?: "…",a==address,{if(!busy) {editingCell=a==address;address=a}},styles,Modifier.testTag("cell-"+a))
-                    }
-                } }
-            }
-        }
-        }
-    }
-    }
-    if(style) StyleDialog(sec.id+"#"+address,s.format,(sec.cellStyles[address] ?: emptyMap())+(s.edits.styles[sec.id+"#"+address] ?: emptyMap()),vm) {style=false}
-}
-private data class SheetCalculation(val raw: Map<String,String> = emptyMap(),val formatted: Map<String,String> = emptyMap())
-@Composable private fun CellBox(text: String,selected: Boolean,click: ()->Unit,styles: Map<String,String> = emptyMap(),modifier: Modifier=Modifier) {
-    val background=styles["background"]?.let {runCatching {Color(AndroidColor.parseColor("#$it"))}.getOrNull()} ?: Color.White
-    val color=styles["color"]?.let {runCatching {Color(AndroidColor.parseColor("#$it"))}.getOrNull()} ?: Color.Unspecified
-    val formatted=text
-    Box(modifier.width(112.dp).height(44.dp).border(if(selected) 2.dp else 0.5.dp,if(selected) Color(0xFF217346) else Color(0xFFE0E4EA)).background(if(selected) Color(0xFFEAF4EF) else background).clickable(onClick=click).padding(8.dp),contentAlignment=when(styles["align"]) {"center"->Alignment.Center;"right"->Alignment.CenterEnd;else->Alignment.CenterStart}) {
-        Text(formatted,maxLines=1,overflow=TextOverflow.Ellipsis,fontSize=(styles["size"]?.toFloatOrNull() ?: 13f).coerceIn(8f,28f).sp,color=color,fontWeight=if(styles["bold"]=="true") FontWeight.Bold else FontWeight.Normal)
-    }
 }
 
 @Composable

@@ -211,7 +211,8 @@ class DocumentRepository(private val context: Context) {
         require(!replacing || s.pdf?.archival != true) { "PDF/A 검증기를 제공하지 않습니다. 일반 PDF로 다른 이름으로 저장하세요." }
         val dir = s.base.parentFile!!; val stage = File(dir,"validated.bin"); val backup = File(dir,"provider-backup.bin")
         checkpointInternal(s)
-        when(s.format) {
+        if(s.format in visualFormats && s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty()) atomic(stage,s.base.readBytes())
+        else when(s.format) {
             Format.TXT,Format.MD -> atomic(stage,s.textContent!!.encode(s.edits.text)).also { TextContent.decode(stage.readBytes(),s.textContent.charset) }
             Format.PDF -> PdfEngine.write(s.base,stage,s.edits.strokes,s.pdf!!.archival,s.edits.values,s.edits.layers)
             Format.DOC,Format.XLS,Format.PPT,Format.HWP -> if(s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty()) atomic(stage,s.base.readBytes()) else s.legacy!!.write(stage,s.edits)
@@ -291,7 +292,7 @@ class DocumentRepository(private val context: Context) {
     }
     suspend fun render(s: Session,page: Int) = withContext(Dispatchers.IO) { PdfEngine.render(s.base,page,annotationPages=s.pdf?.annotatedPages) }
     suspend fun prepareOffice(s: Session): File = io {
-        require(s.format in officeFormats)
+        require(s.format in visualFormats)
         val dir=s.base.parentFile!!
         require(!File(dir,"office-pending.json").exists()) {"이 문서의 정밀 편집 복구본을 먼저 다시 열어 주세요."}
         checkpointInternal(s)
@@ -324,7 +325,7 @@ class DocumentRepository(private val context: Context) {
         if(!marker.exists()) return s
         val pending=JSONObject(AtomicFile(marker).openRead().use {it.bufferedReader().readText()})
         val name=pending.getString("working")
-        require(name.matches(Regex("office-[a-zA-Z0-9-]+\\.(docx|doc|xlsx|xls|pptx|ppt)")))
+        require(name.matches(Regex("office-[a-zA-Z0-9-]+\\.(docx|doc|xlsx|xls|pptx|ppt|hwp|hwpx)")))
         val working=File(dir,name)
         val closed=File(working.path+".closed")
         // A clean close is written after BYE has stopped native writers. Otherwise a
@@ -420,6 +421,7 @@ class DocumentRepository(private val context: Context) {
     private fun digestUri(uri: Uri): String = context.contentResolver.openInputStream(uri)?.use { digestStream(it) } ?: error("저장 검증을 위한 읽기 권한이 없습니다.")
     companion object {
         private val repositoryMutex=Mutex()
+        val visualFormats=EditorPolicy.visualFormats
         val officeFormats=setOf(Format.DOCX,Format.DOC,Format.XLSX,Format.XLS,Format.PPTX,Format.PPT)
         fun digest(file: File): String = file.inputStream().use { digestStream(it) }
         private fun digestStream(input: java.io.InputStream): String {

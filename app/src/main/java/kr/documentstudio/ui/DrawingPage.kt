@@ -65,12 +65,12 @@ fun DrawingPage(s: Session,sec: Section?,page: Int,settings: Settings,vm: Docume
     LaunchedEffect(Unit) {keyboard?.hide()}
     var renderRetry by remember {mutableIntStateOf(0)}
     var renderFailure by remember(s.base,page,renderRetry) {mutableStateOf<String?>(null)}
-    val image by key(s.base,page,renderRetry) {produceState<android.graphics.Bitmap?>(null) {
+    val image by key(s.base,page,s.edits.values,renderRetry) {produceState<android.graphics.Bitmap?>(null) {
         var loaded: android.graphics.Bitmap?=null
         try {
             if(s.format==Format.PDF) {
                 // Keep ownership here even if cancellation arrives as IO completes.
-                withContext(Dispatchers.IO) {loaded=PdfEngine.render(s.base,page)}
+                withContext(Dispatchers.IO) {loaded=PdfEngine.renderWorking(s,page)}
                 value=loaded
             }
             awaitDispose {loaded?.recycle()}

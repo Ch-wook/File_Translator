@@ -64,12 +64,12 @@ private fun ContinuousPage(s: Session,index: Int,busy: Boolean,edit: ()->Unit) {
     var retry by remember {mutableIntStateOf(0)}
     var failure by remember(s.base,index,retry) {mutableStateOf<String?>(null)}
     val ink=remember(s.edits.strokes,index) {s.edits.strokes.filter {it.anchor=="pdf:$index"}}
-    val bitmap by key(s.base,index,ink,retry) {produceState<Bitmap?>(null) {
+    val bitmap by key(s.base,index,s.edits.values,ink,retry) {produceState<Bitmap?>(null) {
         var loaded: Bitmap?=null
         try {
             readerSlots.withPermit {
                 withContext(Dispatchers.IO) {
-                    loaded=PdfEngine.render(s.base,index,annotationPages=s.pdf?.annotatedPages)
+                    loaded=PdfEngine.renderWorking(s,index)
                     val image=loaded!!;val canvas=Canvas(image)
                     ink.forEach {drawStroke(canvas,it,image.width.toFloat(),image.height.toFloat())}
                 }

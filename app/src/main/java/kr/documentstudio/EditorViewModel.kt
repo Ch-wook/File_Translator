@@ -17,7 +17,7 @@ data class Settings(val stylusOnly: Boolean=false,val fontSize: Float=16f,val en
 data class OfficeLaunchRequest(val sessionId: String,val token: String=java.util.UUID.randomUUID().toString())
 
 data class UiState(val tabs: List<Session> = emptyList(),val active: String?=null,val recents: List<Recent> = emptyList(),
-    val busy: Boolean=false,val message: String?=null,val settings: Settings=Settings(),val lockedBackupUri: String?=null,val officeLaunch: OfficeLaunchRequest?=null) {
+    val busy: Boolean=false,val message: String?=null,val settings: Settings=Settings(),val lockedBackupUri: String?=null,val officeLaunch: OfficeLaunchRequest?=null,val saveRequest: String?=null) {
     val session get() = tabs.firstOrNull { it.id==active }
 }
 class EditorViewModel(application: Application): AndroidViewModel(application) {
@@ -70,7 +70,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         s.recoveryWarning?.let {message(it)}
     }
     private fun requestVisual(s: Session,visual: Boolean) {
-        if(visual && mutable.value.settings.visualOffice && s.format in DocumentRepository.officeFormats && android.os.Build.VERSION.SDK_INT>=30)
+        if(visual && s.format in DocumentRepository.visualFormats && EditorPolicy.available(s.format,android.os.Build.VERSION.SDK_INT))
             mutable.value=mutable.value.copy(officeLaunch=OfficeLaunchRequest(s.id))
     }
     fun consumeOfficeLaunch(request: OfficeLaunchRequest) {
@@ -152,7 +152,8 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         val changed=repository.change(s,change);histories.getValue(s.id).record(s);replace(changed);lastTextEdit=0
     }
     fun openOffice(sessionId: String?=null,launch: (Session,java.io.File)->Unit) = action {
-        require(android.os.Build.VERSION.SDK_INT>=30) {"정밀 오피스 편집은 Android 11 이상에서 사용할 수 있습니다. 이 기기에서는 기본 편집 도구를 사용하세요."}
+        val format=document(sessionId)?.format ?: return@action
+        require(EditorPolicy.available(format,android.os.Build.VERSION.SDK_INT)) {"이 형식의 원본 편집 엔진은 Android 11 이상에서 사용할 수 있습니다."}
         val s=document(sessionId) ?: return@action
         val file=repository.prepareOffice(s)
         officeActive=s.id
@@ -162,13 +163,13 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
             throw e
         }
     }
-    fun finishOffice(id: String?) {
+    fun finishOffice(id: String?,saveOriginal: Boolean=false) {
         val target=id ?: officeActive
         officeActive=null;mutable.value=mutable.value.copy(busy=false)
         if(target==null) return
         action {
-            val s=mutable.value.tabs.firstOrNull {it.id==target}
-            if(s==null) attach(repository.restore(target)) else {
+            val s=mutable.value.tabs.firstOrNull {it.id==target} ?: repository.restore(target).also {attach(it)}
+            run {
                 val result=try {repository.acceptOffice(s)}
                 catch(e: CancellationException) {throw e}
                 catch(e: Exception) {
@@ -176,10 +177,15 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
                     throw e
                 }
                 if(result.base!=s.base) {histories.getValue(s.id).record(s);replace(result)}
+                if(saveOriginal) {
+                    if(result.uri!=null) {replace(repository.save(result,Uri.parse(result.uri)));message("원본 파일에 저장했습니다.")}
+                    else mutable.value=mutable.value.copy(saveRequest=result.id)
+                }
             }
-            message("정밀 편집 결과를 작업 복구본에 반영했습니다. 저장 버튼으로 파일에 저장하세요.")
+            if(!saveOriginal) message("편집 결과를 작업 복구본에 반영했습니다. 저장 버튼으로 원본 파일에 저장하세요.")
         }
     }
+    fun consumeSaveRequest(id: String) {if(mutable.value.saveRequest==id) mutable.value=mutable.value.copy(saveRequest=null)}
     fun archiveOfficeRecovery() = action {
         mutable.value.session?.let {replace(repository.archiveOfficeRecovery(it))}
         message("정밀 편집 복구 파일을 보관했습니다. 문서·필기 ZIP 백업에도 포함됩니다. 다시 정밀 편집을 시작할 수 있습니다.")

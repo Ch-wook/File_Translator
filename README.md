@@ -1,80 +1,46 @@
-# 문서 스튜디오 0.6.0 — Android 통합 문서 편집 앱
+# 문서 스튜디오 0.7.0-preview — Android 원본 문서 편집
 
-Kotlin·Compose 앱에 로컬 Collabora/LibreOffice 엔진을 통합했습니다. Word·Excel·PowerPoint는 **정밀 편집**에서 실제 페이지·시트·슬라이드를 보고 편집할 수 있습니다. 다른 앱 설치나 문서 서버 없이 실행합니다. 11개 확장자를 열고 지원하는 편집을 원본 형식으로 저장합니다.
+Android 앱 안에서 파일 형식별 엔진으로 문서를 엽니다. HWP/HWPX는 Rhwp의 실제 페이지 캔버스, Word·Excel·PowerPoint는 로컬 Collabora/LibreOffice의 Writer·Calc·Impress를 사용합니다. PDF는 원본 페이지의 내용 스트림에 연결된 글자와 이미지 출현을 선택해 수정합니다. 바이너리 문서를 추출 텍스트 입력창으로 편집하던 화면과 간이 스프레드시트 편집 화면은 제거했습니다.
 
-이번 버전은 요구사항을 크게 확장했지만 모든 전문 기능의 완성·호환성을 인증한 제품은 아닙니다. 한국어/영어 OCR, 두 문서 편집, 셀 연결 필기, 암호 백업을 추가했습니다. 한글 전문 조판·HWPX→HWP 역변환·PDF/A 인증·정밀 조판 후 필기 재배치와 실기기 검증은 남아 있습니다. [구현 범위](docs/SUPPORT_MATRIX.md)와 [검증 결과](docs/TEST_RESULTS.md)를 확인하세요.
+**검증용 프리뷰입니다.** 한컴/MS Office/Acrobat과 동일한 조판이나 모든 고급 요소의 무손실 저장을 보장하지 않습니다. [이번 변경·검증·제한](docs/ANDROID_DOCUMENT_ENGINES_20261024.md), [형식별 지원](docs/SUPPORT_MATRIX.md)을 먼저 확인하세요. 이전 버전의 테스트 결과를 이번 버전의 실기기 검증으로 표시하지 않습니다.
 
-## 문서·개체 편집 개선 (작업 브랜치)
+## Android에서 사용하기
 
-모바일 오피스가 읽기 모드로 시작하던 흐름을 바꿔 실제 편집 모드로 바로 진입합니다. `홈·삽입·개체`와 형식별 셀/슬라이드 도구에서 개체 위치·크기·순서, Word 자유 배치를 사용할 수 있습니다. 기본 슬라이드는 드래그 미리보기·크기/회전 핸들, 기본 문서는 문단 입력·선택 범위 서식·줄바꿈 저장을 보완했습니다. [변경 내용·검증·사용법](docs/EDITOR_WORKSPACE_20261024.md).
+1. 시스템 파일 선택기나 다른 앱의 공유/열기로 파일을 선택합니다. 새 문서와 최근 작업도 같은 형식별 엔진으로 연결됩니다.
+2. 한글/Word는 문서 본문이나 표 셀을 누르고 입력합니다. Excel은 실제 셀과 수식 입력줄을, PowerPoint는 슬라이드 목록과 개체 선택 핸들을 사용합니다.
+3. **저장 후 닫기**는 엔진의 작업 파일 저장과 앱의 원본 저장을 이어서 수행합니다. 새 문서는 시스템 저장 위치 선택기가 나타납니다. 작업 화면으로만 돌아오면 복구본을 유지하고 앱의 저장 버튼으로 원본에 반영합니다.
+4. PDF는 **편집** 탭에서 글자·이미지를 누릅니다. 지원되는 기존 본문은 그 위치에서 키보드로 입력하고, 이미지는 드래그·오른쪽 아래 핸들로 이동/크기를 조정합니다. 글꼴이 지원하지 않는 문자는 오류로 알립니다.
+5. 기존 손필기는 **그리기**에서 사용합니다. PDF 외 필기는 원본 본문과 별도 데이터이므로 기기 이동 전 ZIP 백업이 필요합니다.
 
-## 0.6.0 사용성 개편
+휴대폰은 접이식 도구와 문서 확대/탐색, 태블릿은 넓은 리본을 사용합니다. Android 파일 선택·이미지 선택·저장과 IME 키보드를 연결했습니다. 하드웨어 마우스/키보드·S펜·접근성·다중 창의 실제 기기 인수는 아직 필요합니다.
 
-- 홈에서 Word·Excel·PowerPoint·한글·PDF·Markdown·텍스트를 바로 만들고, 최근 파일을 형식과 즐겨찾기로 찾습니다.
-- Word/Excel/PowerPoint는 열기·새 문서·최근 작업에서 실제 오프라인 편집기로 바로 들어갑니다. 작은 화면은 모바일 도구, 태블릿은 리본을 사용합니다. 설정에서 자동 진입을 끌 수 있습니다.
-- 기본 편집도 형식별 도구 탭을 제공합니다. 본문은 종이 위에서 입력하고, 한글 표는 셀 격자에서 편집합니다. 스프레드시트는 셀을 두 번 눌러 입력하고 하단에서 시트를 바꿉니다. 발표는 슬라이드 캔버스, PDF는 읽기 화면으로 시작합니다.
-- 도구 이름 검색, 색상 팔레트, 방향/정렬 선택, 접이식 세부 서식을 제공합니다. 펜·형광펜·지우개·올가미·손과 레이어를 간결한 필기 막대에서 선택합니다.
+## 빌드
 
-[설치 APK 다운로드](https://github.com/Ch-wook/File_Translator/releases/latest/download/document-studio-release.apk) · [릴리스](https://github.com/Ch-wook/File_Translator/releases) · [개편 실행 계획](docs/UI_REDESIGN_PLAN_20261024.md) · [화면 예시](docs/UI_SCREENSHOTS.md)
+Android 10(API 29) 이상, arm64-v8a/x86_64. Word·Excel·PowerPoint 엔진은 Android 11(API 30) 이상에서 실행합니다. Android 10에서는 지원 불가를 알리며 추출 텍스트 편집기로 대신 열지 않습니다. HWP/HWPX·PDF·TXT·MD는 API 29부터 사용합니다. 최신 Android System WebView를 권장합니다.
 
-## 주요 기능
+JDK 17, SDK 36, NDK 28.2.13676358, CMake 3.22.1, Python 3.11 이상, Node.js 24/npm이 필요합니다. Gradle `preBuild`가 버전/해시가 고정된 오피스 바이너리와 Rhwp 소스·WASM·폰트를 `.engine-cache`에 준비합니다. 첫 빌드에는 네트워크와 충분한 공간이 필요합니다. 실행 중 문서 서버나 다른 앱 설치는 필요하지 않으며 APK에는 INTERNET/전체 저장소 접근 권한이 없습니다.
 
-- DOCX/DOC·XLSX/XLS·PPTX/PPT 정밀 편집: 앱 내부 별도 프로세스에서 네이티브 엔진 실행. 원본 대신 작업용 복사본을 전달하고 저장·닫기 후 검증된 결과를 불변 베이스로 가져옵니다. 앱의 실행 취소·원본 충돌 검사·필기 보존과 연결됩니다.
-- 기본 DOCX 도구: 글자·문단·자간·장평·위아래 첨자, 다단, 표 행열/병합/분할/배경/테두리, 이미지·링크·머리글·바닥글·쪽 번호.
-- 기본 XLSX 도구: 범위 복사/붙여넣기·채우기·삭제·정렬, 행열 삽입/삭제와 참조 갱신, 시트·병합·서식, 다른 시트 참조와 날짜·백분율 계산 표시. 무거운 표 계산은 백그라운드에서 처리합니다.
-- 기본 PPTX 도구: 슬라이드·개체 이동/크기/회전/순서/삭제, 이미지 삽입, 기본 개체 미리보기·발표·PDF 출력.
-- PDF 페이지 조작·병합·추출·축소판·연속 스크롤·북마크, 검색·선택·양식, 본문/이미지 추가, 직접 이미지의 위치·크기·삭제, 원래 폰트가 지원하는 기존 가로 본문 문자열 교체, 표준 Ink 저장.
-- HWPX 텍스트·글자/문단 서식·용지·표 생성/행열/병합/서식과 실제 새 문서, HWP 일반 문자 구간 편집. TXT/MD 입력·검색·인코딩·줄 번호·CommonMark/GFM 표 미리보기.
-- 공통 필기: 필압·기울기 입력, 여러 펜·형광펜·도형, 획 전체/부분 지우기, 올가미·이동·복사·회전·크기·삭제, 확대·손가락 탐색.
-- 탭·즐겨찾기·복구·Undo/Redo, SAF 원본 백업·해시 충돌 검사·저장 검증, ZIP 백업·필기 포함 PDF·인쇄. INTERNET/전체 저장소 접근 권한 없음.
-
-기본 Excel은 구현된 16개 함수의 이름·한국어 설명 검색과 입력 끝 함수 이름 완성을 제공합니다. 외부 열기/공유 요청은 진행 중인 명령이 끝난 뒤 순서대로 처리하며, 가져온 ZIP의 정밀 편집 실패 파일과 원본 백업은 재백업에도 보존합니다.
-
-0.4.0은 분할 편집/SAF 폴더, PDF 선택 문자 주석/가로 보기, 필압/보정/프리셋/레이어/종이, Markdown 체크/문법, HWPX 자간/장평/번호/다단, 셀 연결 필기, 번들 OCR, 암호 백업/임시 정리, XLSX 테두리/조건부 규칙/목록/표를 추가했습니다. [0.4.0 실행 계획](docs/EXECUTION_PLAN_20261017.md).
-
-0.5.0은 **HWP→HWPX 변환**을 추가했습니다. 새 탭에 결과를 열고 변환 전 HWP·현재 편집본·구역별 필기/레이어·점검 보고서를 보존합니다. 문단/셀별 텍스트·표 구조·각주/미주·그림 자원/참조·수식을 대조하고 지원하지 않는 제어는 중단합니다. [변환 사용법과 제한](docs/HANGUL_CONVERSION.md), [후속 실행 계획](docs/EXECUTION_PLAN_20261017_PHASE2.md).
-
-## 설치·빌드
-
-`artifacts/document-studio-release.apk`는 설치용, `document-studio-release.aab`는 배포용 번들입니다. `document-studio-source.zip`, 개발 APK와 SHA-256도 함께 제공합니다. 프로젝트 로컬 출시 키를 재사용하며 Play 업로드는 하지 않았습니다.
-
-Git 저장소에는 소스·리소스·테스트·문서를 포함합니다. APK/AAB와 검사 보고서는 아래 빌드·패키징 명령으로 `artifacts/`에 생성하며 Git에는 포함하지 않습니다. 서명 키·암호 설정·기기별 SDK 경로·다운로드한 엔진 캐시도 제외합니다.
-
-앱은 **Android 10 이상, arm64-v8a/x86_64**를 지원합니다. 로그 보호에 필요한 Android API 때문에 **정밀 편집은 Android 11 이상**에서 사용합니다. Android 10에서는 기본 편집 도구를 사용합니다. 두 ABI의 큰 엔진을 포함하므로 APK와 설치 공간이 기존 버전보다 크게 증가했습니다. debug/release 서명은 다르므로 전환 전 작업을 ZIP으로 백업하세요.
-
-JDK 17, SDK 36, NDK 28.2.13676358, CMake 3.22.1을 사용합니다. 첫 빌드는 고정 SHA-256으로 검증하는 공식 엔진 APK 약 523 MB와 Gradle 의존성을 다운로드합니다. 다운로드 자산은 `.engine-cache`에 저장하고 전달 소스 ZIP에서 제외합니다. [엔진 출처와 수정 소스](officeruntime/PROVENANCE.md).
-
-```powershell
-$env:JAVA_HOME = 'C:\Program Files\Java\jdk-17'
-.\gradlew.bat :core:test :app:assembleDebug :app:lintDebug
-.\gradlew.bat :app:connectedDebugAndroidTest
-.\scripts\verify-editing.ps1
-.\scripts\build-release.ps1
-.\scripts\verify-release.ps1
-.\scripts\package-delivery.ps1
+```sh
+./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+./gradlew :core:prepareVisualFixtures
+cd scripts/tests && npm ci && npx playwright install chromium && npm run test:hangul && npm test
+cd ../.. && ./gradlew :core:verifyVisualRoundTrip
+./gradlew :app:connectedDebugAndroidTest
 ```
 
-## 저장·필기·복구
+APK는 `app/build/outputs/apk/debug/app-debug.apk`에 생성합니다. 두 ABI의 네이티브 오피스와 오프라인 한글 엔진을 포함하므로 크고 설치 공간도 필요합니다. 이 프리뷰는 개발 서명 APK이며 기존 출시 서명과 다를 수 있습니다. 전환 전에 작업을 ZIP으로 백업하세요. 출시 키는 저장소에 포함하지 않습니다.
 
-정밀 편집에서 저장 후 닫으면 앱의 작업 복구본으로 돌아옵니다. 상단 **저장**으로 SAF 파일에 반영합니다. 엔진 강제 종료 시 마지막으로 엔진이 저장한 유효한 작업 파일을 복구합니다. 손상·동시 쓰기가 감지되면 이전 베이스를 유지하고 작업 파일을 보존합니다. 실패한 복구본은 문서 메뉴에서 보관한 뒤 다시 시작할 수 있고 ZIP의 `office-recovery/`에 포함됩니다.
+## 저장과 복구
 
-PDF 필기는 표준 Ink 주석에 포함합니다. 나머지는 **앱 내부 별도 필기 데이터**입니다. 기본 XLSX 필기는 셀 주소/크기에 연결해 기본 행열·시트 구조 변경을 추적합니다. 정밀 편집기의 페이지·셀에 자동 부착하거나 Word/HWP 본문 재배치를 추적하지는 않습니다. 원본만 옮기면 별도 필기는 따라가지 않습니다. 앱 삭제·서명 전환·기기 이동 전에 ZIP으로 백업하세요.
+엔진은 앱 전용 작업 복사본만 수정합니다. 형식/파싱·수정 충돌을 검사하고 불변 베이스로 가져온 뒤, 원본 저장 시 현재 파일 해시 비교·백업·쓰기 후 해시 검증·실패 시 복원을 수행합니다. 한글은 보존 불가 보고가 있으면 저장을 중단하고, 엔진이 모르는 누락된 패키지 파트/OLE 스트림도 보충합니다. 이것은 문서 전체의 완전한 무손실 보증은 아닙니다. 고급 문서는 원본을 별도로 보관하고 해당 상용 프로그램에서도 저장 결과를 확인해야 합니다.
 
-기본 편집은 입력 휴지 약 700 ms와 백그라운드 전환에 복구본을 기록합니다. 원본은 명시적 저장 시 바뀝니다. 강제 종료 직전 입력·진행 중 획은 유실될 수 있습니다. 실제 S펜·손바닥·Bluetooth 장치 검증은 아직 수행하지 않았습니다.
+한글 복구본은 입력 휴지 약 700ms 후 내보내며 앱 강제 종료 직전의 입력은 남지 않을 수 있습니다. 저장 실패 시 최근 변경을 버리고 마지막 유효 복구본으로 돌아가는 확인 동작을 제공합니다. 원본 문서의 렌더링 위에 별도 공통 필기를 자동 부착하는 기능은 제공하지 않습니다.
 
-## 문서
-
-- [0.5.0 후속 실행 계획](docs/EXECUTION_PLAN_20261017_PHASE2.md)
-- [HWP→HWPX 변환](docs/HANGUL_CONVERSION.md)
-- [0.4.0 실행 계획](docs/EXECUTION_PLAN_20261017.md)
-- [암호 백업](docs/BACKUP_ENCRYPTION.md)
-- [남은 전문 기능 인수 조건](docs/PROFESSIONAL_VALIDATION.md)
-- [전체 기능 검증·보완 계획과 진행 기록](docs/IMPLEMENTATION_PLAN.md)
-- [원문 기능별 인수 확인표](docs/FEATURE_ACCEPTANCE.md)
-- [형식별 지원과 남은 요구사항](docs/SUPPORT_MATRIX.md)
-- [테스트 결과](docs/TEST_RESULTS.md)
-- [빌드·서명·배포](docs/BUILD_AND_RELEASE.md)
-- [기술 설계·엔진 비교](docs/ARCHITECTURE.md)
-- [라이선스·비용·제약](docs/THIRD_PARTY.md)
 - [사용 안내](docs/USER_GUIDE.md)
-- [원문 요구사항](docs/REQUIREMENTS.ko.md)
+- [설계·형식별 기능·테스트 결과·미지원](docs/ANDROID_DOCUMENT_ENGINES_20261024.md)
+- [한글 엔진 출처와 빌드](web/hangul/PROVENANCE.md)
+- [Collabora 엔진 출처와 수정 소스](officeruntime/PROVENANCE.md)
+- [오픈소스 고지](docs/THIRD_PARTY.md)
+- [GitHub 릴리스](https://github.com/Ch-wook/File_Translator/releases)
+
+`docs`의 0.6.0 이하 기본 편집기 안내와 과거 테스트 기록은 변경 이력입니다. 현재 동작은 위 프리뷰 문서와 지원표가 우선합니다.

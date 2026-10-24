@@ -42,7 +42,7 @@ public final class StudioOfficeActivity extends LOActivity {
         try {
             File marker = new File(working.getPath() + ".closed");
             try (FileOutputStream out = new FileOutputStream(marker)) { out.write(1); out.getFD().sync(); }
-            setResult(RESULT_OK, new Intent().putExtra("sessionId", sessionId));
+            setResult(RESULT_OK, new Intent().putExtra("sessionId", sessionId).putExtra("saveOriginal", shouldSaveOriginal()));
         } catch (Exception failure) {
             setResult(RESULT_CANCELED, new Intent().putExtra("sessionId", sessionId));
         }

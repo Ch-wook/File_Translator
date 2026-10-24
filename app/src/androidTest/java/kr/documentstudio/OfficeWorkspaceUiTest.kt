@@ -27,7 +27,7 @@ class OfficeWorkspaceUiTest {
             compose.runOnUiThread {vm.change(DocumentChange("slide.rectangle",section,mapOf("x" to "2","y" to "2","width" to "4","height" to "3","color" to "2858A5")))};ready()
         }
         compose.onNodeWithContentDescription("문서 메뉴").performClick()
-        compose.onNodeWithText("정밀 오피스 편집").performScrollTo().performClick()
+        compose.onNodeWithText("원본 문서 편집").performScrollTo().performClick()
         compose.waitUntil(180000) {runCatching {call("state").getBoolean("editing") && eval("Boolean(window.studioOffice && studioOffice.ready && app.map.isEditMode())")=="true"}.getOrDefault(false)}
     }
     private fun close() {call("close");ready()}

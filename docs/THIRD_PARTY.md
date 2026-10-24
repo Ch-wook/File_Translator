@@ -1,3 +1,9 @@
+# 0.7.0-preview 한글 엔진 추가 (2026-10-24)
+
+Rhwp 0.8.7 MIT Rust/WASM 파서·페이지 렌더러·편집기를 APK에 포함합니다. [고정 버전·출처·로컬 수정](../web/hangul/PROVENANCE.md). 한컴 엔진은 아닙니다. 기존 hwplib/hwpxlib는 작업 가져오기/독립 파싱·변환·레거시 복구에도 사용하며 더 이상 기본 한글 추출 텍스트 편집 UI를 제공하지 않습니다.
+
+CanvasKit 0.42.0 BSD-3-Clause와 폰트(SIL OFL 1.1/GUST)의 원문 고지를 `app/src/main/assets/licenses`에 추가했습니다. Rhwp MIT·업스트림 전이 의존성 목록도 보존합니다. Cafe24/Happiness 폰트는 제외합니다. 다음 내용은 이전 버전에서 채택한 라이브러리의 기록이며 현재 사용자 편집 동작은 [지원표](SUPPORT_MATRIX.md)를 따릅니다.
+
 # 라이브러리·라이선스·제약 — 0.5.0
 
 검토일: 2026-10-17. 고지·라이선스 원문은 app/src/main/assets/licenses에 포함하고 앱 설정에서 표시합니다.

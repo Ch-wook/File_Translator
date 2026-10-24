@@ -29,6 +29,16 @@ import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory
 data class PdfForm(val name: String,val value: String,val kind: String,val options: List<String>,val readOnly: Boolean)
 data class PdfInfo(val pages: Int, val archival: Boolean,val forms: List<PdfForm> = emptyList(),val annotatedPages: Set<Int> = emptySet())
 object PdfEngine {
+    /** Reading/drawing must show pending in-place edits as well as the saved base. */
+    fun renderWorking(s: Session,page: Int): android.graphics.Bitmap {
+        if(s.edits.values.isEmpty()) return render(s.base,page,annotationPages=s.pdf?.annotatedPages)
+        val stage=java.io.File.createTempFile("pdf-working-",".pdf",s.base.parentFile)
+        try {
+            write(s.base,stage,emptyList(),false,s.edits.values)
+            return render(stage,page)
+        } finally {stage.delete()}
+    }
+
     private const val PREFIX = "DocumentStudio:"
     fun inspect(file: File): PdfInfo = PDDocument.load(file).use { doc ->
         require(!doc.isEncrypted) { "암호화된 PDF는 지원하지 않습니다." }
@@ -60,6 +70,7 @@ object PdfEngine {
         InkLayers.validate(layers)
         require(strokes.all {s->layers.any {it.id==s.layerId}})
         PDDocument.load(base).use { doc ->
+            PdfTextEdits.apply(doc,values)
             doc.documentCatalog.cosObject.setString("StudioLayers",StateCodec.layers(layers).toString())
             values.filterKeys {it.startsWith("pdf:form#")}.forEach {(key,value)->
                 val field=doc.documentCatalog.acroForm?.getField(key.removePrefix("pdf:form#")) ?: error("PDF 양식 필드를 찾을 수 없습니다.")

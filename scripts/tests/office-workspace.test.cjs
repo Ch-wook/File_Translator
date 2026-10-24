@@ -9,6 +9,7 @@ function workspace(family = 'text', permission = 'edit') {
     url: `file:///android_asset/dist/cool.html?permission=${permission}`, runScripts: 'outside-only'
   });
   const w = dom.window, commands = [], states = {}, listeners = {};
+  const mobile=[];w.postMobileMessage=message=>mobile.push(message);
   let tick, editing = false, selected = false, requested = 0, keys = [];
   w.setInterval = f => { tick=f; return 1; }; w.clearInterval = () => {};
   w.GraphicSelection = { hasActiveSelection: () => selected };
@@ -28,7 +29,7 @@ function workspace(family = 'text', permission = 'edit') {
     const b=[...w.document.querySelectorAll('#studio-office-tools button')].find(b=>b.textContent===label);
     assert.ok(b, `Missing ${label}`); b.click(); return b;
   };
-  return {w, commands, states, click, keys, tick, close:()=>w.close(), requests:()=>requested,
+  return {w, commands, states, click, keys, mobile, tick, close:()=>w.close(), requests:()=>requested,
     select: value=>{selected=value;tick();}, edit:value=>{editing=value;listeners.updatepermission?.();},
     button:label=>[...w.document.querySelectorAll('button')].find(b=>b.textContent===label)};
 }
@@ -79,5 +80,12 @@ test('clipboard commands use the engine clipboard bridge without duplicate UNO d
     s.click('잘라내기');s.click('붙여넣기');s.click('굵게');
     assert.deepEqual(clipboard,['.uno:Cut','.uno:Paste']);assert.deepEqual(s.commands.map(c=>c.name),['.uno:Bold']);
     s.w.eval(source);assert.equal(s.w.document.querySelectorAll('#studio-office-tools').length,1);assert.equal(s.requests(),1);
+  } finally {s.close();}
+});
+
+test('save and close requests the native durable-save lifecycle only in edit mode', () => {
+  const s=workspace();try {
+    s.click('저장 후 닫기');assert.deepEqual(s.mobile,['DOCUMENT_STUDIO_SAVE_AND_CLOSE']);
+    s.edit(false);s.click('저장 후 닫기');assert.equal(s.mobile.length,1);
   } finally {s.close();}
 });

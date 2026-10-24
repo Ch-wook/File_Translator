@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>한글 문서 편집</title>
+<link rel="stylesheet" href="/host.css"></head><body>
+<header><button id="back">작업 화면</button><strong id="title">한글 문서 편집</strong><button id="save" disabled>저장 후 닫기</button></header>
+<div id="status-row"><div id="status" role="status">한글 편집 엔진을 준비하고 있습니다…</div><button id="discard" hidden>저장되지 않은 변경 취소</button></div>
+<iframe id="engine" title="한글 원본 문서 편집 캔버스" src="/engine/index.html?chrome=embed&renderer=canvas2d"></iframe>
+<script src="/host.js" type="module"></script></body></html>

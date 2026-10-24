@@ -7,10 +7,12 @@ android {
         minSdk = 29
         targetSdk = 36
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
-        versionCode = 7
-        versionName = "0.6.0"
+        versionCode = 8
+        versionName = "0.7.0-preview"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+    sourceSets.getByName("main").assets.srcDir(rootProject.file(".engine-cache/hangul/runtime"))
+    testOptions {unitTests.isIncludeAndroidResources=true}
     buildFeatures { compose = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
@@ -28,6 +30,8 @@ android {
     packaging { resources.excludes += setOf("META-INF/DEPENDENCIES", "META-INF/LICENSE", "META-INF/LICENSE.txt", "META-INF/NOTICE", "META-INF/NOTICE.txt", "META-INF/versions/**", "META-INF/services/javax.xml.stream.*"); jniLibs.keepDebugSymbols += "**/*.so" }
 }
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.17")
     androidTestImplementation("kr.dogfoot:hwplib:1.1.10") { exclude(group="org.apache.poi") }
     implementation(project(":officeruntime"))
     implementation(project(":core"))
@@ -54,3 +58,11 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
+
+val prepareHangulEngine by tasks.registering(Exec::class) {
+    commandLine("python3",rootProject.file("scripts/prepare-hangul-engine.py").absolutePath)
+    inputs.dir(rootProject.file("web/hangul"))
+    inputs.file(rootProject.file("scripts/prepare-hangul-engine.py"))
+    outputs.dir(rootProject.file(".engine-cache/hangul/runtime"))
+}
+tasks.named("preBuild") {dependsOn(prepareHangulEngine)}

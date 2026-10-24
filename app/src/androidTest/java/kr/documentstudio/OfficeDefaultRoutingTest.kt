@@ -36,12 +36,14 @@ class OfficeDefaultRoutingTest {
             assertNull(model.state.value.officeLaunch)
         }
     }
-    @Test fun optOutAndNonOfficeDocumentsStayInTheirOwnWorkspace()=scenario {model->
+    @Test fun legacyOptOutCannotReenableExtractedTextEditors()=scenario {model->
         main {model.settings(Settings(visualOffice=false));model.create(Format.DOCX,visual=true)};await(model)
-        assertNull(model.state.value.officeLaunch)
-        main {model.settings(Settings(visualOffice=true));model.create(Format.HWPX,visual=true)};await(model)
-        assertNull(model.state.value.officeLaunch)
-        main {model.create(Format.PDF,visual=true)};await(model)
+        assertEquals(Format.DOCX,model.state.value.session!!.format)
+        assertNotNull(model.state.value.officeLaunch)
+        main {model.consumeOfficeLaunch(model.state.value.officeLaunch!!);model.settings(Settings(visualOffice=true));model.create(Format.HWPX,visual=true)};await(model)
+        assertEquals(Format.HWPX,model.state.value.session!!.format)
+        assertNotNull(model.state.value.officeLaunch)
+        main {model.consumeOfficeLaunch(model.state.value.officeLaunch!!);model.create(Format.PDF,visual=true)};await(model)
         assertNull(model.state.value.officeLaunch)
     }
     @Test fun openingAndRestoringExistingOfficeRequestsCorrectSession()=scenario {model->

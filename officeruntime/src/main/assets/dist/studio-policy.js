@@ -91,6 +91,7 @@
     hint=document.createElement('div'); hint.id='studio-office-hint';
     const names=['홈','삽입','개체']; if(map().getDocType()==='spreadsheet') names.push('셀'); if(map().getDocType()==='presentation') names.push('슬라이드');
     names.forEach(name => {const b=button(name,()=>{activeTab=name;bar.dataset.collapsed='false';render();},tabs);b.setAttribute('role','tab');});
+    button('저장 후 닫기',()=>{if(editable()) window.postMobileMessage('DOCUMENT_STUDIO_SAVE_AND_CLOSE');},tabs);
     const toggle=button('도구 접기',()=>{const collapsed=bar.dataset.collapsed!=='true';bar.dataset.collapsed=String(collapsed);toggle.textContent=collapsed?'도구 펼치기':'도구 접기';toggle.setAttribute('aria-label',toggle.textContent);toggle.setAttribute('aria-expanded',String(!collapsed));map().invalidateSize();},tabs);
     toggle.id='studio-office-toggle';toggle.setAttribute('aria-expanded','true');
     bar.append(tabs,actions,hint);wrapper.appendChild(bar);

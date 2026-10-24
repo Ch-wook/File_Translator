@@ -9,3 +9,12 @@ dependencies {
     // Desktop parser only in JVM verification; never included in the Android app.
     testImplementation("org.apache.poi:poi-ooxml:5.4.1")
 }
+
+listOf("prepareVisualFixtures" to "prepare","verifyVisualRoundTrip" to "verify").forEach {(taskName,mode)->
+    tasks.register<JavaExec>(taskName) {
+        dependsOn(tasks.testClasses)
+        classpath=sourceSets.test.get().runtimeClasspath
+        mainClass.set("kr.documentstudio.core.VisualFixtureTool")
+        args(mode,layout.buildDirectory.dir("visual-fixtures").get().asFile.absolutePath)
+    }
+}
