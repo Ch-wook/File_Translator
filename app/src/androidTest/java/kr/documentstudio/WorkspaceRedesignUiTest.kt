@@ -59,12 +59,15 @@ class WorkspaceRedesignUiTest {
         assertEquals("true",vm.state.value.session!!.edits.styles[field.id]?.get("bold"))
         compose.onNodeWithContentDescription("실행 취소").performClick()
         compose.onNodeWithContentDescription("다시 실행").performClick()
+        compose.runOnUiThread {vm.style(field.id,mapOf("size" to "36","lineSpacing" to "1.5"))}
+        compose.waitForIdle()
         screenshot("hangul-paper")
         tab("레이아웃");compose.activityRule.scenario.recreate();compose.waitForIdle()
         compose.onNodeWithTag("ribbon-레이아웃").assertIsSelected()
         val reopened=PackageDocument.open(save("hwpx"))
         assertEquals("사용하기 쉬운 문서 편집",reopened.sections.first().fields.first().text)
         assertEquals("true",reopened.sections.first().fields.first().styles["bold"])
+        assertEquals(36f,reopened.sections.first().fields.first().styles["size"]!!.toFloat(),0.01f)
     }
     @Test fun selectedCellAcceptsInputAndSheetTabsPreserveValues() {
         create(Format.XLSX)

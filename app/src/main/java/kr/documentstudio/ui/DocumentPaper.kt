@@ -84,10 +84,12 @@ private fun PaperTable(s: Session,block: PaperBlock,vm: DocumentActions,busy: Bo
 @Composable
 private fun BodyField(s: Session,f: Field,vm: DocumentActions,busy: Boolean,select: (String)->Unit) {
     val props=f.styles+(s.edits.styles[f.id] ?: emptyMap())
+    val fontSize=((props["size"]?.toFloatOrNull()?.takeIf {it.isFinite()} ?: 12f)*1.33f).coerceIn(12f,60f)
+    val lineSpacing=(props["lineSpacing"]?.toFloatOrNull()?.takeIf {it.isFinite()} ?: 1.6f).coerceIn(1f,5f)
     val ink=props["color"]?.let {runCatching {Color(AndroidColor.parseColor("#"+it.removePrefix("#")))}.getOrNull()} ?: Color(0xFF1E2633)
     val decoration=listOfNotNull(if(props["underline"]=="true") TextDecoration.Underline else null,if(props["strike"]=="true") TextDecoration.LineThrough else null)
     BasicTextField(s.edits.values[f.id] ?: f.text,{vm.field(f.id,it)},enabled=!busy,
         modifier=Modifier.fillMaxWidth().heightIn(min=36.dp).onFocusChanged {if(it.isFocused) select(f.id)}.semantics {contentDescription=f.label}.testTag("body-field-${f.id}"),
-        textStyle=LocalTextStyle.current.copy(textAlign=when(props["align"]) {"center"->TextAlign.Center;"right"->TextAlign.Right;"both"->TextAlign.Justify;else->TextAlign.Start},lineHeight=26.sp,fontWeight=if(s.edits.bold[f.id] ?: props["bold"]?.toBoolean() ?: f.bold) FontWeight.Bold else FontWeight.Normal,fontStyle=if(props["italic"]=="true") FontStyle.Italic else FontStyle.Normal,color=ink,textDecoration=if(decoration.isEmpty()) TextDecoration.None else TextDecoration.combine(decoration),fontSize=((props["size"]?.toFloatOrNull() ?: 12f)*1.33f).coerceIn(12f,60f).sp),
+        textStyle=LocalTextStyle.current.copy(textAlign=when(props["align"]) {"center"->TextAlign.Center;"right"->TextAlign.Right;"both"->TextAlign.Justify;else->TextAlign.Start},lineHeight=(fontSize*lineSpacing).sp,fontWeight=if(s.edits.bold[f.id] ?: props["bold"]?.toBoolean() ?: f.bold) FontWeight.Bold else FontWeight.Normal,fontStyle=if(props["italic"]=="true") FontStyle.Italic else FontStyle.Normal,color=ink,textDecoration=if(decoration.isEmpty()) TextDecoration.None else TextDecoration.combine(decoration),fontSize=fontSize.sp),
         cursorBrush=SolidColor(MaterialTheme.colorScheme.primary),decorationBox={inner->Box(Modifier.fillMaxWidth().padding(vertical=4.dp)) {if((s.edits.values[f.id] ?: f.text).isEmpty()) Text("여기에 입력하세요",color=Color(0xFF9CA6B5),style=MaterialTheme.typography.bodySmall);inner()}})
 }
