@@ -93,9 +93,11 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         setPresentation(s.id,if(EditorPolicy.available(s.format,android.os.Build.VERSION.SDK_INT)) PresentationState.READING else PresentationState.READ_ONLY)
         s.recoveryWarning?.let {message(it)}
     }
-    private fun requestVisual(s: Session,visual: Boolean) {
-        if(s.format in DocumentRepository.visualFormats && EditorPolicy.available(s.format,android.os.Build.VERSION.SDK_INT))
-            mutable.value=mutable.value.copy(officeLaunch=OfficeLaunchRequest(s.id))
+    private fun requestVisual(s: Session,visual: Boolean,openIntent: OpenIntent=OpenIntent.VIEW) {
+        if(!EditorPolicy.available(s.format,android.os.Build.VERSION.SDK_INT)) return
+        if(s.format in DocumentRepository.visualFormats)
+            mutable.value=mutable.value.copy(officeLaunch=OfficeLaunchRequest(s.id,openIntent))
+        else if(openIntent==OpenIntent.EDIT) setPresentation(s.id,PresentationState.EDITING)
     }
     fun consumeOfficeLaunch(request: OfficeLaunchRequest) {
         if(mutable.value.officeLaunch==request) mutable.value=mutable.value.copy(officeLaunch=null)
@@ -114,10 +116,9 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     fun open(uri: Uri,visual: Boolean=false,openIntent: OpenIntent=OpenIntent.VIEW) = action {
         mutable.value=mutable.value.copy(officeLaunch=null)
         mutable.value.tabs.firstOrNull {it.uri==uri.toString()}?.let {
-            lastTextEdit=0;mutable.value=mutable.value.copy(active=it.id);setPresentation(it.id,PresentationState.READING);requestVisual(it,visual);if(openIntent==OpenIntent.EDIT) {if(it.format in DocumentRepository.visualFormats) mutable.value=mutable.value.copy(officeLaunch=OfficeLaunchRequest(it.id,openIntent)) else setPresentation(it.id,PresentationState.EDITING)};return@action
+            lastTextEdit=0;mutable.value=mutable.value.copy(active=it.id);setPresentation(it.id,PresentationState.READING);requestVisual(it,visual,openIntent);return@action
         }
-        val s=repository.open(uri,mutable.value.settings.encoding); attach(s);requestVisual(s,visual)
-        if(openIntent==OpenIntent.EDIT) {if(s.format in DocumentRepository.visualFormats) mutable.value=mutable.value.copy(officeLaunch=OfficeLaunchRequest(s.id,openIntent)) else setPresentation(s.id,PresentationState.EDITING)}
+        val s=repository.open(uri,mutable.value.settings.encoding); attach(s);requestVisual(s,visual,openIntent)
         val ext=s.name.substringAfterLast('.',"").lowercase()
         if(ext.isNotEmpty() && ext != s.format.extension && ext != "markdown") message("파일 내용은 ${s.format.extension.uppercase()} 형식입니다. 저장할 때 올바른 확장자를 사용하세요.")
         else if(s.dirty && s.uri!=null) message("저장되지 않은 작업 복구본을 열었습니다.")

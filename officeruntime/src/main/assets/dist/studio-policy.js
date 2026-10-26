@@ -29,7 +29,7 @@
   document.head.appendChild(style);
   let attempts = 0;
   let bar, actions, hint, tabs, modeButton, modeLabel, saveButton;
-  let transitionViewport, persistTimer;
+  let transitionViewport, persistTimer, lastViewport='';
   let activeTab = '홈';
   const controls = [];
   const map = () => window.app && app.map;
@@ -48,21 +48,25 @@
   }
   function restore(value) {
     if (!validViewport(value)) return;
-    const apply = () => {
+    const drain = task => window.app?.layoutingService?.onDrain ? app.layoutingService.onDrain(task) : setTimeout(task,0);
+    drain(() => {
       if (!map()) return;
       const layout = window.app?.activeDocument?.activeLayout;
       if (!layout) return;
       if (map().getCurrentPartNumber?.() !== value.part) map().setPart?.(value.part);
       layout.applyZoom?.(value.zoom);
-      const ratio = window.app.twipsToPixels;
-      if (Number.isFinite(ratio)) layout.scrollTo?.(value.x * ratio, value.y * ratio);
-    };
-    setTimeout(apply, 0);
-    setTimeout(apply, 120);
+      drain(() => {
+        const current=window.app?.activeDocument?.activeLayout, ratio=window.app.twipsToPixels;
+        if (Number.isFinite(ratio)) current?.scrollTo?.(value.x*ratio,value.y*ratio);
+      });
+    });
   }
   function persistViewport() {
     const value = snapshot();
-    if (validViewport(value)) bridge()?.saveStudioViewState?.(JSON.stringify(value));
+    if (validViewport(value)) {
+      const text=JSON.stringify(value);
+      if (text!==lastViewport) {bridge()?.saveStudioViewState?.(text);lastViewport=text;}
+    }
   }
   function rememberViewport() {
     clearTimeout(persistTimer); persistTimer=setTimeout(persistViewport,250);
@@ -193,7 +197,8 @@
         if(policy.modeSupported && new URLSearchParams(location.search).get('studioopen')==='EDIT') map()._switchToEditMode();
       }
     }
-    if(++attempts>=300) clearInterval(timer);
+    if(policy.ready && attempts%5===0) persistViewport();
+    if(++attempts>=300 && !policy.ready) clearInterval(timer);
   },200);
   window.addEventListener('pagehide',()=>{persistViewport();clearInterval(timer);clearTimeout(persistTimer);},{once:true});
 })();

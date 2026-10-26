@@ -271,7 +271,7 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
 }
 
 @Composable
-internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false,readOnly: Boolean=false) {
+internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false,readOnly: Boolean=true) {
     val onChange by rememberUpdatedState(change)
     val onFocused by rememberUpdatedState(focused)
     var editor by remember {mutableStateOf<LineNumberEditText?>(null)}

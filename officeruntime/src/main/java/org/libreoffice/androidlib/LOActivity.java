@@ -1651,8 +1651,7 @@ public class LOActivity extends AppCompatActivity {
                     || command.equals("contentcontrolevent")
                     || command.equals("graphicselection") || command.equals("selectgraphic")
                     || (command.equals("setviewreadonly") && argument.contains("value=false"))) return false;
-            if (command.equals("uno") && !argument.startsWith(".uno:Copy")
-                    && !argument.startsWith(".uno:SelectAll") && !argument.startsWith(".uno:ExecuteSearch")) return false;
+            if (command.equals("uno") && !OfficeEditPolicy.allowsViewUno(argument)) return false;
             if (command.equals("save")) return false;
         }
         if (command.equals("save") || (command.equals("uno") && (argument.equals(".uno:Save") || argument.startsWith(".uno:Save ")))) {

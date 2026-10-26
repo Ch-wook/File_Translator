@@ -143,7 +143,7 @@ class PdfObjectCanvas(context: Context): FrameLayout(context) {
 }
 
 @Composable
-fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readOnly: Boolean=false) {
+fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readOnly: Boolean=true) {
     val scope=rememberCoroutineScope()
     val verticalPosition=rememberScrollState()
     val horizontalPosition=rememberScrollState()

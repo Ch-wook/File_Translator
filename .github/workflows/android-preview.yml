@@ -48,7 +48,7 @@ jobs:
           restore-keys: android-gradle-${{ runner.os }}-
       - name: Unit tests and APK builds
         run: |
-          ./gradlew :core:test :core:prepareVisualFixtures :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/gradle.log
+          ./gradlew :core:test :core:prepareVisualFixtures :officeruntime:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/gradle.log
       - name: JavaScript permissions and actual Rhwp browser tests
         run: |
           npm ci --prefix scripts/tests
@@ -74,7 +74,7 @@ jobs:
           profile: pixel_7
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 3072
-          script: bash -o pipefail -c './gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=kr.documentstudio.P0ModeUiTest --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/android-emulator.log'
+          script: bash -o pipefail -c './gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/android-emulator.log'
       - name: Verify debug APK and package reproducible evidence
         env:
           EMULATOR_OUTCOME: ${{ steps.android.outcome }}
@@ -104,7 +104,7 @@ jobs:
               subprocess.run(['git','diff','--binary','2bfe225ab040e3cb9251a8cafce9578ea3d9b645','HEAD'],stdout=f,check=True)
           subprocess.run(['git','bundle','create',str(out/(name+'-history.bundle')),'--all'],check=True)
           reports={}
-          for module in ('core','app'):
+          for module in ('core','officeruntime','app'):
               suites=[]
               for p in (root/module/'build/test-results').rglob('TEST-*.xml'):
                   t=ET.parse(p).getroot()
@@ -117,7 +117,7 @@ jobs:
           summary={'commit':os.environ['GITHUB_SHA'],'baseline':'2bfe225ab040e3cb9251a8cafce9578ea3d9b645','provenance':'reimplementation; previous unpushed 0.8.0 not recovered','physicalDeviceTested':False,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],'unitTests':reports,'apkBytes':apk.stat().st_size,'debugSigned':True}
           (root/'artifacts/ci/summary.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2))
           with zipfile.ZipFile(out/(name+'-verification.zip'),'w',zipfile.ZIP_DEFLATED) as z:
-              for folder in ('artifacts/ci','artifacts/document-engines','core/build/test-results','app/build/test-results','app/build/outputs/androidTest-results','app/build/reports','core/build/visual-fixtures'):
+              for folder in ('artifacts/ci','artifacts/document-engines','core/build/test-results','officeruntime/build/test-results','app/build/test-results','app/build/outputs/androidTest-results','app/build/reports','core/build/visual-fixtures'):
                   for p in (root/folder).rglob('*'):
                       if p.is_file(): z.write(p,p.relative_to(root))
           text='문서 스튜디오 '+name.removeprefix('document-studio-')+' — 검증용 프리뷰\n\n기준 원격 커밋 2bfe225에서 재구현했습니다. 이전 미푸시 0.8.0 소스는 복구하지 못했습니다.\n개발/디버그 서명 APK · arm64-v8a 및 x86_64 · Android 10 이상(Office는 Android 11 이상).\n실제 Android 휴대폰 종합 검증은 수행하지 않았습니다. 에뮬레이터 결과: '+os.environ['EMULATOR_OUTCOME']+'\nJUnit 결과: '+json.dumps(reports,ensure_ascii=False)+'\n실행한 검사·입출력 샘플·제한은 verification ZIP을 확인하세요. 모든 문서의 서식 보존을 보장하지 않습니다.\n기존 설치와 서명이 다르면 바로 업데이트되지 않습니다. 앱의 기존 작업을 보존한 상태에서 확인하세요.\n\n커밋: '+os.environ['GITHUB_SHA']+'\n'
@@ -174,5 +174,6 @@ jobs:
             app/build/reports/
             app/build/outputs/androidTest-results/
             core/build/test-results/
+            officeruntime/build/test-results/
             app/build/test-results/
           if-no-files-found: warn

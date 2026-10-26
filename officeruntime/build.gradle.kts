@@ -35,6 +35,8 @@ android {
 }
 tasks.named("preBuild") { dependsOn(prepareEngine) }
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     implementation("r8:keepanno-annotations:9.3.16")
     api("androidx.appcompat:appcompat:1.7.1")
     implementation("com.google.android.material:material:1.13.0")
