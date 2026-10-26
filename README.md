@@ -4,6 +4,12 @@ Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하
 
 이 버전은 확인 가능한 원격 `2bfe225`에서 **재구현**했습니다. 이전 환경의 미푸시 0.8.0 소스·패치·APK는 회수하지 못했습니다. [출처와 감사](docs/ORIGINAL_VIEW_AUDIT.md), [검증 자료 안내](docs/ORIGINAL_VIEW_RESULTS.md)를 확인하세요.
 
+## 다운로드
+
+[Android APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.1-preview/document-studio-0.8.1-preview-debug.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.1-preview/document-studio-0.8.1-preview-source.zip) · [해시·패치·Git 이력·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.1-preview)
+
+APK는 약 638 MB인 개발 서명 프리뷰입니다. 실제 휴대폰 종합 인수 전의 빌드이며 지원 범위와 검증 결과를 먼저 확인하세요.
+
 ## 휴대폰에서 사용하기
 
 1. **파일 열기** 또는 최근 작업에서 문서를 선택합니다. 먼저 원본 문서를 봅니다.
@@ -36,7 +42,7 @@ APK는 [GitHub Releases](https://github.com/Ch-wook/File_Translator/releases)에
 JDK 17, Node.js 24, Python 3.11 이상, SDK 36, Build Tools 35.0.0, NDK 28.2.13676358, CMake 3.22.1이 필요합니다. 최초 빌드에 고정 해시의 엔진 다운로드와 충분한 공간이 필요합니다.
 
 ```sh
-./gradlew :core:test :core:prepareVisualFixtures :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=2 --console=plain
+./gradlew :core:test :core:prepareVisualFixtures :officeruntime:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=2 --console=plain
 npm ci --prefix scripts/tests
 node --test scripts/tests/*.test.cjs
 (cd scripts/tests && npx playwright install --with-deps chromium && npm run test:hangul)

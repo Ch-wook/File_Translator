@@ -9,7 +9,7 @@
 - `aa3be049e29e34095ed6b3a9651af17659b638a2` 및 `d87a441c4b61962071c025961f506c610338f228` 조회는 GitHub의 "No commit found" 응답을 반환했습니다.
 - 인수인계서에 기록된 0.8.0 소스 ZIP·패치·로컬 Git 이력·APK에는 접근하지 못했습니다. 환경 장애가 파일 삭제나 손상을 증명하지는 않습니다.
 - 따라서 이 브랜치는 0.8.0 복구본이 아니라 확인 가능한 원격 소스에서 만든 재구현입니다. 과거 커밋 SHA나 과거 APK 해시의 복원을 주장하지 않습니다.
-- 이전 원격 브랜치와 Release를 덮어쓰지 않고 `codex/original-view-reimplementation`에서 작업합니다.
+- 기존 코드에서 이어지는 `codex/original-view-reimplementation`에서 작업했습니다. 검증·Release를 완료한 뒤 기존 `codex/document-engines`는 확인한 이전 SHA를 조건으로 fast-forward하며 force push하지 않습니다. 이전 Release는 변경하지 않습니다.
 
 ## 확인한 기존 동작
 

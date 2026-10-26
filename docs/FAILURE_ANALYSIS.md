@@ -17,6 +17,9 @@ GitHub 앱을 통한 원격 파일 읽기와 브랜치 쓰기는 실제로 성�
 | Android HWP/HWPX 모드 버튼 터치 불일치 | WebView 자체 padding의 접근성 좌표와 터치 좌표가 달랐습니다. 바깥 FrameLayout에 시스템/IME inset을 적용합니다. 실제 Android 에뮬레이터의 두 모드 검사가 통과했습니다. |
 | Office 도구와 문서 겹침 | 업스트림 Calc 모바일 보기 CSS가 문서를 fixed/top:36px로 배치했습니다. 이 호스트의 도구를 표시하고 위에 두며 문서는 정상 레이아웃 흐름에 배치합니다. |
 | Office 위치 메타데이터 누락 | 실제 APK와 최신 정책의 바이트 일치를 확인한 뒤, 제한된 로컬 오류 진단에서 Writer의 map.invalidateSize 부재를 확인했습니다. 이 호출이 도구 설치 마지막에서 중단되어 ready가 설정되지 않았습니다. 고정 엔진의 activeLayout.onResize를 사용합니다. part는 Writer 0·시트/슬라이드 실제 번호로 구분합니다. |
+| Word 전환 뒤 세로 위치가 0으로 이동 | 실제 APK의 추적에서 복원 직후 y=10260이었으나 키보드 표시로 viewport 높이가 1478→703으로 바뀌면서 네이티브 Writer가 scrollY를 0으로 재설정했습니다. 기존 ViewState 복원만으로는 지연 갱신을 모두 막지 못했습니다. Writer의 실제 refreshVisibleAreaRectangle 경로에서 요청한 scrollProperties 오프셋을 유지하여 화면 좌표를 계산하게 했으며, 문서의 실제 터치·탐색·입력이나 편집 명령이 시작되면 해제합니다. 초기 위치 복원 전 메타데이터 쓰기·편집 진입도 막습니다. 실제 Android에서 편집 진입과 보기 복귀 모두 y=10260·확대율을 유지하고 파일 해시가 같은지 검사합니다. |
+| DOC 종료 직후 잠금 확인 경쟁 | 프로세스 조회가 끝난 직후에도 파일 잠금이 해제 중일 수 있었습니다. 실제 잠금의 해제를 제한된 시간 동안 기다린 뒤 해시를 검사합니다. |
+| 한글 Android 시험의 화면 탐지 실패 | 에뮬레이터 Quickstep의 응답 없음 창이 로드된 WebView를 가렸습니다. 문서 시험 전에 해당 AOSP 런처를 정리하고 실제 문서 표시·버튼·파일 해시를 다시 검사합니다. 앱 자체의 오류를 통과로 바꾸지 않습니다. |
 | Word 위치 테스트 불일치 | 가짜 Writer 엔진이 존재하지 않는 part 2로 시작했습니다. Writer 0·Calc/Impress 2로 모델을 구분하고 세 형식 모두 왕복 보존을 검사합니다. |
 | Office 정상 종료 표시 누락 | 에뮬레이터의 프로세스 종료 로그와 sending-native-bye 단계 기록으로 BYE 뒤 Java 코드가 실행되지 않음을 확인했습니다. 엔진이 프로세스를 끝내므로, 확인된 저장 뒤 해시·저장 의도를 가진 종료 요청을 먼저 동기화합니다. 호스트는 파일 잠금 해제와 해시를 확인한 뒤에만 .closed를 기록하고 승인된 출력을 가져옵니다. Activity 결과가 취소돼도 명시한 저장 요청을 회수합니다. |
 | Office 종료 경로의 UI 스레드 호출 | JavaScript 브리지에서 진행창을 직접 열던 경로를 UI 스레드로 옮겼습니다. |
@@ -25,6 +28,6 @@ GitHub 앱을 통한 원격 파일 읽기와 브랜치 쓰기는 실제로 성�
 
 ## 통과 판정
 
-CI의 Android 단계는 실패 증거와 APK를 보존하기 위해 continue-on-error를 사용합니다. 따라서 워크플로의 초록색 표시만으로 Android 통과를 선언하지 않습니다. 실제 단계 outcome, JUnit failures/errors, ANDROID_TEST_SUMMARY 및 검증 ZIP의 summary.json을 함께 확인합니다. Release는 실제 Android 단계가 성공한 커밋에만 게시합니다.
+CI의 Android 단계는 실패 증거와 APK를 보존하기 위해 continue-on-error를 사용합니다. 따라서 워크플로의 초록색 표시만으로 Android 통과를 선언하지 않습니다. 실제 단계 outcome, JUnit failures/errors, ANDROID_TEST_SUMMARY 및 검증 ZIP의 summary.json을 함께 확인합니다. Release는 실제 Android 단계가 성공한 커밋의 동일 산출물만 재사용합니다. 전체 필수 19건과 실패·오류·생략 0을 재확인하며, 원래 SHA256SUMS·소스 ZIP의 Git blob·태그 커밋·업로드 후 내려받은 파일까지 대조합니다. 배포 문서/CI만 추가한 커밋 때문에 APK를 다시 만들지 않습니다.
 
 실제 휴대폰, 실제 한국어 IME 조합, 모든 문서 형식의 고급 개체·서식 보존은 별도 인수 대상입니다. 실행하지 않은 검사는 통과 수에 포함하지 않습니다.

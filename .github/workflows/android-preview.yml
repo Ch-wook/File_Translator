@@ -5,13 +5,12 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
-  actions: read
 concurrency:
-  group: original-view-${{ contains(github.event.head_commit.message, '[diagnostics]') && 'diagnostics' || 'verify' }}
+  group: original-view-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   verify:
-    if: "!contains(github.event.head_commit.message, '[diagnostics]')"
+    if: "!contains(github.event.head_commit.message, '[publish-verified]')"
     runs-on: ubuntu-latest
     timeout-minutes: 90
     defaults:
@@ -73,8 +72,6 @@ jobs:
       - name: Android 35 emulator checks
         id: android
         continue-on-error: true
-        env:
-          MODE_TEST_CLASSES: ${{ contains(github.event.head_commit.message, '[viewport-probe]') && 'kr.documentstudio.NativeOfficeModeSmokeTest#docxModeOnlyTransitionPreservesScrolledViewportAndDoesNotWrite' || contains(github.event.head_commit.message, '[office-probe]') && 'kr.documentstudio.NativeOfficeModeSmokeTest#docxReadOnlyUsesActualNativeEngine,kr.documentstudio.NativeOfficeModeSmokeTest#xlsxReadOnlyUsesActualNativeEngine' || '' }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -175,33 +172,6 @@ jobs:
           path: artifacts/delivery/
           if-no-files-found: error
           compression-level: 0
-      - name: Publish this verified reimplementation preview
-        if: contains(github.event.head_commit.message, '[publish-preview]') && steps.android.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          grep -q 'versionName = "0.8.1-preview"' app/build.gradle.kts
-          gh release create "v0.8.1-preview" artifacts/delivery/* --target "$GITHUB_SHA" --prerelease --title "문서 스튜디오 0.8.1-preview · 원본 보기 우선 재구현" --notes-file artifacts/delivery/README.txt
-          python3 - <<'PY'
-          import hashlib,json,os,pathlib,urllib.request
-          root=pathlib.Path('artifacts/delivery')
-          tag_url='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']+'/git/ref/tags/v0.8.1-preview'
-          with urllib.request.urlopen(tag_url,timeout=120) as response: tag=json.load(response)
-          assert tag['object']['type']=='commit' and tag['object']['sha']==os.environ['GITHUB_SHA'],tag
-          results=[]
-          for line in (root/'SHA256SUMS').read_text().splitlines():
-              expected,name=line.split('  ',1)
-              url='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/releases/download/v0.8.1-preview/'+name
-              h=hashlib.sha256(); size=0
-              with urllib.request.urlopen(url,timeout=120) as response:
-                  while block:=response.read(1024*1024): h.update(block); size+=len(block)
-              assert size==(root/name).stat().st_size,name+' size mismatch'
-              assert h.hexdigest()==expected,name+' download SHA-256 mismatch'
-              results.append({'name':name,'bytes':size,'sha256':expected,'publicDownloadVerified':True})
-          pathlib.Path('artifacts/ci/release-download-verification.json').write_text(json.dumps(results,indent=2))
-          print(json.dumps(results,indent=2))
-          PY
       - name: Preserve failure diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -217,31 +187,3 @@ jobs:
             officeruntime/build/test-results/
             app/build/test-results/
           if-no-files-found: warn
-  diagnostics:
-    if: contains(github.event.head_commit.message, '[diagnostics]')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Inspect actual pinned APK layout methods
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh run download 40288624953 --repo "$GITHUB_REPOSITORY" --name document-studio-preview-7d9fc495637ed4ab9ddce5a4efdc05624e5a2442 --dir delivery
-          python3 - <<'PY'
-          import pathlib,zipfile,re
-          apk=next(pathlib.Path('delivery').glob('*.apk'))
-          with zipfile.ZipFile(apk) as z:
-              print('APK_LAYOUT_FILES',[p for p in z.namelist() if 'ViewLayout' in p or 'SimplePoint' in p or 'SimpleRectangle' in p])
-              paths=[p for p in z.namelist() if re.search(r'ViewLayout(?:Writer|Calc|Base)?\.js$|Simple(?:Point|Rectangle)\.js$',p)]
-              for p in paths:
-                  text=z.read(p).decode()
-                  print('ACTUAL_LAYOUT_FILE',p,len(text))
-                  for term in ['scrollTo(', 'scrollTo (','scroll(', 'applyZoom(', 'get viewedRectangle', 'get pX1', 'get pY1', 'get x1', 'get y1','twipsToPixels']:
-                      index=text.find(term)
-                      if index>=0: print('ACTUAL_LAYOUT_METHOD',p,term,repr(text[max(0,index-100):index+2400]))
-              bundle=z.read('assets/dist/bundle.js').decode()
-              for pattern in [r'scrollTo\([a-zA-Z,= !0-9]*\)\{',r'get pY1\(\)',r'get pX1\(\)']:
-                  matches=list(re.finditer(pattern,bundle))
-                  print('BUNDLE_METHOD_COUNT',pattern,len(matches))
-                  for match in matches[:8]: print('BUNDLE_METHOD',repr(bundle[max(0,match.start()-100):match.start()+1800]))
-          PY
