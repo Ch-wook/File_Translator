@@ -1275,9 +1275,13 @@ public class LOActivity extends AppCompatActivity {
 
     @JavascriptInterface
     public boolean requestStudioEdit() {
-        if (!isDocEditable || !documentLoaded || officeLoadFailed || closeSave != null) return false;
+        if (!isDocEditable) { onOfficeLifecycle("edit-refused-capability"); return false; }
+        if (!documentLoaded) { onOfficeLifecycle("edit-refused-not-loaded"); return false; }
+        if (officeLoadFailed) { onOfficeLifecycle("edit-refused-load-error"); return false; }
+        if (closeSave != null) { onOfficeLifecycle("edit-refused-closing"); return false; }
         studioEditAuthorized = true;
         studioEditEverAuthorized = true;
+        onOfficeLifecycle("edit-authorized");
         return true;
     }
 

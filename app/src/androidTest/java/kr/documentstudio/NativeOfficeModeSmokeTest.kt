@@ -245,15 +245,17 @@ class NativeOfficeModeSmokeTest {
                 await("Long document must actually scroll before testing preservation", 15_000) {
                     viewport(viewportFile)?.let { abs(it.getDouble("y") - initial.getDouble("y")) > 40.0 } == true
                 }
-                val scrolled = viewport(viewportFile)!!
+                val scrolled = stableViewport(viewportFile)
+                record.put("scrollSettledBeforeMode",true)
+                device.dumpWindowHierarchy(File(evidence,"$label-before-edit.xml"))
+                device.takeScreenshot(File(evidence,"$label-before-edit.png"))
                 record.put("viewportBeforeToggle", scrolled)
                 visible("편집하기").click()
                 visible("편집 중", 20_000)
                 visible("보기로 전환").click()
                 visible("원본 보기", 20_000)
-                // Metadata poll runs every second, independently of input events.
-                SystemClock.sleep(1_500)
-                val after = viewport(viewportFile) ?: throw AssertionError("Viewport missing after mode transition")
+                // Compare actual settled native positions after both toolbar/layout changes.
+                val after = stableViewport(viewportFile)
                 record.put("viewportAfterToggle", after)
                 assertEquals(scrolled.getInt("part"), after.getInt("part"))
                 assertEquals(scrolled.getDouble("zoom"), after.getDouble("zoom"), 0.001)
@@ -356,6 +358,25 @@ class NativeOfficeModeSmokeTest {
                 && it.has("part") && it.getInt("part") >= 0
         }
     }.getOrNull()
+    private fun stableViewport(file: File): JSONObject {
+        val deadline=SystemClock.uptimeMillis()+20_000
+        var stableSince=SystemClock.uptimeMillis()
+        var previous: JSONObject?=null
+        while(SystemClock.uptimeMillis()<deadline) {
+            val current=viewport(file)
+            if(current!=null) {
+                val last=previous
+                val same=last!=null && current.getInt("part")==last.getInt("part")
+                    && listOf("x","y","zoom").all {abs(current.getDouble(it)-last.getDouble(it))<0.001}
+                if(!same) {previous=current;stableSince=SystemClock.uptimeMillis()}
+                // Production metadata is polled each second; this spans another
+                // real sample and avoids treating an in-flight fling as settled.
+                else if(SystemClock.uptimeMillis()-stableSince>=1_500) return current
+            }
+            SystemClock.sleep(100)
+        }
+        throw AssertionError("Native viewport must settle before comparing or tapping mode controls")
+    }
     private fun await(message: String, timeout: Long, condition: () -> Boolean) {
         val end = SystemClock.uptimeMillis() + timeout
         while (SystemClock.uptimeMillis() < end) {
