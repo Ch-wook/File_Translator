@@ -133,8 +133,9 @@ module.exports=async function mobileStructure({page,frame,call,context}){
  await frame.getByRole('button',{name:'선택 끝 핸들',exact:true}).waitFor({state:'visible'});
  const selected=await call('capture');assert.ok(selected.range);
  const handle=await frame.getByRole('button',{name:'선택 끝 핸들',exact:true}).boundingBox();
- await drag({x:handle.x+22,y:handle.y+22},{x:handle.x+45,y:handle.y+22});
- assert.ok((await call('capture')).range);assert.equal(await call('count','MOBILE_BEFORE'),1);
+ const selectionBox=await frame.locator('.selection-highlight').filter({visible:true}).first().boundingBox();assert.ok(selectionBox);
+ await drag({x:handle.x+22,y:handle.y+22},{x:selectionBox.x+selectionBox.width*.6,y:selectionBox.y+selectionBox.height/2+12});
+ assert.ok((await call('capture')).range);assert.notDeepEqual((await call('capture')).range,selected.range,'Dragging a visible handle changes the actual engine selection');assert.equal(await call('count','MOBILE_BEFORE'),1);
  report.longPressSelection=true;report.touchSelectionHandles=true;
  await cdp.detach();return report;
 };

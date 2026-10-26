@@ -8,7 +8,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
  try{for(const format of ['hwp','hwpx']){
   const context=await browser.newContext({viewport:{width:412,height:915},isMobile:true,hasTouch:true});
   const page=await context.newPage(),errors=[],external=[];
-  page.on('pageerror',e=>errors.push(e.message));
+  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.error('ENGINE_CONSOLE',m.text());});
   await context.addInitScript(({format})=>{
    let chunks=[];window.__clip={text:'',html:''};window.__writeCount=0;
    window.DocumentStudio={describe:()=>JSON.stringify({name:'모바일 서식.'+format,format,openIntent:'VIEW'}),

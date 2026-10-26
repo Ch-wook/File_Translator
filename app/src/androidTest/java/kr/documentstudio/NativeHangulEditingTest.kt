@@ -58,8 +58,19 @@ class NativeHangulEditingTest {
     private fun ime(command: String,text: String="",key: Int=0) {
         val id=++sequence
         probe("ime",data=Bundle().apply {putString("command",command);putString("text",text);putInt("key",key);putInt("sequence",id)})
-        assertTrue("The Android IME must acknowledge the actual InputConnection command",
-            device.wait(Until.hasObject(By.text("IME 요청 "+id+" 처리")),10000))
+        await("The actual Android InputConnection command must be acknowledged: "+command) {imeStatus().optInt("sequence")==id}
+        assertTrue("Android InputConnection must accept "+command,imeStatus().optBoolean("accepted"))
+    }
+    private fun imeStatus(): JSONObject=runCatching {
+        JSONObject(device.executeShellCommand("run-as "+instrumentation.context.packageName+" cat files/ime-fixture-status.json"))
+    }.getOrDefault(JSONObject())
+    private fun awaitNumberConnection() {
+        await("Android must connect the numeric panel input to the IME") {
+            val id=++sequence
+            probe("ime",data=Bundle().apply {putString("command","status");putInt("sequence",id)})
+            SystemClock.sleep(80)
+            imeStatus().optInt("sequence")==id && (imeStatus().optInt("inputType") and 15) == 2
+        }
     }
     private fun count(text: String)= (value("window.rhwpStudio.documentStudio.mobile.count("+JSONObject.quote(text)+")") as Number).toInt()
     private fun engine(script: String)=eval("document.getElementById('engine').contentWindow."+script)
@@ -78,7 +89,7 @@ class NativeHangulEditingTest {
         revealControl(label)
         var bounds=JSONObject()
         await("The real WebView button must be visible and receive touch: "+label) {
-            bounds=json("(function(){const e=Array.from(document.querySelectorAll('button,input,select')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)return {};const r=e.getBoundingClientRect(),p=document.getElementById('mobile-panel').getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return {x,y,visible:r.width>0&&r.height>0&&y>=p.top&&y<=p.bottom&&y<innerHeight&&x>=0&&x<innerWidth,hit:hit===e||e.contains(hit),disabled:e.disabled,width:innerWidth,height:innerHeight};})()")
+            bounds=json("(function(){const e=Array.from(document.querySelectorAll('button,input,select')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)return {};const r=e.getBoundingClientRect(),panel=document.getElementById('mobile-panel'),p=panel.contains(e)?panel.getBoundingClientRect():{top:0,bottom:innerHeight},x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return {x,y,visible:r.width>0&&r.height>0&&y>=p.top&&y<=p.bottom&&y<innerHeight&&x>=0&&x<innerWidth,hit:hit===e||e.contains(hit),disabled:e.disabled,width:innerWidth,height:innerHeight};})()")
             bounds.optBoolean("visible") && bounds.optBoolean("hit") && !bounds.optBoolean("disabled")
         }
         val browser=probe("geometry")
@@ -131,8 +142,9 @@ class NativeHangulEditingTest {
             await("Repeated composed syllables must not disappear") {mCount("IME_START|한국어가가")==1}
             eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('한국어')")
             val rangeBefore=mJson("capture()").getJSONObject("range").toString()
-            revealControl("글자 모양");control("글자 모양").click()
-            revealControl("크기(pt)");control("크기(pt)").click()
+            tapVisibleControl("글자 모양")
+            tapVisibleControl("크기(pt)")
+            awaitNumberConnection()
             ime("selectAll");ime("commit","18")
             await("The numeric field must apply only the selected document text") {mJson("state()").getJSONObject("char").optInt("fontSize")==1800}
             tapVisibleControl("글자색 #e53935")
@@ -140,7 +152,7 @@ class NativeHangulEditingTest {
                 val p=mJson("state()").getJSONObject("char");p.optString("textColor").lowercase()=="#e53935" && p.optInt("fontSize")==1800
             }
             assertEquals("Opening and editing the panel must preserve the document range",rangeBefore,mJson("capture()").getJSONObject("range").toString())
-            revealControl("설정 완료");control("설정 완료").click()
+            tapVisibleControl("설정 완료")
             probe("show-ime")
             ime("key",key=KeyEvent.KEYCODE_DPAD_RIGHT)
             ime("commit"," ABC123")
@@ -156,6 +168,19 @@ class NativeHangulEditingTest {
             await("Android cut must remove only the selected text") {mCount("ABC123")==0}
             eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.dispatch('edit:undo')")
             await("Cut undo must preserve surrounding Korean and formatting") {mCount("IME_START|한국어 ABC123가가")==1}
+            eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.navigate(true);document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.plainText('\\n');document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.createTable(2,2);document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.focus()")
+            probe("show-ime")
+            for(text in listOf("ㅅ","세","셀","셀입력"))ime("compose",text)
+            ime("commit","셀입력")
+            await("The actual Android IME must enter Korean in the real table cell") {mCount("셀입력")==1}
+            eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.moveCell(true);document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.focus()")
+            ime("commit","KEEP_CELL")
+            eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('셀입력');document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.char({fontSize:1200,underline:true})")
+            assertEquals(1200,mJson("state()").getJSONObject("char").getInt("fontSize"))
+            assertTrue(mJson("state()").getJSONObject("char").getBoolean("underline"))
+            eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('KEEP_CELL')")
+            assertFalse("Cell character formatting must leave another cell unchanged",mJson("state()").getJSONObject("char").getBoolean("underline"))
+            eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('셀입력');document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.focus()")
             val viewport=json("(function(){const f=document.getElementById('engine'),r=f.getBoundingClientRect(),c=f.contentDocument.querySelector('.caret').getBoundingClientRect();return {frameTop:r.top,frameBottom:r.bottom,caretBottom:r.top+c.bottom,caretHeight:c.height,height:innerHeight};})()")
             assertTrue("The IME must not cover the active caret",viewport.getDouble("caretHeight")>0 && viewport.getDouble("caretBottom")<=viewport.getDouble("frameBottom")+3)
             device.takeScreenshot(File(output,format.extension+"-keyboard-format.png"))
@@ -184,6 +209,10 @@ class NativeHangulEditingTest {
             eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('한국어')")
             val props=mJson("state()").getJSONObject("char")
             assertEquals(1800,props.getInt("fontSize"));assertEquals("#e53935",props.getString("textColor").lowercase())
+            eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('셀입력')")
+            val cellProps=mJson("state()").getJSONObject("char")
+            assertEquals(1200,cellProps.getInt("fontSize"));assertTrue(cellProps.getBoolean("underline"))
+            assertEquals(1,mCount("KEEP_CELL"))
             assertEquals(originalHash,DocumentRepository.digest(file))
             eval("window.documentStudioHost.returnToWorkspace()")
             await("Read-only reopening must close",30000) {File(again.path+".closed").isFile}
@@ -191,6 +220,7 @@ class NativeHangulEditingTest {
             closed=true
             val evidence=JSONObject().put("format",format.extension).put("actualAndroidInputConnection",true).put("imeFixtureOnlyInTestApk",true)
                 .put("koreanComposition",true).put("repeatedSyllables",true).put("selectedReplacement",true).put("panelSelectionRetained",true)
+                .put("cellKoreanInput",true).put("cellScopedCharacterFormat",true).put("androidHtmlClipboard",true).put("atomicSelectionReplacementUndo",true)
                 .put("independentParserReopen",true).put("engineReopen",true).put("originalHashBefore",baseline)
                 .put("savedFileHash",originalHash).put("viewport",viewport).put("physicalKeyboardDeviceTested",false)
             File(output,format.extension+"-editing.json").writeText(evidence.toString(2))

@@ -97,3 +97,10 @@ before="  if (refreshClickHereGuide) {\n    this.refreshClickHereAfterFirstInput
 after="  if (studioDeletedDirect) this.history.groupStudioImeReplacement(studioDeletedDirect);\n"+before
 if text.count(before)!=1: raise RuntimeError('Pinned direct input insert changed')
 ime.write_text(text.replace(before,after,1))
+
+# Surface table failures to the mobile host instead of reporting a successful click.
+text=table.read_text()
+before="try { fn(); } catch (e) { console.error(\x60[table] \x24{label} 실패:\x60, e); }"
+after="try { fn(); } catch (e) { console.error(\x60[table] \x24{label} 실패:\x60, e); throw e; }"
+if text.count(before)!=1: raise RuntimeError('Pinned table error reporting changed')
+table.write_text(text.replace(before,after,1))
