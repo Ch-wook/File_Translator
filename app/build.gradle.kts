@@ -35,7 +35,7 @@ android {
 dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.17")
-    androidTestImplementation(files(project(":core").layout.buildDirectory.file("libs/hwplib-1.1.11-studio.jar")).builtBy(":core:prepareHwplibRuntime"))
+    androidTestImplementation(files(rootProject.project(":core").layout.buildDirectory.file("libs/hwplib-1.1.11-studio.jar")).builtBy(":core:prepareHwplibRuntime"))
     implementation(project(":officeruntime"))
     implementation(project(":core"))
     implementation(platform("androidx.compose:compose-bom:2025.09.01"))

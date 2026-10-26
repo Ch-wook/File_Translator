@@ -62,7 +62,7 @@ jobs:
           restore-keys: hangul-public-tools-${{ runner.os }}-
       - name: Real offline engine, TypeScript and fixtures
         run: |
-          ./gradlew :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/fixtures.log
+          ./gradlew :app:help :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/fixtures.log
           python3 scripts/prepare-hangul-engine.py 2>&1 | tee artifacts/ci/hangul-prepare.log
       - name: Real browser editing and independent saved-file parsers
         run: |
