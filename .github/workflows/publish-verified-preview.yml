@@ -79,22 +79,29 @@ jobs:
       - name: Upload a draft and verify every uploaded asset before publishing
         run: |
           python3 - <<'PY'
-          import json,os,subprocess,pathlib,hashlib
+          import json,os,subprocess,pathlib,hashlib,urllib.request,shutil
           repo=os.environ['GITHUB_REPOSITORY'];tag=os.environ['PREVIEW_TAG'];sha=os.environ['GITHUB_SHA']
           def api(path,*args):
               return json.loads(subprocess.check_output(['gh','api',path,*args]))
           releases=api(f'repos/{repo}/releases?per_page=100')
-          assert not any(r['tag_name']==tag for r in releases),'preview already exists; inspect before retry'
+          existing=[r for r in releases if r['tag_name']==tag]
           ref=subprocess.run(['gh','api',f'repos/{repo}/git/ref/tags/{tag}'],capture_output=True,text=True)
           if ref.returncode==0:
               obj=json.loads(ref.stdout)['object']
               assert obj['type']=='commit' and obj['sha']==sha,'existing tag points to another commit'
           else:
               assert '404' in ref.stderr,'tag lookup failed: '+ref.stderr
-          subprocess.run(['gh','release','create',tag,*[str(p) for p in sorted(pathlib.Path('delivery').iterdir()) if p.is_file()],
-                          '--draft','--prerelease','--target',sha,'--title','문서 스튜디오 0.8.1-preview · 원본 보기 우선 재구현',
-                          '--notes-file','release-notes.md'],check=True)
-          draft=next(r for r in api(f'repos/{repo}/releases?per_page=100') if r['tag_name']==tag)
+          if existing:
+              assert len(existing)==1
+              draft=existing[0]
+              assert draft['id']==424157420 and draft['draft'] and draft['prerelease'],'inspect existing release before retry'
+              assert draft['author']['login']=='github-actions[bot]'
+              assert draft['target_commitish'] in ('0ad73b4c0800c0da6d41384b0bcff885e8766c3d',sha),'draft target changed'
+          else:
+              subprocess.run(['gh','release','create',tag,*[str(p) for p in sorted(pathlib.Path('delivery').iterdir()) if p.is_file()],
+                              '--draft','--prerelease','--target',sha,'--title','문서 스튜디오 0.8.1-preview · 원본 보기 우선 재구현',
+                              '--notes-file','release-notes.md'],check=True)
+              draft=next(r for r in api(f'repos/{repo}/releases?per_page=100') if r['tag_name']==tag)
           assert draft['draft'] and draft['prerelease']
           assets=api(f"repos/{repo}/releases/{draft['id']}/assets?per_page=100")
           expected={p.name:p for p in pathlib.Path('delivery').iterdir() if p.is_file()}
@@ -103,14 +110,18 @@ jobs:
           for asset in assets:
               source=expected[asset['name']];dest=readback/source.name
               assert asset['state']=='uploaded' and asset['size']==source.stat().st_size,asset['name']
-              with dest.open('wb') as out:
-                  subprocess.run(['gh','api','-H','Accept: application/octet-stream',f"repos/{repo}/releases/assets/{asset['id']}"],stdout=out,check=True)
+              assert asset['url'].startswith('https://api.github.com/repos/'+repo+'/releases/assets/')
+              request=urllib.request.Request(asset['url'],headers={'Accept':'application/octet-stream'})
+              # This header is used only on the API request, never forwarded to the asset CDN redirect.
+              request.add_unredirected_header('Authorization','Bearer '+os.environ['GH_TOKEN'])
+              with urllib.request.urlopen(request,timeout=120) as response,dest.open('wb') as out:
+                  shutil.copyfileobj(response,out,1024*1024)
               with source.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
               with dest.open('rb') as stream: uploaded=hashlib.file_digest(stream,'sha256').hexdigest()
               assert dest.stat().st_size==source.stat().st_size and uploaded==digest,source.name+' upload mismatch'
               if asset.get('digest'): assert asset['digest']=='sha256:'+digest,source.name+' API digest mismatch'
           print('ALL_DRAFT_ASSETS_MATCH_VERIFIED_ARTIFACTS',len(expected))
-          published=api(f"repos/{repo}/releases/{draft['id']}",'--method','PATCH','-F','draft=false','-F','prerelease=true')
+          published=api(f"repos/{repo}/releases/{draft['id']}",'--method','PATCH','-f','target_commitish='+sha,'-F','draft=false','-F','prerelease=true','-f','body='+pathlib.Path('release-notes.md').read_text())
           assert not published['draft'] and published['prerelease']
           PY
       - name: Verify the published tag and anonymous public downloads
