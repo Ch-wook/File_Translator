@@ -125,6 +125,17 @@ test('explicit EDIT waits for the persisted viewport before it captures its mode
     for(let i=0;i<3;i++) {s.nativeCursor();assert.deepEqual(s.viewport(),saved);}
   } finally {s.close();}
 });
+test('view metadata is not overwritten with startup coordinates before a saved view restores', () => {
+  const saved={x:800,y:12000,zoom:5,part:0};
+  const s=workspace('text','edit','VIEW',true,saved);
+  try {
+    assert.deepEqual(s.viewport(),saved);
+    assert.ok(s.persisted.length>0);
+    for(const value of s.persisted) {
+      for(const key of ['x','y','zoom','part']) assert.equal(value[key],saved[key]);
+    }
+  } finally {s.close();}
+});
 test('native refusal and unapproved engine edit state cannot enable commands', () => {
   const s=workspace('text','edit','VIEW',false);
   try {

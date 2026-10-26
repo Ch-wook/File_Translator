@@ -152,20 +152,24 @@
       modeTransition=false;update();traceRestore('settled',value);persistViewport();
     },generation),500),generation);
   }
-  function cancelModeRestore(event) {
-    if(!event.isTrusted) return;
+  function releaseViewportPin() {
     heldViewport=null;
     const layer=map()?._docLayer;
     if(ownedNativeRestore && layer?._savedScrollPos===ownedNativeRestore) {
       layer._savedScrollPos=null;layer._restoringViewScroll=false;ownedNativeRestore=null;
     }
-    if(modeTransition && !bar?.contains(event.target)) {
+  }
+  function cancelModeRestore(event) {
+    if(!event.isTrusted || bar?.contains(event.target)) return;
+    releaseViewportPin();
+    if(modeTransition) {
       ++transitionGeneration;modeTransition=false;update();
     }
   }
   for(const name of ['pointerdown','touchstart','wheel','keydown','beforeinput','compositionstart'])
     document.addEventListener(name,cancelModeRestore,true);
   function persistViewport() {
+    if(!initialViewportRestored) return;
     let value;
     try { value=(modeTransition && validViewport(transitionViewport) ? transitionViewport : snapshot()) || {error:'layout-unavailable',family:map()?.getDocType?.()}; }
     catch(error) { value={error:String(error.message || error),family:map()?.getDocType?.()}; }
@@ -185,7 +189,7 @@
     const m=map(), enter=m._switchToEditMode;
     if (typeof enter!=='function' || typeof m.setPermission!=='function') return false;
     m._switchToEditMode=function(...args) {
-      if(modeTransition) return false;
+      if(modeTransition || !initialViewportRestored) return false;
       const value=snapshot();
       if (new URLSearchParams(location.search).get('permission')!=='edit' || !bridge()?.requestStudioEdit?.()) {
         hint.textContent='이 문서는 편집할 수 없습니다.';return false;
@@ -231,7 +235,7 @@
     modeButton.setAttribute('aria-label',modeButton.textContent);
     modeButton.hidden=!policy.modeSupported || new URLSearchParams(location.search).get('permission')!=='edit';
     saveButton.hidden=!policy.changed;
-    modeButton.disabled=modeTransition;saveButton.disabled=modeTransition;
+    modeButton.disabled=modeTransition || !initialViewportRestored;saveButton.disabled=modeTransition;
     controls.forEach(({ b, item }) => {
       const state = item.name && map().stateChangeHandler && map().stateChangeHandler.getItemValue('.uno:' + item.name);
       b.disabled = !editing || modeTransition || (item.needsObject && !object) || state === 'disabled';
@@ -266,7 +270,7 @@
     ];
     else if (family === 'spreadsheet') items = [command('행 삽입','InsertRowsBefore'), command('열 삽입','InsertColumnsBefore'), command('셀 병합','MergeCells'), command('오름차순','SortAscending'), command('내림차순','SortDescending'), command('행 높이','RowHeight'), command('열 너비','ColumnWidth'),command('셀 서식','FormatCellDialog'),command('함수 마법사','FunctionDialog')];
     else items = [command('새 슬라이드','InsertPage'), command('슬라이드 복제','DuplicatePage'), command('슬라이드 삭제','DeletePage')];
-    items.forEach(item => { const b=button(item.label, () => { if(!b.disabled) item.run(); update(); },actions); if(item.name) b.dataset.command=item.name; controls.push({b,item}); });
+    items.forEach(item => { const b=button(item.label, () => { if(!b.disabled) {releaseViewportPin();item.run();} update(); },actions); if(item.name) b.dataset.command=item.name; controls.push({b,item}); });
     update(); refreshLayout();
   }
   function mount() {
@@ -305,7 +309,7 @@
       const saved=JSON.parse(bridge()?.getStudioViewState?.() || '{}');
       restore(saved,()=>{
         if(validViewport(saved)) holdViewport(snapshot());
-        initialViewportRestored=true;
+        initialViewportRestored=true;update();persistViewport();
       });
     } catch(ignore) {initialViewportRestored=true;}
     render();policy.ready=true;return true;
