@@ -38,6 +38,10 @@ public final class StudioOfficeActivity extends LOActivity {
         super.onCreate(state);
     }
 
+    @Override protected void onOfficeLifecycle(String stage) {
+        if (working != null) DocumentViewState.lifecycle(working.getParentFile(), stage);
+    }
+
     @Override protected String readOfficeViewState() {
         return working == null ? "{}" : DocumentViewState.read(working.getParentFile());
     }
@@ -67,6 +71,7 @@ public final class StudioOfficeActivity extends LOActivity {
     }
 
     @Override protected void onDestroy() {
+        onOfficeLifecycle("activity-destroyed");
         super.onDestroy();
         try { if (lock != null) lock.release(); if (lockFile != null) lockFile.close(); }
         catch (Exception ignored) { }

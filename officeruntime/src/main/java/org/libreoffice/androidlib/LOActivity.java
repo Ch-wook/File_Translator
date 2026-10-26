@@ -1257,6 +1257,7 @@ public class LOActivity extends AppCompatActivity {
     private boolean studioSaveOriginal;
     protected boolean shouldSaveOriginal() { return studioSaveOriginal; }
     protected void onOfficeClosed() { }
+    protected void onOfficeLifecycle(String stage) { }
     protected void onOfficeSaved() throws IOException { }
     protected void onOfficeLoadFailed(String error) { }
     protected String readOfficeViewState() { return "{}"; }
@@ -1316,6 +1317,7 @@ public class LOActivity extends AppCompatActivity {
     }
 
     private void finishWithProgress() {
+        onOfficeLifecycle("close-requested");
         if (!documentLoaded) {
             finish();
             return;
@@ -1328,6 +1330,7 @@ public class LOActivity extends AppCompatActivity {
         // The 'BYE' blocks until the document has closed, so it runs off the UI thread and the
         // progress dialog keeps drawing.
         nativeHandler.post(() -> {
+            onOfficeLifecycle("close-worker");
             OfficePrivacy.requireQuiet();
             if (officeModified && officeApprovedChanges) {
                 saveApprovedWorkingCopy();
@@ -1345,10 +1348,12 @@ public class LOActivity extends AppCompatActivity {
                 return;
             }
             documentLoaded = false;
+            onOfficeLifecycle("sending-native-bye");
             postMobileMessageNative("BYE");
+            onOfficeLifecycle("native-bye-returned");
             //copyTempBackToIntent();
 
-            runOnUiThread(() -> { mProgressDialog.dismiss(); onOfficeClosed(); finish(); });
+            runOnUiThread(() -> { mProgressDialog.dismiss(); onOfficeLifecycle("reporting-closed"); onOfficeClosed(); finish(); });
         });
     }
 

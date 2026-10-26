@@ -50,6 +50,16 @@ public final class DocumentViewState {
             } catch (Exception ignored) { if (diagnostic != null) error.failWrite(diagnostic); }
         }
     }
+    public static synchronized void lifecycle(File directory, String stage) {
+        if (stage == null || !stage.matches("[a-z-]{1,40}")) return;
+        AtomicFile state = new AtomicFile(new File(directory, "office-lifecycle.json"));
+        FileOutputStream out = null;
+        try {
+            out = state.startWrite();
+            out.write(new JSONObject().put("stage", stage).toString().getBytes(StandardCharsets.UTF_8));
+            out.getFD().sync(); state.finishWrite(out);
+        } catch (Exception ignored) { if (out != null) state.failWrite(out); }
+    }
     public static void markEdited(File working) throws IOException {
         try (FileOutputStream out = new FileOutputStream(new File(working.getPath() + ".edited"))) {
             out.write(1);

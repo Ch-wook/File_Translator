@@ -73,6 +73,8 @@ jobs:
       - name: Android 35 emulator checks
         id: android
         continue-on-error: true
+        env:
+          MODE_TEST_CLASSES: ${{ contains(github.event.head_commit.message, '[office-probe]') && 'kr.documentstudio.NativeOfficeModeSmokeTest#docxReadOnlyUsesActualNativeEngine,kr.documentstudio.NativeOfficeModeSmokeTest#xlsxReadOnlyUsesActualNativeEngine' || '' }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -104,11 +106,39 @@ jobs:
               names=z.namelist()
               assert any(n.startswith('assets/hangul/') and n.endswith('.wasm') for n in names)
               for abi in ('arm64-v8a','x86_64'): assert 'lib/'+abi+'/libandroidapp.so' in names
+              engine_assets=[]
+              for path in (root/'.engine-cache/hangul/runtime').rglob('*'):
+                  if not path.is_file(): continue
+                  apk_path='assets/'+path.relative_to(root/'.engine-cache/hangul/runtime').as_posix()
+                  assert apk_path in names,apk_path+' missing from APK'
+                  data=path.read_bytes()
+                  assert z.read(apk_path)==data,apk_path+' APK bytes differ from tested engine'
+                  engine_assets.append({'path':apk_path,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+              assert engine_assets
+              policy='officeruntime/src/main/assets/dist/studio-policy.js'
+              assert z.read('assets/dist/studio-policy.js')==(root/policy).read_bytes()
+              (root/'artifacts/ci/apk-engine-assets.json').write_text(json.dumps(engine_assets,indent=2))
           shutil.copy2(apk,out/(name+'-debug.apk'))
           subprocess.run(['git','archive','--format=zip','-o',str(out/(name+'-source.zip')),'HEAD'],check=True)
+          tracked={}
+          for entry in subprocess.check_output(['git','ls-tree','-r','-z','HEAD']).split(b'\0'):
+              if not entry: continue
+              meta,path=entry.split(b'\t',1)
+              mode,kind,sha=meta.split()
+              assert kind==b'blob',entry
+              tracked[path.decode()]=sha.decode()
+          with zipfile.ZipFile(out/(name+'-source.zip')) as archive:
+              assert archive.testzip() is None
+              assert {entry.filename for entry in archive.infolist() if not entry.is_dir()}==set(tracked)
+              for path,expected in tracked.items():
+                  data=archive.read(path)
+                  actual=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+                  assert actual==expected,'source ZIP differs from commit: '+path
           with (out/(name+'-changes.patch')).open('wb') as f:
               subprocess.run(['git','diff','--binary','2bfe225ab040e3cb9251a8cafce9578ea3d9b645','HEAD'],stdout=f,check=True)
           subprocess.run(['git','bundle','create',str(out/(name+'-history.bundle')),'--all'],check=True)
+          subprocess.run(['git','bundle','verify',str(out/(name+'-history.bundle'))],check=True)
+          subprocess.run(['git','apply','--check','--reverse',str(out/(name+'-changes.patch'))],check=True)
           reports={}
           for module in ('core','officeruntime','app'):
               suites=[]
@@ -190,12 +220,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
       - name: Read previous Android failure evidence
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 40281706445 --repo "$GITHUB_REPOSITORY" --name verification-logs-8269576bf783bf61fe971ba21d37c6dd97b0b292 --dir evidence
+          gh run download 40277128748 --repo "$GITHUB_REPOSITORY" --name verification-logs-ada18f3e8eaadb5665ad691c7fe62260cd8a5142 --dir evidence
           python3 - <<'PY'
           import pathlib,xml.etree.ElementTree as ET,json
           for p in pathlib.Path('evidence').rglob('*.xml'):
@@ -222,20 +251,4 @@ jobs:
                   if re.search(r'CONSOLE|Javascript|JavaScript|ReadOnly|chromium.*(?:Error|error)|Bridge|WrongThread|FATAL EXCEPTION|Exception',line):
                       indices.update(range(max(0,i-2),min(len(lines),i+5)))
               print('DEVICE_LOG_EXCERPTS',p,'\n'.join(lines[i] for i in sorted(indices))[-45000:])
-          PY
-          gh run download 40281706445 --repo "$GITHUB_REPOSITORY" --name document-studio-preview-8269576bf783bf61fe971ba21d37c6dd97b0b292 --dir delivery
-          python3 - <<'PY'
-          import pathlib,zipfile,hashlib
-          apk=next(pathlib.Path('delivery').glob('*.apk'))
-          with zipfile.ZipFile(apk) as z:
-              policy=z.read('assets/dist/studio-policy.js')
-              source=pathlib.Path('officeruntime/src/main/assets/dist/studio-policy.js').read_bytes()
-              print('POLICY_MATCHES_SOURCE',policy==source,'apk',hashlib.sha256(policy).hexdigest(),'source',hashlib.sha256(source).hexdigest())
-              print('POLICY_SNAPSHOT',policy.decode()[policy.decode().find('function snapshot'):policy.decode().find('function installModeGate')])
-              print('POLICY_STYLE',policy.decode()[:2300])
-              for name in z.namelist():
-                  if name.endswith('.dex'):
-                      dex=z.read(name)
-                      if b'office-view-state-error.json' in dex:
-                          print('NEW_NATIVE_VIEW_DIAGNOSTIC_IN_APK',name)
           PY

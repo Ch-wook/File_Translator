@@ -196,6 +196,7 @@
     render();policy.ready=true;return true;
   }
   const timer=setInterval(() => {
+    try {
     if(window.app && app.LOUtil) app.LOUtil.isAIAssistantAvailable=()=>false;
     if(map() && map().wopi) {map().wopi.DisableAISettings=true;map().isAIConfigured=false;}
     if(map() && map()._docLoaded) {
@@ -207,6 +208,14 @@
       }
     }
     if(policy.ready && attempts%5===0) persistViewport();
+    } catch(error) {
+      // Keep bounded local diagnostics when an upstream UI API prevents mounting.
+      // No document text is read, serialized or sent to a logging service.
+      bridge()?.saveStudioViewState?.(JSON.stringify({
+        error:'host-policy-update',name:String(error.name),message:String(error.message).slice(0,300),
+        ready:policy.ready,family:map()?.getDocType?.()
+      }));
+    }
     if(++attempts>=300 && !policy.ready) clearInterval(timer);
   },200);
   window.addEventListener('pagehide',()=>{persistViewport();clearInterval(timer);clearTimeout(persistTimer);},{once:true});
