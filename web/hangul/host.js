@@ -17,7 +17,7 @@ function update(){
  document.getElementById('tool-toggle').hidden=!editing;
  dock.hidden=!editing;mobileUI.update();
 }
-function renderTools(){mobileUI.render();}
+function renderTools(){mobileUI.render();update();}
 function toBase64(bytes){let result='';for(let i=0;i<bytes.length;i+=8192)result+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(result);}
 function persistView(){if(ready)native.saveViewState(JSON.stringify(editor.captureView()));}
 async function checkpoint(){
@@ -107,7 +107,7 @@ async function start(){
  const info=await editor.open(new Uint8Array(await response.arrayBuffer()),meta.name);
  if(info.format!==format||info.pages<1)throw new Error('원본 문서의 형식 또는 페이지를 확인할 수 없습니다.');
  await editor.restoreView(meta.viewState);
- ready=true;native.loaded();renderTools();
+ ready=true;renderTools();native.loaded();
  if(meta.openIntent==='EDIT')await setEditing(true);
  else message(`${info.pages}쪽 · 원본 보기 · 편집하기를 선택해 수정하세요.`);
  for(const id of ['find','zoom-out','zoom-in'])document.getElementById(id).disabled=false;
