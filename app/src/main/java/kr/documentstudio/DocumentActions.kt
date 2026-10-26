@@ -5,6 +5,10 @@ import kr.documentstudio.core.*
 /** A pane keeps its own target even if another pane receives keyboard focus. */
 class DocumentActions(private val model: EditorViewModel,val sessionId: String) {
     val repository get()=model.repository
+    fun beginEditing()=model.beginEditing(sessionId)
+    fun readDocument()=model.readDocument(sessionId)
+    fun beginInk()=model.beginInk(sessionId)
+    fun canEdit()=model.canEdit(sessionId)
     fun focus()=model.select(sessionId)
     fun message(value: String?)=model.message(value)
     fun settings(value: Settings)=model.settings(value)

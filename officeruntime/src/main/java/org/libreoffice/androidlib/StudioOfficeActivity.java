@@ -38,11 +38,29 @@ public final class StudioOfficeActivity extends LOActivity {
         super.onCreate(state);
     }
 
+    @Override protected String readOfficeViewState() {
+        return working == null ? "{}" : DocumentViewState.read(working.getParentFile());
+    }
+
+    @Override protected void writeOfficeViewState(String state) {
+        if (working != null) DocumentViewState.write(working.getParentFile(), state);
+    }
+
+    @Override protected void onOfficeSaved() throws java.io.IOException {
+        // The native save callback has confirmed an actual, explicitly approved edit.
+        DocumentViewState.markEdited(working);
+    }
+
+    @Override protected void onOfficeLoadFailed(String error) {
+        setResult(RESULT_CANCELED, new Intent().putExtra("sessionId", sessionId).putExtra("error", error));
+        finish();
+    }
+
     @Override protected void onOfficeClosed() {
         try {
             File marker = new File(working.getPath() + ".closed");
             try (FileOutputStream out = new FileOutputStream(marker)) { out.write(1); out.getFD().sync(); }
-            setResult(RESULT_OK, new Intent().putExtra("sessionId", sessionId).putExtra("saveOriginal", shouldSaveOriginal()));
+            setResult(RESULT_OK, new Intent().putExtra("sessionId", sessionId).putExtra("saveOriginal", shouldSaveOriginal() && hasApprovedOfficeOutput()));
         } catch (Exception failure) {
             setResult(RESULT_CANCELED, new Intent().putExtra("sessionId", sessionId));
         }

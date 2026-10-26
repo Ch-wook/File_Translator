@@ -208,6 +208,8 @@ class DocumentRepository(private val context: Context) {
     }
     suspend fun save(s: Session, destination: Uri): Session = io {
         val replacing = s.uri == destination.toString()
+        // Reading or pressing Save without changes never rewrites the provider file.
+        if(replacing && !s.dirty) return@io s
         require(!replacing || s.pdf?.archival != true) { "PDF/A 검증기를 제공하지 않습니다. 일반 PDF로 다른 이름으로 저장하세요." }
         val dir = s.base.parentFile!!; val stage = File(dir,"validated.bin"); val backup = File(dir,"provider-backup.bin")
         checkpointInternal(s)
@@ -301,7 +303,7 @@ class DocumentRepository(private val context: Context) {
         else if(s.pack!=null) s.pack.write(working,s.edits) else s.legacy!!.write(working,s.edits)
         require(FormatDetector.detect(working,s.name)==s.format)
         atomic(File(dir,"office-pending.json"),JSONObject().apply {
-            put("working",working.name);put("hash",digest(working));put("base",s.base.name);put("revision",s.revision)
+            put("approvalVersion",1);put("working",working.name);put("hash",digest(working));put("base",s.base.name);put("revision",s.revision)
             put("edits",StateCodec.encode(s.edits.copy(strokes=emptyList())))
         }.toString().toByteArray())
         remember(s)
@@ -328,6 +330,7 @@ class DocumentRepository(private val context: Context) {
         require(name.matches(Regex("office-[a-zA-Z0-9-]+\\.(docx|doc|xlsx|xls|pptx|ppt|hwp|hwpx)")))
         val working=File(dir,name)
         val closed=File(working.path+".closed")
+        val edited=File(working.path+".edited")
         // A clean close is written after BYE has stopped native writers. Otherwise a
         // process-held file lock distinguishes a crash recovery from an active editor.
         if(!closed.exists()) java.io.RandomAccessFile(File(dir,"office.lock"),"rw").use {file ->
@@ -337,7 +340,12 @@ class DocumentRepository(private val context: Context) {
         require(s.base.name==pending.getString("base") && s.revision==pending.getLong("revision")) {"동시 편집이 감지되었습니다. 정밀 편집 파일을 복구 폴더에 보존했습니다."}
         pending.optJSONObject("edits")?.let {expected -> require(s.edits.copy(strokes=emptyList())==StateCodec.decode(expected)) {"다른 화면에서 본문을 편집했습니다. 정밀 편집 파일을 보관한 뒤 병합해 주세요."}}
         require(working.isFile && working.length() in 1..128L*1024*1024) {"정밀 편집 복구본이 없거나 크기 제한을 초과했습니다."}
-        if(digest(working)==pending.getString("hash")) {marker.delete();closed.delete();remember(s);return s}
+        if(digest(working)==pending.getString("hash")) {marker.delete();closed.delete();edited.delete();remember(s);return s}
+        if(pending.optInt("approvalVersion")!=1 || !edited.isFile) {
+            // Preserve unapproved or legacy engine output for recovery; never adopt it.
+            require(marker.renameTo(File(dir,"office-pending-unapproved-${UUID.randomUUID()}.json"))) {"승인되지 않은 작업 파일 보관에 실패했습니다."}
+            return s.copy(recoveryWarning="승인된 편집 표시가 없는 작업 파일을 보관했습니다. 원본과 이전 작업은 변경하지 않았습니다.").also {remember(it)}
+        }
         require(FormatDetector.detect(working,s.name)==s.format) {"정밀 편집 결과 형식이 일치하지 않습니다. 이전 복구본과 작업 파일을 보존했습니다."}
         val next=File(dir,"${UUID.randomUUID()}.bin"); atomic(next,working.readBytes())
         val parsed=build(s.id,s.name,s.format,s.uri,s.sourceHash,next)
@@ -349,7 +357,7 @@ class DocumentRepository(private val context: Context) {
         val result=parsed.copy(edits=Edits(strokes=s.edits.strokes.map {it.copy(anchor=mapping[it.anchor] ?: it.anchor)},layers=s.edits.layers,paper=s.edits.paper),
             saved=s.saved,revision=s.revision+1,savedRevision=s.savedRevision)
         checkpointInternal(result)
-        marker.delete();closed.delete()
+        marker.delete();closed.delete();edited.delete()
         return result
     }
     suspend fun reencode(s: Session,charset: String,bom: Boolean): Session = io {

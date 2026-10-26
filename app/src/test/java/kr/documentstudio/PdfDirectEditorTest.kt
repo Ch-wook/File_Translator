@@ -65,7 +65,7 @@ class PdfDirectEditorTest {
         val file=fixture();val image=PdfImages.list(file,0).first()
         val context=RuntimeEnvironment.getApplication()
         val changes=mutableListOf<DocumentChange>()
-        val canvas=PdfObjectCanvas(context).apply {page=0;images=PdfImages.list(file,0);onCommit={changes+=it}}
+        val canvas=PdfObjectCanvas(context).apply {editable=true;page=0;images=PdfImages.list(file,0);onCommit={changes+=it}}
         FrameLayout(context).addView(canvas);canvas.layout(0,0,1000,1000)
         fun touch(action: Int,x: Float,y: Float) {val event=MotionEvent.obtain(0,1,action,x,y,0);canvas.onTouchEvent(event);event.recycle()}
         val x=(image.x+image.width/2)*10;val y=(image.y+image.height/2)*10
@@ -77,6 +77,17 @@ class PdfDirectEditorTest {
         assertEquals(PdfImages.list(file,0)[1],after[1])
         touch(MotionEvent.ACTION_DOWN,x,y);touch(MotionEvent.ACTION_MOVE,x+80,y+50);touch(MotionEvent.ACTION_CANCEL,x+80,y+50)
         assertEquals(1,changes.size)
+    }
+    @Test fun readingCannotSelectTypeOrDragAndReturningToReadingClearsTheEditor() {
+        val file=fixture();val context=RuntimeEnvironment.getApplication()
+        val canvas=PdfObjectCanvas(context).apply {page=0;textRuns=PdfBodyText.runs(file,0);images=PdfImages.list(file,0)}
+        FrameLayout(context).addView(canvas);canvas.layout(0,0,1000,1000)
+        val changes=mutableListOf<DocumentChange>();canvas.onCommit={changes+=it};canvas.onPreview={changes+=it}
+        val image=canvas.images.first();val x=(image.x+image.width/2)*10;val y=(image.y+image.height/2)*10
+        fun touch(action: Int): Boolean {val e=MotionEvent.obtain(0,1,action,x,y,0);return try {canvas.onTouchEvent(e)} finally {e.recycle()}}
+        assertFalse(canvas.editable);assertFalse(touch(MotionEvent.ACTION_DOWN));assertNull(canvas.selection)
+        canvas.editable=true;assertTrue(touch(MotionEvent.ACTION_DOWN));assertNotNull(canvas.selection)
+        canvas.editable=false;assertNull(canvas.selection);assertFalse(touch(MotionEvent.ACTION_MOVE));assertTrue(changes.isEmpty())
     }
     @Test fun unsupportedGlyphsDoNotPublishOutputOrOverwriteTheSource() {
         val file=fixture();val bytes=file.readBytes();val run=PdfBodyText.runs(file,0).first();val output=temp()

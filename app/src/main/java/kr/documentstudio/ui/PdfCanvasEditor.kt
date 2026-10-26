@@ -31,8 +31,17 @@ class PdfObjectCanvas(context: Context): FrameLayout(context) {
     var bitmap: Bitmap?=null
     var textRuns: List<PdfBodyRun> = emptyList()
     var images: List<PdfImagePlacement> = emptyList()
-    var editable=true
-        set(value) {field=value;input?.isEnabled=value}
+    var editable=false
+        set(value) {
+            if(field==value) return
+            field=value
+            if(!value) {
+                input?.clearFocus()
+                (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(windowToken,0)
+                clearSelection(false)
+            }
+            input?.isEnabled=value
+        }
     var selection: Any?=null;private set
     var onSelection: (Any?)->Unit={}
     var onPreview: (DocumentChange)->Unit={}
@@ -63,7 +72,7 @@ class PdfObjectCanvas(context: Context): FrameLayout(context) {
     }
     fun clearSelection(commit: Boolean=true) {
         val item=selection
-        if(commit && item is PdfBodyRun && dirtyText!=null && dirtyText!=item.text) onCommit(DocumentChange("pdf.replaceText",page.toString(),mapOf("id" to item.id.toString(),"expected" to item.text,"text" to dirtyText!!)))
+        if(commit && editable && item is PdfBodyRun && dirtyText!=null && dirtyText!=item.text) onCommit(DocumentChange("pdf.replaceText",page.toString(),mapOf("id" to item.id.toString(),"expected" to item.text,"text" to dirtyText!!)))
         input?.let {removeView(it)};input=null;dirtyText=null;selection=null;imageFrame=null;onSelection(null);invalidate()
     }
     fun syncInput(value: String) {
@@ -87,7 +96,7 @@ class PdfObjectCanvas(context: Context): FrameLayout(context) {
             addTextChangedListener(object: TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?,start: Int,count: Int,after: Int) {}
                 override fun onTextChanged(s: CharSequence?,start: Int,before: Int,count: Int) {
-                    if(tag==true) return
+                    if(tag==true || !editable) return
                     dirtyText=s.toString();onPreview(DocumentChange("pdf.replaceText",page.toString(),mapOf("id" to run.id.toString(),"expected" to run.text,"text" to s.toString())))
                 }
                 override fun afterTextChanged(s: Editable?) {}
@@ -134,8 +143,10 @@ class PdfObjectCanvas(context: Context): FrameLayout(context) {
 }
 
 @Composable
-fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean) {
+fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readOnly: Boolean=false) {
     val scope=rememberCoroutineScope()
+    val verticalPosition=rememberScrollState()
+    val horizontalPosition=rememberScrollState()
     var canvas by remember(s.id,page) {mutableStateOf<PdfObjectCanvas?>(null)}
     var selected by remember(s.base,page) {mutableStateOf<Any?>(null)}
     var bitmap by remember(s.base,page) {mutableStateOf<Bitmap?>(null)}
@@ -150,6 +161,12 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean) {
     suspend fun render(values: Map<String,String>,change: DocumentChange?=null): Triple<Bitmap,List<PdfBodyRun>,List<PdfImagePlacement>> {
         var produced: Bitmap?=null
         try {return withContext(Dispatchers.IO) {
+            if(change==null && values.isEmpty() && s.edits.strokes.isEmpty()) {
+                val text=PdfBodyText.runs(s.base,page).filter {it.bounds!=null}
+                val graphics=PdfImages.list(s.base,page)
+                val image=PdfEngine.render(s.base,page);produced=image
+                return@withContext Triple(image,text,graphics)
+            }
             val file=File.createTempFile("pdf-scene-",".pdf",s.base.parentFile)
             val changed=File.createTempFile("pdf-scene-change-",".pdf",s.base.parentFile)
             try {
@@ -174,6 +191,7 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean) {
         previewJob=scope.launch {try {show(render(s.edits.values));failure=null} catch(e: CancellationException) {throw e} catch(e: Exception) {failure=e.message}}
     }
     fun preview(change: DocumentChange) {
+        if(readOnly || busy) return
         if(change.type=="pdf.replaceText") {
             val key=PdfTextEdits.key(page,change.arguments.getValue("id").toInt())
             vm.field(key,PdfTextEdits.value(s.edits.values[key],change.arguments.getValue("expected"),change.arguments.getValue("text")))
@@ -189,36 +207,37 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean) {
             catch(e: Exception) {failure=e.message ?: "이미지 편집 결과를 표시하지 못했습니다."}
         }
     }
+    LaunchedEffect(readOnly) {if(readOnly) {canvas?.clearSelection(false);resetPreview()}}
     Column(Modifier.fillMaxSize().testTag("pdf-direct-editor")) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text(if(selected is PdfBodyRun) "본문 선택" else if(selected is PdfImagePlacement) "이미지 선택" else "글자·이미지를 클릭하세요",style=MaterialTheme.typography.labelMedium)
-            TextButton({canvas?.clearSelection()},enabled=!busy && selected!=null) {Text("적용")}
-            TextButton({
+            Text(if(readOnly) "원본 페이지 보기" else if(selected is PdfBodyRun) "본문 선택" else if(selected is PdfImagePlacement) "이미지 선택" else "글자·이미지를 클릭하세요",style=MaterialTheme.typography.labelMedium)
+            if(!readOnly) TextButton({canvas?.clearSelection()},enabled=!busy && selected!=null) {Text("적용")}
+            if(!readOnly) TextButton({
                 val text=selected as? PdfBodyRun
                 if(text!=null) {val key=PdfTextEdits.key(page,text.id);vm.field(key,PdfTextEdits.value(s.edits.values[key],text.text,text.text))}
                 canvas?.clearSelection(false);resetPreview()
             },enabled=!busy && selected!=null) {Text("취소")}
-            if(selected is PdfImagePlacement) TextButton({val image=selected as PdfImagePlacement;canvas?.clearSelection(false);vm.change(DocumentChange("pdf.deleteImage",page.toString(),mapOf("id" to image.id.toString(),"expected" to image.token)))},enabled=!busy) {Text("이미지 삭제")}
+            if(!readOnly && selected is PdfImagePlacement) TextButton({val image=selected as PdfImagePlacement;canvas?.clearSelection(false);vm.change(DocumentChange("pdf.deleteImage",page.toString(),mapOf("id" to image.id.toString(),"expected" to image.token)))},enabled=!busy) {Text("이미지 삭제")}
             TextButton({zoom=(zoom-0.25f).coerceAtLeast(1f)}) {Text("−")};Text("${(zoom*100).toInt()}%")
             TextButton({zoom=(zoom+0.25f).coerceAtMost(3f)}) {Text("+")}
         }
         failure?.let {Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall,modifier=Modifier.padding(8.dp))}
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val pageWidth=maxWidth-24.dp
+            val pageWidth=(maxWidth-24.dp).coerceAtLeast(1.dp)
             val image=bitmap
             if(image==null) Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {if(failure==null) CircularProgressIndicator() else Text("페이지를 편집 가능한 상태로 표시하지 못했습니다.")}
-            else Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState()).padding(12.dp)) {
+            else Box(Modifier.fillMaxSize().verticalScroll(verticalPosition).horizontalScroll(horizontalPosition).padding(12.dp)) {
                 AndroidView(factory={context->PdfObjectCanvas(context).also {canvas=it}},update={view->
-                    view.bitmap=image;view.page=page;view.editable=!busy;view.textRuns=runs;view.images=images;view.onSelection={selected=it}
+                    view.bitmap=image;view.page=page;view.editable=!busy && !readOnly;view.textRuns=runs;view.images=images;view.onSelection={selected=it}
                     (view.selection as? PdfBodyRun)?.let {run->
                         val pending=s.edits.values[PdfTextEdits.key(page,run.id)]
                         val value=pending?.let {org.json.JSONObject(it).getString("text")} ?: runs.firstOrNull {it.id==run.id}?.text
                         if(value!=null) view.syncInput(value)
                     }
-                    view.onPreview={preview(it)};view.onCancelPreview={resetPreview()};view.onCommit={if(it.type!="pdf.replaceText") {previewJob?.cancel();previewRevision++;vm.change(it)}};view.invalidate()
+                    view.onPreview={preview(it)};view.onCancelPreview={resetPreview()};view.onCommit={if(!readOnly && !busy && it.type!="pdf.replaceText") {previewJob?.cancel();previewRevision++;vm.change(it)}};view.invalidate()
                 },modifier=Modifier.width(pageWidth*zoom).aspectRatio(image.width.toFloat()/image.height))
             }
         }
-        Text("원본 폰트의 가로 본문·페이지 직접 이미지를 편집합니다. 스캔·중첩/태그/회전 본문은 보호합니다.",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(8.dp))
+        Text(if(readOnly) "원본 페이지 · 편집하기를 선택하면 지원되는 글자와 이미지를 수정할 수 있습니다." else "원본 폰트의 가로 본문·페이지 직접 이미지를 편집합니다. 스캔·중첩/태그/회전 본문은 보호합니다.",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(8.dp))
     }
 }

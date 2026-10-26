@@ -62,6 +62,7 @@ jobs:
           ./gradlew :core:verifyVisualRoundTrip --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/roundtrip.log
       - name: Enable emulator acceleration
         run: |
+          ./gradlew --stop
           if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
       - name: Android 35 emulator checks
         id: android
@@ -119,7 +120,7 @@ jobs:
               for folder in ('artifacts/ci','artifacts/document-engines','core/build/test-results','app/build/test-results','app/build/outputs/androidTest-results','app/build/reports','core/build/visual-fixtures'):
                   for p in (root/folder).rglob('*'):
                       if p.is_file(): z.write(p,p.relative_to(root))
-          text='Reimplemented preview from 2bfe225; original unpushed 0.8.0 source was not recovered.\nDevelopment/debug signature; two ABIs. Physical Android device tests were not run.\nAndroid emulator outcome: '+os.environ['EMULATOR_OUTCOME']+'\nCommit: '+os.environ['GITHUB_SHA']+'\nSee verification ZIP for executed checks and limitations.\n'
+          text='문서 스튜디오 '+name.removeprefix('document-studio-')+' — 검증용 프리뷰\n\n기준 원격 커밋 2bfe225에서 재구현했습니다. 이전 미푸시 0.8.0 소스는 복구하지 못했습니다.\n개발/디버그 서명 APK · arm64-v8a 및 x86_64 · Android 10 이상(Office는 Android 11 이상).\n실제 Android 휴대폰 종합 검증은 수행하지 않았습니다. 에뮬레이터 결과: '+os.environ['EMULATOR_OUTCOME']+'\nJUnit 결과: '+json.dumps(reports,ensure_ascii=False)+'\n실행한 검사·입출력 샘플·제한은 verification ZIP을 확인하세요. 모든 문서의 서식 보존을 보장하지 않습니다.\n기존 설치와 서명이 다르면 바로 업데이트되지 않습니다. 앱의 기존 작업을 보존한 상태에서 확인하세요.\n\n커밋: '+os.environ['GITHUB_SHA']+'\n'
           (out/'README.txt').write_text(text)
           lines=[]
           for p in sorted(out.iterdir()):
@@ -146,6 +147,9 @@ jobs:
           python3 - <<'PY'
           import hashlib,json,os,pathlib,urllib.request
           root=pathlib.Path('artifacts/delivery')
+          tag_url='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']+'/git/ref/tags/v0.8.1-preview'
+          with urllib.request.urlopen(tag_url,timeout=120) as response: tag=json.load(response)
+          assert tag['object']['type']=='commit' and tag['object']['sha']==os.environ['GITHUB_SHA'],tag
           results=[]
           for line in (root/'SHA256SUMS').read_text().splitlines():
               expected,name=line.split('  ',1)

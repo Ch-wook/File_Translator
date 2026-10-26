@@ -29,7 +29,7 @@ class MainActivity: ComponentActivity() {
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); handle(intent) }
     private fun handle(intent: Intent) {
         val uri: Uri? = when(intent.action) {
-            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_VIEW,Intent.ACTION_EDIT -> intent.data
             Intent.ACTION_SEND -> if(android.os.Build.VERSION.SDK_INT>=33) intent.getParcelableExtra(Intent.EXTRA_STREAM,Uri::class.java) else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_STREAM)
             else -> null
         }
@@ -41,7 +41,7 @@ class MainActivity: ComponentActivity() {
                 read->contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 write->contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
             }}
-            vm.openExternal(uri)
+            vm.openExternal(uri,if(intent.action==Intent.ACTION_EDIT) kr.documentstudio.core.OpenIntent.EDIT else kr.documentstudio.core.OpenIntent.VIEW)
         }
     }
     override fun onStop() { vm.flush(); super.onStop() }

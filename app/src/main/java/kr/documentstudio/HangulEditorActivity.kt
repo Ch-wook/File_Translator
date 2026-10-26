@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Base64
+import android.util.AtomicFile
 import android.view.ViewGroup
 import android.webkit.*
 import android.widget.Toast
@@ -36,6 +37,8 @@ class HangulEditorActivity: ComponentActivity() {
     private var expected=0L
     private var written=0L
     @Volatile private var ready=false
+    @Volatile private var editAllowed=false
+    @Volatile private var loadError: String?=null
     private val bridge=Bridge()
     private var fileResult: ValueCallback<Array<Uri>>?=null
     private val imagePicker=registerForActivityResult(ActivityResultContracts.OpenDocument()) {uri->fileResult?.onReceiveValue(uri?.let {arrayOf(it)});fileResult=null}
@@ -79,6 +82,7 @@ class HangulEditorActivity: ComponentActivity() {
             }
             webChromeClient=object: WebChromeClient() {
                 override fun onShowFileChooser(view: WebView,callback: ValueCallback<Array<Uri>>,params: FileChooserParams): Boolean {
+                    if(!editAllowed) {callback.onReceiveValue(null);return true}
                     fileResult?.onReceiveValue(null);fileResult=callback;imagePicker.launch(arrayOf("image/*"));return true
                 }
             }
@@ -92,26 +96,51 @@ class HangulEditorActivity: ComponentActivity() {
         }
         ViewCompat.requestApplyInsets(browser)
         onBackPressedDispatcher.addCallback(this,object: OnBackPressedCallback(true) {override fun handleOnBackPressed() {
-            if(!ready) bridge.closeEditor(false) else browser.evaluateJavascript("window.documentStudioHost.returnToWorkspace()",null)
+            if(!ready) bridge.closeEditor(false) else browser.evaluateJavascript("window.documentStudioHost.back()",null)
         }})
         browser.loadUrl("$ORIGIN/")
     }
     inner class Bridge {
-        @JavascriptInterface fun describe()=JSONObject().put("name",intent.getStringExtra("displayName") ?: working.name).put("format",extension).toString()
+        @JavascriptInterface fun describe(): String {
+            val meta=JSONObject().put("name",intent.getStringExtra("displayName") ?: working.name)
+                .put("format",extension).put("openIntent",if(intent.getStringExtra("openIntent")=="EDIT") "EDIT" else "VIEW")
+            runCatching {
+                val file=File(working.parentFile,"hangul-view-state.json")
+                if(file.isFile && file.length()<=65536) meta.put("viewState",JSONObject(AtomicFile(file).openRead().bufferedReader().use {it.readText()}))
+            }
+            return meta.toString()
+        }
+        @Synchronized @JavascriptInterface fun setEditing(value: Boolean): Boolean {
+            if(!ready || output!=null || loadError!=null) return false
+            editAllowed=value
+            return true
+        }
+        @Synchronized @JavascriptInterface fun saveViewState(value: String) {
+            if(!ready || value.length>65536) return
+            val view=runCatching {JSONObject(value)}.getOrNull() ?: return
+            val zoom=view.optDouble("zoom",1.0)
+            val top=view.optDouble("scrollTop",0.0);val left=view.optDouble("scrollLeft",0.0)
+            if(!zoom.isFinite() || zoom !in 0.1..5.0 || !top.isFinite() || !left.isFinite() || top<0 || left<0) return
+            val state=JSONObject().put("zoom",zoom).put("scrollTop",top).put("scrollLeft",left).toString()
+            val atomic=AtomicFile(File(working.parentFile,"hangul-view-state.json"))
+            var stream: FileOutputStream?=null
+            try {stream=atomic.startWrite();stream.write(state.toByteArray(Charsets.UTF_8));atomic.finishWrite(stream)}
+            catch(_: Exception) {stream?.let {atomic.failWrite(it)}}
+        }
         @JavascriptInterface fun loaded() {ready=true}
-        @JavascriptInterface fun loadFailed(message: String) {runOnUiThread {Toast.makeText(this@HangulEditorActivity,message.take(500),Toast.LENGTH_LONG).show()}}
+        @JavascriptInterface fun loadFailed(message: String) {loadError=message.take(500);editAllowed=false;runOnUiThread {Toast.makeText(this@HangulEditorActivity,loadError,Toast.LENGTH_LONG).show()}}
         @Synchronized @JavascriptInterface fun beginWrite(length: Int): Boolean {
-            abortWrite();if(!ready || length !in 1..128*1024*1024) return false
+            abortWrite();if(!ready || !editAllowed || loadError!=null || length !in 1..128*1024*1024) return false
             expected=length.toLong();written=0
             staged=File(working.parentFile,"hangul-${java.util.UUID.randomUUID()}.tmp")
             return try {output=FileOutputStream(staged!!);true} catch(_: Exception) {abortWrite();false}
         }
         @Synchronized @JavascriptInterface fun writeChunk(value: String): Boolean = try {
-            require(value.length<=65536);val bytes=Base64.decode(value,Base64.NO_WRAP)
+            require(editAllowed && value.length<=65536);val bytes=Base64.decode(value,Base64.NO_WRAP)
             require(output!=null && written+bytes.size<=expected);output!!.write(bytes);written+=bytes.size;true
         } catch(_: Exception) {abortWrite();false}
         @Synchronized @JavascriptInterface fun finishWrite(report: String): String = try {
-            require(report.length<=65536);val loss=JSONObject(report)
+            require(ready && editAllowed && loadError==null && report.length<=65536);val loss=JSONObject(report)
             require(loss.getInt("schemaVersion")==1 && loss.getString("outputFormat")==extension && loss.getInt("count")==0 && loss.getJSONArray("losses").length()==0) {"문서 요소 보존 검사에 실패했습니다."}
             require(written==expected && output!=null && staged!=null)
             output!!.fd.sync();output!!.close();output=null
@@ -122,6 +151,7 @@ class HangulEditorActivity: ComponentActivity() {
                 FileOutputStream(sealed,true).use {it.fd.sync()}
                 Files.move(sealed.toPath(),working.toPath(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING)
             } finally {sealed.delete()}
+            FileOutputStream(File(working.path+".edited")).use {it.write(1);it.fd.sync()}
             staged!!.delete();staged=null;JSONObject().put("ok",true).toString()
         } catch(error: Exception) {abortWrite();JSONObject().put("ok",false).put("error",error.message ?: "저장 검증 실패").toString()}
         @Synchronized @JavascriptInterface fun abortWrite() {runCatching {output?.close()};output=null;staged?.delete();staged=null;expected=0;written=0}
@@ -132,7 +162,11 @@ class HangulEditorActivity: ComponentActivity() {
         }}
         @JavascriptInterface fun closeEditor(saveOriginal: Boolean) {runOnUiThread {
             FileOutputStream(File(working.path+".closed")).use {it.write(1);it.fd.sync()}
-            setResult(Activity.RESULT_OK,Intent().putExtra("sessionId",sessionId).putExtra("saveOriginal",saveOriginal));finish()
+            editAllowed=false
+            val changed=File(working.path+".edited").isFile
+            val result=Intent().putExtra("sessionId",sessionId).putExtra("saveOriginal",saveOriginal && changed).putExtra("edited",changed)
+            loadError?.let {result.putExtra("error",it)}
+            setResult(if(loadError==null) Activity.RESULT_OK else Activity.RESULT_CANCELED,result);finish()
         }}
     }
     override fun onDestroy() {

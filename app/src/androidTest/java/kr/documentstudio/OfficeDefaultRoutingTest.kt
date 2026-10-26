@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.cancel
 import kr.documentstudio.core.Format
+import kr.documentstudio.core.OpenIntent
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
@@ -30,6 +31,7 @@ class OfficeDefaultRoutingTest {
             main {model.create(format,visual=true)};await(model)
             val request=model.state.value.officeLaunch!!
             assertEquals(model.state.value.session!!.id,request.sessionId)
+            assertEquals(OpenIntent.VIEW,request.openIntent)
             main {model.consumeOfficeLaunch(request)}
             assertNull(model.state.value.officeLaunch)
             main {model.consumeOfficeLaunch(request)}
@@ -59,9 +61,19 @@ class OfficeDefaultRoutingTest {
         assertEquals(model.state.value.session!!.id,model.state.value.officeLaunch!!.sessionId)
         assertNotEquals(original.id,model.state.value.officeLaunch!!.sessionId)
     }
+    @Test fun explicitEditingIsRequiredAndRestoringReturnsToView()=scenario {model->
+        main {model.create(Format.DOCX)};await(model)
+        val s=model.state.value.session!!
+        assertEquals(OpenIntent.VIEW,model.state.value.officeLaunch!!.openIntent)
+        main {model.consumeOfficeLaunch(model.state.value.officeLaunch!!);model.beginEditing(s.id)}
+        assertEquals(OpenIntent.EDIT,model.state.value.officeLaunch!!.openIntent)
+        main {model.consumeOfficeLaunch(model.state.value.officeLaunch!!);model.restore(s.id)};await(model)
+        assertEquals(OpenIntent.VIEW,model.state.value.officeLaunch!!.openIntent)
+    }
     @Test fun failedOpenDoesNotLaunchPreviouslyActiveDocument()=scenario {model->
         main {model.create(Format.DOCX)};await(model)
         val id=model.state.value.active
+        main {model.state.value.officeLaunch?.let {model.consumeOfficeLaunch(it)}}
         val app=ApplicationProvider.getApplicationContext<Application>()
         val file=File(app.cacheDir,"tests/${UUID.randomUUID()}.docx").apply {parentFile!!.mkdirs();writeText("not a word file")}
         val uri=FileProvider.getUriForFile(app,"kr.documentstudio.testfiles",file)

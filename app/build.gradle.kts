@@ -7,8 +7,8 @@ android {
         minSdk = 29
         targetSdk = 36
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
-        versionCode = 8
-        versionName = "0.7.0-preview"
+        versionCode = 11
+        versionName = "0.8.1-preview"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     sourceSets.getByName("main").assets.srcDir(rootProject.file(".engine-cache/hangul/runtime"))

@@ -154,7 +154,15 @@ public class LOActivity extends AppCompatActivity {
     private boolean isDocEditable = false;
     private boolean isDocDebuggable = false;
     private boolean documentLoaded = false;
-    private boolean officeWasEdited = false;
+    // Permission, pending core modifications and durable approved output are distinct.
+    private volatile boolean studioEditAuthorized = false;
+    private volatile boolean studioEditEverAuthorized = false;
+    private volatile boolean officeModified = false;
+    private volatile boolean officeApprovedChanges = false;
+    private volatile boolean officeSaveInFlight = false;
+    private volatile boolean officeSavedApproved = false;
+    private volatile boolean officeLoadFinished = false;
+    private volatile boolean officeLoadFailed = false;
 
     private ClipboardManager clipboardManager;
     private ClipData clipData;
@@ -763,8 +771,8 @@ public class LOActivity extends AppCompatActivity {
 
         PrivateLog.i(TAG, "onNewIntent");
 
-        if (documentLoaded) {
-            postMobileMessageNative("save dontTerminateEdit=1 dontSaveIfUnmodified=1");
+        if (documentLoaded && officeModified && officeApprovedChanges) {
+            saveApprovedWorkingCopy();
         }
 
         super.onNewIntent(intent);
@@ -1020,8 +1028,8 @@ public class LOActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         // A Save similar to an autosave
-        if (documentLoaded)
-            postMobileMessageNative("save dontTerminateEdit=1 dontSaveIfUnmodified=1");
+        if (documentLoaded && officeModified && officeApprovedChanges && studioEditAuthorized)
+            saveApprovedWorkingCopy();
 
         super.onPause();
         PrivateLog.d(TAG, "onPause() - hinting to save, we might need to return to the doc");
@@ -1249,6 +1257,54 @@ public class LOActivity extends AppCompatActivity {
     private boolean studioSaveOriginal;
     protected boolean shouldSaveOriginal() { return studioSaveOriginal; }
     protected void onOfficeClosed() { }
+    protected void onOfficeSaved() throws IOException { }
+    protected void onOfficeLoadFailed(String error) { }
+    protected String readOfficeViewState() { return "{}"; }
+    protected void writeOfficeViewState(String state) { }
+    protected boolean hasApprovedOfficeOutput() { return officeSavedApproved; }
+
+    @JavascriptInterface
+    public String getStudioViewState() { return readOfficeViewState(); }
+
+    @JavascriptInterface
+    public void saveStudioViewState(String state) {
+        if (state != null && state.length() <= 4096) writeOfficeViewState(state);
+    }
+
+    @JavascriptInterface
+    public boolean requestStudioEdit() {
+        if (!isDocEditable || !documentLoaded || officeLoadFailed || closeSave != null) return false;
+        studioEditAuthorized = true;
+        studioEditEverAuthorized = true;
+        return true;
+    }
+
+    private void saveApprovedWorkingCopy() {
+        if (!officeModified || !officeApprovedChanges || officeLoadFailed) return;
+        officeSaveInFlight = true;
+        // Back commits the current cell before entering read mode. Temporarily
+        // permit only this native save; the Java/JS input gates remain closed.
+        if (!studioEditAuthorized) postMobileMessageNative("setviewreadonly value=false");
+        postMobileMessageNative("save dontTerminateEdit=1 dontSaveIfUnmodified=1");
+        if (!studioEditAuthorized) postMobileMessageNative("setviewreadonly value=true");
+    }
+
+    private void observeSaveResult(JSONObject result) {
+        if (!".uno:Save".equals(result.optString("commandName"))) return;
+        if (officeSaveInFlight && result.optBoolean("success", false)) {
+            try {
+                onOfficeSaved();
+                officeSavedApproved = true;
+            } catch (IOException failure) {
+                officeSaveInFlight = false;
+                if (closeSave != null) { closeSaveSucceeded = false; closeSave.countDown(); }
+                runOnUiThread(() -> Toast.makeText(this, "편집 결과 기록을 확인하지 못했습니다. 다시 저장해 주세요.", Toast.LENGTH_LONG).show());
+                return;
+            }
+        }
+        officeSaveInFlight = false;
+        confirmCloseSave(result);
+    }
 
     private void confirmCloseSave(JSONObject result) {
         java.util.concurrent.CountDownLatch pending = closeSave;
@@ -1273,11 +1329,8 @@ public class LOActivity extends AppCompatActivity {
         // progress dialog keeps drawing.
         nativeHandler.post(() -> {
             OfficePrivacy.requireQuiet();
-            if (officeWasEdited) {
-                // Mobile Back switches core's view to read-only. Restore only
-                // this private working view before asking core to persist it.
-                postMobileMessageNative("setviewreadonly value=false");
-                postMobileMessageNative("save dontTerminateEdit=1 dontSaveIfUnmodified=0");
+            if (officeModified && officeApprovedChanges) {
+                saveApprovedWorkingCopy();
             }
             else { closeSaveSucceeded = true; closeSave.countDown(); }
             boolean saved = false;
@@ -1326,6 +1379,9 @@ public class LOActivity extends AppCompatActivity {
         PrivateLog.i(TAG, "Loading with language:  " + language);
 
         finalUrlToLoad += "&lang=" + language;
+        // Keep edit capability, while entering an actual core read-only view.
+        finalUrlToLoad += "&startreadonly=true&studioopen="
+                + ("EDIT".equals(getIntent().getStringExtra("openIntent")) ? "EDIT" : "VIEW");
 
         if (isDocEditable) {
             finalUrlToLoad += "&permission=edit";
@@ -1396,7 +1452,7 @@ public class LOActivity extends AppCompatActivity {
     public void postMobileMessage(String message) {
         OfficePrivacy.requireQuiet();
         if (message.startsWith("SAVE ") && closeSave != null) {
-            try { confirmCloseSave(new JSONObject(message.substring(5))); }
+            try { observeSaveResult(new JSONObject(message.substring(5))); }
             catch (JSONException malformed) { /* A malformed acknowledgement cannot confirm a save. */ }
         }
         PrivateLog.d(TAG, "postMobileMessage: " + message);
@@ -1405,6 +1461,9 @@ public class LOActivity extends AppCompatActivity {
 
         if (beforeMessageFromWebView(messageAndParameterArray)) {
             postMobileMessageNative(message);
+            // Preserve queue order: initial native load, then a read-only core view,
+            // before any user input. readonly=1 would forbid later explicit editing.
+            if (message.startsWith("load ")) postMobileMessageNative("setviewreadonly value=true");
             afterMessageFromWebView(messageAndParameterArray);
         }
     }
@@ -1419,13 +1478,17 @@ public class LOActivity extends AppCompatActivity {
      */
     @JavascriptInterface
     public void postMobileError(String message) {
-        // TODO handle this
-        PrivateLog.d(TAG, "postMobileError: " + message);
+        if (!officeLoadFinished) reportOfficeLoadFailure("오피스 엔진을 시작하지 못했습니다.");
     }
 
     /**
      * Passing messages from JS (instead of the websocket communication).
      */
+    public void reportOfficeLoadFailure(String error) {
+        officeLoadFailed = true;
+        runOnUiThread(() -> onOfficeLoadFailed(error));
+    }
+
     @JavascriptInterface
     public void postMobileDebug(String message) {
         // TODO handle this
@@ -1463,12 +1526,33 @@ public class LOActivity extends AppCompatActivity {
      */
     @UsedByNative // androidapp.cpp send2JS
     void rawCallFakeWebsocketOnMessage(final byte[] message) {
-        // The browser can close its socket before dispatching its SAVE bridge
-        // callback. The kit acknowledgement still reaches this native callback.
-        if (closeSave != null && messageStartsWith(message, "unocommandresult:")) {
+        // Native state is authoritative even when the browser closes its socket.
+        if (messageStartsWith(message, "status:")) officeLoadFinished = true;
+        if (messageStartsWith(message, "statechanged:")) {
+            String state = new String(message, java.nio.charset.StandardCharsets.UTF_8).substring("statechanged:".length()).trim();
+            String modified = null;
+            try {
+                if (state.startsWith("{")) {
+                    JSONObject value = new JSONObject(state);
+                    if (".uno:ModifiedStatus".equals(value.optString("commandName"))) modified = value.optString("state");
+                } else if (state.startsWith(".uno:ModifiedStatus=")) modified = state.substring(".uno:ModifiedStatus=".length()).trim();
+            } catch (JSONException ignored) { }
+            if (modified != null) {
+                officeModified = "true".equals(modified);
+                if (officeModified && studioEditEverAuthorized) officeApprovedChanges = true;
+            }
+        }
+        if (messageStartsWith(message, "error:")) {
+            String failure = new String(message, java.nio.charset.StandardCharsets.UTF_8);
+            if (!officeLoadFinished && !failure.toLowerCase(java.util.Locale.ROOT).contains("password")) {
+                officeLoadFailed = true;
+                runOnUiThread(() -> onOfficeLoadFailed("오피스 문서를 열지 못했습니다."));
+            }
+        }
+        if (messageStartsWith(message, "unocommandresult:")) {
             try {
                 String response = new String(message, java.nio.charset.StandardCharsets.UTF_8);
-                confirmCloseSave(new JSONObject(response.substring(response.indexOf('{'))));
+                observeSaveResult(new JSONObject(response.substring(response.indexOf('{'))));
             } catch (Exception malformed) { /* Keep the old baseline if acknowledgement is invalid. */ }
         }
         try {
@@ -1555,9 +1639,29 @@ public class LOActivity extends AppCompatActivity {
      * return true to pass the message to the native part or false to block the message
      */
     private boolean beforeMessageFromWebView(String[] messageAndParam) {
-        switch (messageAndParam[0]) {
+        if (messageAndParam.length == 0) return false;
+        String command = messageAndParam[0];
+        String argument = messageAndParam.length > 1 ? messageAndParam[1] : "";
+        if (this instanceof StudioOfficeActivity && !studioEditAuthorized) {
+            // Native view readonly is the primary barrier; these guards additionally
+            // stop keyboard/IME, paste and object commands at the Android bridge.
+            if (command.equals("key") || command.equals("textinput") || command.equals("paste")
+                    || command.equals("windowkey") || command.equals("insertfile")
+                    || command.equals("removetextcontext") || command.equals("formfieldevent")
+                    || command.equals("contentcontrolevent")
+                    || command.equals("graphicselection") || command.equals("selectgraphic")
+                    || (command.equals("setviewreadonly") && argument.contains("value=false"))) return false;
+            if (command.equals("uno") && !argument.startsWith(".uno:Copy")
+                    && !argument.startsWith(".uno:SelectAll") && !argument.startsWith(".uno:ExecuteSearch")) return false;
+            if (command.equals("save")) return false;
+        }
+        if (command.equals("save") || (command.equals("uno") && (argument.equals(".uno:Save") || argument.startsWith(".uno:Save ")))) {
+            if (!officeModified || !officeApprovedChanges) return false;
+            officeSaveInFlight = true;
+        }
+        switch (command) {
             case "DOCUMENT_STUDIO_SAVE_AND_CLOSE":
-                studioSaveOriginal = true;
+                studioSaveOriginal = officeApprovedChanges || officeSavedApproved;
                 runOnUiThread(this::finishWithProgress);
                 return false;
             case "BYE":
@@ -1629,13 +1733,17 @@ public class LOActivity extends AppCompatActivity {
             case "EDITMODE": {
                 switch (messageAndParam[1]) {
                     case "on":
+                        if (!studioEditAuthorized) {
+                            runOnUiThread(() -> callFakeWebsocketOnMessage("mobile: readonlymode"));
+                            return false;
+                        }
                         mIsEditModeActive = true;
-                        officeWasEdited = true;
                         // prompt for file conversion
                         requestForOdf();
                         break;
                     case "off":
                         mIsEditModeActive = false;
+                        studioEditAuthorized = false;
                         break;
                 }
                 return false;

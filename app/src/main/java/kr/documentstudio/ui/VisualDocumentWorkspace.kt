@@ -17,24 +17,24 @@ import kr.documentstudio.data.Session
 
 /** The host owns files and ink; original document editing belongs exclusively to its format engine. */
 @Composable
-fun VisualDocumentWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Boolean,open: ()->Unit) {
+fun VisualDocumentWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Boolean,presentation: PresentationState=PresentationState.READING,open: ()->Unit) {
     var ink by rememberSaveable(s.id) {mutableStateOf(false)}
     val family=WorkspaceFamily.of(s.format)
     val available=EditorPolicy.available(s.format,android.os.Build.VERSION.SDK_INT)
     Column(Modifier.fillMaxSize().testTag("visual-document-workspace")) {
         Row(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically) {
-            TextButton({ink=false},enabled=!busy) {Icon(family.icon,null);Text("문서")}
-            TextButton({ink=true},enabled=!busy) {Icon(Icons.Default.Draw,null);Text("그리기")}
+            TextButton({ink=false;vm.readDocument()},enabled=!busy) {Icon(family.icon,null);Text("문서")}
+            TextButton({vm.beginInk();ink=true},enabled=!busy) {Icon(Icons.Default.Draw,null);Text("그리기")}
             Spacer(Modifier.weight(1f))
-            FilledTonalButton(open,enabled=!busy && available) {Text("원본 문서 편집")}
+            FilledTonalButton(open,enabled=!busy && available) {Text("원본 문서 보기")}
         }
-        if(ink) Box(Modifier.weight(1f)) {DrawingPage(s,s.sections.firstOrNull(),0,settings,vm,busy)}
+        if(ink && presentation.allowsMutation) Box(Modifier.weight(1f)) {DrawingPage(s,s.sections.firstOrNull(),0,settings,vm,busy)}
         else Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
             Column(Modifier.widthIn(max=480.dp).padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally) {
                 Icon(family.icon,null,Modifier.size(56.dp),tint=family.accent)
                 Text(s.name,style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=16.dp))
-                Text(if(available) "문서의 페이지·셀·슬라이드 화면에서 직접 편집합니다." else "이 형식의 원본 문서 편집은 Android 11 이상이 필요합니다.",modifier=Modifier.padding(vertical=12.dp))
-                Button(open,enabled=!busy && available,modifier=Modifier.testTag("resume-visual-editor")) {Text("편집 계속하기")}
+                Text(if(available) "원본 페이지·셀·슬라이드로 엽니다. 문서 화면의 ‘편집하기’로 수정할 수 있습니다." else "이 형식의 원본 문서 편집은 Android 11 이상이 필요합니다.",modifier=Modifier.padding(vertical=12.dp))
+                Button(open,enabled=!busy && available,modifier=Modifier.testTag("resume-visual-editor")) {Text("원본 보기")}
                 if(s.recoveryWarning!=null) Text(s.recoveryWarning,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.error,modifier=Modifier.padding(top=12.dp))
             }
         }

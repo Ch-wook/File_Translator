@@ -33,7 +33,7 @@ class VisualWorkingCopyTest {
         for(format in listOf(Format.HWP,Format.HWPX,Format.DOCX,Format.XLSX,Format.PPTX)) {
             val repo=DocumentRepository(context);val original=repo.create(format);val before=original.base.readBytes()
             val working=repo.prepareOffice(original);change(working,format,"DIRECT EDIT")
-            File(working.path+".closed").writeText("closed")
+            File(working.path+".closed").writeText("closed");File(working.path+".edited").writeText("approved")
             val accepted=repo.acceptOffice(original)
             assertArrayEquals(before,original.base.readBytes());assertEquals(original.revision+1,accepted.revision)
             val destination=File.createTempFile("visual-save-",".${format.extension}",context.cacheDir)
@@ -44,7 +44,7 @@ class VisualWorkingCopyTest {
             val text=accepted.sections.flatMap {it.fields}.joinToString {it.text}+accepted.sections.flatMap {it.cells.values}.joinToString()
             assertTrue("$format edit survived import",text.contains("DIRECT EDIT"))
             val sourceBytes=destination.readBytes();destination.appendText("external change")
-            try {repo.save(saved,Uri.fromFile(destination));fail("External edits must block replacement")}
+            try {repo.save(saved.copy(revision=saved.revision+1),Uri.fromFile(destination));fail("External edits must block replacement")}
             catch(expected: IllegalArgumentException) {assertTrue(expected.message!!.contains("외부"))}
             assertArrayEquals(sourceBytes+"external change".toByteArray(),destination.readBytes())
         }
@@ -55,15 +55,34 @@ class VisualWorkingCopyTest {
             RandomAccessFile(File(working.parentFile,"office.lock"),"rw").use {file->file.channel.lock().use {
                 try {repo.acceptOffice(s);fail("Live editor import must be refused")} catch(expected: IllegalArgumentException) {}
             }}
-            working.writeText("interrupted write")
+            working.writeText("interrupted write");File(working.path+".edited").writeText("approved")
             val restored=repo.restore(s.id)
             assertNotNull(restored.recoveryWarning);assertArrayEquals(before,restored.base.readBytes())
             assertTrue(working.exists());assertTrue(File(working.parentFile,"office-pending.json").exists())
         }
     }
+    @Test fun readOnlyOrUnapprovedEngineBytesNeverReplaceTheWorkingBaseline()=runBlocking {
+        for(format in listOf(Format.HWP,Format.HWPX,Format.DOCX,Format.XLSX,Format.PPTX)) {
+            val repo=DocumentRepository(context);val s=repo.create(format);val before=s.base.readBytes()
+            val working=repo.prepareOffice(s);change(working,format,"UNAPPROVED")
+            File(working.path+".closed").writeText("closed")
+            val result=repo.acceptOffice(s)
+            assertEquals(s.base,result.base);assertEquals(s.revision,result.revision);assertNotNull(result.recoveryWarning)
+            assertArrayEquals(before,result.base.readBytes());assertTrue(working.isFile)
+            assertFalse(File(working.parentFile,"office-pending.json").exists())
+        }
+    }
+    @Test fun untouchedSaveLeavesProviderBytesAndModificationTimeAlone()=runBlocking {
+        val repo=DocumentRepository(context);val created=repo.create(Format.DOCX)
+        val destination=File.createTempFile("view-save-",".docx",context.cacheDir)
+        val uri=Uri.fromFile(destination);val saved=repo.save(created,uri);val bytes=destination.readBytes()
+        assertTrue(destination.setLastModified(1000L))
+        val result=repo.save(saved,uri)
+        assertSame(saved,result);assertEquals(1000L,destination.lastModified());assertArrayEquals(bytes,destination.readBytes())
+    }
     @Test fun concurrentHostChangesCannotBeReplacedByAHangulEngineResult()=runBlocking {
         val repo=DocumentRepository(context);val s=repo.create(Format.HWPX);val working=repo.prepareOffice(s)
-        change(working,s.format,"ENGINE CHANGE")
+        change(working,s.format,"ENGINE CHANGE");File(working.path+".edited").writeText("approved")
         val field=s.sections.first().fields.first()
         val concurrent=s.copy(edits=s.edits.copy(values=mapOf(field.id to "HOST CHANGE")))
         repo.checkpoint(concurrent)

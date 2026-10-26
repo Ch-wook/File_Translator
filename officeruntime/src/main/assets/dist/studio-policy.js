@@ -1,7 +1,8 @@
 /* Document Studio: offline native Office workspace, pinned to the bundled engine. */
 (() => {
   if (window.studioOffice) return;
-  const policy = window.studioOffice = { ready: false, autoEditRequested: false };
+  const policy = window.studioOffice = { ready: false, authorized: false, wasAuthorized: false, modeSupported: false, changed: false, initialIntentHandled: false };
+  const bridge = () => window.COOLMessageHandler;
   window.enableMacrosExecution = false;
   const style = document.createElement('style');
   style.textContent = `
@@ -9,6 +10,11 @@
     #studio-office-tools { --studio-accent:#2858a5; background:var(--color-background-lighter,#fff); color:var(--color-main-text,#243247); border-top:1px solid var(--color-border,#e3e8ef); font:13px system-ui,sans-serif; flex:none; }
     #studio-office-tools[data-family="spreadsheet"] { --studio-accent:#217346; }
     #studio-office-tools[data-family="presentation"] { --studio-accent:#b94d30; }
+    #studio-office-mode { display:flex; align-items:center; gap:4px; padding:3px 8px; }
+    #studio-office-mode button { min-height:44px; }
+    #studio-office-mode-label { font-weight:600; margin-inline-end:auto; }
+    #studio-office-tools[data-editing="false"] #studio-office-tabs,
+    #studio-office-tools[data-editing="false"] #studio-office-actions { display:none; }
     #studio-office-tabs, #studio-office-actions { display:flex; align-items:center; gap:4px; overflow-x:auto; scrollbar-width:none; padding:3px 8px; }
     #studio-office-tools button { flex:none; min-height:36px; border:0; border-radius:6px; padding:6px 11px; color:inherit; background:transparent; font:inherit; cursor:pointer; white-space:nowrap; }
     #studio-office-tools button:hover { background:var(--color-background-dark,#edf1f7); }
@@ -22,12 +28,68 @@
   `;
   document.head.appendChild(style);
   let attempts = 0;
-  let bar, actions, hint, tabs;
+  let bar, actions, hint, tabs, modeButton, modeLabel, saveButton;
+  let transitionViewport, persistTimer;
   let activeTab = '홈';
   const controls = [];
   const map = () => window.app && app.map;
   const objectSelected = () => typeof GraphicSelection !== 'undefined' && GraphicSelection.hasActiveSelection();
-  const editable = () => Boolean(map() && map().isEditMode());
+  const editable = () => Boolean(policy.authorized && map() && map().isEditMode());
+  function snapshot() {
+    const layout = window.app?.activeDocument?.activeLayout;
+    const rect = layout?.viewedRectangle;
+    if (!rect || !map()?.getZoom) return null;
+    return { x:rect.x1, y:rect.y1, zoom:map().getZoom(), part:map().getCurrentPartNumber?.() || 0 };
+  }
+  function validViewport(value) {
+    return value && ['x','y','zoom','part'].every(key => Number.isFinite(value[key]))
+      && Math.abs(value.x)<=1e12 && Math.abs(value.y)<=1e12 && value.zoom>=0 && value.zoom<=30
+      && Number.isInteger(value.part) && value.part>=0 && value.part<=1000000;
+  }
+  function restore(value) {
+    if (!validViewport(value)) return;
+    const apply = () => {
+      if (!map()) return;
+      const layout = window.app?.activeDocument?.activeLayout;
+      if (!layout) return;
+      if (map().getCurrentPartNumber?.() !== value.part) map().setPart?.(value.part);
+      layout.applyZoom?.(value.zoom);
+      const ratio = window.app.twipsToPixels;
+      if (Number.isFinite(ratio)) layout.scrollTo?.(value.x * ratio, value.y * ratio);
+    };
+    setTimeout(apply, 0);
+    setTimeout(apply, 120);
+  }
+  function persistViewport() {
+    const value = snapshot();
+    if (validViewport(value)) bridge()?.saveStudioViewState?.(JSON.stringify(value));
+  }
+  function rememberViewport() {
+    clearTimeout(persistTimer); persistTimer=setTimeout(persistViewport,250);
+  }
+  function installModeGate() {
+    const m=map(), enter=m._switchToEditMode;
+    if (typeof enter!=='function' || typeof m.setPermission!=='function') return false;
+    m._switchToEditMode=function(...args) {
+      const value=snapshot();
+      if (new URLSearchParams(location.search).get('permission')!=='edit' || !bridge()?.requestStudioEdit?.()) {
+        hint.textContent='이 문서는 편집할 수 없습니다.';return false;
+      }
+      transitionViewport=value;policy.authorized=true;policy.wasAuthorized=true;
+      const result=enter.apply(this,args);
+      restore(value);return result;
+    };
+    const permission=m.setPermission;
+    m.setPermission=function(value,...args) {
+      const viewport=snapshot();
+      const result=permission.call(this,value,...args);
+      // Upstream commits a pending Calc cell before entering read-only mode.
+      // Do not revoke the gate before that commit has reached the native core.
+      if (value==='readonly' || value==='view') policy.authorized=false;
+      transitionViewport=viewport;restore(viewport);update();return result;
+    };
+    return true;
+  }
   function uno(name, args) {
     if (!editable()) return;
     if (!map()._clip || !map()._clip.filterExecCopyPaste('.uno:' + name, args)) map().sendUnoCommand('.uno:' + name, args);
@@ -46,13 +108,19 @@
   function update() {
     if (!bar) return;
     const editing = editable(), object = objectSelected();
+    bar.dataset.editing=String(editing);
+    modeLabel.textContent=editing?'편집 중':'원본 보기';
+    modeButton.textContent=editing?'보기로 전환':'편집하기';
+    modeButton.setAttribute('aria-label',modeButton.textContent);
+    modeButton.hidden=!policy.modeSupported || new URLSearchParams(location.search).get('permission')!=='edit';
+    saveButton.hidden=!policy.changed;
     controls.forEach(({ b, item }) => {
       const state = item.name && map().stateChangeHandler && map().stateChangeHandler.getItemValue('.uno:' + item.name);
       b.disabled = !editing || (item.needsObject && !object) || state === 'disabled';
       if (state === 'true' || state === 'false') b.setAttribute('aria-pressed', state);
       else b.removeAttribute('aria-pressed');
     });
-    hint.textContent = !editing ? '읽기 모드 · 연필 버튼으로 편집을 다시 시작하세요.' : activeTab === '개체'
+    hint.textContent = !editing ? '원본 보기 · 편집하기를 선택하면 같은 문서에서 수정할 수 있습니다.' : activeTab === '개체'
       ? (object ? '선택한 개체를 드래그해 이동 · 테두리 핸들로 크기 변경 · 위치·크기로 수치 지정' : '그림·도형·텍스트 상자를 눌러 선택하세요. 텍스트 입력 중이면 Esc로 빠져나오세요.')
       : map().getDocType() === 'spreadsheet' ? '셀을 두 번 눌러 입력 · 선택 핸들로 범위 지정 · 행·열 경계를 끌어 크기 조절'
       : map().getDocType() === 'presentation' ? '개체를 눌러 선택하고 드래그 · 텍스트는 두 번 눌러 편집'
@@ -70,6 +138,7 @@
       ...(family === 'text' ? [command('표','InsertTable')] : []),
       ...(family === 'presentation' ? [command('새 슬라이드','InsertPage')] : [])
     ];
+    else if (activeTab === '문단') items = [command('글꼴','FontDialog'),command('문단','ParagraphDialog'),command('쪽 설정','PageDialog'),command('쪽 나누기','InsertPagebreak')];
     else if (activeTab === '개체') items = [
       { label:'선택·이동', run:() => { map()._docLayer.postKeyboardEvent('input',0,1280); map().focus(false); } },
       ...(family === 'text' ? [{ label:'자유 배치', needsObject:true, run:() => { uno('SetAnchorToPara'); uno('WrapThrough'); } }] : []),
@@ -77,7 +146,7 @@
       command('왼쪽 맞춤','ObjectAlignLeft',true), command('가운데 맞춤','AlignCenter',true), command('오른쪽 맞춤','ObjectAlignRight',true),
       command('좌우 뒤집기','FlipHorizontal',true), command('상하 뒤집기','FlipVertical',true)
     ];
-    else if (family === 'spreadsheet') items = [command('행 삽입','InsertRowsBefore'), command('열 삽입','InsertColumnsBefore'), command('셀 병합','MergeCells'), command('오름차순','SortAscending'), command('내림차순','SortDescending'), command('행 높이','RowHeight'), command('열 너비','ColumnWidth')];
+    else if (family === 'spreadsheet') items = [command('행 삽입','InsertRowsBefore'), command('열 삽입','InsertColumnsBefore'), command('셀 병합','MergeCells'), command('오름차순','SortAscending'), command('내림차순','SortDescending'), command('행 높이','RowHeight'), command('열 너비','ColumnWidth'),command('셀 서식','FormatCellDialog'),command('함수 마법사','FunctionDialog')];
     else items = [command('새 슬라이드','InsertPage'), command('슬라이드 복제','DuplicatePage'), command('슬라이드 삭제','DeletePage')];
     items.forEach(item => { const b=button(item.label, () => { if(!b.disabled) item.run(); update(); },actions); if(item.name) b.dataset.command=item.name; controls.push({b,item}); });
     update(); map().invalidateSize();
@@ -86,31 +155,45 @@
     const wrapper = document.getElementById('toolbar-wrapper');
     if (!wrapper) return false;
     bar = document.createElement('section'); bar.id='studio-office-tools'; bar.dataset.family=map().getDocType(); bar.setAttribute('aria-label','문서 편집 도구');
+    const mode=document.createElement('div');mode.id='studio-office-mode';
+    modeLabel=document.createElement('span');modeLabel.id='studio-office-mode-label';modeLabel.setAttribute('aria-live','polite');mode.appendChild(modeLabel);
+    modeButton=button('편집하기',()=>{
+      if(editable()) map().setPermission('readonly'); else map()._switchToEditMode();
+      update();
+    },mode);
+    saveButton=button('저장 후 닫기',()=>{persistViewport();window.postMobileMessage('DOCUMENT_STUDIO_SAVE_AND_CLOSE');},mode);
+    button('돌아가기',()=>{persistViewport();window.postMobileMessage('BYE');},mode);
     tabs=document.createElement('div'); tabs.id='studio-office-tabs'; tabs.setAttribute('role','tablist'); tabs.setAttribute('aria-label','편집 도구 탭');
     actions=document.createElement('div'); actions.id='studio-office-actions'; actions.setAttribute('role','toolbar');
     hint=document.createElement('div'); hint.id='studio-office-hint';
-    const names=['홈','삽입','개체']; if(map().getDocType()==='spreadsheet') names.push('셀'); if(map().getDocType()==='presentation') names.push('슬라이드');
+    const names=['홈','삽입','개체']; if(map().getDocType()==='text') names.push('문단'); if(map().getDocType()==='spreadsheet') names.push('셀'); if(map().getDocType()==='presentation') names.push('슬라이드');
     names.forEach(name => {const b=button(name,()=>{activeTab=name;bar.dataset.collapsed='false';render();},tabs);b.setAttribute('role','tab');});
-    button('저장 후 닫기',()=>{if(editable()) window.postMobileMessage('DOCUMENT_STUDIO_SAVE_AND_CLOSE');},tabs);
     const toggle=button('도구 접기',()=>{const collapsed=bar.dataset.collapsed!=='true';bar.dataset.collapsed=String(collapsed);toggle.textContent=collapsed?'도구 펼치기':'도구 접기';toggle.setAttribute('aria-label',toggle.textContent);toggle.setAttribute('aria-expanded',String(!collapsed));map().invalidateSize();},tabs);
     toggle.id='studio-office-toggle';toggle.setAttribute('aria-expanded','true');
-    bar.append(tabs,actions,hint);wrapper.appendChild(bar);
-    map().on('commandstatechanged',update);app.events.on('updatepermission',update);
+    bar.append(mode,tabs,actions,hint);wrapper.appendChild(bar);
+    policy.modeSupported=installModeGate();
+    if(!policy.modeSupported) {hint.textContent='이 엔진에서는 모드 전환을 지원하지 않습니다.';modeButton.hidden=true;}
+    map().on('commandstatechanged',event=>{
+      if(event.commandName==='.uno:ModifiedStatus' && String(event.state)==='true' && policy.wasAuthorized) policy.changed=true;
+      update();
+    });
+    app.events.on('updatepermission',()=>{restore(transitionViewport);update();});
+    map().on('moveend zoomend updateparts',rememberViewport);
+    try {restore(JSON.parse(bridge()?.getStudioViewState?.() || '{}'));} catch(ignore) { }
     render();policy.ready=true;return true;
   }
   const timer=setInterval(() => {
     if(window.app && app.LOUtil) app.LOUtil.isAIAssistantAvailable=()=>false;
     if(map() && map().wopi) {map().wopi.DisableAISettings=true;map().isAIConfigured=false;}
     if(map() && map()._docLoaded) {
-      // The mobile upstream deliberately starts in view mode even with permission=edit.
-      // Request editing once, after load; never force it again after the user leaves it.
-      if(!policy.autoEditRequested && new URLSearchParams(location.search).get('permission')==='edit') {
-        policy.autoEditRequested=true;
-        if(!editable()) map()._switchToEditMode();
-      }
       if(!bar) mount(); else update();
+      // Only an explicit host EDIT launch may enter editing without a toolbar tap.
+      if(bar && !policy.initialIntentHandled) {
+        policy.initialIntentHandled=true;
+        if(policy.modeSupported && new URLSearchParams(location.search).get('studioopen')==='EDIT') map()._switchToEditMode();
+      }
     }
     if(++attempts>=300) clearInterval(timer);
   },200);
-  window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
+  window.addEventListener('pagehide',()=>{persistViewport();clearInterval(timer);clearTimeout(persistTimer);},{once:true});
 })();
