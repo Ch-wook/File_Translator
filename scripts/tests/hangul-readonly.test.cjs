@@ -15,6 +15,8 @@ policy.installStudioInput(Input,Dispatcher);
 class Bridge {
  constructor(){this.mutations=0;}
  getDocumentInfo(){return {pages:1};}
+ initialize(){this.installMeasureTextWidth();return this.getDocumentInfo();}
+ installMeasureTextWidth(){this.rendererCallbackInstalled=true;}
  setPageMargin(){this.mutations++;return true;}
  findOrCreateFontId(){this.mutations++;return 1;}
  futureUnknownMutation(){this.mutations++;return true;}
@@ -50,4 +52,12 @@ test('document loading is scoped and never grants input editing',async()=>{
  const bridge=new Bridge();policy.installStudioBridge(bridge);
  await policy.studioDocumentLoad(async()=>{assert.equal(bridge.setPageMargin(),true);assert.equal(new Input().onInput(),undefined);});
  assert.throws(()=>bridge.setPageMargin(),/읽기 모드/);
+});
+
+test('VIEW permits renderer bootstrap helper without granting later document writes',()=>{
+ policy.studioSetEditing(false);const bridge=new Bridge();policy.installStudioBridge(bridge);
+ assert.deepEqual(bridge.initialize(),{pages:1});assert.equal(bridge.rendererCallbackInstalled,true);
+ assert.equal(policy.studioIsEditing(),false);assert.equal(bridge.mutations,0);
+ assert.throws(()=>bridge.setPageMargin(),/setPageMargin/);
+ assert.throws(()=>bridge.futureUnknownMutation(),/futureUnknownMutation/);
 });

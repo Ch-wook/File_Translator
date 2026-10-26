@@ -106,5 +106,9 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
    await context.close();
   }
   fs.writeFileSync(path.join(output,'hangul-browser-results.json'),JSON.stringify(results,null,2));console.log(JSON.stringify(results,null,2));
+ } catch(error) {
+  fs.writeFileSync(path.join(output,'hangul-browser-failure.json'),JSON.stringify({message:error.message,stack:error.stack,completed:results},null,2));
+  for(const context of browser.contexts())for(const page of context.pages())await page.screenshot({path:path.join(output,'hangul-browser-failure.png'),fullPage:true}).catch(()=>{});
+  throw error;
  } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
