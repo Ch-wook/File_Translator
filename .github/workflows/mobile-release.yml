@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Validate delivery scripts before tool downloads
-        run: python3 -m py_compile scripts/package-mobile-release.py scripts/test-mobile-installation.py
+        run: python3 -m py_compile scripts/package-mobile-release.py scripts/test-mobile-installation.py scripts/prepare-open-fixtures.py scripts/verify-open-regression.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

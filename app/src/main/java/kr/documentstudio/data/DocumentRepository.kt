@@ -100,6 +100,7 @@ class DocumentRepository(private val context: Context) {
     suspend fun restore(id: String): Session = io { restoreInternal(id).also { remember(it) } }
     suspend fun convertHangul(source: Session): Session = io {
         require(source.format==Format.HWP) {"HWP 문서에서 변환해 주세요."}
+        require(source.readOnlyReason==null) {source.readOnlyReason ?: "읽기 전용 문서는 변환하지 않습니다."}
         checkpointInternal(source)
         val id=UUID.randomUUID().toString();val dir=File(root,id).apply {mkdirs()}
         try {
@@ -208,6 +209,7 @@ class DocumentRepository(private val context: Context) {
         atomic(File(s.base.parentFile,"state.json"),json.toString().toByteArray()); remember(s)
     }
     suspend fun save(s: Session, destination: Uri): Session = io {
+        require(s.readOnlyReason==null || (s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty())) {s.readOnlyReason ?: "읽기 전용 문서입니다."}
         val replacing = s.uri == destination.toString()
         // Reading or pressing Save without changes never rewrites the provider file.
         if(replacing && !s.dirty) return@io s

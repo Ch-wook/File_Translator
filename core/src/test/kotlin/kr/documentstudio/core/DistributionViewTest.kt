@@ -10,6 +10,11 @@ class DistributionViewTest {
     @Test fun distributableHwpIsRecognizedForViewingButNotExtractedTextEditing() {
         assertEquals(Format.HWP,FormatDetector.detect(fixture,"문서.hwp"))
         assertNotNull(LegacyDocument.hwpReadOnlyReason(fixture))
+        val destination=File.createTempFile("protected-convert-",".hwpx")
+        try {
+            try {HangulConversion.convert(fixture,destination);fail("Protected distribution must not be converted")} catch(e: IllegalArgumentException) {assertTrue(e.message!!.contains("읽기 전용"))}
+            assertEquals(0L,destination.length())
+        } finally {destination.delete()}
         try {LegacyDocument.open(fixture);fail("Distribution protection must remain enforced")} catch(e: IllegalArgumentException) {assertTrue(e.message!!.contains("읽기 전용"))}
     }
     @Test fun encryptedHwpRemainsRejected() {
