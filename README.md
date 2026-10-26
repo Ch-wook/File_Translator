@@ -8,7 +8,7 @@ Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하
 
 [Android APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.2-preview/document-studio-0.8.2-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.2-preview/document-studio-0.8.2-preview-source.zip) · [해시·패치·Git 이력·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.2-preview)
 
-휴대폰에는 ARM64 APK를 설치하세요. x86_64 APK는 해당 아키텍처용입니다. 새 앱은 **문서 스튜디오 프리뷰**로 표시되며 기존 앱과 함께 설치됩니다. [설치 실패 분석과 수정](docs/INSTALLATION_FIX.md)을 확인하세요. 개발 서명 프리뷰입니다. 실제 휴대폰 종합 인수 전의 빌드이며 지원 범위와 검증 결과를 먼저 확인하세요.
+휴대폰에는 약 399 MB인 ARM64 APK를 설치하세요. x86_64 APK는 해당 아키텍처용입니다. 새 앱은 **문서 스튜디오 프리뷰**로 표시되며 기존 앱과 함께 설치됩니다. [설치 실패 분석과 수정](docs/INSTALLATION_FIX.md)을 확인하세요. 개발 서명 프리뷰입니다. 실제 휴대폰 종합 인수 전의 빌드이며 지원 범위와 검증 결과를 먼저 확인하세요.
 
 ## 휴대폰에서 사용하기
 
