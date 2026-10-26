@@ -121,6 +121,7 @@ module.exports=async function mobileStructure({page,frame,call,context}){
  const bounds=await page.locator('#engine').boundingBox();assert.ok(bounds);
  const start={x:Math.max(bounds.x+40,Math.min(bounds.x+bounds.width-130,canvas.x+canvas.width*.35)),y:Math.max(bounds.y+100,Math.min(bounds.y+bounds.height-140,canvas.y+160))};
  await drag(start,{x:start.x+70,y:start.y+55});
+ await page.waitForTimeout(750);await page.touchscreen.tap(start.x+30,start.y+25);
  await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.mobile.state().object);
  assert.equal(await call('count','가나다라'),1,'Image insertion preserves existing text');
  const imageBefore=(await call('state')).objectDetails;assert.equal(imageBefore.ref.type,'image');
