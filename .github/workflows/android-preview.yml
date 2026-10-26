@@ -5,11 +5,13 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  actions: read
 concurrency:
   group: original-view-preview
   cancel-in-progress: true
 jobs:
   verify:
+    if: "!contains(github.event.head_commit.message, '[diagnostics]')"
     runs-on: ubuntu-latest
     timeout-minutes: 90
     defaults:
@@ -120,6 +122,7 @@ jobs:
               assert "versionCode='11'" in manifest and "versionName='0.8.1-preview'" in manifest
           summary={'commit':os.environ['GITHUB_SHA'],'baseline':'2bfe225ab040e3cb9251a8cafce9578ea3d9b645','provenance':'reimplementation; previous unpushed 0.8.0 not recovered','physicalDeviceTested':False,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],'unitTests':reports,'apkBytes':apk.stat().st_size,'debugSigned':True}
           (root/'artifacts/ci/summary.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2))
+          print(json.dumps(summary,ensure_ascii=False,indent=2))
           with zipfile.ZipFile(out/(name+'-verification.zip'),'w',zipfile.ZIP_DEFLATED) as z:
               for folder in ('artifacts/ci','artifacts/native-android','artifacts/document-engines','core/build/test-results','officeruntime/build/test-results','app/build/test-results','app/build/outputs/androidTest-results','app/build/reports','core/build/visual-fixtures'):
                   for p in (root/folder).rglob('*'):
@@ -182,3 +185,27 @@ jobs:
             officeruntime/build/test-results/
             app/build/test-results/
           if-no-files-found: warn
+  diagnostics:
+    if: contains(github.event.head_commit.message, '[diagnostics]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Read previous Android failure evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 40274912158 --repo "$GITHUB_REPOSITORY" --name verification-logs-a425d6c02b5d68a7f625b539b33bf2d95df71836 --dir evidence
+          python3 - <<'PY'
+          import pathlib,xml.etree.ElementTree as ET,json
+          for p in pathlib.Path('evidence').rglob('*.xml'):
+              if not p.name.startswith('TEST-'): continue
+              root=ET.parse(p).getroot()
+              print('SUITE',p,root.attrib)
+              for case in root.iter('testcase'):
+                  for failure in list(case.findall('failure'))+list(case.findall('error')):
+                      print('FAILURE',case.attrib,failure.attrib,(failure.text or '')[:14000])
+          for p in pathlib.Path('evidence').rglob('*.json'):
+              if p.stat().st_size<100000: print('JSON',p,p.read_text())
+          for p in pathlib.Path('evidence').rglob('android-runtime.log'):
+              print('ANDROID_RUNTIME',p,p.read_text()[-30000:])
+          PY
