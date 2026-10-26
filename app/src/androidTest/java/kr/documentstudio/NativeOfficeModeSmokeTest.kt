@@ -252,6 +252,13 @@ class NativeOfficeModeSmokeTest {
                 record.put("viewportBeforeToggle", scrolled)
                 visible("편집하기").click()
                 visible("편집 중", 20_000)
+                visible("보기로 전환")
+                val afterEdit=stableViewport(viewportFile)
+                record.put("viewportAfterEnteringEdit",afterEdit)
+                viewportFile.copyTo(File(evidence,"$label-edit-viewport.json"),overwrite=true)
+                assertEquals("Entering edit retains zoom",scrolled.getDouble("zoom"),afterEdit.getDouble("zoom"),0.001)
+                assertEquals("Entering edit retains horizontal position",scrolled.getDouble("x"),afterEdit.getDouble("x"),40.0)
+                assertEquals("Entering edit retains vertical position",scrolled.getDouble("y"),afterEdit.getDouble("y"),40.0)
                 visible("보기로 전환").click()
                 visible("원본 보기", 20_000)
                 // Compare actual settled native positions after both toolbar/layout changes.

@@ -74,7 +74,7 @@ jobs:
         id: android
         continue-on-error: true
         env:
-          MODE_TEST_CLASSES: ${{ contains(github.event.head_commit.message, '[office-probe]') && 'kr.documentstudio.NativeOfficeModeSmokeTest#docxReadOnlyUsesActualNativeEngine,kr.documentstudio.NativeOfficeModeSmokeTest#xlsxReadOnlyUsesActualNativeEngine' || '' }}
+          MODE_TEST_CLASSES: ${{ contains(github.event.head_commit.message, '[viewport-probe]') && 'kr.documentstudio.NativeOfficeModeSmokeTest#docxModeOnlyTransitionPreservesScrolledViewportAndDoesNotWrite' || contains(github.event.head_commit.message, '[office-probe]') && 'kr.documentstudio.NativeOfficeModeSmokeTest#docxReadOnlyUsesActualNativeEngine,kr.documentstudio.NativeOfficeModeSmokeTest#xlsxReadOnlyUsesActualNativeEngine' || '' }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35

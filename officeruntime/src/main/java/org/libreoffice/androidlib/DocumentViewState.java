@@ -20,7 +20,10 @@ public final class DocumentViewState {
         if (!Double.isFinite(x) || !Double.isFinite(y) || Math.abs(x) > 1e12 || Math.abs(y) > 1e12
                 || !Double.isFinite(zoom) || zoom < 0 || zoom > 30 || part < 0 || part > 1000000)
             throw new IllegalArgumentException("Invalid viewport");
-        return new JSONObject().put("x", x).put("y", y).put("zoom", zoom).put("part", part);
+        JSONObject result = new JSONObject().put("x", x).put("y", y).put("zoom", zoom).put("part", part);
+        org.json.JSONArray trace = source.optJSONArray("restoreTrace");
+        if (trace != null && trace.length() <= 14) result.put("restoreTrace", trace);
+        return result;
     }
     public static synchronized String read(File directory) {
         try {

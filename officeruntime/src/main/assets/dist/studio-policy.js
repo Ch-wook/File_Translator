@@ -35,6 +35,7 @@
   let transitionViewport, persistTimer, lastViewport='';
   let activeTab = '홈';
   let modeTransition=false, transitionGeneration=0, ownedNativeRestore=null;
+  const restoreTrace=[];
   const controls = [];
   const map = () => window.app && app.map;
   const objectSelected = () => typeof GraphicSelection !== 'undefined' && GraphicSelection.hasActiveSelection();
@@ -51,6 +52,22 @@
     if (!rect || !map()?.getZoom) return null;
     return { x:Number(rect.x1), y:Number(rect.y1), zoom:Number(map().getZoom()), part:map().getDocType()==='text' ? 0 : Number(map().getCurrentPartNumber?.() || 0) };
   }
+  function traceRestore(stage, desired, error) {
+    try {
+      const layout=window.app?.activeDocument?.activeLayout, layer=map()?._docLayer;
+      const actual=snapshot();
+      restoreTrace.push({
+        stage,generation:transitionGeneration,targetY:desired?.y,y:actual?.y,zoom:actual?.zoom,
+        layout:layout?.type,scrollY:layout?.scrollProperties?.viewY,
+        viewH:layout?.viewSize?.pY,frameH:layout?.frameSize?.pY,
+        scale:Number(window.app?.twipsToPixels),scaleType:typeof window.app?.twipsToPixels,
+        pending:Boolean(layer?._restoringViewScroll),
+        nativeHelper:typeof layer?._viewState?.onViewPositionMsg==='function',
+        error:error ? String(error.message || error).slice(0,100) : undefined
+      });
+      if(restoreTrace.length>14) restoreTrace.shift();
+    } catch(ignore) { }
+  }
   function validViewport(value) {
     return value && ['x','y','zoom','part'].every(key => Number.isFinite(value[key]))
       && Math.abs(value.x)<=1e12 && Math.abs(value.y)<=1e12 && value.zoom>=0 && value.zoom<=30
@@ -60,16 +77,22 @@
     const current=()=>generation===undefined || generation===transitionGeneration;
     if(!current()) return;
     if (!validViewport(value)) {done?.();return;}
+    traceRestore('restore-request',value);
     const drain = task => window.app?.layoutingService?.onDrain ? app.layoutingService.onDrain(task) : setTimeout(task,0);
     drain(() => {
       if (!current() || !map()) return;
       const layout = window.app?.activeDocument?.activeLayout;
       if (!layout) {done?.();return;}
       if (map().getDocType()!=='text' && map().getCurrentPartNumber?.() !== value.part) map().setPart?.(value.part);
-      layout.applyZoom?.(value.zoom);
+      traceRestore('before-zoom',value);
+      try {layout.applyZoom?.(value.zoom);}
+      catch(error) {traceRestore('zoom-error',value,error);persistViewport();throw error;}
+      traceRestore('after-zoom',value);
       drain(() => {
         if(!current()) return;
         const active=window.app?.activeDocument?.activeLayout, ratio=window.app.twipsToPixels;
+        traceRestore('before-scroll',value);
+        try {
         if (Number.isFinite(ratio)) {
           const layer=map()?._docLayer, nativeViewState=layer?._viewState;
           if(map().getDocType()==='text' && active?.type!=='ViewLayoutMultiPage' && typeof nativeViewState?.onViewPositionMsg==='function') {
@@ -79,6 +102,8 @@
             ownedNativeRestore=layer._savedScrollPos || null;
           } else active?.scrollTo?.(value.x*ratio,value.y*ratio);
         }
+        } catch(error) {traceRestore('scroll-error',value,error);persistViewport();throw error;}
+        traceRestore('after-scroll',value);
         drain(()=>{if(current()) done?.();});
       });
     });
@@ -92,7 +117,7 @@
     // Keep tools gated through the layout drain and that short Android UI transition.
     restore(value,()=>setTimeout(()=>restore(value,()=>{
       if(generation!==transitionGeneration) return;
-      modeTransition=false;update();persistViewport();
+      modeTransition=false;update();traceRestore('settled',value);persistViewport();
     },generation),500),generation);
   }
   function cancelModeRestore(event) {
@@ -113,6 +138,10 @@
     catch(error) { value={error:String(error.message || error),family:map()?.getDocType?.()}; }
     // The native validator stores only valid coordinates. Invalid values are
     // retained separately as bounded view diagnostics, never as document data.
+    if(validViewport(value) && restoreTrace.length) {
+      value.restoreTrace=restoreTrace.slice(-14);
+      while(JSON.stringify(value).length>3500 && value.restoreTrace.length) value.restoreTrace.shift();
+    }
     const text=JSON.stringify(value);
     if (text!==lastViewport) {bridge()?.saveStudioViewState?.(text);lastViewport=text;}
   }
@@ -128,15 +157,15 @@
       if (new URLSearchParams(location.search).get('permission')!=='edit' || !bridge()?.requestStudioEdit?.()) {
         hint.textContent='이 문서는 편집할 수 없습니다.';return false;
       }
-      const generation=beginModeTransition(value);
+      const generation=beginModeTransition(value);traceRestore('begin-edit',value);
       policy.authorized=true;policy.wasAuthorized=true;
-      const result=enter.apply(this,args);
+      const result=enter.apply(this,args);traceRestore('edit-returned',value);
       update();refreshLayout();settleModeTransition(value,generation);return result;
     };
     const permission=m.setPermission;
     m.setPermission=function(value,...args) {
       const viewport=modeTransition && validViewport(transitionViewport) ? transitionViewport : snapshot();
-      const generation=beginModeTransition(viewport);
+      const generation=beginModeTransition(viewport);traceRestore('begin-'+String(value).slice(0,20),viewport);
       const result=permission.call(this,value,...args);
       // Upstream commits a pending Calc cell before entering read-only mode.
       // Do not revoke the gate before that commit has reached the native core.
