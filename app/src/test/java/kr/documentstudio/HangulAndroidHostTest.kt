@@ -78,4 +78,23 @@ class HangulAndroidHostTest {
             assertArrayEquals(valid,working.readBytes())
         } finally {controller.destroy()}
     }
+    @Test fun closingAnEarlierHostCannotKillANewerOpenDocument()=runBlocking {
+        val context=RuntimeEnvironment.getApplication();val repo=DocumentRepository(context)
+        val first=repo.create(Format.HWPX);val second=repo.create(Format.HWPX)
+        val firstWorking=repo.prepareOffice(first);val secondWorking=repo.prepareOffice(second)
+        fun intent(id: String,file: File)=Intent(context,HangulEditorActivity::class.java).putExtra("sessionId",id).putExtra("workingPath",file.path)
+        org.robolectric.shadows.ShadowProcess.clearKilledProcesses()
+        val older=Robolectric.buildActivity(HangulEditorActivity::class.java,intent(first.id,firstWorking)).create()
+        val newer=Robolectric.buildActivity(HangulEditorActivity::class.java,intent(second.id,secondWorking)).create()
+        var olderDestroyed=false
+        try {
+            older.get().finish();older.destroy();olderDestroyed=true
+            assertFalse("Another live document must keep its engine process",org.robolectric.shadows.ShadowProcess.wasKilled(android.os.Process.myPid()))
+            assertTrue(secondWorking.isFile)
+        } finally {
+            if(!olderDestroyed) older.destroy()
+            newer.get().finish();newer.destroy()
+        }
+        assertTrue("The last closed host can release its engine process",org.robolectric.shadows.ShadowProcess.wasKilled(android.os.Process.myPid()))
+    }
 }

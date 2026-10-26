@@ -32,6 +32,7 @@ class HangulEditorActivity: ComponentActivity() {
     private lateinit var sessionId: String
     private lateinit var extension: String
     private var readOnlyReason: String?=null
+    private var countedHost=false
     private var lockFile: RandomAccessFile?=null
     private var lock: FileLock?=null
     private var staged: File?=null
@@ -44,11 +45,12 @@ class HangulEditorActivity: ComponentActivity() {
     private val bridge=Bridge()
     private var fileResult: ValueCallback<Array<Uri>>?=null
     private val imagePicker=registerForActivityResult(ActivityResultContracts.OpenDocument()) {uri->fileResult?.onReceiveValue(uri?.let {arrayOf(it)});fileResult=null}
-    companion object {private const val ORIGIN="https://hangul.documentstudio.local";private var profile=false}
+    companion object {private const val ORIGIN="https://hangul.documentstudio.local";private var profile=false;private val activeHosts=java.util.concurrent.atomic.AtomicInteger()}
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        activeHosts.incrementAndGet();countedHost=true
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window,false)
         if(!profile) {WebView.setDataDirectorySuffix("hangul");profile=true}
         sessionId=requireNotNull(intent.getStringExtra("sessionId")).also {require(it.matches(Regex("[a-zA-Z0-9-]+")))}
@@ -216,6 +218,8 @@ class HangulEditorActivity: ComponentActivity() {
         if(::browser.isInitialized) {browser.removeJavascriptInterface("DocumentStudio");browser.destroy()}
         runCatching {lock?.release();lockFile?.close()}
         super.onDestroy()
-        if(isFinishing) android.os.Process.killProcess(android.os.Process.myPid())
+        val remaining=if(countedHost) {countedHost=false;activeHosts.decrementAndGet()} else activeHosts.get()
+        // Closing an older window must not terminate another document in :hangul.
+        if(isFinishing && remaining==0) android.os.Process.killProcess(android.os.Process.myPid())
     }
 }

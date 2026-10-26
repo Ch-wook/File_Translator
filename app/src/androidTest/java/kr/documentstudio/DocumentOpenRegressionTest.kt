@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiObject2
 import kotlinx.coroutines.runBlocking
 import kr.documentstudio.core.Format
 import kr.documentstudio.data.DocumentRepository
@@ -49,8 +50,23 @@ class DocumentOpenRegressionTest {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION))
         return uri
     }
+    private fun hostState(name: String,state: String): Boolean =
+        eval("JSON.parse(window.DocumentStudio.describe()).name==="+JSONObject.quote(name)+" && document.body.dataset.state==="+JSONObject.quote(state)+" && !document.getElementById('mode').disabled")=="true"
+    private fun button(label: String): UiObject2 {
+        var control: UiObject2?=null
+        await("Visible enabled button: $label") {
+            control=device.findObject(By.pkg(context.packageName).text(label)) ?: device.findObject(By.pkg(context.packageName).desc(label))
+            control?.isEnabled==true
+        }
+        return requireNotNull(control)
+    }
+    private fun diagnostics(label: String,error: Throwable) {
+        runCatching {device.dumpWindowHierarchy(File(output,label+"-failure.xml"))}
+        runCatching {device.takeScreenshot(File(output,label+"-failure.png"))}
+        runCatching {File(output,label+"-failure.txt").writeText(error.stackTraceToString()+"\n"+device.executeShellCommand("dumpsys activity activities"))}
+    }
     private fun close() {
-        assertEquals("true",eval("(window.documentStudioHost.returnToWorkspace(),true)"))
+        assertEquals("true",eval("setTimeout(()=>window.documentStudioHost.returnToWorkspace(),100);true"))
         await("Native editor must close") {context.contentResolver.call(probe,"eval","true",null)?.getBoolean("ready")!=true}
     }
     @Test fun contentUrisWithoutNameOrMimeReachActualHwpAndHwpxOriginalView()=runBlocking {
@@ -59,15 +75,15 @@ class DocumentOpenRegressionTest {
             val baseline=repo.create(format)
             val source=File(context.cacheDir,"open-fixtures/"+UUID.randomUUID()+"."+format.extension).apply {parentFile!!.mkdirs();baseline.base.copyTo(this)}
             val hash=DocumentRepository.digest(source);val uri=open(source)
-            await("Metadata-free $format must reach the real document engine") {eval("document.body.dataset.state")=="\"READING\""}
-            val editButton=requireNotNull(device.findObject(By.text("편집하기")) ?: device.findObject(By.desc("편집하기")))
-            editButton.click()
-            await("Imported $format must enter explicit edit mode") {eval("document.body.dataset.state")=="\"EDITING\""}
-            val readButton=requireNotNull(device.findObject(By.text("보기로")) ?: device.findObject(By.desc("보기로")))
-            readButton.click()
-            await("Mode-only changes must return to original view") {eval("document.body.dataset.state")=="\"READING\""}
+            var closed=false
+            try {
+            await("Metadata-free $format must reach its own real document engine") {hostState(source.name,"READING")}
+            button("편집하기").click()
+            await("Imported $format must enter explicit edit mode") {hostState(source.name,"EDITING")}
+            button("보기로").click()
+            await("Mode-only changes must return to original view") {hostState(source.name,"READING")}
             device.takeScreenshot(File(output,"metadata-free-"+format.extension+".png"))
-            close()
+            close();closed=true
             val imported=repo.recents().first {it.uri==uri.toString()}
             val restored=repo.restore(imported.id)
             assertEquals(format,restored.format);assertEquals(hash,DocumentRepository.digest(restored.base))
@@ -75,25 +91,31 @@ class DocumentOpenRegressionTest {
             File(output,"metadata-free-"+format.extension+".json").writeText(JSONObject()
                 .put("nativeOriginalView",true).put("externalIntent",true).put("metadataUnavailable",true).put("reopened",true)
                 .put("originalSha256",hash).put("readOnlyCloseUnchanged",true).toString())
+            } catch(error: Throwable) {diagnostics(format.extension,error);throw error}
+            finally {if(!closed) runCatching {context.contentResolver.call(probe,"close",null,null)}}
         }
     }
     @Test fun distributionHwpAllowsViewingWhileEditIntentAndNativeWritesRemainDenied()=runBlocking {
         val source=File(context.cacheDir,"open-fixtures/"+UUID.randomUUID()+".hwp").apply {parentFile!!.mkdirs()}
         instrumentation.context.assets.open("distribution.hwp").use {input->source.outputStream().use {input.copyTo(it)}}
         val hash=DocumentRepository.digest(source);val uri=open(source,edit=true)
-        await("Distributable HWP must open in enforced read-only mode") {eval("document.body.dataset.state")=="\"READ_ONLY\""}
+        var closed=false
+        try {
+        await("Distributable HWP must open in its own enforced read-only mode") {hostState(source.name,"READ_ONLY")}
         assertEquals("false",eval("window.DocumentStudio.setEditing(true)"))
         assertEquals("false",eval("window.DocumentStudio.beginWrite(64)"))
         assertEquals("true",eval("document.getElementById('mode').hidden && document.getElementById('save').hidden"))
         assertTrue(eval("document.getElementById('status').textContent").contains("읽기 전용"))
-        assertNull(device.findObject(By.text("편집하기")));assertNull(device.findObject(By.desc("편집하기")))
+        assertNull(device.findObject(By.pkg(context.packageName).text("편집하기")));assertNull(device.findObject(By.pkg(context.packageName).desc("편집하기")))
         device.takeScreenshot(File(output,"distribution-read-only.png"))
-        close()
+        close();closed=true
         val repo=DocumentRepository(context);val imported=repo.recents().first {it.uri==uri.toString()}
         val restored=repo.restore(imported.id)
         assertNotNull(restored.readOnlyReason);assertEquals(hash,DocumentRepository.digest(restored.base))
         assertEquals(hash,DocumentRepository.digest(source))
         File(output,"distribution-read-only.json").writeText(JSONObject().put("nativeReadOnlyView",true).put("editIntentDenied",true)
             .put("nativeWriteDenied",true).put("originalSha256",hash).put("reopenedUnchanged",true).toString())
+        } catch(error: Throwable) {diagnostics("distribution",error);throw error}
+        finally {if(!closed) runCatching {context.contentResolver.call(probe,"close",null,null)}}
     }
 }

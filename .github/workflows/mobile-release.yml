@@ -128,7 +128,7 @@ jobs:
         env:
           STUDIO_ABI: x86_64
           STUDIO_PACKAGE: kr.documentstudio.openpreview
-          MODE_TEST_CLASSES: kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest,kr.documentstudio.DocumentOpenRegressionTest
+          MODE_TEST_CLASSES: kr.documentstudio.DocumentOpenRegressionTest,kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest
           STUDIO_STORE_PASSWORD: ${{ secrets.STUDIO_STORE_PASSWORD }}
           STUDIO_KEY_ALIAS: ${{ secrets.STUDIO_KEY_ALIAS }}
           STUDIO_KEY_PASSWORD: ${{ secrets.STUDIO_KEY_PASSWORD }}
