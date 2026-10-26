@@ -58,6 +58,8 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
      const sample=panel.querySelector('.font-preview');if(sample)sample.style.fontFamily='"'+v+'"';return r;});
    const sample=document.createElement('div');sample.className='font-preview';sample.textContent='가나다 ABC 123 · 선택한 글자에 적용';panel.append(sample);
    const sizes=line('글자 크기');number('fontSize','크기(pt)',(state.char?.fontSize||1000)/100,1,4096,.5,(m,v)=>m.char({fontSize:Math.round(v*100)},target),sizes);
+   button('글자 크기 −',()=>execute(m=>m.char({fontSize:Math.max(100,(m.state().char.fontSize||1000)-100)},target)),sizes);
+   button('글자 크기 ＋',()=>execute(m=>m.char({fontSize:Math.min(409600,(m.state().char.fontSize||1000)+100)},target)),sizes);
    for(const size of [9,10,11,12,14,16,20,24])button(String(size),()=>execute(m=>m.char({fontSize:size*100},target)),sizes);
    const style=line('글자 스타일');for(const [label,id] of [['취소선','strikethrough'],['위 첨자','superscript'],['아래 첨자','subscript']])command(label,'format:'+id,style);
    color('textColor','글자색','textColor');color('shadeColor','형광펜·글자 배경색','shadeColor');
@@ -78,6 +80,8 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
    const indent=line('들여쓰기 · 간격');const p=state.para||{};
    for(const [key,label,factor,min] of [['marginLeft','왼쪽(pt)',200,0],['marginRight','오른쪽(pt)',200,0],['indent','첫 줄·내어쓰기(pt)',200,-100],['spacingBefore','문단 위(pt)',100,0],['spacingAfter','문단 아래(pt)',100,0]])
      number(key,label,Number(((p[key]||0)*.75).toFixed(1)),min,720,1,(m,v)=>m.para({[key]:Math.round(v*factor)},target),indent);
+   button('들여쓰기 증가',()=>execute(m=>m.para({marginLeft:Math.round((m.state().para.marginLeft||0)*150)+1000},target)),indent);
+   button('들여쓰기 감소',()=>execute(m=>m.para({marginLeft:Math.max(0,Math.round((m.state().para.marginLeft||0)*150)-1000)},target)),indent);
    button('들여쓰기 초기화',()=>execute(m=>m.para({marginLeft:0,marginRight:0,indent:0},target)),indent);
    button('문단 서식 초기화',()=>execute(m=>m.resetPara(target)));
    command('고급 문단 모양','format:para-shape');

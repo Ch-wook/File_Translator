@@ -47,7 +47,8 @@ public final class HangulProbeProvider extends ContentProvider {
                     return;
                 }
                 InputMethodManager manager=activity.getSystemService(InputMethodManager.class);
-                if("show-ime".equals(method)) {
+                if("close".equals(method)) {activity.finish();}
+                else if("show-ime".equals(method)) {
                     browser.requestFocus();
                     manager.showSoftInput(browser,InputMethodManager.SHOW_IMPLICIT);
                     result.putBoolean("active",manager.isActive(browser));

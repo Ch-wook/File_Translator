@@ -72,7 +72,19 @@ class NativeHangulEditingTest {
         ?: device.wait(Until.findObject(By.pkg(context.packageName).text(label)),5000)
         ?: error("Visible control missing: "+label)
     private fun revealControl(label: String) {
-        eval("(function(){const e=Array.from(document.querySelectorAll('button,input,select')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)throw new Error('Missing control');e.scrollIntoView({block:'nearest',inline:'nearest'});})()")
+        eval("(function(){const e=Array.from(document.querySelectorAll('button,input,select')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)throw new Error('Missing control');const p=document.getElementById('mobile-panel');if(p.contains(e)){const r=e.getBoundingClientRect(),b=p.getBoundingClientRect();p.scrollTop+=r.top-b.top-(p.clientHeight-r.height)/2;}else e.scrollIntoView({block:'nearest',inline:'center'});})()")
+    }
+    private fun tapVisibleControl(label: String) {
+        revealControl(label)
+        var bounds=JSONObject()
+        await("The real WebView button must be visible and receive touch: "+label) {
+            bounds=json("(function(){const e=Array.from(document.querySelectorAll('button,input,select')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)return {};const r=e.getBoundingClientRect(),p=document.getElementById('mobile-panel').getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return {x,y,visible:r.width>0&&r.height>0&&y>=p.top&&y<=p.bottom&&y<innerHeight&&x>=0&&x<innerWidth,hit:hit===e||e.contains(hit),disabled:e.disabled,width:innerWidth,height:innerHeight};})()")
+            bounds.optBoolean("visible") && bounds.optBoolean("hit") && !bounds.optBoolean("disabled")
+        }
+        val browser=probe("geometry")
+        val scale=browser.getInt("width")/bounds.getDouble("width")
+        assertTrue(device.click(browser.getInt("left")+(bounds.getDouble("x")*scale).toInt(),
+            browser.getInt("top")+(bounds.getDouble("y")*scale).toInt()))
     }
     @Test fun hwpKoreanImeSelectionFormattingAndSafeSave()=exercise(Format.HWP)
     @Test fun hwpxKoreanImeSelectionFormattingAndSafeSave()=exercise(Format.HWPX)
@@ -114,7 +126,7 @@ class NativeHangulEditingTest {
             revealControl("크기(pt)");control("크기(pt)").click()
             ime("selectAll");ime("commit","18")
             await("The numeric field must apply only the selected document text") {mJson("state()").getJSONObject("char").optInt("fontSize")==1800}
-            revealControl("글자색 #e53935");control("글자색 #e53935").click()
+            tapVisibleControl("글자색 #e53935")
             await("A color change must preserve the selected size") {
                 val p=mJson("state()").getJSONObject("char");p.optString("textColor").lowercase()=="#e53935" && p.optInt("fontSize")==1800
             }
@@ -154,6 +166,7 @@ class NativeHangulEditingTest {
                 parsed.flatMap {it.fields}.joinToString("") {it.text}.contains("IME_START|한국어 ABC123가가"))
             val reopened=repository.open(uri)
             val again=repository.prepareOffice(reopened)
+            closed=false
             val originalHash=DocumentRepository.digest(file)
             context.startActivity(Intent(context,HangulEditorActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("sessionId",reopened.id).putExtra("workingPath",again.absolutePath)
@@ -165,6 +178,8 @@ class NativeHangulEditingTest {
             assertEquals(originalHash,DocumentRepository.digest(file))
             eval("window.documentStudioHost.returnToWorkspace()")
             await("Read-only reopening must close",30000) {File(again.path+".closed").isFile}
+            await("Read-only writer must release its process",20000) {device.executeShellCommand("pidof "+context.packageName+":hangul").trim().isEmpty()}
+            closed=true
             val evidence=JSONObject().put("format",format.extension).put("actualAndroidInputConnection",true).put("imeFixtureOnlyInTestApk",true)
                 .put("koreanComposition",true).put("repeatedSyllables",true).put("selectedReplacement",true).put("panelSelectionRetained",true)
                 .put("independentParserReopen",true).put("engineReopen",true).put("originalHashBefore",baseline)
@@ -177,7 +192,11 @@ class NativeHangulEditingTest {
         } finally {
             if(previousIme.isNotBlank() && previousIme!="null")device.executeShellCommand("ime set "+previousIme)
             device.executeShellCommand("ime disable "+imeId)
-            if(!closed) runCatching {eval("window.documentStudioHost.returnToWorkspace()")}
+            if(!closed) {
+                runCatching {probe("close")}
+                val cleanupDeadline=SystemClock.uptimeMillis()+20000
+                while(SystemClock.uptimeMillis()<cleanupDeadline && device.executeShellCommand("pidof "+context.packageName+":hangul").trim().isNotEmpty())SystemClock.sleep(100)
+            }
         }
     }
 }

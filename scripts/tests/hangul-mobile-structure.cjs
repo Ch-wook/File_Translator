@@ -38,6 +38,13 @@ module.exports=async function mobileStructure({page,frame,call,context}){
  await call('dispatch','edit:undo');await call('find','MOBILE_PARA');assert.equal((await call('state')).para.paraLevel,0);
  await call('find','TABLE_ANCHOR');assert.notEqual((await call('state')).para.headType,'Number');
  report.paragraphScope=true;report.characterOnlyFormatCopy=true;report.nativeMultiParagraphNumbering=true;
+ await call('navigate',true);await call('plainText','\nMOBILE_FIND MOBILE_FIND');
+ assert.equal(await call('count','MOBILE_FIND'),2);await call('find','MOBILE_FIND');
+ await call('replace','MOBILE_FIND','MOBILE_REPLACED',false);assert.equal(await call('count','MOBILE_FIND'),1);
+ await call('replace','MOBILE_FIND','MOBILE_REPLACED',true);assert.equal(await call('count','MOBILE_FIND'),0);
+ await call('dispatch','edit:undo');assert.equal(await call('count','MOBILE_FIND'),1);
+ await call('dispatch','edit:redo');assert.equal(await call('count','MOBILE_FIND'),0);
+ report.findReplaceOneAndAll=true;
 
  // Pending character properties apply to future input without changing existing text.
  await call('navigate',true);await call('plainText','\n');await call('char',{fontSize:1500,textColor:'#1e88e5',bold:false});
@@ -69,6 +76,11 @@ module.exports=async function mobileStructure({page,frame,call,context}){
  await call('dispatch','edit:undo');await call('find','MOBILE_CELL_C');assert.equal((await call('state')).cell.dims.rowCount,2);
  await call('dispatch','table:insert-col-right');assert.equal((await call('state')).cell.dims.colCount,3);
  await call('dispatch','edit:undo');await call('find','MOBILE_CELL_C');assert.equal((await call('state')).cell.dims.colCount,2);
+ await call('find','MOBILE_CELL_C');await call('dispatch','table:delete-row');assert.equal((await call('state')).cell.dims.rowCount,1);
+ await call('dispatch','edit:undo');await call('find','MOBILE_CELL_C');assert.equal((await call('state')).cell.dims.rowCount,2);
+ await call('dispatch','table:delete-col');assert.equal((await call('state')).cell.dims.colCount,1);
+ await call('dispatch','edit:undo');await call('find','MOBILE_CELL_C');assert.equal((await call('state')).cell.dims.colCount,2);
+ for(const text of ['MOBILE_CELL_A','MOBILE_CELL_B','MOBILE_CELL_C','MOBILE_CELL_D'])assert.equal(await call('count',text),1,'Row/column delete undo restores '+text);
  await call('find','CELL_C');await call('char',{bold:true,shadeColor:'#ffeb3b'});
  assert.equal((await call('state')).char.bold,true);assert.equal((await call('state')).char.shadeColor.toLowerCase(),'#ffeb3b');
  await call('find','MOBILE_CELL_D');assert.notEqual((await call('state')).char.shadeColor?.toLowerCase(),'#ffeb3b');
