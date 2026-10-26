@@ -45,6 +45,7 @@ jobs:
           restore-keys: android-gradle-${{ runner.os }}-
       - name: Build the application and the test-only InputMethodService
         run: |
+          python3 scripts/prepare-open-fixtures.py
           ./gradlew -PstudioAbi=x86_64 :core:test :core:prepareVisualFixtures :officeruntime:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/android-build.log
           cp app/build/outputs/apk/debug/app-debug.apk artifacts/hangul-android-build/x86_64.apk
           python3 - <<'PY'

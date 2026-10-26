@@ -57,6 +57,7 @@ jobs:
           restore-keys: hangul-public-tools-${{ runner.os }}-
       - name: Prepare fixtures and the actual offline Rhwp engine
         run: |
+          python3 scripts/prepare-open-fixtures.py
           ./gradlew :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/fixtures.log
           python3 scripts/prepare-hangul-engine.py 2>&1 | tee artifacts/ci/hangul-prepare.log
       - name: Bridge policies and mobile engine acceptance

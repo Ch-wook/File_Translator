@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: mobile-release-083-${{ contains(github.event.head_commit.message, '[release-build]') }}
+  group: mobile-release-084-${{ contains(github.event.head_commit.message, '[release-build]') }}
   cancel-in-progress: true
 jobs:
   verify:
@@ -64,6 +64,7 @@ jobs:
           restore-keys: hangul-public-tools-${{ runner.os }}-
       - name: Real offline engine, TypeScript and fixtures
         run: |
+          python3 scripts/prepare-open-fixtures.py
           ./gradlew :app:help :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/fixtures.log
           python3 scripts/prepare-hangul-engine.py 2>&1 | tee artifacts/ci/hangul-prepare.log
       - name: Real browser editing and independent saved-file parsers
@@ -75,6 +76,8 @@ jobs:
           ./gradlew :core:inspectTableSave --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/table-save-records.log
           node scripts/tests/hangul-mobile.cjs 2>&1 | tee artifacts/ci/hangul-mobile.log
           ./gradlew :core:verifyVisualRoundTrip :core:verifyMobileRoundTrip --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/roundtrip.log
+      - name: Reproduce old metadata failure and verify the fix
+        run: python3 scripts/verify-open-regression.py
       - name: Configured private signing key, if available
         env:
           KEYSTORE_BASE64: ${{ secrets.STUDIO_KEYSTORE_B64 }}
@@ -122,8 +125,8 @@ jobs:
         continue-on-error: true
         env:
           STUDIO_ABI: x86_64
-          STUDIO_PACKAGE: kr.documentstudio.mobilepreview
-          MODE_TEST_CLASSES: kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest
+          STUDIO_PACKAGE: kr.documentstudio.openpreview
+          MODE_TEST_CLASSES: kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest,kr.documentstudio.DocumentOpenRegressionTest
           STUDIO_STORE_PASSWORD: ${{ secrets.STUDIO_STORE_PASSWORD }}
           STUDIO_KEY_ALIAS: ${{ secrets.STUDIO_KEY_ALIAS }}
           STUDIO_KEY_PASSWORD: ${{ secrets.STUDIO_KEY_PASSWORD }}
@@ -162,6 +165,7 @@ jobs:
           name: mobile-release-logs-${{ github.sha }}
           path: |
             artifacts/ci/
+            artifacts/open-fixtures/
             artifacts/mobile-install/
             artifacts/hangul-mobile/
             artifacts/document-engines/

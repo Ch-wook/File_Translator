@@ -33,7 +33,7 @@ fun VisualDocumentWorkspace(s: Session,settings: Settings,vm: DocumentActions,bu
             Column(Modifier.widthIn(max=480.dp).padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally) {
                 Icon(family.icon,null,Modifier.size(56.dp),tint=family.accent)
                 Text(s.name,style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=16.dp))
-                Text(if(available) "원본 페이지·셀·슬라이드로 엽니다. 문서 화면의 ‘편집하기’로 수정할 수 있습니다." else "이 형식의 원본 문서 편집은 Android 11 이상이 필요합니다.",modifier=Modifier.padding(vertical=12.dp))
+                Text(if(s.readOnlyReason!=null) s.readOnlyReason else if(available) "원본 페이지·셀·슬라이드로 엽니다. 문서 화면의 ‘편집하기’로 수정할 수 있습니다." else "이 형식의 원본 문서 편집은 Android 11 이상이 필요합니다.",modifier=Modifier.padding(vertical=12.dp))
                 Button(open,enabled=!busy && available,modifier=Modifier.testTag("resume-visual-editor")) {Text("원본 보기")}
                 if(s.recoveryWarning!=null) Text(s.recoveryWarning,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.error,modifier=Modifier.padding(top=12.dp))
             }

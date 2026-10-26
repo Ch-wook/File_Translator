@@ -8,6 +8,7 @@ mode_test_status=${PIPESTATUS[0]}
 adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-hangul-smoke artifacts/native-android/ || true
 adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-office-mode-smoke artifacts/native-android/ || true
 adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-hangul-editing artifacts/native-android/ || true
+adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-document-open artifacts/native-android/ || true
 adb logcat -d -s AndroidRuntime:E > artifacts/ci/android-runtime.log || true
 python3 - <<'PY'
 import pathlib,xml.etree.ElementTree as ET,json

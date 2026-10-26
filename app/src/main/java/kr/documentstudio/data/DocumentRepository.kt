@@ -18,7 +18,7 @@ import java.util.UUID
 data class Recent(val id: String, val name: String, val uri: String?, val modified: Long, val dirty: Boolean, val favorite: Boolean)
 data class Session(val id: String, val name: String, val format: Format, val uri: String?, val sourceHash: String?,
     val base: File, val textContent: TextContent?, val pack: PackageDocument?, val pdf: PdfInfo?, val edits: Edits, val saved: Edits,
-    val legacy: LegacyDocument? = null, val revision: Long=0, val savedRevision: Long=0,val recoveryWarning: String?=null) {
+    val legacy: LegacyDocument? = null, val revision: Long=0, val savedRevision: Long=0,val recoveryWarning: String?=null,val readOnlyReason: String?=null) {
     val dirty get() = edits != saved || revision!=savedRevision || uri == null
     val sections get() = pack?.sections ?: legacy?.sections ?: emptyList()
 }
@@ -84,7 +84,7 @@ class DocumentRepository(private val context: Context) {
                     if(zip.getEntry("base.bin")!=null && zip.getEntry("state.json")!=null) return@io importBackup(zip)
                 }
             }
-            val format = FormatDetector.detect(incoming,name,context.contentResolver.getType(uri),encoding)
+            val format = FormatDetector.detect(incoming,name,runCatching { context.contentResolver.getType(uri) }.getOrNull(),encoding)
             val old = existing?.let { restoreInternal(it.id) }
             val hash = digest(incoming)
             val strokes = if(format==Format.PDF) PdfEngine.importOwned(incoming) else old?.edits?.strokes ?: emptyList()
@@ -192,9 +192,10 @@ class DocumentRepository(private val context: Context) {
         val text = if(format in listOf(Format.TXT,Format.MD)) TextContent.decode(base.readBytes(),encoding) else null
         val pack = if(format in listOf(Format.DOCX,Format.XLSX,Format.PPTX,Format.HWPX)) PackageDocument.open(base) else null
         val pdf = if(format==Format.PDF) PdfEngine.inspect(base) else null
-        val legacy = if(format in LegacyDocument.formats) LegacyDocument.open(base) else null
+        val readOnlyReason=if(format==Format.HWP) LegacyDocument.hwpReadOnlyReason(base) else null
+        val legacy = if(format in LegacyDocument.formats && readOnlyReason==null) LegacyDocument.open(base) else null
         val edits = Edits(text=text?.text ?: "")
-        return Session(id,name,format,uri,hash,base,text,pack,pdf,edits,edits,legacy)
+        return Session(id,name,format,uri,hash,base,text,pack,pdf,edits,edits,legacy,readOnlyReason=readOnlyReason)
     }
     suspend fun checkpoint(s: Session) = io { checkpointInternal(s) }
     private fun checkpointInternal(s: Session) {
@@ -295,6 +296,7 @@ class DocumentRepository(private val context: Context) {
     suspend fun render(s: Session,page: Int) = withContext(Dispatchers.IO) { PdfEngine.render(s.base,page,annotationPages=s.pdf?.annotatedPages) }
     suspend fun prepareOffice(s: Session): File = io {
         require(s.format in visualFormats)
+        require(s.readOnlyReason==null || (s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty())) {s.readOnlyReason ?: "읽기 전용 문서입니다."}
         val dir=s.base.parentFile!!
         require(!File(dir,"office-pending.json").exists()) {"이 문서의 정밀 편집 복구본을 먼저 다시 열어 주세요."}
         checkpointInternal(s)
@@ -378,6 +380,7 @@ class DocumentRepository(private val context: Context) {
         pending.optJSONObject("edits")?.let {expected -> require(s.edits.copy(strokes=emptyList())==StateCodec.decode(expected)) {"다른 화면에서 본문을 편집했습니다. 정밀 편집 파일을 보관한 뒤 병합해 주세요."}}
         require(working.isFile && working.length() in 1..128L*1024*1024) {"정밀 편집 복구본이 없거나 크기 제한을 초과했습니다."}
         if(digest(working)==pending.getString("hash")) {marker.delete();closed.delete();edited.delete();File(working.path+".close-request").delete();remember(s);return s}
+        require(s.readOnlyReason==null) {s.readOnlyReason ?: "읽기 전용 문서의 변경을 반영할 수 없습니다."}
         if(pending.optInt("approvalVersion")!=1 || !edited.isFile) {
             // Preserve unapproved or legacy engine output for recovery; never adopt it.
             require(marker.renameTo(File(dir,"office-pending-unapproved-${UUID.randomUUID()}.json"))) {"승인되지 않은 작업 파일 보관에 실패했습니다."}
@@ -438,9 +441,15 @@ class DocumentRepository(private val context: Context) {
         } finally {materialized.delete()}
     }
     private fun displayName(uri: Uri): String {
-        return context.contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use { c ->
-            if(c.moveToFirst()) c.getString(0) else null
-        } ?: "문서"
+        // A readable content URI need not implement metadata query/getType.
+        // Determine binary format from bytes; optional provider metadata cannot veto it.
+        val queried=runCatching {
+            context.contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use { c ->
+                val column=c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if(column>=0 && c.moveToFirst() && !c.isNull(column)) c.getString(column) else null
+            }
+        }.getOrNull()?.takeIf {it.isNotBlank()}
+        return queried ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf {it.isNotBlank()} ?: "문서"
     }
     private fun normalizeImage(uri: Uri,directory: File): File {
         val raw=File(directory,"image-source-${UUID.randomUUID()}.bin");val png=File(directory,"image-${UUID.randomUUID()}.png")

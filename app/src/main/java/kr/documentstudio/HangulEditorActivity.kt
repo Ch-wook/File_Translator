@@ -17,6 +17,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import kr.documentstudio.core.FormatDetector
+import kr.documentstudio.core.LegacyDocument
 import kr.documentstudio.core.HangulPreservation
 import org.json.JSONObject
 import java.io.*
@@ -30,6 +31,7 @@ class HangulEditorActivity: ComponentActivity() {
     private lateinit var browser: WebView
     private lateinit var sessionId: String
     private lateinit var extension: String
+    private var readOnlyReason: String?=null
     private var lockFile: RandomAccessFile?=null
     private var lock: FileLock?=null
     private var staged: File?=null
@@ -54,6 +56,7 @@ class HangulEditorActivity: ComponentActivity() {
         working=File(requireNotNull(intent.getStringExtra("workingPath"))).canonicalFile
         require(working.parentFile==directory && working.name.matches(Regex("office-[a-zA-Z0-9-]+\\.(hwp|hwpx)")) && working.isFile)
         extension=working.extension
+        readOnlyReason=if(extension=="hwp") LegacyDocument.hwpReadOnlyReason(working) else null
         lockFile=RandomAccessFile(File(directory,"office.lock"),"rw")
         lock=lockFile!!.channel.tryLock();check(lock!=null) {"이미 편집 중인 문서입니다."}
         setResult(Activity.RESULT_CANCELED,Intent().putExtra("sessionId",sessionId))
@@ -141,7 +144,8 @@ class HangulEditorActivity: ComponentActivity() {
 
         @JavascriptInterface fun describe(): String {
             val meta=JSONObject().put("name",intent.getStringExtra("displayName") ?: working.name)
-                .put("format",extension).put("openIntent",if(intent.getStringExtra("openIntent")=="EDIT") "EDIT" else "VIEW")
+                .put("format",extension).put("openIntent",if(readOnlyReason==null && intent.getStringExtra("openIntent")=="EDIT") "EDIT" else "VIEW")
+                .put("readOnlyReason",readOnlyReason ?: JSONObject.NULL)
             runCatching {
                 val file=File(working.parentFile,"hangul-view-state.json")
                 if(file.isFile && file.length()<=65536) meta.put("viewState",JSONObject(AtomicFile(file).openRead().bufferedReader().use {it.readText()}))
@@ -149,7 +153,7 @@ class HangulEditorActivity: ComponentActivity() {
             return meta.toString()
         }
         @Synchronized @JavascriptInterface fun setEditing(value: Boolean): Boolean {
-            if(!ready || output!=null || loadError!=null) return false
+            if(!ready || output!=null || loadError!=null || (value && readOnlyReason!=null)) return false
             editAllowed=value
             return true
         }
@@ -168,7 +172,7 @@ class HangulEditorActivity: ComponentActivity() {
         @JavascriptInterface fun loaded() {ready=true}
         @JavascriptInterface fun loadFailed(message: String) {loadError=message.take(500);editAllowed=false;runOnUiThread {Toast.makeText(this@HangulEditorActivity,loadError,Toast.LENGTH_LONG).show()}}
         @Synchronized @JavascriptInterface fun beginWrite(length: Int): Boolean {
-            abortWrite();if(!ready || !editAllowed || loadError!=null || length !in 1..128*1024*1024) return false
+            abortWrite();if(!ready || !editAllowed || loadError!=null || readOnlyReason!=null || length !in 1..128*1024*1024) return false
             expected=length.toLong();written=0
             staged=File(working.parentFile,"hangul-${java.util.UUID.randomUUID()}.tmp")
             return try {output=FileOutputStream(staged!!);true} catch(_: Exception) {abortWrite();false}
@@ -202,7 +206,7 @@ class HangulEditorActivity: ComponentActivity() {
             FileOutputStream(File(working.path+".closed")).use {it.write(1);it.fd.sync()}
             editAllowed=false
             val changed=File(working.path+".edited").isFile
-            val result=Intent().putExtra("sessionId",sessionId).putExtra("saveOriginal",saveOriginal && changed).putExtra("edited",changed)
+            val result=Intent().putExtra("sessionId",sessionId).putExtra("saveOriginal",saveOriginal && changed && readOnlyReason==null).putExtra("edited",changed)
             loadError?.let {result.putExtra("error",it)}
             setResult(if(loadError==null) Activity.RESULT_OK else Activity.RESULT_CANCELED,result);finish()
         }}

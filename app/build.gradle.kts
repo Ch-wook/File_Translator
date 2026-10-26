@@ -3,17 +3,18 @@ android {
     namespace = "kr.documentstudio"
     compileSdk = 36
     defaultConfig {
-        applicationId = "kr.documentstudio.mobilepreview"
+        applicationId = "kr.documentstudio.openpreview"
         minSdk = 29
         targetSdk = 36
         val phoneAbi = providers.gradleProperty("studioAbi").orNull
         require(phoneAbi == null || phoneAbi in listOf("arm64-v8a", "x86_64")) { "Unsupported studioAbi" }
         ndk { abiFilters += phoneAbi?.let { listOf(it) } ?: listOf("arm64-v8a", "x86_64") }
-        versionCode = 13
-        versionName = "0.8.3-preview"
+        versionCode = 14
+        versionName = "0.8.4-preview"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     sourceSets.getByName("main").assets.srcDir(rootProject.file(".engine-cache/hangul/runtime"))
+    sourceSets.getByName("androidTest").assets.srcDir(rootProject.file("artifacts/open-fixtures/android-assets"))
     testOptions {unitTests.isIncludeAndroidResources=true}
     buildFeatures { compose = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }

@@ -4,13 +4,15 @@ const native=window.DocumentStudio;
 const frame=document.getElementById('engine'), status=document.getElementById('status');
 const save=document.getElementById('save'), mode=document.getElementById('mode');
 const tools=document.getElementById('tools'), groups=document.getElementById('groups');
+let readOnlyReason=null;
 let editor,format,ready=false,editing=false,pending=false,switching=false,timer,revision=0,savedRevision=0,edited=false,activeGroup='글자';
 const panel=document.getElementById('mobile-panel'),dock=document.getElementById('edit-dock');
 const mobileUI=createMobileTools({groups,tools,panel,getEditor:()=>editor,isEditable:()=>ready&&editing&&!switching,message,
  layoutChanged:view=>{if(ready) requestAnimationFrame(()=>editor.restoreView(view).catch(error=>message(String(error.message),true)));}});
 function message(text,error=false){status.textContent=text;status.dataset.error=String(error);document.getElementById('discard').hidden=!error;}
 function update(){
- document.body.dataset.state=!ready?'LOADING':editing?'EDITING':'READING';
+ document.body.dataset.state=!ready?'LOADING':readOnlyReason?'READ_ONLY':editing?'EDITING':'READING';
+ mode.hidden=Boolean(readOnlyReason);
  mode.textContent=editing?'보기로':'편집하기';mode.disabled=!ready||pending||switching;
  mode.setAttribute('aria-pressed',String(editing));save.hidden=!editing;save.disabled=!ready||pending||switching;
  groups.hidden=!editing;tools.hidden=!editing||document.getElementById('tool-toggle').getAttribute('aria-expanded')==='false';
@@ -43,7 +45,7 @@ async function checkpoint(){
  finally{pending=false;update();if(savedRevision===saving&&revision>savedRevision&&editing){clearTimeout(timer);timer=setTimeout(checkpoint,300);}}
 }
 async function setEditing(value){
- if(!ready||pending||switching||editing===value)return;
+ if(!ready||pending||switching||editing===value||readOnlyReason)return;
  const view=editor.captureView();
  switching=true;clearTimeout(timer);update();
  try{
@@ -96,7 +98,7 @@ document.getElementById('zoom-in').onclick=()=>editor?.command('view:zoom-in');
 mode.onclick=()=>setEditing(!editing);save.onclick=()=>close(true);
 async function start(){
  if(!native){message('앱의 문서 연결을 찾지 못했습니다.',true);return;}
- const meta=JSON.parse(native.describe());format=meta.format;
+ const meta=JSON.parse(native.describe());format=meta.format;readOnlyReason=meta.readOnlyReason||null;
  document.getElementById('title').textContent=meta.name;
  for(let attempt=0;attempt<600;attempt++){
   editor=frame.contentWindow?.rhwpStudio?.documentStudio;if(editor)break;
@@ -108,7 +110,8 @@ async function start(){
  if(info.format!==format||info.pages<1)throw new Error('원본 문서의 형식 또는 페이지를 확인할 수 없습니다.');
  await editor.restoreView(meta.viewState);
  ready=true;renderTools();native.loaded();
- if(meta.openIntent==='EDIT')await setEditing(true);
+ if(readOnlyReason)message(`${info.pages}쪽 · 읽기 전용 · ${readOnlyReason}`);
+ else if(meta.openIntent==='EDIT')await setEditing(true);
  else message(`${info.pages}쪽 · 원본 보기 · 편집하기를 선택해 수정하세요.`);
  for(const id of ['find','zoom-out','zoom-in'])document.getElementById(id).disabled=false;
 }

@@ -70,6 +70,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     fun beginEditing(id: String?=null) {
         if(mutable.value.busy) return
         val s=document(id) ?: return
+        if(s.readOnlyReason!=null) {setPresentation(s.id,PresentationState.READ_ONLY);message(s.readOnlyReason);return}
         if(s.format in DocumentRepository.visualFormats) {
             if(!EditorPolicy.available(s.format,android.os.Build.VERSION.SDK_INT)) {
                 setPresentation(s.id,PresentationState.READ_ONLY);message("이 문서 엔진은 Android 11 이상에서 사용할 수 있습니다.");return
@@ -79,7 +80,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     }
     fun readDocument(id: String?=null) {
         if(mutable.value.busy) return
-        document(id)?.let {setPresentation(it.id,PresentationState.READING)}
+        document(id)?.let {setPresentation(it.id,if(it.readOnlyReason==null) PresentationState.READING else PresentationState.READ_ONLY)}
     }
     /** Separate ink is opt-in and does not open a binary document's text editor. */
     fun beginInk(id: String) {
@@ -90,13 +91,13 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         checkpointed[s.id]=s
         lastTextEdit=0
         mutable.value=mutable.value.copy(tabs=mutable.value.tabs.filter { it.id!=s.id }+s,active=s.id)
-        setPresentation(s.id,if(EditorPolicy.available(s.format,android.os.Build.VERSION.SDK_INT)) PresentationState.READING else PresentationState.READ_ONLY)
+        setPresentation(s.id,if(s.readOnlyReason==null && EditorPolicy.available(s.format,android.os.Build.VERSION.SDK_INT)) PresentationState.READING else PresentationState.READ_ONLY)
         s.recoveryWarning?.let {message(it)}
     }
     private fun requestVisual(s: Session,visual: Boolean,openIntent: OpenIntent=OpenIntent.VIEW) {
         if(!EditorPolicy.available(s.format,android.os.Build.VERSION.SDK_INT)) return
         if(s.format in DocumentRepository.visualFormats)
-            mutable.value=mutable.value.copy(officeLaunch=OfficeLaunchRequest(s.id,openIntent))
+            mutable.value=mutable.value.copy(officeLaunch=OfficeLaunchRequest(s.id,if(s.readOnlyReason==null) openIntent else OpenIntent.VIEW))
         else if(openIntent==OpenIntent.EDIT) setPresentation(s.id,PresentationState.EDITING)
     }
     fun consumeOfficeLaunch(request: OfficeLaunchRequest) {
@@ -116,7 +117,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     fun open(uri: Uri,visual: Boolean=false,openIntent: OpenIntent=OpenIntent.VIEW) = action {
         mutable.value=mutable.value.copy(officeLaunch=null)
         mutable.value.tabs.firstOrNull {it.uri==uri.toString()}?.let {
-            lastTextEdit=0;mutable.value=mutable.value.copy(active=it.id);setPresentation(it.id,PresentationState.READING);requestVisual(it,visual,openIntent);return@action
+            lastTextEdit=0;mutable.value=mutable.value.copy(active=it.id);setPresentation(it.id,if(it.readOnlyReason==null) PresentationState.READING else PresentationState.READ_ONLY);requestVisual(it,visual,openIntent);return@action
         }
         val s=repository.open(uri,mutable.value.settings.encoding); attach(s);requestVisual(s,visual,openIntent)
         val ext=s.name.substringAfterLast('.',"").lowercase()
@@ -140,7 +141,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     }
     fun restore(id: String,visual: Boolean=false) = action {
         val s=mutable.value.tabs.firstOrNull {it.id==id} ?: repository.restore(id).also {attach(it)}
-        lastTextEdit=0;mutable.value=mutable.value.copy(active=id);setPresentation(s.id,PresentationState.READING);requestVisual(s,visual)
+        lastTextEdit=0;mutable.value=mutable.value.copy(active=id);setPresentation(s.id,if(s.readOnlyReason==null) PresentationState.READING else PresentationState.READ_ONLY);requestVisual(s,visual)
     }
     fun home() { if(mutable.value.busy) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=null,officeLaunch=null) }
     fun select(id: String) { if(mutable.value.busy || mutable.value.tabs.none {it.id==id}) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=id) }
@@ -213,7 +214,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
                     throw e
                 }
                 if(result!=s) {if(result.base!=s.base) histories.getValue(s.id).record(s);replace(result)}
-                setPresentation(s.id,PresentationState.READING)
+                setPresentation(s.id,if(s.readOnlyReason==null) PresentationState.READING else PresentationState.READ_ONLY)
                 if((saveOriginal || durableSaveRequest) && result.dirty) {
                     if(result.uri!=null) {replace(repository.save(result,Uri.parse(result.uri)));message("원본 파일에 저장했습니다.")}
                     else mutable.value=mutable.value.copy(saveRequest=result.id)
