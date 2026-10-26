@@ -3,14 +3,14 @@ android {
     namespace = "kr.documentstudio"
     compileSdk = 36
     defaultConfig {
-        applicationId = "kr.documentstudio.preview"
+        applicationId = "kr.documentstudio.mobilepreview"
         minSdk = 29
         targetSdk = 36
         val phoneAbi = providers.gradleProperty("studioAbi").orNull
         require(phoneAbi == null || phoneAbi in listOf("arm64-v8a", "x86_64")) { "Unsupported studioAbi" }
         ndk { abiFilters += phoneAbi?.let { listOf(it) } ?: listOf("arm64-v8a", "x86_64") }
-        versionCode = 12
-        versionName = "0.8.2-preview"
+        versionCode = 13
+        versionName = "0.8.3-preview"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     sourceSets.getByName("main").assets.srcDir(rootProject.file(".engine-cache/hangul/runtime"))

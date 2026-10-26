@@ -65,7 +65,8 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
    number('spacing','자간(%)',state.char?.spacings?.[0]||0,-50,50,1,(m,v)=>m.char({spacings:Array(7).fill(v)},target),dims);
    number('ratio','장평(%)',state.char?.ratios?.[0]||100,50,200,1,(m,v)=>m.char({ratios:Array(7).fill(v)},target),dims);
    number('offset','글자 위치(%)',state.char?.charOffsets?.[0]||0,-100,100,1,(m,v)=>m.char({charOffsets:Array(7).fill(v)},target),dims);
-   const format=line('서식');command('서식 복사','edit:format-copy',format);command('서식 붙이기','edit:format-paste',format);
+   const format=line('글자 서식');button('글자 서식 복사',()=>execute(m=>m.copyCharFormat()),format,{mutates:false});button('글자 서식 붙이기',()=>execute(m=>m.pasteCharFormat(target)),format);
+   button('문서 기본 글꼴',()=>execute(m=>m.defaultFont(target)),format);
    button('선택 글자 서식 초기화',()=>execute(m=>m.resetChar(target)),format);
    const advanced=command('고급 글자 모양','format:char-shape',format);advanced.dataset.requiresSelection='true';
  }
@@ -88,7 +89,7 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
      button('지정한 표 삽입',()=>execute(m=>m.createTable(Number(row.value),Number(col.value))));return;
    }
    const cell=state.cell;line(cell?'표 안 글자에도 글자·문단 도구를 사용할 수 있습니다.':'표 전체 선택');
-   const choose=line('셀 선택');button('현재 셀 선택',()=>execute(m=>m.selectCells()),choose);button('모든 셀 선택',()=>execute(m=>m.selectCells(undefined,undefined,true)),choose);
+   const choose=line('셀 이동·선택');button('이전 셀',()=>execute(m=>m.moveCell(false)),choose);button('다음 셀',()=>execute(m=>m.moveCell(true)),choose);button('현재 셀 선택',()=>execute(m=>m.selectCells()),choose);button('모든 셀 선택',()=>execute(m=>m.selectCells(undefined,undefined,true)),choose);
    if(cell){const r=line('범위 끝');const row=number('endRow','끝 행',cell.info.row+1,1,cell.dims.rowCount,1,()=>null,r),col=number('endCol','끝 열',cell.info.col+1,1,cell.dims.colCount,1,()=>null,r);
      button('범위 선택',()=>execute(m=>m.selectCells(Number(row.value)-1,Number(col.value)-1)),r);}
    const layout=line('셀·표 서식');command('행 높이 같게','table:cell-height-equal',layout);command('열 너비 같게','table:cell-width-equal',layout);
@@ -135,7 +136,7 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
    }else if(group==='그림'){
      for(const [label,id] of [['그림 삽입','image'],['그림 속성','picture-props'],['시계 방향 회전','rotate-cw'],['반시계 회전','rotate-ccw'],['맨 앞으로','arrange-front'],['맨 뒤로','arrange-back'],['그림 삭제','picture-delete']])command(label,'insert:'+id);
    }else if(group==='삽입'){
-     for(const [label,id] of [['특수문자','insert:symbols'],['하이퍼링크','insert:hyperlink'],['글상자','insert:textbox']])command(label,id);
+     for(const [label,id] of [['특수문자','insert:symbols'],['하이퍼링크','insert:hyperlink'],['링크 수정','hyperlink:edit'],['링크 제거','hyperlink:remove'],['글상자','insert:textbox']])command(label,id);
      button('날짜',()=>execute(m=>m.plainText(new Intl.DateTimeFormat('ko-KR',{dateStyle:'medium'}).format(new Date()))));
      button('시간',()=>execute(m=>m.plainText(new Intl.DateTimeFormat('ko-KR',{timeStyle:'short'}).format(new Date()))));
      toggleDetails('자주 쓰는 기호');if(expanded)for(const v of ['①','②','③','✓','□','☑','→','←','↑','↓','±','×','÷','≤','≥','∞'])button(v,()=>execute(m=>m.plainText(v)),panel);
@@ -149,7 +150,7 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
    }else if(group==='클립보드'){
      button('복사',()=>execute(m=>m.copy()),tools,{mutates:false});button('잘라내기',()=>execute(m=>m.copy(true)));
      button('서식 유지 붙여넣기',()=>execute(m=>m.paste(false)));button('서식 없이 붙여넣기',()=>execute(m=>m.paste(true)));
-     command('전체 선택','edit:select-all');command('선택 삭제','edit:delete');command('서식 복사','edit:format-copy');command('서식 붙이기','edit:format-paste');
+     command('전체 선택','edit:select-all');command('선택 삭제','edit:delete');command('문단·글자 서식 복사','edit:format-copy');command('문단·글자 서식 붙이기','edit:format-paste');
    }
    if(expanded)button('설정 완료',()=>{expanded=false;render();api()?.focus();},panel,{mutates:false});
    panel.hidden=!expanded;rendering=false;update();layoutChanged?.(view);

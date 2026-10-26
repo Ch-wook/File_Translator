@@ -10,9 +10,9 @@ const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));
 const charKeys=['fontId','fontIds','fontSize','bold','italic','underline','strikethrough','superscript','subscript','textColor','shadeColor','ratios','spacings','charOffsets','relativeSizes','underlineType','underlineColor','underlineShape','strikeColor','strikeShape','emphasisDot','kerning','outlineType','shadowType'];
 function picked(value:any,keys:string[]) {return Object.fromEntries(keys.filter(k=>value[k]!==undefined).map(k=>[k,clone(value[k])]));}
 function num(value:any,min:number,max:number) {const n=Number(value);if(!Number.isFinite(n)||n<min||n>max)throw new Error('값의 범위를 확인하세요.');return n;}
-function ok(value:any) {const result=typeof value==='string'?JSON.parse(value):value;if(result?.ok===false)throw new Error('엔진이 변경을 거절했습니다.');return result;}
+function ok(value:any) {const result=typeof value==='string'?JSON.parse(value):value;if(result===false||result?.ok===false)throw new Error('엔진이 변경을 거절했습니다.');return result;}
 export function createStudioMobile(env:Env) {
- const {wasm,eventBus}=env;let epoch=0;let search:any={query:'',hits:[],index:-1,epoch:-1};
+ const {wasm,eventBus}=env;let epoch=0;let copiedChar:any=null,pendingFonts:any=null;let search:any={query:'',hits:[],index:-1,epoch:-1};
  const input=()=>{const ih=env.getInput();if(!ih)throw new Error('문서가 준비되지 않았습니다.');return ih;};
  const composing=()=>Boolean(env.getInput()?.isComposing||env.getInput()?._iosComposing);
  const writable=()=>{if(!studioIsEditing())throw new Error('편집하기를 먼저 선택하세요.');if(composing())throw new Error('한글 조합 입력을 마친 뒤 선택하세요.');};
@@ -53,6 +53,15 @@ export function createStudioMobile(env:Env) {
    }
    ih.updateCaret(true);
  }
+ function charState() {
+   const ih=input(),base=ih.getCharProperties();
+   const pending=!ih.hasSelection()&&!ih.isInCellSelectionMode()?ih.getPendingCharShape():undefined;
+   const value={...base,...pending};
+   if(pending?.fontIds&&pendingFonts&&JSON.stringify(pending.fontIds)===JSON.stringify(pendingFonts.ids)){
+     value.fontFamily=pendingFonts.names[0];value.fontFamilies=pendingFonts.names;
+   }
+   return value;
+ }
  function state() {
    if(!env.getInput())return {ready:false,epoch};
    const ih=input(),c=ih.cursor,p=ih.getCursorPosition();let cell:any=null;
@@ -64,18 +73,27 @@ export function createStudioMobile(env:Env) {
          selection:c.getSelectedCellRange()};
      }catch{/* unavailable cells stay disabled */}
    }
-   return {ready:true,epoch,composing:composing(),editing:studioIsEditing(),char:ih.getCharProperties(),para:ih.getParaProperties(),selection:ih.hasSelection(),
-     cell,object:c.isInPictureObjectSelection(),tableObject:c.isInTableObjectSelection(),style:ih.getCurrentStyleId(),
-     canUndo:ih.canUndo(),canRedo:ih.canRedo(),copiedFormat:ih.hasCopiedFormat(),
+   let objectDetails:any=null;
+   if(c.isInPictureObjectSelection())try{
+     const ref=c.getSelectedPictureRef(),bbox=ih.findPictureBbox(ref),sc=ih.container.querySelector('#scroll-content');
+     const box=sc.getBoundingClientRect(),z=ih.viewportManager.getZoom(),vs=ih.virtualScroll;
+     objectDetails={ref,props:ih.getObjectProperties(ref),bbox,rect:bbox?{x:box.left+vs.getPageLeftResolved(bbox.pageIndex,sc.clientWidth)+bbox.x*z,y:box.top+vs.getPageOffset(bbox.pageIndex)+bbox.y*z,width:bbox.w*z,height:bbox.h*z}:null};
+   }catch{/* unavailable objects stay disabled */}
+   return {ready:true,epoch,composing:composing(),editing:studioIsEditing(),char:charState(),para:ih.getParaProperties(),selection:ih.hasSelection(),
+     cell,objectDetails,object:c.isInPictureObjectSelection(),tableObject:c.isInTableObjectSelection(),style:ih.getCurrentStyleId(),
+     canUndo:ih.canUndo(),canRedo:ih.canRedo(),copiedFormat:ih.hasCopiedFormat(),copiedChar:Boolean(copiedChar),
      scope:ih.isInCellSelectionMode()?'선택한 셀':ih.hasSelection()?'선택한 글자':'커서 이후 입력'};
  }
  function result(){return {selection:capture(),state:state()};}
  function char(props:any,token?:any) {
    writable();restore(token);const ih=input(),mods=picked(props,charKeys);
+   if(ih.cursor.isInFootnote()||ih.cursor.isInHeaderFooter()&&!ih.hasSelection())throw new Error('이 보조 영역의 글자 서식은 선택 범위 편집을 지원하지 않습니다.');
    if(ih.cursor.isInPictureObjectSelection()||ih.cursor.isInTableObjectSelection())throw new Error('개체 대신 글자를 선택하세요.');
    if(props.fontName) {
      const names=fonts();if(!names.includes(props.fontName))throw new Error('이 앱에 포함된 글꼴을 선택하세요.');
-     mods.fontId=wasm.findOrCreateFontId(props.fontName);if(mods.fontId<0)throw new Error('글꼴을 적용할 수 없습니다.');
+     mods.fontIds=Array.from({length:7},(_,i)=>wasm.findOrCreateFontIdForLang(i,props.fontName));
+     if(mods.fontIds.some((id:number)=>id<0))throw new Error('글꼴을 적용할 수 없습니다.');
+     pendingFonts={names:Array(7).fill(props.fontName),ids:mods.fontIds};
    }
    if(mods.fontSize!==undefined)mods.fontSize=Math.round(num(mods.fontSize,100,409600));
    for(const [key,min,max] of [['ratios',50,200],['spacings',-50,50],['charOffsets',-100,100]] as const) {
@@ -102,9 +120,32 @@ export function createStudioMobile(env:Env) {
    if(getWebFontSupplySnapshot(name).status!=='loaded')throw new Error('번들 글꼴을 읽지 못했습니다.');
    return char({fontName:name},token);
  }
- function resetChar(token:any) {
+ function charFormatMods(value:any) {
+   const mods=picked(value,charKeys);
+   if(value.fontFamilies?.length){
+     mods.fontIds=Array.from({length:7},(_,i)=>wasm.findOrCreateFontIdForLang(i,value.fontFamilies[i]||value.fontFamilies[0]));
+     pendingFonts={names:Array.from({length:7},(_,i)=>value.fontFamilies[i]||value.fontFamilies[0]),ids:mods.fontIds};
+   }
+   return mods;
+ }
+ function defaultFont(token:any) {
+   writable();restore(token);
    const defaults=wasm.getStyleDetail(0)?.charProps||{};
-   return char({...picked(defaults,charKeys),bold:false,italic:false,underline:false,strikethrough:false,superscript:false,subscript:false,
+   const resolved=charFormatMods(defaults),mods=picked(resolved,['fontId','fontIds']);
+   if(!Object.keys(mods).length)throw new Error('문서 기본 글꼴을 확인할 수 없습니다.');
+   return char(mods);
+ }
+ function copyCharFormat() {
+   if(!input().hasSelection())throw new Error('서식을 복사할 글자를 선택하세요.');
+   copiedChar=clone(charState());return result();
+ }
+ function pasteCharFormat(token:any) {
+   writable();restore(token);if(!copiedChar)throw new Error('글자 서식을 먼저 복사하세요.');
+   return char(charFormatMods(copiedChar));
+ }
+ function resetChar(token:any) {
+   writable();restore(token);const defaults=wasm.getStyleDetail(0)?.charProps||{};
+   return char({...charFormatMods(defaults),bold:false,italic:false,underline:false,strikethrough:false,superscript:false,subscript:false,
      textColor:defaults.textColor||'#000000',shadeColor:defaults.shadeColor||'#ffffff',ratios:defaults.ratios||Array(7).fill(100),
      spacings:defaults.spacings||Array(7).fill(0),charOffsets:defaults.charOffsets||Array(7).fill(0)},token);
  }
@@ -117,6 +158,13 @@ export function createStudioMobile(env:Env) {
      borderLeft:{type:0,width:0,color:'#000000'},borderRight:{type:0,width:0,color:'#000000'},borderTop:{type:0,width:0,color:'#000000'},borderBottom:{type:0,width:0,color:'#000000'}},token);
  }
  function dispatch(id:string,params?:any,token?:any) {
+   const toggle=id.startsWith('format:')?id.slice(7):'';
+   if(['bold','italic','underline','strikethrough','superscript','subscript'].includes(toggle)){
+     writable();restore(token);const mods:any={[toggle]:!charState()[toggle]};
+     if(mods[toggle]&&toggle==='superscript')mods.subscript=false;
+     if(mods[toggle]&&toggle==='subscript')mods.superscript=false;
+     return char(mods);
+   }
    if(!id.startsWith('view:')&&!['edit:copy','edit:select-all','edit:find','edit:find-again'].includes(id))writable();
    if(token)restore(token);
    const answer=env.dispatcher.dispatchWithResult(id,params);if(!answer.ok)throw new Error('현재 선택에서 사용할 수 없는 기능입니다.');
@@ -187,6 +235,10 @@ export function createStudioMobile(env:Env) {
      return {sectionIndex:pos.sectionIndex,paragraphIndex:0,charOffset:0,parentParaIndex:r.paraIdx,controlIndex:r.controlIdx,cellIndex:0,cellParaIndex:0};
    }});c.clearSelection();ih.updateCaret();return result();
  }
+ function moveCell(next=true) {
+   writable();const ih=input(),c=ih.cursor;if(!ih.isInTable())throw new Error('표 안의 셀을 먼저 터치하세요.');
+   c.exitCellSelectionMode();c.clearSelection();if(next)c.moveToCellNext();else c.moveToCellPrev();ih.updateCaret();return result();
+ }
  function selectCells(endRow?:number,endCol?:number,all=false) {
    const ih=input(),c=ih.cursor;
    if(!studioIsEditing())throw new Error('편집하기를 먼저 선택하세요.');
@@ -246,7 +298,7 @@ export function createStudioMobile(env:Env) {
    }
    search={query:'',hits:[],index:-1,epoch:-1};return {count:hits(query,sensitive).length,...result()};
  }
- return {state,capture,restore,char,para,font,fonts,resetChar,resetPara,dispatch,copy,paste,plainText,createTable,selectCells,cell,list,find,replace,
+ return {state,capture,restore,char,para,font,fonts,defaultFont,copyCharFormat,pasteCharFormat,resetChar,resetPara,dispatch,copy,paste,plainText,createTable,moveCell,selectCells,cell,list,find,replace,
    count:(q:string,s=false)=>hits(q,s).length,styles:()=>wasm.getStyleList(),
    focus:()=>input().focus(),reveal:()=>input().updateCaret(),
    navigate:(end=false)=>{const ih=input();ih.cursor.clearSelection();if(end)ih.cursor.moveToDocumentEnd();else ih.cursor.moveTo({sectionIndex:0,paragraphIndex:0,charOffset:0});ih.updateCaret();},

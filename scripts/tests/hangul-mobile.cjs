@@ -72,6 +72,8 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   await call('find','나다');await call('find','나다');const pasted=(await call('state')).char;
   assert.equal(pasted.fontSize,1800);assert.equal(pasted.textColor.toLowerCase(),'#e53935');assert.equal(pasted.spacings[0],12);
   await call('dispatch','edit:undo');
+  const structureTest=require('./hangul-mobile-structure.cjs');fs.writeFileSync(path.join(fixtures,'mobile-image.png'),structureTest.image);
+  const structure=await structureTest({page,frame,call,context});
   await page.waitForFunction(()=>window.__writeCount>0,null,{timeout:20000});
   await page.locator('#save').click();await page.waitForFunction(()=>window.__closed,null,{timeout:60000});
   const exported=await page.evaluate(()=>({data:window.__saved,report:window.__report,saveOriginal:window.__saveOriginal}));
@@ -84,7 +86,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   await call('find','ABC');for(const key of ['fontSize','bold','textColor','ratios','spacings'])assert.deepEqual((await call('state')).char[key],outsideBefore[key],'Reopened unselected '+key+' remains');
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
   await page.screenshot({path:path.join(out,'mobile-format-'+format+'.png'),fullPage:true});
-  results.push({format,phone:true,partialSelection:true,font,combinedCharacterFormatting:true,spacingMetrics:{base,spaced,narrow},unselectedPreserved:true,clipboardRichAndPlain:true,atomicPasteUndoRedo:true,autosave:true,savedAndReopened:true,bytes:bytes.length});
+  results.push({format,phone:true,partialSelection:true,font,structure,combinedCharacterFormatting:true,spacingMetrics:{base,spaced,narrow},unselectedPreserved:true,clipboardRichAndPlain:true,atomicPasteUndoRedo:true,autosave:true,savedAndReopened:true,bytes:bytes.length});
   await context.close();
  }
  fs.writeFileSync(path.join(out,'mobile-engine-results.json'),JSON.stringify(results,null,2));console.log('MOBILE_ENGINE_RESULTS',JSON.stringify(results));
