@@ -26,6 +26,10 @@ GitHub 앱을 통한 원격 파일 읽기와 브랜치 쓰기는 실제로 성�
 | Office 편집 진입 때 형식 변환 제안 | Studio 작업 복사본은 원래 형식으로 저장하므로 자동 ODF 변환 제안을 실행하지 않습니다. 변환은 별도 명시적 내보내기입니다. |
 | 에뮬레이터 실패 증거 누락 | 시험 뒤 APK 자동 제거로 외부 앱 전용 증거 파일도 제거됐습니다. 올바른 leaveApksInstalledAfterRun 옵션으로 XML·PNG·JSON을 회수합니다. |
 
+## Release 게시 권한
+
+첫 게시 시도는 빌드 산출물과 전체 Android 19건을 재확인한 뒤 Release 생성에서 HTTP 403 `Resource not accessible by integration`을 반환했습니다. 작업 토큰에는 Contents write가 표시됐습니다. 이전 빌드 커밋을 대상으로 새 태그를 생성하는 경로의 제한 가능성을 점검하기 위해, 앱 코드가 같고 문서·CI만 추가된 현재 게시 커밋을 태그 대상으로 재시도합니다. APK를 재빌드하거나 검증하지 않은 바이너리로 바꾸지 않습니다. 이전 Release나 태그를 덮어쓰지 않습니다.
+
 ## 통과 판정
 
 CI의 Android 단계는 실패 증거와 APK를 보존하기 위해 continue-on-error를 사용합니다. 따라서 워크플로의 초록색 표시만으로 Android 통과를 선언하지 않습니다. 실제 단계 outcome, JUnit failures/errors, ANDROID_TEST_SUMMARY 및 검증 ZIP의 summary.json을 함께 확인합니다. Release는 실제 Android 단계가 성공한 커밋의 동일 산출물만 재사용합니다. 전체 필수 19건과 실패·오류·생략 0을 재확인하며, 원래 SHA256SUMS·소스 ZIP의 Git blob·태그 커밋·업로드 후 내려받은 파일까지 대조합니다. 배포 문서/CI만 추가한 커밋 때문에 APK를 다시 만들지 않습니다.

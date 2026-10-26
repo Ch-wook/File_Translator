@@ -2,7 +2,7 @@
 
 이 버전은 확인 가능한 원격 `2bfe225`에서 **재구현**했습니다. 이전 미푸시 0.8.0 소스·패치·커밋·APK는 회수하지 못했습니다. [출처 감사](ORIGINAL_VIEW_AUDIT.md)와 [실패 분석](FAILURE_ANALYSIS.md)을 확인하세요.
 
-APK와 소스 ZIP은 [검증한 앱 빌드 커밋](https://github.com/Ch-wook/File_Translator/commit/2b1bfcd327a5eba2a48166adb33867dfee880938)에 정확히 대응합니다. 검사한 동일 APK를 다시 빌드하지 않고 배포합니다. 이후 배포 문서·CI만 추가했는지 게시 작업에서 검사하며, 태그는 위의 실제 빌드 커밋을 가리킵니다.
+APK와 소스 ZIP은 [검증한 앱 빌드 커밋](https://github.com/Ch-wook/File_Translator/commit/2b1bfcd327a5eba2a48166adb33867dfee880938)에 정확히 대응합니다. 검사한 동일 APK를 다시 빌드하지 않고 배포합니다. 이후 배포 문서·CI만 추가했는지 게시 작업에서 검사하며, 태그는 검증 커밋의 앱 코드를 그대로 포함하고 배포 문서·CI만 추가한 게시 커밋을 가리킵니다. 게시 작업에서 앱 코드 차이가 없음을 검사합니다.
 
 ## 실제 수정 파일
 

@@ -72,6 +72,7 @@ jobs:
           notes=(delivery/'README.txt').read_text()+'\nAndroid 에뮬레이터: '+json.dumps(android,ensure_ascii=False)+'\n'
           notes+='실제 Writer 쪽 나누기·Calc 열 삽입·Impress 슬라이드 추가 후 저장, 독립 파서 및 엔진 재열기를 검사했습니다.\n'
           notes+='실제 휴대폰·한국어 IME 조합·모든 고급 요소/문서의 보존을 인증한 결과는 아닙니다.\n'
+          notes+='APK·소스의 빌드 커밋: '+sha+'\n태그 커밋: '+os.environ['GITHUB_SHA']+' (앱 코드 차이 없음; 배포 문서·CI만 추가)\n'
           notes+='검증/지원 제한: https://github.com/'+repo+'/blob/codex/original-view-reimplementation/docs/ORIGINAL_VIEW_RESULTS.md\n'
           pathlib.Path('release-notes.md').write_text(notes)
           PY
@@ -79,7 +80,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json,os,subprocess,pathlib,hashlib
-          repo=os.environ['GITHUB_REPOSITORY'];tag=os.environ['PREVIEW_TAG'];sha=os.environ['VERIFIED_SHA']
+          repo=os.environ['GITHUB_REPOSITORY'];tag=os.environ['PREVIEW_TAG'];sha=os.environ['GITHUB_SHA']
           def api(path,*args):
               return json.loads(subprocess.check_output(['gh','api',path,*args]))
           releases=api(f'repos/{repo}/releases?per_page=100')
@@ -118,7 +119,7 @@ jobs:
           import hashlib,json,os,pathlib,urllib.request,time
           repo=os.environ['GITHUB_REPOSITORY']; tag=os.environ['PREVIEW_TAG']
           with urllib.request.urlopen('https://api.github.com/repos/'+repo+'/git/ref/tags/'+tag,timeout=120) as response: ref=json.load(response)
-          assert ref['object']['type']=='commit' and ref['object']['sha']==os.environ['VERIFIED_SHA'],ref
+          assert ref['object']['type']=='commit' and ref['object']['sha']==os.environ['GITHUB_SHA'],ref
           results=[]
           for p in sorted(pathlib.Path('delivery').iterdir()):
               if not p.is_file(): continue
@@ -135,7 +136,7 @@ jobs:
                       if attempt==3: raise
                       time.sleep(5)
               results.append({'name':p.name,'bytes':size,'sha256':expected,'publicDownloadVerified':True})
-          pathlib.Path('release-download-verification.json').write_text(json.dumps({'commit':os.environ['VERIFIED_SHA'],'assets':results},indent=2))
+          pathlib.Path('release-download-verification.json').write_text(json.dumps({'verifiedBuildCommit':os.environ['VERIFIED_SHA'],'tagCommit':os.environ['GITHUB_SHA'],'assets':results},indent=2))
           print(json.dumps(results,indent=2))
           PY
       - uses: actions/upload-artifact@v4
