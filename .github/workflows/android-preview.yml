@@ -190,11 +190,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v4
       - name: Read previous Android failure evidence
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 40277128748 --repo "$GITHUB_REPOSITORY" --name verification-logs-ada18f3e8eaadb5665ad691c7fe62260cd8a5142 --dir evidence
+          gh run download 40281706445 --repo "$GITHUB_REPOSITORY" --name verification-logs-8269576bf783bf61fe971ba21d37c6dd97b0b292 --dir evidence
           python3 - <<'PY'
           import pathlib,xml.etree.ElementTree as ET,json
           for p in pathlib.Path('evidence').rglob('*.xml'):
@@ -221,4 +222,20 @@ jobs:
                   if re.search(r'CONSOLE|Javascript|JavaScript|ReadOnly|chromium.*(?:Error|error)|Bridge|WrongThread|FATAL EXCEPTION|Exception',line):
                       indices.update(range(max(0,i-2),min(len(lines),i+5)))
               print('DEVICE_LOG_EXCERPTS',p,'\n'.join(lines[i] for i in sorted(indices))[-45000:])
+          PY
+          gh run download 40281706445 --repo "$GITHUB_REPOSITORY" --name document-studio-preview-8269576bf783bf61fe971ba21d37c6dd97b0b292 --dir delivery
+          python3 - <<'PY'
+          import pathlib,zipfile,hashlib
+          apk=next(pathlib.Path('delivery').glob('*.apk'))
+          with zipfile.ZipFile(apk) as z:
+              policy=z.read('assets/dist/studio-policy.js')
+              source=pathlib.Path('officeruntime/src/main/assets/dist/studio-policy.js').read_bytes()
+              print('POLICY_MATCHES_SOURCE',policy==source,'apk',hashlib.sha256(policy).hexdigest(),'source',hashlib.sha256(source).hexdigest())
+              print('POLICY_SNAPSHOT',policy.decode()[policy.decode().find('function snapshot'):policy.decode().find('function installModeGate')])
+              print('POLICY_STYLE',policy.decode()[:2300])
+              for name in z.namelist():
+                  if name.endswith('.dex'):
+                      dex=z.read(name)
+                      if b'office-view-state-error.json' in dex:
+                          print('NEW_NATIVE_VIEW_DIAGNOSTIC_IN_APK',name)
           PY
