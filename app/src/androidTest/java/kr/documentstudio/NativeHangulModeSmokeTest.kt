@@ -18,6 +18,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.security.MessageDigest
+import java.util.regex.Pattern
 
 /**
  * Exercises the actual separate-process Android System WebView host through its
@@ -52,10 +53,11 @@ class NativeHangulModeSmokeTest {
         context.startActivity(launch)
         try {
             await("The real engine must report loaded original view",120_000) {
-                device.hasObject(By.textContains("원본 보기")) || device.hasObject(By.descContains("원본 보기"))
+                device.hasObject(By.pkg(context.packageName).text(Pattern.compile("^[0-9]+쪽 · 원본 보기.*")))
+                    || device.hasObject(By.pkg(context.packageName).desc(Pattern.compile("^[0-9]+쪽 · 원본 보기.*")))
             }
             button("편집하기")
-            assertNull("A save control is hidden in VIEW",device.findObject(By.text("저장 후 닫기")))
+            assertNull("A save control is hidden in VIEW",findButton("저장 후 닫기"))
             assertUnchanged(working,workingHash,session.base,originalHash,edited)
 
             // Normalize away from the upper zoom bound using visible VIEW tools.
@@ -92,6 +94,7 @@ class NativeHangulModeSmokeTest {
             runCatching {
                 if(!closed.isFile) {
                     screenshot(format,"failure")
+                    device.dumpWindowHierarchy(File(context.getExternalFilesDir(null),"native-hangul-smoke/${format.extension}-failure.xml"))
                     // First Back may leave EDIT; the second closes VIEW.
                     device.pressBack()
                     if(!closed.isFile) device.pressBack()
@@ -117,11 +120,15 @@ class NativeHangulModeSmokeTest {
         device.waitForIdle(1_000)
     }
 
+    private fun findButton(text: String): UiObject2? =
+        device.findObject(By.pkg(context.packageName).text(text))
+            ?: device.findObject(By.pkg(context.packageName).desc(text))
+
     private fun button(text: String): UiObject2 {
         await("Enabled host button: $text",20_000) {
-            runCatching {device.findObject(By.text(text))?.isEnabled==true}.getOrDefault(false)
+            runCatching {findButton(text)?.isEnabled==true}.getOrDefault(false)
         }
-        return requireNotNull(device.findObject(By.text(text)))
+        return requireNotNull(findButton(text))
     }
 
     private fun readView(file: File): JSONObject {

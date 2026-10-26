@@ -33,8 +33,10 @@ internal object TextRuns {
     fun read(t: Element): String {
         if(t.namespaceURI==HP) return children(t).joinToString("") {if(it is Element) if(it.localName=="tab") "\t" else "\n" else it.textContent}
         val controls=ownedControls(t)
-        val before=controls.takeWhile {it.compareDocumentPosition(t).toInt() and Node.DOCUMENT_POSITION_FOLLOWING.toInt()!=0}.joinToString("") {control(it).orEmpty()}
-        val after=controls.drop(before.length).joinToString("") {control(it).orEmpty()}
+        // Android Harmony DOM does not implement compareDocumentPosition.
+        val beforeCount=generateSequence(t.previousSibling) {it.previousSibling}.takeWhile {control(it)!=null}.count()
+        val before=controls.take(beforeCount).joinToString("") {control(it).orEmpty()}
+        val after=controls.drop(beforeCount).joinToString("") {control(it).orEmpty()}
         val (slideBefore,slideAfter)=slideBreaks(t)
         return "\n".repeat(slideBefore.size)+before+t.textContent+after+"\n".repeat(slideAfter.size)
     }

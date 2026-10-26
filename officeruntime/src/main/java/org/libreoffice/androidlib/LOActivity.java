@@ -1348,8 +1348,7 @@ public class LOActivity extends AppCompatActivity {
             postMobileMessageNative("BYE");
             //copyTempBackToIntent();
 
-            mProgressDialog.dismiss();
-            runOnUiThread(() -> { onOfficeClosed(); finish(); });
+            runOnUiThread(() -> { mProgressDialog.dismiss(); onOfficeClosed(); finish(); });
         });
     }
 
@@ -1664,7 +1663,7 @@ public class LOActivity extends AppCompatActivity {
                 runOnUiThread(this::finishWithProgress);
                 return false;
             case "BYE":
-                finishWithProgress();
+                runOnUiThread(this::finishWithProgress);
                 return false;
             case "PRINT":
                 getMainHandler().post(new Runnable() {

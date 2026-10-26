@@ -80,7 +80,7 @@ jobs:
           profile: pixel_7
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 3072
-          script: bash -o pipefail -c './gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/android-emulator.log; mode_test_status=$?; mkdir -p artifacts/native-android; adb pull /sdcard/Android/data/kr.documentstudio/files/native-hangul-smoke artifacts/native-android/ || true; adb pull /sdcard/Android/data/kr.documentstudio/files/native-office-mode-smoke artifacts/native-android/ || true; adb logcat -d -s AndroidRuntime:E > artifacts/ci/android-runtime.log || true; exit "$mode_test_status"'
+          script: bash scripts/run-android-mode-tests.sh
       - name: Verify debug APK and package reproducible evidence
         env:
           EMULATOR_OUTCOME: ${{ steps.android.outcome }}
@@ -144,7 +144,7 @@ jobs:
           if-no-files-found: error
           compression-level: 0
       - name: Publish this verified reimplementation preview
-        if: contains(github.event.head_commit.message, '[publish-preview]')
+        if: contains(github.event.head_commit.message, '[publish-preview]') && steps.android.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
