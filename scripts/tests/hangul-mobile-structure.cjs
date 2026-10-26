@@ -63,6 +63,10 @@ module.exports=async function mobileStructure({page,frame,call,context}){
  await call('dispatch','edit:undo');assert.equal(await call('count','MOBILE_CARET'),1);assert.equal(await call('count','조합교체'),0);
  await call('dispatch','edit:redo');assert.equal(await call('count','MOBILE_CARET'),0);assert.equal(await call('count','조합교체'),1);
  await call('dispatch','edit:undo');await call('find','MOBILE_CARET');report.atomicImeSelectionUndo=true;
+ await call('focus');await page.keyboard.insertText('MOBILE_DIRECT_REPLACE');assert.equal(await call('count','MOBILE_CARET'),0);
+ await call('dispatch','edit:undo');assert.equal(await call('count','MOBILE_CARET'),1);assert.equal(await call('count','MOBILE_DIRECT_REPLACE'),0);
+ await call('dispatch','edit:redo');assert.equal(await call('count','MOBILE_DIRECT_REPLACE'),1);
+ await call('dispatch','edit:undo');await call('find','MOBILE_CARET');report.atomicDirectInputUndo=true;
  // The document default font changes only font, retaining the selected character size/color.
  const previous=(await call('state')).char;
  await call('defaultFont');assert.equal((await call('state')).char.fontSize,previous.fontSize);assert.equal((await call('state')).char.textColor,previous.textColor);

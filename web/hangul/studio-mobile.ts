@@ -167,6 +167,7 @@ export function createStudioMobile(env:Env) {
    }
    if(!id.startsWith('view:')&&!['edit:copy','edit:select-all','edit:find','edit:find-again'].includes(id))writable();
    if(token)restore(token);
+   if(id.startsWith('table:')&&(input().getCursorPosition().cellPath?.length||0)>1)throw new Error('중첩 표의 구조 편집은 현재 지원하지 않습니다.');
    const answer=env.dispatcher.dispatchWithResult(id,params);if(!answer.ok)throw new Error('현재 선택에서 사용할 수 없는 기능입니다.');
    return result();
  }

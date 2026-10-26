@@ -64,3 +64,36 @@ after="""  if (finalLength > 0) this.history.groupStudioImeReplacement(this._stu
 """ + before
 if text.count(before)!=1: raise RuntimeError('Pinned composition end changed')
 ime.write_text(text.replace(before,after,1))
+
+table=root/'src/command/commands/table.ts'
+text=table.read_text()
+text="import { studioTablePosition } from '../../studio-table-position';\n"+text
+operations=[
+    ("wasm.deleteTableRow(pos.sectionIndex, pos.parentParaIndex!, pos.controlIndex!, cellInfo.row);", "cellInfo.row", "cellInfo.col", False),
+    ("wasm.deleteTableColumn(pos.sectionIndex, pos.parentParaIndex!, pos.controlIndex!, cellInfo.col);", "cellInfo.row", "cellInfo.col", False),
+    ("wasm.insertTableRow(pos.sectionIndex, pos.parentParaIndex!, pos.controlIndex!, cellInfo.row, false);", "cellInfo.row+1", "cellInfo.col", True),
+    ("wasm.insertTableRow(pos.sectionIndex, pos.parentParaIndex!, pos.controlIndex!, cellInfo.row, true);", "cellInfo.row", "cellInfo.col", True),
+    ("wasm.insertTableColumn(pos.sectionIndex, pos.parentParaIndex!, pos.controlIndex!, cellInfo.col, false);", "cellInfo.row", "cellInfo.col+1", True),
+    ("wasm.insertTableColumn(pos.sectionIndex, pos.parentParaIndex!, pos.controlIndex!, cellInfo.col, true);", "cellInfo.row", "cellInfo.col", True),
+]
+for statement,row,col,keep in operations:
+    before=statement+"\n          return pos;"
+    after="const result = "+statement+"\n          if (!result.ok) throw new Error('표 변경을 적용하지 못했습니다.');\n          (ih as any).cursor.clearSelection();ih.exitCellSelectionMode();\n          return studioTablePosition(wasm,pos,"+row+","+col+","+str(keep).lower()+");"
+    if text.count(before)!=1: raise RuntimeError('Pinned table position source changed: '+before)
+    text=text.replace(before,after,1)
+table.write_text(text)
+
+# Direct text commits (including Android commitText without a composition event) use the same grouping.
+text=ime.read_text()
+before="  const hadSelection = this.cursor.hasSelection();"
+after=before+"\n  const studioBeforeDirect = this.history.peekUndoTop();\n  let studioDeletedDirect = null;"
+if text.count(before)!=1: raise RuntimeError('Pinned direct input selection anchor changed')
+text=text.replace(before,after,1)
+before="    this.deleteSelection();\n    insertPos = this.prepareClickHereInputPosition?.() ?? this.cursor.getPosition();"
+after="    this.deleteSelection();\n    if (this.history.peekUndoTop() !== studioBeforeDirect) studioDeletedDirect = this.history.peekUndoTop();\n    insertPos = this.prepareClickHereInputPosition?.() ?? this.cursor.getPosition();"
+if text.count(before)!=1: raise RuntimeError('Pinned direct input delete changed')
+text=text.replace(before,after,1)
+before="  if (refreshClickHereGuide) {\n    this.refreshClickHereAfterFirstInput?.();\n  }\n}"
+after="  if (studioDeletedDirect) this.history.groupStudioImeReplacement(studioDeletedDirect);\n"+before
+if text.count(before)!=1: raise RuntimeError('Pinned direct input insert changed')
+ime.write_text(text.replace(before,after,1))

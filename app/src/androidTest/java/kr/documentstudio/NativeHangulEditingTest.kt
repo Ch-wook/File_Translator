@@ -122,6 +122,11 @@ class NativeHangulEditingTest {
             await("One undo must restore the selected Korean text and preserve its prefix") {mCount("IME_START|한글")==1 && mCount("IME_START|한국어")==0}
             eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.dispatch('edit:redo')")
             await("One redo must repeat the committed Korean replacement") {mCount("IME_START|한국어")==1 && mCount("IME_START|한글")==0}
+            eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('한국어')")
+            ime("commit","DIRECT")
+            await("Direct Android commit must replace only the selected text") {mCount("IME_START|DIRECT")==1}
+            eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.dispatch('edit:undo')")
+            await("One undo must restore a direct commit replacement") {mCount("IME_START|한국어")==1 && mCount("DIRECT")==0}
             ime("compose","가");ime("commit","가");ime("compose","가");ime("commit","가")
             await("Repeated composed syllables must not disappear") {mCount("IME_START|한국어가가")==1}
             eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('한국어')")
