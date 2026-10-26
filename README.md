@@ -1,4 +1,4 @@
-# 문서 스튜디오 0.8.2-preview
+# 문서 스튜디오 0.8.3-preview
 
 Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하기**를 선택하면 문서 화면에서 직접 수정하는 앱입니다. 기존 파일 열기·최근 작업·외부 앱 열기는 기본적으로 보기로 시작합니다.
 
@@ -6,9 +6,9 @@ Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하
 
 ## 다운로드
 
-[Android APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.2-preview/document-studio-0.8.2-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.2-preview/document-studio-0.8.2-preview-source.zip) · [해시·패치·Git 이력·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.2-preview)
+[Android APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.3-preview/document-studio-0.8.3-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.3-preview/document-studio-0.8.3-preview-source.zip) · [해시·패치·Git 이력·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.3-preview)
 
-휴대폰에는 약 399 MB인 ARM64 APK를 설치하세요. x86_64 APK는 해당 아키텍처용입니다. 새 앱은 **문서 스튜디오 프리뷰**로 표시되며 기존 앱과 함께 설치됩니다. [설치 실패 분석과 수정](docs/INSTALLATION_FIX.md)을 확인하세요. 개발 서명 프리뷰입니다. 실제 휴대폰 종합 인수 전의 빌드이며 지원 범위와 검증 결과를 먼저 확인하세요.
+휴대폰에는 ARM64 APK를 설치하세요. x86_64 APK는 해당 아키텍처용입니다. 새 앱은 **문서 스튜디오 모바일**로 표시되며 기존 0.8.2와 함께 설치됩니다. [설치 실패 분석과 수정](docs/INSTALLATION_FIX.md)을 확인하세요. 개발 서명 프리뷰입니다. [모바일 한글 편집 기능·부분 지원·미구현 및 실제 검증](docs/HANGUL_MOBILE_EDITING.md)을 확인하세요.
 
 ## 휴대폰에서 사용하기
 
@@ -17,6 +17,8 @@ Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하
 3. 필요하면 **보기**로 돌아갑니다. 읽기 상태에서는 입력·붙여넣기·개체 변경과 undo/redo를 차단합니다.
 4. 편집 화면의 **저장 후 닫기** 또는 작업 화면의 **저장**으로 원본 반영을 요청합니다. 새 파일은 시스템 저장 위치를 선택합니다.
 5. 저장한 파일을 다시 열어 변경 내용과 중요한 표·그림·수식·페이지를 확인하세요. 다른 이름 저장과 문서·필기 ZIP 백업도 사용할 수 있습니다.
+
+한글 편집 화면에서 글자·문단·목록·표·그림·찾기 도구를 사용할 수 있습니다. 선택한 글자에 글꼴·크기·색·자간·장평을 함께 적용하고, 선택 핸들로 범위를 조절합니다. 표 행·열 추가/삭제와 셀 병합/나누기, 갤러리 그림 삽입을 실제 엔진에 연결했습니다. 입력이 멈추면 약 1.2초 후 작업 복사본에 자동 저장하며, 원본 반영은 저장 후 닫기를 선택합니다.
 
 엔진은 앱 전용 작업 복사본을 사용합니다. 읽기만 하고 닫으면 문서를 다시 저장하지 않으며, 승인된 편집 결과만 가져옵니다. 원본 저장에는 기존 충돌 검사·백업·실패 복구를 유지합니다. **별도 필기**는 사용자가 직접 선택하는 기능입니다.
 
@@ -45,12 +47,13 @@ JDK 17, Node.js 24, Python 3.11 이상, SDK 36, Build Tools 35.0.0, NDK 28.2.136
 ./gradlew :core:test :core:prepareVisualFixtures :officeruntime:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=2 --console=plain
 npm ci --prefix scripts/tests
 node --test scripts/tests/*.test.cjs
-(cd scripts/tests && npx playwright install --with-deps chromium && npm run test:hangul)
+(cd scripts/tests && npx playwright install chromium && npm run test:hangul)
+node scripts/tests/hangul-mobile.cjs
 (cd .engine-cache/hangul/source/rhwp-studio && npx tsc --noEmit)
-./gradlew :core:verifyVisualRoundTrip --max-workers=2 --console=plain
+./gradlew :core:verifyVisualRoundTrip :core:verifyMobileRoundTrip --max-workers=2 --console=plain
 ```
 
-GitHub Actions의 `Android preview verification`으로도 실행합니다. ABI별 APK·전체 추적 소스 ZIP·패치·Git bundle·검증 ZIP·SHA256SUMS를 생성합니다. 실제 실행 결과는 해당 커밋의 Actions 로그와 검증 ZIP을 기준으로 확인합니다.
+모바일 편집은 GitHub Actions의 `Build and verify mobile editing APKs`에서 실제 엔진 브라우저 7개 시나리오, 독립 HWP/HWPX 저장 파서, Android 35 x86_64에서 기존 P0 및 실제 InputConnection 편집 테스트 총 21건을 검증합니다. 실제 휴대폰·삼성 키보드·Gboard 검증은 남아 있습니다. `Android preview verification`은 이전 경로입니다. ABI별 APK·전체 추적 소스 ZIP·패치·Git bundle·검증 ZIP·SHA256SUMS를 생성합니다. 실제 실행 결과는 해당 커밋의 Actions 로그와 검증 ZIP을 기준으로 확인합니다.
 
 [사용 안내](docs/USER_GUIDE.md) · [한글 엔진 출처](web/hangul/PROVENANCE.md) · [Office 엔진 출처](officeruntime/PROVENANCE.md) · [오픈소스 고지](docs/THIRD_PARTY.md)
 

@@ -1,9 +1,25 @@
 plugins { kotlin("jvm") }
 kotlin { jvmToolchain(17) }
+// Maven 1.1.11 predates upstream #315. Keep every other class/resource unchanged;
+// compile the exact upstream boundary fix from core/src/main/java instead.
+val hwplibOriginal by configurations.creating {
+    isCanBeConsumed = false
+    isTransitive = false
+}
+val prepareHwplibRuntime by tasks.registering(Jar::class) {
+    archiveFileName.set("hwplib-1.1.11-studio.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("libs"))
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+    from({ zipTree(hwplibOriginal.singleFile) }) {
+        exclude("kr/dogfoot/hwplib/reader/bodytext/paragraph/control/gso/part/ForCtrlHeaderGso.class", "META-INF/MANIFEST.MF")
+    }
+}
 dependencies {
     implementation("org.apache.poi:poi:5.4.1")
     implementation("org.apache.poi:poi-scratchpad:5.4.1")
-    implementation("kr.dogfoot:hwplib:1.1.11") { exclude(group = "org.apache.poi") }
+    hwplibOriginal("kr.dogfoot:hwplib:1.1.11")
+    implementation(files(prepareHwplibRuntime))
     implementation("kr.dogfoot:hwpxlib:1.0.9")
     testImplementation("junit:junit:4.13.2")
     // Desktop parser only in JVM verification; never included in the Android app.

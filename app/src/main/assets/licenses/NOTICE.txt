@@ -6,7 +6,7 @@ PDFBox Android: Copyright Tom Roush and contributors, Apache License 2.0.
 Apache PDFBox, FontBox, POI, Commons IO, Commons Codec, Commons Collections, Commons Math and Log4j API:
 Copyright The Apache Software Foundation, Apache License 2.0.
 SparseBitSet: Copyright Brett Wooldridge, Apache License 2.0.
-hwplib: Copyright Park Sungkyon (neolord0), Apache License 2.0.
+hwplib: Copyright Park Sungkyon (neolord0), Apache License 2.0. Includes the upstream #315 ForCtrlHeaderGso boundary fix (877c78af2f327f84b8a07e1691fe3c79d53b43d0); see docs/HWPLIB_READER_PATCH.md.
 HWPX blank template from neolord0/hwpxlib, Apache License 2.0:
 https://github.com/neolord0/hwpxlib/blob/f9fd2255ac0fc57414e0b657d115e7de51d31c65/testFile/tool/blank.hwpx
 CommonMark Java and GFM Tables: Copyright (c) 2015 Robin Stocker, BSD 2-Clause.
