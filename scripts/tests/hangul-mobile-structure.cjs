@@ -53,6 +53,16 @@ module.exports=async function mobileStructure({page,frame,call,context}){
  await call('focus');await page.keyboard.insertText('MOBILE_CARET');
  await call('find','MOBILE_CARET');assert.equal((await call('state')).char.fontSize,1500);assert.equal((await call('state')).char.textColor.toLowerCase(),'#1e88e5');
  report.futureTypingFormat=true;
+ await frame.evaluate(()=>{
+  const input=document.querySelector('[aria-label="문서 편집 입력"]');input.focus();
+  input.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,data:''}));
+  for(const text of ['ㅈ','조','조합','조합교체']){input.value=text;input.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertCompositionText',data:text,isComposing:true}));}
+  input.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'조합교체'}));
+ });
+ assert.equal(await call('count','MOBILE_CARET'),0);assert.equal(await call('count','조합교체'),1);
+ await call('dispatch','edit:undo');assert.equal(await call('count','MOBILE_CARET'),1);assert.equal(await call('count','조합교체'),0);
+ await call('dispatch','edit:redo');assert.equal(await call('count','MOBILE_CARET'),0);assert.equal(await call('count','조합교체'),1);
+ await call('dispatch','edit:undo');await call('find','MOBILE_CARET');report.atomicImeSelectionUndo=true;
  // The document default font changes only font, retaining the selected character size/color.
  const previous=(await call('state')).char;
  await call('defaultFont');assert.equal((await call('state')).char.fontSize,previous.fontSize);assert.equal((await call('state')).char.textColor,previous.textColor);

@@ -13,7 +13,7 @@ def run(*args,**kwargs): subprocess.run(args,check=True,**kwargs)
 def digest(path):
     with path.open('rb') as stream: return hashlib.file_digest(stream,'sha256').hexdigest()
 def prepare():
-    inputs=[ROOT/'web/hangul'/name for name in ['index.html','host.css','host.js','engine-adapter.ts','host-readonly.ts','patch-engine.py','studio-mobile.ts','studio-touch.ts','mobile-tools.js']]
+    inputs=[ROOT/'web/hangul'/name for name in ['index.html','host.css','host.js','engine-adapter.ts','host-readonly.ts','patch-engine.py','studio-mobile.ts','studio-touch.ts','studio-ime-history.ts','mobile-tools.js']]
     buildInputs=inputs+[ROOT/'web/hangul/engine-lock.json',Path(__file__)]
     stamp=hashlib.sha256((COMMIT+''.join(digest(p) for p in buildInputs)).encode()).hexdigest()
     if (OUTPUT/'prepared.txt').is_file() and (OUTPUT/'prepared.txt').read_text()==stamp: return
@@ -34,7 +34,7 @@ def prepare():
             if entry.isfile() and entry.name.startswith('package/') and '/' not in entry.name[8:]:
                 with package.extractfile(entry) as src,(pkg/entry.name[8:]).open('wb') as dst: shutil.copyfileobj(src,dst)
     studio=SOURCE/'rhwp-studio'
-    for name in ['host-readonly.ts','studio-mobile.ts','studio-touch.ts']:
+    for name in ['host-readonly.ts','studio-mobile.ts','studio-touch.ts','studio-ime-history.ts']:
         shutil.copy2(ROOT/'web/hangul'/name,studio/'src'/name)
     run('python3',str(ROOT/'web/hangul/patch-engine.py'),str(studio))
     main=studio/'src/main.ts';main.write_text(main.read_text()+'\n'+(ROOT/'web/hangul/engine-adapter.ts').read_text())

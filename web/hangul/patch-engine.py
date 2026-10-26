@@ -27,3 +27,40 @@ for before,after in [
     if text.count(before)!=1: raise RuntimeError('Pinned cell formatting source changed: '+before)
     text=text.replace(before,after,1)
 command.write_text(text)
+
+history=root/'src/engine/history.ts'
+text=history.read_text()
+before="import type { WasmBridge } from '@/core/wasm-bridge';"
+if text.count(before)!=1: raise RuntimeError('Pinned history import changed')
+text=text.replace(before,before+"\nimport { StudioImeReplacementCommand } from '../studio-ime-history';",1)
+before="  canUndo(): boolean { return this.undoStack.length > 0; }"
+after="""  groupStudioImeReplacement(deleted: EditCommand | null): void {
+    if (!deleted || this.undoStack.length < 2) return;
+    const last = this.undoStack[this.undoStack.length - 1];
+    const previous = this.undoStack[this.undoStack.length - 2];
+    if (previous !== deleted || previous.type !== 'deleteSelection' || last.type !== 'insertText') return;
+    this.undoStack.splice(this.undoStack.length - 2, 2, new StudioImeReplacementCommand([previous, last]));
+  }
+""" + before
+if text.count(before)!=1: raise RuntimeError('Pinned history grouping anchor changed')
+history.write_text(text.replace(before,after,1))
+ime=root/'src/engine/input-handler-text.ts'
+text=ime.read_text()
+before="export function onCompositionStart(this: any): void {"
+if text.count(before)!=1: raise RuntimeError('Pinned composition start changed')
+text=text.replace(before,before+"\n  this._studioCompositionDelete = null;",1)
+before="    this.deleteSelection();\n  }\n  let basePos = this.cursor.isInHeaderFooter()"
+after="""    const previous = this.history.peekUndoTop();
+    this.deleteSelection();
+    const current = this.history.peekUndoTop();
+    if (current !== previous && current?.type === 'deleteSelection') this._studioCompositionDelete = current;
+  }
+  let basePos = this.cursor.isInHeaderFooter()"""
+if text.count(before)!=1: raise RuntimeError('Pinned composition selection changed')
+text=text.replace(before,after,1)
+before="  // 조합 종료 후 대기 중인 탐색 키 처리 (IME 조합 중 방향키 등)"
+after="""  if (finalLength > 0) this.history.groupStudioImeReplacement(this._studioCompositionDelete);
+  this._studioCompositionDelete = null;
+""" + before
+if text.count(before)!=1: raise RuntimeError('Pinned composition end changed')
+ime.write_text(text.replace(before,after,1))
