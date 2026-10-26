@@ -34,7 +34,7 @@
   let bar, actions, hint, tabs, modeButton, modeLabel, saveButton;
   let transitionViewport, persistTimer, lastViewport='';
   let activeTab = '홈';
-  let modeTransition=false, transitionGeneration=0;
+  let modeTransition=false, transitionGeneration=0, ownedNativeRestore=null;
   const controls = [];
   const map = () => window.app && app.map;
   const objectSelected = () => typeof GraphicSelection !== 'undefined' && GraphicSelection.hasActiveSelection();
@@ -70,7 +70,15 @@
       drain(() => {
         if(!current()) return;
         const active=window.app?.activeDocument?.activeLayout, ratio=window.app.twipsToPixels;
-        if (Number.isFinite(ratio)) active?.scrollTo?.(value.x*ratio,value.y*ratio);
+        if (Number.isFinite(ratio)) {
+          const layer=map()?._docLayer, nativeViewState=layer?._viewState;
+          if(map().getDocType()==='text' && active?.type!=='ViewLayoutMultiPage' && typeof nativeViewState?.onViewPositionMsg==='function') {
+            // The pinned native ViewState also protects the restored offset from
+            // the next asynchronous cursor update; a direct layout scroll does not.
+            nativeViewState.onViewPositionMsg('viewposition: x='+Math.round(value.x)+' y='+Math.round(value.y));
+            ownedNativeRestore=layer._savedScrollPos || null;
+          } else active?.scrollTo?.(value.x*ratio,value.y*ratio);
+        }
         drain(()=>{if(current()) done?.();});
       });
     });
@@ -88,6 +96,11 @@
     },generation),500),generation);
   }
   function cancelModeRestore(event) {
+    if(!event.isTrusted) return;
+    const layer=map()?._docLayer;
+    if(ownedNativeRestore && layer?._savedScrollPos===ownedNativeRestore) {
+      layer._savedScrollPos=null;layer._restoringViewScroll=false;ownedNativeRestore=null;
+    }
     if(modeTransition && !bar?.contains(event.target)) {
       ++transitionGeneration;modeTransition=false;update();
     }

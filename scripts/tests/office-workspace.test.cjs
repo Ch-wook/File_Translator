@@ -12,7 +12,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
   const w = dom.window, commands = [], states = {}, listeners = {}, mobile = [], persisted = [], keys = [];
   const timeouts = new Map();
   let tick, editing = false, selected = false, requested = 0, grants = 0, serial = 0;
-  let zoom = 7, part = family === 'text' ? 0 : 2, x = 120, y = 340, layoutResizes = 0;
+  let zoom = 7, part = family === 'text' ? 0 : 2, x = 120, y = 340, layoutResizes = 0, nativeRestores = 0;
   w.postMobileMessage = message => mobile.push(message);
   w.setInterval = f => { tick=f; return 1; }; w.clearInterval = () => {};
   w.setTimeout = f => { const id=++serial;timeouts.set(id,f);return id; };
@@ -27,6 +27,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
   w.app = {
     LOUtil: {}, events: { on: (name, fn) => { listeners[name]=fn; } }, twipsToPixels: 0.1,
     activeDocument: { activeLayout: {
+      type: family === 'text' ? 'ViewLayoutWriter' : 'ViewLayoutCalc',
       get viewedRectangle() {return {x1:x,y1:y};},
       onResize: () => {layoutResizes++;},
       applyZoom: value => {zoom=value;},
@@ -43,6 +44,21 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
       on: (name,fn) => {listeners[name]=fn;}
     }
   };
+  // Match the pinned engine's ViewState/_onUpdateCursor contract, not only
+  // direct layout scrolling. The next native caret update reaffirms this offset.
+  const layer=w.app.map._docLayer;
+  layer._viewState={onViewPositionMsg:message=>{
+    const values=Object.fromEntries(message.split(' ').slice(1).map(token=>token.split('=')));
+    layer._savedScrollPos={pX1:Number(values.x)*0.1,pY1:Number(values.y)*0.1};
+    layer._restoringViewScroll=true;nativeRestores++;
+    w.app.activeDocument.activeLayout.scrollTo(layer._savedScrollPos.pX1,layer._savedScrollPos.pY1);
+  }};
+  const nativeCursor=()=>{
+    if(layer._restoringViewScroll && layer._savedScrollPos) {
+      w.app.activeDocument.activeLayout.scrollTo(layer._savedScrollPos.pX1,layer._savedScrollPos.pY1);
+      layer._restoringViewScroll=false;layer._savedScrollPos=null;
+    } else {x=0;y=0;}
+  };
   const flush = () => {
     for(let round=0;timeouts.size && round<10;round++) {
       const tasks=[...timeouts.values()];timeouts.clear();tasks.forEach(fn=>fn());
@@ -53,7 +69,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
   const click = label => {const b=button(label);assert.ok(b,`Missing ${label}`);b.click();if(label==='편집하기' || label==='보기로 전환') flush();return b;};
   return {
     w,commands,states,keys,mobile,persisted,tick,click,button,flush,viewport,
-    requests:()=>requested,grants:()=>grants,resizes:()=>layoutResizes,close:()=>w.close(),
+    requests:()=>requested,grants:()=>grants,resizes:()=>layoutResizes,nativeRestores:()=>nativeRestores,nativeCursor,close:()=>w.close(),
     select:value=>{selected=value;tick();},
     edit:value=>{editing=value;listeners.updatepermission?.();},
     changed:()=>listeners.commandstatechanged?.({commandName:'.uno:ModifiedStatus',state:'true'})
@@ -191,5 +207,17 @@ test('mode tools wait for delayed native caret activation before restoring the o
     assert.equal(s.button('보기로 전환').disabled,false);
     assert.equal(s.button('굵게').disabled,false);
     s.click('보기로 전환');assert.deepEqual(s.viewport(),before);
+  } finally {s.close();}
+});
+
+test('native cursor invalidation after the mode layout settles reaffirms the saved Writer position', () => {
+  const s=workspace('text');
+  try {
+    const before=s.viewport();
+    s.click('편집하기');
+    assert.ok(s.nativeRestores()>0);
+    s.nativeCursor();assert.deepEqual(s.viewport(),before);
+    s.click('보기로 전환');
+    s.nativeCursor();assert.deepEqual(s.viewport(),before);
   } finally {s.close();}
 });
