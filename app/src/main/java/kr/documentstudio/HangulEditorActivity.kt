@@ -87,14 +87,19 @@ class HangulEditorActivity: ComponentActivity() {
                 }
             }
         }
-        setContentView(browser,ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT))
-        ViewCompat.setOnApplyWindowInsetsListener(browser) {view,insets->
+        // WebView padding does not reliably move its rendered page and accessibility bounds together.
+        // Apply insets to the parent so touch and accessibility target the same document controls.
+        val container=android.widget.FrameLayout(this).apply {
+            addView(browser,ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+        setContentView(container)
+        ViewCompat.setOnApplyWindowInsetsListener(container) {view,insets->
             val bars=insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             val keyboard=insets.getInsets(WindowInsetsCompat.Type.ime())
             view.setPadding(bars.left,bars.top,bars.right,maxOf(bars.bottom,keyboard.bottom))
             insets
         }
-        ViewCompat.requestApplyInsets(browser)
+        ViewCompat.requestApplyInsets(container)
         onBackPressedDispatcher.addCallback(this,object: OnBackPressedCallback(true) {override fun handleOnBackPressed() {
             if(!ready) bridge.closeEditor(false) else browser.evaluateJavascript("window.documentStudioHost.back()",null)
         }})

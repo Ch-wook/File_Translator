@@ -62,7 +62,9 @@ class NativeHangulModeSmokeTest {
 
             // Normalize away from the upper zoom bound using visible VIEW tools.
             zoom(false);zoom(false)
+            screenshot(format,"before-edit")
             button("편집하기").click()
+            screenshot(format,"edit-requested")
             button("보기로")
             val lowerZoom=readView(viewFile)
             assertValidView(lowerZoom)
@@ -168,6 +170,7 @@ class NativeHangulModeSmokeTest {
     private fun screenshot(format: Format,label: String) {
         val directory=File(context.getExternalFilesDir(null),"native-hangul-smoke").apply {mkdirs()}
         device.takeScreenshot(File(directory,"${format.extension}-$label.png"))
+        device.dumpWindowHierarchy(File(directory,"${format.extension}-$label.xml"))
     }
     private fun await(label: String,timeout: Long,condition: ()->Boolean) {
         val deadline=SystemClock.elapsedRealtime()+timeout

@@ -186,6 +186,15 @@ class NativeOfficeModeSmokeTest {
                 File(evidence, "$label.json").writeText(record.toString(2))
             }
             if (!completed) {
+                // Diagnose a toolbar hit-test failure independently from Android Back.
+                // The original test still fails; cleanup cannot turn it into a pass.
+                runCatching {
+                    device.pressBack()
+                    val deadline=SystemClock.uptimeMillis()+5_000
+                    while(!closed.isFile && SystemClock.uptimeMillis()<deadline) SystemClock.sleep(100)
+                    record.put("failureCleanupBackClosed",closed.isFile)
+                    File(evidence, "$label.json").writeText(record.toString(2))
+                }
                 // Keep source and working files for inspection; only end the isolated
                 // engine process so a failed case cannot poison the following case.
                 runCatching {
