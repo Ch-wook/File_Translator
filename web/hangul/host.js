@@ -1,16 +1,13 @@
+import { createMobileTools } from './mobile-tools.js';
 // Same-origin offline host. Document bytes stay in the application.
 const native=window.DocumentStudio;
 const frame=document.getElementById('engine'), status=document.getElementById('status');
 const save=document.getElementById('save'), mode=document.getElementById('mode');
 const tools=document.getElementById('tools'), groups=document.getElementById('groups');
 let editor,format,ready=false,editing=false,pending=false,switching=false,timer,revision=0,savedRevision=0,edited=false,activeGroup='글자';
-const commandGroups={
- '글자':[['실행 취소','edit:undo'],['다시 실행','edit:redo'],['굵게','format:bold'],['기울임','format:italic'],['밑줄','format:underline'],['글자 모양','format:char-shape']],
- '문단':[['왼쪽','format:align-left'],['가운데','format:align-center'],['오른쪽','format:align-right'],['양쪽','format:align-justify'],['문단 모양','format:para-shape']],
- '표':[['표 만들기','table:create'],['위에 행','table:insert-row-above'],['아래에 행','table:insert-row-below'],['왼쪽 열','table:insert-col-left'],['오른쪽 열','table:insert-col-right'],['셀 모양','table:cell-props'],['셀 합치기','table:cell-merge']],
- '그림':[['그림 삽입','insert:image'],['그림 속성','insert:picture-props'],['맨 앞으로','insert:arrange-front'],['맨 뒤로','insert:arrange-back'],['그림 삭제','insert:picture-delete']],
- '쪽':[['편집 용지','page:setup'],['쪽 나누기','page:break'],['다단 설정','page:col-settings']]
-};
+const panel=document.getElementById('mobile-panel'),dock=document.getElementById('edit-dock');
+const mobileUI=createMobileTools({groups,tools,panel,getEditor:()=>editor,isEditable:()=>ready&&editing&&!switching,message,
+ layoutChanged:view=>{if(ready) requestAnimationFrame(()=>editor.restoreView(view).catch(error=>message(String(error.message),true)));}});
 function message(text,error=false){status.textContent=text;status.dataset.error=String(error);document.getElementById('discard').hidden=!error;}
 function update(){
  document.body.dataset.state=!ready?'LOADING':editing?'EDITING':'READING';
@@ -18,20 +15,9 @@ function update(){
  mode.setAttribute('aria-pressed',String(editing));save.hidden=!editing;save.disabled=!ready||pending||switching;
  groups.hidden=!editing;tools.hidden=!editing||document.getElementById('tool-toggle').getAttribute('aria-expanded')==='false';
  document.getElementById('tool-toggle').hidden=!editing;
- tools.querySelectorAll('[data-command]').forEach(button=>{button.disabled=!editing||pending||switching||!editor?.enabled(button.dataset.command);});
+ dock.hidden=!editing;mobileUI.update();
 }
-function renderTools(){
- groups.replaceChildren();tools.replaceChildren();
- for(const name of Object.keys(commandGroups)){
-  const button=document.createElement('button');button.textContent=name;button.setAttribute('aria-selected',String(name===activeGroup));
-  button.onmousedown=e=>e.preventDefault();button.onclick=()=>{activeGroup=name;renderTools();};groups.append(button);
- }
- for(const [label,command] of commandGroups[activeGroup]){
-  const button=document.createElement('button');button.textContent=label;button.dataset.command=command;
-  button.onmousedown=e=>e.preventDefault();button.onclick=()=>{if(!button.disabled) editor.command(command);update();};tools.append(button);
- }
- update();
-}
+function renderTools(){mobileUI.render();}
 function toBase64(bytes){let result='';for(let i=0;i<bytes.length;i+=8192)result+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(result);}
 function persistView(){if(ready)native.saveViewState(JSON.stringify(editor.captureView()));}
 async function checkpoint(){
@@ -54,7 +40,7 @@ async function checkpoint(){
   message('작업 복사본을 저장했습니다. ‘저장 후 닫기’로 원본 저장을 요청할 수 있습니다.');
   return true;
  }catch(error){message(String(error.message||error),true);return false;}
- finally{pending=false;update();}
+ finally{pending=false;update();if(savedRevision===saving&&revision>savedRevision&&editing){clearTimeout(timer);timer=setTimeout(checkpoint,300);}}
 }
 async function setEditing(value){
  if(!ready||pending||switching||editing===value)return;
@@ -89,8 +75,11 @@ async function close(saveOriginal){
  }catch(error){message(String(error.message||error),true);}
 }
 window.documentStudioHost={
- changed(){if(!ready||!editing)return;revision++;message('수정됨 · 작업 복사본 저장 대기');clearTimeout(timer);timer=setTimeout(checkpoint,700);update();},
+ changed(){if(!ready||!editing)return;revision++;message('수정됨 · 작업 복사본 저장 대기');clearTimeout(timer);timer=setTimeout(checkpoint,1200);update();},
  toolsChanged(){if(ready)update();},
+ checkpoint,
+ mobileAction:name=>mobileUI.action(name),
+ selectionContext:name=>mobileUI.context(name),
  saveAndClose(){return close(true);},
  returnToWorkspace(){return close(false);},
  async back(){if(editing)await setEditing(false);else await close(false);},
@@ -99,9 +88,9 @@ document.getElementById('back').onclick=()=>window.documentStudioHost.back();
 document.getElementById('discard').onclick=()=>native.requestDiscard();
 document.getElementById('tool-toggle').onclick=()=>{
  const button=document.getElementById('tool-toggle'),expanded=button.getAttribute('aria-expanded')!=='true';
- button.setAttribute('aria-expanded',String(expanded));button.textContent=expanded?'도구 접기':'도구 펼치기';update();
+ const view=editor.captureView();button.setAttribute('aria-expanded',String(expanded));button.textContent=expanded?'도구 접기':'도구 펼치기';panel.hidden=!expanded;update();editor.restoreView(view);
 };
-document.getElementById('find').onclick=()=>editor?.command('edit:find');
+document.getElementById('find').onclick=()=>{if(editing)mobileUI.showSearch();else editor?.command('edit:find');};
 document.getElementById('zoom-out').onclick=()=>editor?.command('view:zoom-out');
 document.getElementById('zoom-in').onclick=()=>editor?.command('view:zoom-in');
 mode.onclick=()=>setEditing(!editing);save.onclick=()=>close(true);
@@ -124,3 +113,5 @@ async function start(){
  for(const id of ['find','zoom-out','zoom-in'])document.getElementById(id).disabled=false;
 }
 start().catch(error=>{document.body.dataset.state='ERROR';message(String(error.message||error),true);native?.loadFailed(String(error.message||error));});
+
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){persistView();checkpoint();}});

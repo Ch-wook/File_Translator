@@ -47,6 +47,7 @@ class HangulEditorActivity: ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window,false)
         if(!profile) {WebView.setDataDirectorySuffix("hangul");profile=true}
         sessionId=requireNotNull(intent.getStringExtra("sessionId")).also {require(it.matches(Regex("[a-zA-Z0-9-]+")))}
         val directory=File(filesDir,"documents/$sessionId").canonicalFile
@@ -105,7 +106,39 @@ class HangulEditorActivity: ComponentActivity() {
         }})
         browser.loadUrl("$ORIGIN/")
     }
+    override fun onPause() {
+        if(ready && ::browser.isInitialized) browser.evaluateJavascript("window.documentStudioHost?.checkpoint()",null)
+        super.onPause()
+    }
+    private fun <T> clipboardOnUi(work: ()->T): T {
+        if(android.os.Looper.myLooper()==android.os.Looper.getMainLooper()) return work()
+        val task=java.util.concurrent.FutureTask<T>(java.util.concurrent.Callable {work()})
+        runOnUiThread(task)
+        return task.get(3,java.util.concurrent.TimeUnit.SECONDS)
+    }
     inner class Bridge {
+        @JavascriptInterface fun writeClipboard(value: String): Boolean = runCatching {
+            require(ready && editAllowed && loadError==null && value.length<=2*1024*1024)
+            val payload=JSONObject(value);val text=payload.optString("text");val html=payload.optString("html")
+            require(text.isNotEmpty() || html.isNotEmpty())
+            clipboardOnUi {
+                val manager=getSystemService(android.content.ClipboardManager::class.java)
+                manager.setPrimaryClip(if(html.isNotEmpty()) android.content.ClipData.newHtmlText("문서 스튜디오",text,html)
+                    else android.content.ClipData.newPlainText("문서 스튜디오",text))
+            };true
+        }.getOrDefault(false)
+        @JavascriptInterface fun readClipboard(): String = runCatching {
+            require(ready && editAllowed && loadError==null)
+            clipboardOnUi {
+                val clip=getSystemService(android.content.ClipboardManager::class.java).primaryClip
+                val item=clip?.takeIf {it.itemCount>0}?.getItemAt(0)
+                val text=item?.text?.toString() ?: ""
+                val html=item?.htmlText ?: ""
+                require(text.length+html.length<=2*1024*1024) {"클립보드 내용이 너무 큽니다."}
+                JSONObject().put("text",text).put("html",html).toString()
+            }
+        }.getOrElse {JSONObject().put("error",it.message ?: "클립보드를 읽지 못했습니다.").toString()}
+
         @JavascriptInterface fun describe(): String {
             val meta=JSONObject().put("name",intent.getStringExtra("displayName") ?: working.name)
                 .put("format",extension).put("openIntent",if(intent.getStringExtra("openIntent")=="EDIT") "EDIT" else "VIEW")

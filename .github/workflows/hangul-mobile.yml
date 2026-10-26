@@ -1,0 +1,73 @@
+name: Hangul mobile editing verification
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hangul-mobile-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  web:
+    if: "!contains(github.event.head_commit.message, '[publish-083]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Prepare tools
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;35.0.0"
+          chmod +x gradlew
+          mkdir -p artifacts/hangul-mobile artifacts/ci
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: android-gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: android-gradle-${{ runner.os }}-
+      - name: Prepare fixtures and the actual offline Rhwp engine
+        run: |
+          ./gradlew :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/fixtures.log
+          python3 scripts/prepare-hangul-engine.py 2>&1 | tee artifacts/ci/hangul-prepare.log
+      - name: Bridge policies and mobile engine acceptance
+        run: |
+          npm ci --prefix scripts/tests
+          node --test scripts/tests/*.test.cjs 2>&1 | tee artifacts/ci/javascript.log
+          cd scripts/tests
+          npx playwright install --with-deps chromium
+          npm run test:hangul 2>&1 | tee ../../artifacts/ci/hangul-browser.log
+          node hangul-mobile.cjs 2>&1 | tee ../../artifacts/ci/hangul-mobile.log
+      - name: Independent saved-file parser checks
+        run: |
+          ./gradlew :core:verifyVisualRoundTrip --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/roundtrip.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hangul-mobile-web-${{ github.sha }}
+          path: |
+            artifacts/hangul-mobile/
+            artifacts/ci/
+            artifacts/document-engines/
+            core/build/visual-fixtures/
+            core/build/test-results/
+          if-no-files-found: error

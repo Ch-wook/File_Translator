@@ -1,3 +1,5 @@
+import { createStudioMobile } from './studio-mobile';
+import { installStudioTouch } from './studio-touch';
 // App-specific adapter appended to the exact pinned Rhwp main.ts.
 // Page rendering, editing, pagination and serialization stay in the real engine.
 const studioFrame = document.getElementById('scroll-container');
@@ -101,3 +103,21 @@ nativeStyle.textContent=`
  [data-cmd="file:open"],[data-cmd="file:new-doc"],[data-recent] {display:none!important}
 `;
 document.head.appendChild(nativeStyle);
+
+const studioMobile=createStudioMobile({wasm,eventBus,getInput:()=>inputHandler,getCanvas:()=>canvasView,dispatcher});
+Object.assign((window as any).rhwpStudio.documentStudio,{mobile:studioMobile});
+const studioTouch=installStudioTouch(()=>inputHandler,eventBus);
+eventBus.on('command-state-changed',()=>studioTouch.refresh());
+const mobileStyle=document.createElement('style');
+mobileStyle.textContent=`
+ @media(max-width:700px) {
+  .modal-overlay{align-items:flex-end!important;padding:0!important}
+  .dialog-wrap{width:100%!important;max-width:100vw!important;max-height:80dvh!important;border-radius:14px 14px 0 0!important;margin:0!important}
+  .dialog-body{max-height:60dvh;overflow:auto!important;min-width:0!important}
+  .dialog-wrap button,.dialog-wrap input,.dialog-wrap select,.find-dialog button,.find-dialog input{min-height:44px!important;font-size:16px!important}
+  .dialog-wrap input[type=checkbox],.dialog-wrap input[type=radio]{min-height:24px!important;min-width:24px!important}
+  .find-dialog{left:0!important;right:0!important;top:0!important;max-width:100%!important;box-sizing:border-box!important;width:100%!important}
+  .find-dialog-row{flex-wrap:wrap!important}.find-dialog-input{min-width:80px!important;flex:1}
+ }
+`;
+document.head.append(mobileStyle);
