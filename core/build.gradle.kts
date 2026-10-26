@@ -48,3 +48,9 @@ tasks.register<JavaExec>("inspectTableSave") {
  mainClass.set("kr.documentstudio.core.TableSaveDiagnostic")
  args(layout.buildDirectory.dir("visual-fixtures").get().asFile.absolutePath)
 }
+
+tasks.register<JavaExec>("inspectDocumentOpen") {
+    dependsOn(tasks.testClasses)
+    classpath=sourceSets.test.get().runtimeClasspath
+    mainClass.set("kr.documentstudio.core.DocumentOpenCorpus")
+}

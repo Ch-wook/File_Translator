@@ -80,3 +80,70 @@ jobs:
             artifacts/ci/
             artifacts/hangul-mobile/
             core/build/visual-fixtures/
+
+  open:
+    if: contains(github.event.head_commit.message, '[open-diagnose]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: android-gradle-${{ runner.os }}-open
+          restore-keys: android-gradle-${{ runner.os }}-
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: hangul-public-tools-${{ runner.os }}-open
+          restore-keys: hangul-public-tools-${{ runner.os }}-
+      - name: Verify and download pinned public HWP examples
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib,urllib.request,urllib.parse
+          data=json.loads(pathlib.Path('scripts/tests/open-corpus.json').read_text())
+          root=pathlib.Path('artifacts/open-corpus');root.mkdir(parents=True,exist_ok=True)
+          for i,item in enumerate(data['files']):
+              url='https://raw.githubusercontent.com/'+data['repository']+'/'+data['commit']+'/'+urllib.parse.quote(item['path'])
+              body=urllib.request.urlopen(url).read()
+              blob=b'blob '+str(len(body)).encode()+b'\0'+body
+              assert hashlib.sha1(blob).hexdigest()==item['sha'] and len(body)==item['size']
+              (root/(str(i).zfill(2)+'-'+pathlib.PurePosixPath(item['path']).name)).write_bytes(body)
+          PY
+      - name: Compare host parser and real engine admission
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :core:inspectDocumentOpen --configure-on-demand --max-workers=2 --console=plain
+          cat artifacts/open-corpus/host-results.tsv
+          python3 scripts/prepare-hangul-engine.py
+          npm ci --prefix scripts/tests
+          (cd scripts/tests && npx playwright install chromium)
+          node scripts/tests/hangul-open-corpus.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: document-open-diagnostics-${{ github.sha }}
+          path: |
+            artifacts/open-corpus/*.tsv
+            artifacts/open-corpus/*.json
+            core/build/test-results/
