@@ -105,20 +105,35 @@ object MobileRoundTripTool {
             ZipFile(File(dir,"fixture.hwpx")).use {original->
                 val h=Xml.parse(original.getInputStream(original.getEntry("Contents/header.xml")).readBytes())
                 val b=Xml.parse(original.getInputStream(original.getEntry("Contents/section0.xml")).readBytes())
-                val id=Xml.elements(b,"run").first {Xml.elements(it,"t").any {t->t.textContent.contains("PAGE_EDIT_ORIGINAL")}}.getAttribute("charPrIDRef")
-                val base=Xml.elements(h,"charPr").first {it.getAttribute("id")==id}
-                fun signature(s: Element)=listOf(s.getAttribute("height"),s.getAttribute("textColor"),Xml.child(s,"bold")!=null,Xml.child(s,"italic")!=null,Xml.child(s,"ratio")?.getAttribute("hangul"),Xml.child(s,"spacing")?.getAttribute("hangul"))
-                require(signature(shapes[first+5])==signature(base)) {"Unselected HWPX formatting changed"}
-                require(Xml.elements(body,"tbl").size==Xml.elements(b,"tbl").size+1) {"An existing table was lost"}
-                for(label in Xml.elements(b,"t").map {it.textContent}.filter {it.startsWith("KEEP_CELL_")}) {
-                    val saved=Xml.elements(body,"t").single {it.textContent==label}
-                    val old=Xml.elements(b,"t").single {it.textContent==label}
-                    val oldId=(old.parentNode as Element).getAttribute("charPrIDRef")
-                    val savedId=(saved.parentNode as Element).getAttribute("charPrIDRef")
-                    require(signature(properties.getValue(savedId))==signature(Xml.elements(h,"charPr").first {it.getAttribute("id")==oldId})) {"Untouched original cell format changed"}
+                val originalProperties=Xml.elements(h,"charPr").associateBy {it.getAttribute("id")}
+                val originalChars=mutableListOf<Char>();val originalShapes=mutableListOf<Element>()
+                // A paragraph/word may span several t/run nodes in the input and output.
+                // Compare actual characters and their individual format references, not node splitting.
+                for(run in Xml.elements(b,"run")) {
+                    val shape=originalProperties[run.getAttribute("charPrIDRef")] ?: continue
+                    for(i in 0 until run.childNodes.length) {
+                        val child=run.childNodes.item(i) as? Element ?: continue
+                        if(child.localName=="t")for(c in child.textContent){originalChars.add(c);originalShapes.add(shape)}
+                    }
                 }
+                val originalText=originalChars.joinToString("")
+                val anchor=originalText.indexOf("PAGE_EDIT_ORIGINAL")
+                require(anchor>=0) {"Baseline paragraph missing: $originalText"}
+                fun signature(s: Element)=listOf(s.getAttribute("height"),s.getAttribute("textColor"),Xml.child(s,"bold")!=null,Xml.child(s,"italic")!=null,Xml.child(s,"ratio")?.getAttribute("hangul"),Xml.child(s,"spacing")?.getAttribute("hangul"))
+                require(signature(shapes[first+5])==signature(originalShapes[anchor])) {"Unselected HWPX formatting changed"}
+                require(Xml.elements(body,"tbl").size==Xml.elements(b,"tbl").size+1) {"An existing table was lost"}
+                val labels=Regex("KEEP_CELL_\\d+").findAll(originalText).map {it.value}.toList()
+                require(labels.isNotEmpty()) {"No original-cell preservation checks were made"}
+                for(label in labels) {
+                    val pattern=Regex(Regex.escape(label)+"(?!\\d)")
+                    val old=pattern.findAll(originalText).toList();val saved=pattern.findAll(text).toList()
+                    require(old.size==1 && saved.size==1) {"Untouched original cell text lost/duplicated: $label"}
+                    for(i in label.indices)require(signature(shapes[saved.single().range.first+i])==signature(originalShapes[old.single().range.first+i])) {"Untouched original cell format changed: $label at $i"}
+                }
+                println("MOBILE_HWPX_ORIGINAL_CELLS_PRESERVED "+labels.joinToString(","))
+
             }
-            val table=Xml.elements(body,"tbl").first {Xml.elements(it,"t").any {t->t.textContent.contains("MOBILE_CELL_A")}}
+            val table=Xml.elements(body,"tbl").single {Xml.elements(it,"t").joinToString("") {t->t.textContent}.contains("MOBILE_CELL_A")}
             require(Xml.elements(table,"tr").size==2 && Xml.elements(table,"tc").size==4)
             val cellText=Xml.elements(table,"t").joinToString("") {it.textContent}
             for(v in listOf("MOBILE_CELL_A","MOBILE_CELL_B","MOBILE_CELL_C","MOBILE_CELL_D"))require(Regex(Regex.escape(v)).findAll(cellText).count()==1)
