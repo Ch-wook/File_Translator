@@ -12,6 +12,9 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,12 +30,15 @@ jobs:
         with:
           python-version: '3.12'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install pinned Android tools
         run: |
           sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
           chmod +x gradlew
           mkdir -p artifacts/ci
           df -h .
+          free -h
       - uses: actions/cache@v4
         with:
           path: |
@@ -67,22 +73,23 @@ jobs:
           profile: pixel_7
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 3072
-          script: ./gradlew :app:connectedDebugAndroidTest --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/android-emulator.log
+          script: bash -o pipefail -c './gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=kr.documentstudio.P0ModeUiTest --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/android-emulator.log'
       - name: Verify debug APK and package reproducible evidence
         env:
           EMULATOR_OUTCOME: ${{ steps.android.outcome }}
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           python3 - <<'PY'
-          import os, pathlib, shutil, subprocess, json, zipfile, hashlib, xml.etree.ElementTree as ET
+          import os, pathlib, shutil, subprocess, json, zipfile, hashlib, re, xml.etree.ElementTree as ET
           root=pathlib.Path.cwd()
           out=root/'artifacts/delivery'; out.mkdir(parents=True,exist_ok=True)
-          name='document-studio-0.8.1-preview'
           apk=root/'app/build/outputs/apk/debug/app-debug.apk'
           tools=pathlib.Path(os.environ['ANDROID_HOME'])/'build-tools/35.0.0'
           subprocess.run([str(tools/'apksigner'),'verify','--verbose',str(apk)],check=True,stdout=(root/'artifacts/ci/apk-signature.txt').open('w'),stderr=subprocess.STDOUT)
           subprocess.run([str(tools/'zipalign'),'-c','-P','16','4',str(apk)],check=True)
           manifest=subprocess.check_output([str(tools/'aapt2'),'dump','badging',str(apk)],text=True)
           (root/'artifacts/ci/apk-manifest.txt').write_text(manifest)
+          name='document-studio-'+re.search("versionName='([^']+)'",manifest).group(1)
           permissions=subprocess.check_output([str(tools/'aapt2'),'dump','permissions',str(apk)],text=True)
           assert 'android.permission.INTERNET' not in permissions, permissions
           with zipfile.ZipFile(apk) as z:
@@ -102,6 +109,10 @@ jobs:
                   t=ET.parse(p).getroot()
                   suites.append({k:int(t.get(k,0)) for k in ('tests','failures','errors','skipped')})
               reports[module]={k:sum(x[k] for x in suites) for k in ('tests','failures','errors','skipped')}
+          for module,result in reports.items():
+              assert result['tests']>0 and result['failures']==0 and result['errors']==0,(module,result)
+          if '[publish-preview]' in os.environ.get('HEAD_COMMIT_MESSAGE',''):
+              assert "versionCode='11'" in manifest and "versionName='0.8.1-preview'" in manifest
           summary={'commit':os.environ['GITHUB_SHA'],'baseline':'2bfe225ab040e3cb9251a8cafce9578ea3d9b645','provenance':'reimplementation; previous unpushed 0.8.0 not recovered','physicalDeviceTested':False,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],'unitTests':reports,'apkBytes':apk.stat().st_size,'debugSigned':True}
           (root/'artifacts/ci/summary.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2))
           with zipfile.ZipFile(out/(name+'-verification.zip'),'w',zipfile.ZIP_DEFLATED) as z:
@@ -132,6 +143,22 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           grep -q 'versionName = "0.8.1-preview"' app/build.gradle.kts
           gh release create "v0.8.1-preview" artifacts/delivery/* --target "$GITHUB_SHA" --prerelease --title "문서 스튜디오 0.8.1-preview · 원본 보기 우선 재구현" --notes-file artifacts/delivery/README.txt
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,urllib.request
+          root=pathlib.Path('artifacts/delivery')
+          results=[]
+          for line in (root/'SHA256SUMS').read_text().splitlines():
+              expected,name=line.split('  ',1)
+              url='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/releases/download/v0.8.1-preview/'+name
+              h=hashlib.sha256(); size=0
+              with urllib.request.urlopen(url,timeout=120) as response:
+                  while block:=response.read(1024*1024): h.update(block); size+=len(block)
+              assert size==(root/name).stat().st_size,name+' size mismatch'
+              assert h.hexdigest()==expected,name+' download SHA-256 mismatch'
+              results.append({'name':name,'bytes':size,'sha256':expected,'publicDownloadVerified':True})
+          pathlib.Path('artifacts/ci/release-download-verification.json').write_text(json.dumps(results,indent=2))
+          print(json.dumps(results,indent=2))
+          PY
       - name: Preserve failure diagnostics
         if: always()
         uses: actions/upload-artifact@v4
