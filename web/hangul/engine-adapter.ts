@@ -89,9 +89,14 @@ document.addEventListener('drop', e => {
     e.preventDefault(); e.stopImmediatePropagation();
   }
 }, true);
-eventBus.on('document-agent-changed', () => {
-  if(studioIsEditing()) (window.parent as any).documentStudioHost?.changed();
-});
+let studioChangeQueued=false;
+function studioNotifyChanged() {
+  if(!studioIsEditing()||studioChangeQueued)return;
+  studioChangeQueued=true;
+  queueMicrotask(()=>{studioChangeQueued=false;if(studioIsEditing()) (window.parent as any).documentStudioHost?.changed();});
+}
+eventBus.on('document-agent-changed',studioNotifyChanged);
+eventBus.on('document-mutated',studioNotifyChanged);
 eventBus.on('command-state-changed', () => (window.parent as any).documentStudioHost?.toolsChanged());
 const nativeStyle=document.createElement('style');
 nativeStyle.textContent=`

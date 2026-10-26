@@ -67,6 +67,7 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
    number('offset','글자 위치(%)',state.char?.charOffsets?.[0]||0,-100,100,1,(m,v)=>m.char({charOffsets:Array(7).fill(v)},target),dims);
    const format=line('서식');command('서식 복사','edit:format-copy',format);command('서식 붙이기','edit:format-paste',format);
    button('선택 글자 서식 초기화',()=>execute(m=>m.resetChar(target)),format);
+   const advanced=command('고급 글자 모양','format:char-shape',format);advanced.dataset.requiresSelection='true';
  }
  function paraPanel(){
    line('현재 문단 또는 선택한 문단에 적용');
@@ -102,6 +103,7 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
    line('내용을 바꾸지 않고 검색합니다. 바꾸기는 편집 모드에서만 가능합니다.');
    const row=line(),q=document.createElement('input');q.type='search';q.placeholder='찾을 내용';q.setAttribute('aria-label','찾을 내용');row.append(q);
    const repl=document.createElement('input');repl.placeholder='바꿀 내용';repl.setAttribute('aria-label','바꿀 내용');row.append(repl);
+   const advanced=line();command('고급 찾기·바꾸기','edit:find-replace',advanced);
    const count=document.createElement('output');count.setAttribute('aria-live','polite');count.id='mobile-match-count';panel.append(count);
    const updateCount=()=>{searchInfo={count:api().count(q.value),current:0};count.textContent='검색 결과 '+searchInfo.count+'개';};q.oninput=updateCount;
    const find=dir=>execute(m=>{searchInfo=m.find(q.value,dir);count.textContent=searchInfo.current+' / '+searchInfo.count;return null;});
@@ -155,7 +157,7 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
  function update() {
    if(!api())return;state=api().state();panel.hidden=!expanded||!state.editing||document.getElementById('tool-toggle').getAttribute('aria-expanded')!=='true';const available=isEditable()&&!state.composing;
    for(const root of [groups,tools,panel])for(const b of root.querySelectorAll('[data-mobile-button]')){
-     const cmd=b.dataset.engineCommand;b.disabled=(b.dataset.mutates==='true'&&!available)||Boolean(cmd&&!getEditor().enabled(cmd));
+     const cmd=b.dataset.engineCommand;b.disabled=(b.dataset.mutates==='true'&&!available)||Boolean(cmd&&!getEditor().enabled(cmd))||(b.dataset.requiresSelection==='true'&&!state.selection);
      if(cmd?.startsWith('format:')&&['bold','italic','underline','strikethrough','superscript','subscript'].includes(cmd.slice(7)))b.setAttribute('aria-pressed',String(Boolean(state.char?.[cmd.slice(7)])));
    }
    for(const [key,{input}] of fields){
