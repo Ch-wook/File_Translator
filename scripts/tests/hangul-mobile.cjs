@@ -32,6 +32,16 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   const frame=page.frames().find(f=>f.url().includes('/engine/index.html'));assert.ok(frame);
   await page.locator('#mode').click();await page.waitForFunction(()=>document.body.dataset.state==='EDITING'&&!document.getElementById('mode').disabled);
   const call=(method,...args)=>frame.evaluate(({method,args})=>window.rhwpStudio.documentStudio.mobile[method](...args),{method,args});
+  if(process.env.TABLE_SAVE_DIAGNOSTIC==='1'){
+   await call('navigate',true);await call('plainText','\nTABLE_SAVE_PREFIX\n');await call('createTable',2,2);
+   for(const [i,text] of ['TABLE_CELL_A','TABLE_CELL_B','TABLE_CELL_C','TABLE_CELL_D'].entries()){if(i)await call('moveCell',true);await call('plainText',text);}
+   await page.waitForFunction(()=>!document.getElementById('save').disabled);
+   await page.locator('#save').click();await page.waitForFunction(()=>window.__closed,null,{timeout:60000});
+   const data=await page.evaluate(()=>window.__saved);assert.ok(data);
+   fs.writeFileSync(path.join(fixtures,'table-save.'+format),Buffer.from(data,'base64'));
+   console.log('TABLE_SAVE_DIAGNOSTIC',format,Buffer.from(data,'base64').length);
+   await context.close();continue;
+  }
   let found=await call('find','PAGE_EDIT_ORIGINAL');assert.ok(found.count>0);
   await call('plainText','가나다라 ABC 123 tail');
   await call('find','가나다라');await call('char',{bold:false});

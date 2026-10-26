@@ -187,11 +187,13 @@ class NativeHangulEditingTest {
             assertTrue("The IME must not cover the active caret",viewport.getDouble("caretHeight")>0 && viewport.getDouble("caretTop")>=viewport.getDouble("frameTop")-3 && viewport.getDouble("caretBottom")<=viewport.getDouble("frameBottom")+3)
             device.takeScreenshot(File(output,format.extension+"-keyboard-format.png"))
             assertEquals("Working-copy edits must not overwrite the baseline",baseline,DocumentRepository.digest(session.base))
-            eval("window.documentStudioHost.saveAndClose()")
+            await("The real save button must be enabled") {json("({enabled:!document.getElementById('save').disabled})").optBoolean("enabled")}
+            tapVisibleControl("저장 후 닫기")
             await("Validated HWP work copy must close",60000) {File(working.path+".closed").isFile}
             await("Hangul writer must release its process",20000) {device.executeShellCommand("pidof "+context.packageName+":hangul").trim().isEmpty()}
             closed=true
             assertTrue(File(working.path+".edited").isFile)
+            working.copyTo(File(output,format.extension+"-saved-working."+format.extension),overwrite=true)
             val adopted=repository.acceptOffice(session)
             assertNotEquals(baseline,DocumentRepository.digest(adopted.base))
             val file=File(context.cacheDir,"tests/"+UUID.randomUUID()+"."+format.extension).apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}

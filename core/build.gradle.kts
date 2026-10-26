@@ -25,3 +25,10 @@ tasks.register<JavaExec>("verifyMobileRoundTrip") {
     mainClass.set("kr.documentstudio.core.MobileRoundTripTool")
     args(layout.buildDirectory.dir("visual-fixtures").get().asFile.absolutePath)
 }
+
+tasks.register<JavaExec>("inspectTableSave") {
+ dependsOn(tasks.testClasses)
+ classpath=sourceSets.test.get().runtimeClasspath
+ mainClass.set("kr.documentstudio.core.TableSaveDiagnostic")
+ args(layout.buildDirectory.dir("visual-fixtures").get().asFile.absolutePath)
+}
