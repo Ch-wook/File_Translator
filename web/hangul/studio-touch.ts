@@ -1,5 +1,6 @@
 // Touch gestures delegate selection/hit testing to the pinned engine.
 import { studioIsEditing } from './host-readonly';
+import { findWordAt } from './engine/cursor';
 export function installStudioTouch(getInput:()=>any,eventBus:any) {
  const layer=document.createElement('div');layer.id='studio-touch-layer';
  layer.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:45';
@@ -129,7 +130,16 @@ export function installStudioTouch(getInput:()=>any,eventBus:any) {
    pressTimer=setTimeout(()=>{
      if(!press||!studioIsEditing())return;press.long=true;suppressUntil=Date.now()+900;
      mouse('mousedown',press.x,press.y,press.target);mouse('mouseup',press.x,press.y,document);
-     if(!ih.isInPictureObjectSelection()&&!ih.isInTableObjectSelection())mouse('dblclick',press.x,press.y,press.target);
+     if(!ih.isInPictureObjectSelection()&&!ih.isInTableObjectSelection()&&!ih.cursor.isInHeaderFooter()&&!ih.cursor.isInFootnote()&&!ih.cursor.isProtectedCellSelectionMode?.()){
+       // The pinned dblclick handler edits objects only. Select the touched word through
+       // the native cursor and its word boundaries, including the real table-cell axis.
+       const p=ih.getCursorPosition(),w=ih.wasm;
+       const text=p.parentParaIndex===undefined?w.getTextRange(p.sectionIndex,p.paragraphIndex,0,w.getParagraphLength(p.sectionIndex,p.paragraphIndex)):
+         p.cellPath?.length?w.getTextInCellByPath(p.sectionIndex,p.parentParaIndex,JSON.stringify(p.cellPath),0,w.getCellParagraphLengthByPath(p.sectionIndex,p.parentParaIndex,JSON.stringify(p.cellPath))):
+         w.getTextInCell(p.sectionIndex,p.parentParaIndex,p.controlIndex,p.cellIndex,p.cellParaIndex,0,w.getCellParagraphLength(p.sectionIndex,p.parentParaIndex,p.controlIndex,p.cellIndex,p.cellParaIndex));
+       const range=findWordAt(text,Math.min(p.charOffset,Math.max(0,text.length-1)));
+       ih.cursor.clearSelection();ih.cursor.moveTo({...p,charOffset:range.start});ih.cursor.setAnchor();ih.cursor.moveTo({...p,charOffset:range.end});ih.active=true;ih.updateCaret(true);
+     }
      (window.parent as any).documentStudioHost?.selectionContext?.(ih.isInPictureObjectSelection()?'그림':ih.isInTable()?'표':'글자');
      refresh();
    },450);

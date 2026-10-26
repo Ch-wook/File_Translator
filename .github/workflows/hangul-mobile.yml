@@ -66,6 +66,8 @@ jobs:
           cd scripts/tests
           npx playwright install chromium
           npm run test:hangul 2>&1 | tee ../../artifacts/ci/hangul-browser.log
+          TABLE_SAVE_DIAGNOSTIC=1 node hangul-mobile.cjs 2>&1 | tee ../../artifacts/ci/table-save-browser.log
+          (cd ../.. && ./gradlew :core:inspectTableSave --configure-on-demand --max-workers=2 --console=plain) 2>&1 | tee ../../artifacts/ci/table-save-records.log
           node hangul-mobile.cjs 2>&1 | tee ../../artifacts/ci/hangul-mobile.log
       - name: Independent saved-file parser checks
         run: |

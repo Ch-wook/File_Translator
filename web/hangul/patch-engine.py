@@ -124,3 +124,10 @@ after="""      const studioSelection = !e.shiftKey && moveH !== null ? this.getN
 """ + before
 if text.count(before)!=1: raise RuntimeError('Pinned arrow selection source changed')
 keyboard.write_text(text.replace(before,after,1))
+
+# Share the engine's native word boundaries with mobile long-press selection.
+cursor=root/'src/engine/cursor.ts'
+text=cursor.read_text()
+before="function findWordAt(text: string, offset: number):"
+if text.count(before)!=1: raise RuntimeError('Pinned cursor word boundary source changed')
+cursor.write_text(text.replace(before,"export "+before,1))
