@@ -60,6 +60,10 @@ public final class StudioOfficeActivity extends LOActivity {
         finish();
     }
 
+    @Override protected void onOfficeBeforeClose() throws java.io.IOException {
+        DocumentViewState.requestClose(working, shouldSaveOriginal() && hasApprovedOfficeOutput());
+    }
+
     @Override protected void onOfficeClosed() {
         try {
             File marker = new File(working.getPath() + ".closed");

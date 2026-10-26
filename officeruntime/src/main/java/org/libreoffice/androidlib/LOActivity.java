@@ -1257,6 +1257,7 @@ public class LOActivity extends AppCompatActivity {
     private boolean studioSaveOriginal;
     protected boolean shouldSaveOriginal() { return studioSaveOriginal; }
     protected void onOfficeClosed() { }
+    protected void onOfficeBeforeClose() throws IOException { }
     protected void onOfficeLifecycle(String stage) { }
     protected void onOfficeSaved() throws IOException { }
     protected void onOfficeLoadFailed(String error) { }
@@ -1344,6 +1345,15 @@ public class LOActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     mProgressDialog.dismiss();
                     Toast.makeText(this, "저장을 확인하지 못했습니다. 저장 버튼을 누른 뒤 다시 닫아 주세요.", Toast.LENGTH_LONG).show();
+                });
+                return;
+            }
+            try { onOfficeBeforeClose(); }
+            catch (IOException failure) {
+                closeSave = null;
+                runOnUiThread(() -> {
+                    mProgressDialog.dismiss();
+                    Toast.makeText(this, "종료 요청을 기록하지 못했습니다. 작업 파일을 보존했습니다. 다시 닫아 주세요.", Toast.LENGTH_LONG).show();
                 });
                 return;
             }

@@ -12,7 +12,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
   const w = dom.window, commands = [], states = {}, listeners = {}, mobile = [], persisted = [], keys = [];
   const timeouts = new Map();
   let tick, editing = false, selected = false, requested = 0, grants = 0, serial = 0;
-  let zoom = 7, part = family === 'text' ? 0 : 2, x = 120, y = 340;
+  let zoom = 7, part = family === 'text' ? 0 : 2, x = 120, y = 340, layoutResizes = 0;
   w.postMobileMessage = message => mobile.push(message);
   w.setInterval = f => { tick=f; return 1; }; w.clearInterval = () => {};
   w.setTimeout = f => { const id=++serial;timeouts.set(id,f);return id; };
@@ -28,6 +28,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
     LOUtil: {}, events: { on: (name, fn) => { listeners[name]=fn; } }, twipsToPixels: 0.1,
     activeDocument: { activeLayout: {
       get viewedRectangle() {return {x1:x,y1:y};},
+      onResize: () => {layoutResizes++;},
       applyZoom: value => {zoom=value;},
       scrollTo: (px,py) => {x=px/0.1;y=py/0.1;}
     }},
@@ -36,7 +37,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
       _switchToEditMode: () => {requested++;editing=true;zoom=10;listeners.updatepermission?.();},
       setPermission: value => {editing=value==='edit';x=0;y=0;listeners.updatepermission?.();},
       getDocType: () => family, getZoom:()=>zoom, getCurrentPartNumber:()=>part, setPart:value=>{part=value;},
-      sendUnoCommand: (name,args) => commands.push({name,args}), focus: () => {}, invalidateSize: () => {},
+      sendUnoCommand: (name,args) => commands.push({name,args}), focus: () => {},
       stateChangeHandler: { getItemValue: name => states[name] },
       _docLayer: { postKeyboardEvent: (...args) => keys.push(args) },
       on: (name,fn) => {listeners[name]=fn;}
@@ -52,7 +53,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
   const click = label => {const b=button(label);assert.ok(b,`Missing ${label}`);b.click();return b;};
   return {
     w,commands,states,keys,mobile,persisted,tick,click,button,flush,viewport,
-    requests:()=>requested,grants:()=>grants,close:()=>w.close(),
+    requests:()=>requested,grants:()=>grants,resizes:()=>layoutResizes,close:()=>w.close(),
     select:value=>{selected=value;tick();},
     edit:value=>{editing=value;listeners.updatepermission?.();},
     changed:()=>listeners.commandstatechanged?.({commandName:'.uno:ModifiedStatus',state:'true'})
@@ -159,4 +160,19 @@ test('reading close stores only viewport metadata and requests close without a s
     assert.equal(s.persisted.length,1);assert.deepEqual(s.persisted[0],s.viewport());
     assert.equal(s.requests(),0);assert.equal(s.commands.length,0);
   } finally {s.close();}
+});
+
+test('pinned native layouts resize without the removed map invalidateSize API', () => {
+  for(const family of ['text','spreadsheet','presentation']) {
+    const s=workspace(family);
+    try {
+      assert.equal(typeof s.w.app.map.invalidateSize,'undefined');
+      assert.equal(s.w.studioOffice.ready,true);
+      assert.ok(s.resizes()>0);
+      s.click('편집하기');const before=s.resizes();
+      s.click('도구 접기');assert.ok(s.resizes()>before);
+      s.click('돌아가기');assert.deepEqual(s.mobile,['BYE']);
+      assert.ok(s.persisted.some(value=>Number.isFinite(value.x) && Number.isFinite(value.zoom)));
+    } finally {s.close();}
+  }
 });

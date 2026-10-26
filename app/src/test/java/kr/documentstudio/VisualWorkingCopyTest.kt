@@ -89,4 +89,43 @@ class VisualWorkingCopyTest {
         try {repo.acceptOffice(concurrent);fail("Concurrent changes must block import")} catch(expected: IllegalArgumentException) {}
         assertEquals("HOST CHANGE",repo.restore(s.id).edits.values[field.id]);assertTrue(working.exists())
     }
+    private fun requestClose(working: File, saveOriginal: Boolean) {
+        File(working.path+".close-request").writeText(org.json.JSONObject().put("version",1)
+            .put("working",working.name).put("hash",DocumentRepository.digest(working))
+            .put("saveOriginal",saveOriginal).toString())
+    }
+    @Test fun nativeCloseRequiresReleasedWriterLockAndStableAcknowledgedBytes()=runBlocking {
+        val repo=DocumentRepository(context);val s=repo.create(Format.DOCX);val working=repo.prepareOffice(s)
+        val closed=File(working.path+".closed")
+        requestClose(working,false)
+        RandomAccessFile(File(working.parentFile,"office.lock"),"rw").use {file->file.channel.lock().use {
+            try {repo.completeOfficeClose(s);fail("A close request cannot confirm a live writer")}
+            catch(expected: IllegalArgumentException) {}
+            assertFalse(closed.exists())
+        }}
+        working.appendText("unexpected late write")
+        try {repo.completeOfficeClose(s);fail("Changed bytes cannot match the native close request")}
+        catch(expected: IllegalArgumentException) {}
+        assertFalse(closed.exists())
+        s.base.copyTo(working,overwrite=true);requestClose(working,false)
+        assertFalse(repo.completeOfficeClose(s));assertTrue(closed.isFile)
+        assertSame(s,repo.acceptOffice(s))
+        assertFalse(File(working.path+".close-request").exists())
+    }
+    @Test fun durableSaveIntentAndApprovedOutputSurviveNativeProcessExit()=runBlocking {
+        val repo=DocumentRepository(context);val s=repo.create(Format.DOCX);val working=repo.prepareOffice(s)
+        val before=s.base.readBytes()
+        change(working,s.format,"NATIVE ACKNOWLEDGED EDIT")
+        requestClose(working,true)
+        assertFalse("An intent alone cannot approve document output",repo.completeOfficeClose(s))
+        File(working.path+".closed").delete()
+        File(working.path+".edited").writeText("native Save acknowledged")
+        assertTrue(repo.completeOfficeClose(s))
+        val accepted=repo.acceptOffice(s)
+        assertEquals(s.revision+1,accepted.revision)
+        assertArrayEquals(before,s.base.readBytes())
+        assertTrue(accepted.sections.flatMap {it.fields}.joinToString {it.text}.contains("NATIVE ACKNOWLEDGED EDIT"))
+        assertFalse(File(working.path+".close-request").exists())
+    }
+
 }

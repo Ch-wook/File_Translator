@@ -60,6 +60,27 @@ public final class DocumentViewState {
             out.getFD().sync(); state.finishWrite(out);
         } catch (Exception ignored) { if (out != null) state.failWrite(out); }
     }
+    /** BYE can terminate the pinned engine process; the host confirms closure after lock release. */
+    public static void requestClose(File working, boolean saveOriginal) throws IOException {
+        AtomicFile state = new AtomicFile(new File(working.getPath() + ".close-request"));
+        FileOutputStream out = null;
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            try (java.io.FileInputStream input = new java.io.FileInputStream(working)) {
+                byte[] buffer = new byte[32768]; int count;
+                while ((count = input.read(buffer)) != -1) digest.update(buffer, 0, count);
+            }
+            StringBuilder hash = new StringBuilder();
+            for (byte value : digest.digest()) hash.append(String.format(java.util.Locale.ROOT, "%02x", value & 255));
+            byte[] bytes = new JSONObject().put("version", 1).put("working", working.getName())
+                .put("hash", hash.toString()).put("saveOriginal", saveOriginal)
+                .toString().getBytes(StandardCharsets.UTF_8);
+            out = state.startWrite(); out.write(bytes); out.getFD().sync(); state.finishWrite(out);
+        } catch (Exception failure) {
+            if (out != null) state.failWrite(out);
+            throw new IOException("Could not persist Office close request", failure);
+        }
+    }
     public static void markEdited(File working) throws IOException {
         try (FileOutputStream out = new FileOutputStream(new File(working.getPath() + ".edited"))) {
             out.write(1);

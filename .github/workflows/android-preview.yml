@@ -150,6 +150,8 @@ jobs:
               assert result['tests']>0 and result['failures']==0 and result['errors']==0,(module,result)
           if '[publish-preview]' in os.environ.get('HEAD_COMMIT_MESSAGE',''):
               assert "versionCode='11'" in manifest and "versionName='0.8.1-preview'" in manifest
+              android=json.loads((root/'artifacts/ci/android-summary.json').read_text())
+              assert android['tests']>=19 and android['failures']==0 and android['errors']==0 and android['skipped']==0,android
           summary={'commit':os.environ['GITHUB_SHA'],'baseline':'2bfe225ab040e3cb9251a8cafce9578ea3d9b645','provenance':'reimplementation; previous unpushed 0.8.0 not recovered','physicalDeviceTested':False,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],'unitTests':reports,'apkBytes':apk.stat().st_size,'debugSigned':True}
           (root/'artifacts/ci/summary.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2))
           print(json.dumps(summary,ensure_ascii=False,indent=2))

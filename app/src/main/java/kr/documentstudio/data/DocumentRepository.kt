@@ -309,6 +309,35 @@ class DocumentRepository(private val context: Context) {
         remember(s)
         working
     }
+    /** Confirms a native process exit without trusting an Activity result lost during BYE. */
+    suspend fun completeOfficeClose(s: Session): Boolean = io { completeOfficeCloseInternal(s) }
+    private fun completeOfficeCloseInternal(s: Session): Boolean {
+        val dir=s.base.parentFile!!
+        val marker=File(dir,"office-pending.json")
+        if(!marker.isFile) return false
+        val pending=JSONObject(AtomicFile(marker).openRead().use {it.bufferedReader().readText()})
+        val name=pending.getString("working")
+        require(name.matches(Regex("office-[a-zA-Z0-9-]+\\.(docx|doc|xlsx|xls|pptx|ppt|hwp|hwpx)")))
+        val working=File(dir,name)
+        val request=File(working.path+".close-request")
+        if(!request.isFile) return false
+        require(request.length() in 1..4096) {"정밀 편집 종료 요청이 올바르지 않습니다."}
+        val close=JSONObject(AtomicFile(request).openRead().use {it.bufferedReader().readText()})
+        require(pending.optInt("approvalVersion")==1 && close.getInt("version")==1 && close.getString("working")==name)
+        require(s.base.name==pending.getString("base") && s.revision==pending.getLong("revision")) {"다른 작업의 종료 요청입니다."}
+        require(working.isFile && working.length() in 1..128L*1024*1024)
+        java.io.RandomAccessFile(File(dir,"office.lock"),"rw").use {file ->
+            val lock=try {file.channel.tryLock()} catch(e: java.nio.channels.OverlappingFileLockException) {null}
+            require(lock!=null) {"정밀 편집 엔진의 종료를 기다려 주세요."}
+            lock.use {
+                require(close.getString("hash").matches(Regex("[0-9a-f]{64}")) && digest(working)==close.getString("hash")) {
+                    "종료 요청 뒤 작업 파일이 변경되었습니다. 복구본을 보존했습니다."
+                }
+                atomic(File(working.path+".closed"),byteArrayOf(1))
+            }
+        }
+        return close.optBoolean("saveOriginal",false) && File(working.path+".edited").isFile
+    }
     suspend fun acceptOffice(s: Session): Session = io { acceptOfficeInternal(s) }
     suspend fun archiveOfficeRecovery(s: Session): Session = io {
         val dir=s.base.parentFile!!
@@ -331,8 +360,10 @@ class DocumentRepository(private val context: Context) {
         val working=File(dir,name)
         val closed=File(working.path+".closed")
         val edited=File(working.path+".edited")
-        // A clean close is written after BYE has stopped native writers. Otherwise a
-        // process-held file lock distinguishes a crash recovery from an active editor.
+        // The pinned Office BYE ends its process. Confirm its durable close request
+        // only after the process-held lock is released and the output hash is stable.
+        if(!closed.exists() && File(working.path+".close-request").isFile) completeOfficeCloseInternal(s)
+        // Hangul can write .closed itself; a process lock also protects crash recovery.
         if(!closed.exists()) java.io.RandomAccessFile(File(dir,"office.lock"),"rw").use {file ->
             val lock=try {file.channel.tryLock()} catch(e: java.nio.channels.OverlappingFileLockException) {null}
             require(lock!=null) {"정밀 편집 화면을 먼저 닫아 주세요."}; lock.release()
@@ -340,7 +371,7 @@ class DocumentRepository(private val context: Context) {
         require(s.base.name==pending.getString("base") && s.revision==pending.getLong("revision")) {"동시 편집이 감지되었습니다. 정밀 편집 파일을 복구 폴더에 보존했습니다."}
         pending.optJSONObject("edits")?.let {expected -> require(s.edits.copy(strokes=emptyList())==StateCodec.decode(expected)) {"다른 화면에서 본문을 편집했습니다. 정밀 편집 파일을 보관한 뒤 병합해 주세요."}}
         require(working.isFile && working.length() in 1..128L*1024*1024) {"정밀 편집 복구본이 없거나 크기 제한을 초과했습니다."}
-        if(digest(working)==pending.getString("hash")) {marker.delete();closed.delete();edited.delete();remember(s);return s}
+        if(digest(working)==pending.getString("hash")) {marker.delete();closed.delete();edited.delete();File(working.path+".close-request").delete();remember(s);return s}
         if(pending.optInt("approvalVersion")!=1 || !edited.isFile) {
             // Preserve unapproved or legacy engine output for recovery; never adopt it.
             require(marker.renameTo(File(dir,"office-pending-unapproved-${UUID.randomUUID()}.json"))) {"승인되지 않은 작업 파일 보관에 실패했습니다."}
@@ -357,7 +388,7 @@ class DocumentRepository(private val context: Context) {
         val result=parsed.copy(edits=Edits(strokes=s.edits.strokes.map {it.copy(anchor=mapping[it.anchor] ?: it.anchor)},layers=s.edits.layers,paper=s.edits.paper),
             saved=s.saved,revision=s.revision+1,savedRevision=s.savedRevision)
         checkpointInternal(result)
-        marker.delete();closed.delete();edited.delete()
+        marker.delete();closed.delete();edited.delete();File(working.path+".close-request").delete()
         return result
     }
     suspend fun reencode(s: Session,charset: String,bom: Boolean): Session = io {

@@ -202,7 +202,11 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         action {
             val s=mutable.value.tabs.firstOrNull {it.id==target} ?: repository.restore(target).also {attach(it)}
             run {
-                val result=try {repository.acceptOffice(s)}
+                var durableSaveRequest=false
+                val result=try {
+                    durableSaveRequest=repository.completeOfficeClose(s)
+                    repository.acceptOffice(s)
+                }
                 catch(e: CancellationException) {throw e}
                 catch(e: Exception) {
                     replace(s.copy(recoveryWarning="정밀 편집 결과를 가져오지 못했습니다. 이전 작업과 복구 파일을 보존했습니다: ${e.message}"))
@@ -210,7 +214,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
                 }
                 if(result!=s) {if(result.base!=s.base) histories.getValue(s.id).record(s);replace(result)}
                 setPresentation(s.id,PresentationState.READING)
-                if(saveOriginal && result.dirty) {
+                if((saveOriginal || durableSaveRequest) && result.dirty) {
                     if(result.uri!=null) {replace(repository.save(result,Uri.parse(result.uri)));message("원본 파일에 저장했습니다.")}
                     else mutable.value=mutable.value.copy(saveRequest=result.id)
                 }

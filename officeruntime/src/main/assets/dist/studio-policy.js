@@ -38,6 +38,12 @@
   const map = () => window.app && app.map;
   const objectSelected = () => typeof GraphicSelection !== 'undefined' && GraphicSelection.hasActiveSelection();
   const editable = () => Boolean(policy.authorized && map() && map().isEditMode());
+  function refreshLayout() {
+    // The pinned Writer/Impress map no longer exposes Leaflet invalidateSize.
+    const layout=window.app?.activeDocument?.activeLayout;
+    if(typeof layout?.onResize==='function') layout.onResize();
+    else window.dispatchEvent(new Event('resize'));
+  }
   function snapshot() {
     const layout = window.app?.activeDocument?.activeLayout;
     const rect = layout?.viewedRectangle;
@@ -158,7 +164,7 @@
     else if (family === 'spreadsheet') items = [command('행 삽입','InsertRowsBefore'), command('열 삽입','InsertColumnsBefore'), command('셀 병합','MergeCells'), command('오름차순','SortAscending'), command('내림차순','SortDescending'), command('행 높이','RowHeight'), command('열 너비','ColumnWidth'),command('셀 서식','FormatCellDialog'),command('함수 마법사','FunctionDialog')];
     else items = [command('새 슬라이드','InsertPage'), command('슬라이드 복제','DuplicatePage'), command('슬라이드 삭제','DeletePage')];
     items.forEach(item => { const b=button(item.label, () => { if(!b.disabled) item.run(); update(); },actions); if(item.name) b.dataset.command=item.name; controls.push({b,item}); });
-    update(); map().invalidateSize();
+    update(); refreshLayout();
   }
   function mount() {
     const wrapper = document.getElementById('toolbar-wrapper');
@@ -169,7 +175,7 @@
     modeLabel=document.createElement('span');modeLabel.id='studio-office-mode-label';modeLabel.setAttribute('aria-live','polite');mode.appendChild(modeLabel);
     modeButton=button('편집하기',()=>{
       if(editable()) map().setPermission('readonly'); else map()._switchToEditMode();
-      update();
+      update();refreshLayout();
     },mode);
     saveButton=button('저장 후 닫기',()=>{persistViewport();window.postMobileMessage('DOCUMENT_STUDIO_SAVE_AND_CLOSE');},mode);
     button('돌아가기',()=>{persistViewport();window.postMobileMessage('BYE');},mode);
@@ -178,7 +184,7 @@
     hint=document.createElement('div'); hint.id='studio-office-hint';
     const names=['홈','삽입','개체']; if(map().getDocType()==='text') names.push('문단'); if(map().getDocType()==='spreadsheet') names.push('셀'); if(map().getDocType()==='presentation') names.push('슬라이드');
     names.forEach(name => {const b=button(name,()=>{activeTab=name;bar.dataset.collapsed='false';render();},tabs);b.setAttribute('role','tab');});
-    const toggle=button('도구 접기',()=>{const collapsed=bar.dataset.collapsed!=='true';bar.dataset.collapsed=String(collapsed);toggle.textContent=collapsed?'도구 펼치기':'도구 접기';toggle.setAttribute('aria-label',toggle.textContent);toggle.setAttribute('aria-expanded',String(!collapsed));map().invalidateSize();},tabs);
+    const toggle=button('도구 접기',()=>{const collapsed=bar.dataset.collapsed!=='true';bar.dataset.collapsed=String(collapsed);toggle.textContent=collapsed?'도구 펼치기':'도구 접기';toggle.setAttribute('aria-label',toggle.textContent);toggle.setAttribute('aria-expanded',String(!collapsed));refreshLayout();},tabs);
     toggle.id='studio-office-toggle';toggle.setAttribute('aria-expanded','true');
     bar.append(mode,tabs,actions,hint);wrapper.appendChild(bar);
     // Keep map touch/drag handlers from consuming host toolbar taps.
@@ -190,7 +196,7 @@
       if(event.commandName==='.uno:ModifiedStatus' && String(event.state)==='true' && policy.wasAuthorized) policy.changed=true;
       update();
     });
-    app.events.on('updatepermission',()=>{restore(transitionViewport);update();});
+    app.events.on('updatepermission',()=>{update();refreshLayout();restore(transitionViewport);});
     map().on('moveend zoomend updateparts',rememberViewport);
     try {restore(JSON.parse(bridge()?.getStudioViewState?.() || '{}'));} catch(ignore) { }
     render();policy.ready=true;return true;

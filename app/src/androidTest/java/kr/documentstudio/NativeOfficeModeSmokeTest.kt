@@ -35,7 +35,8 @@ import kotlin.math.abs
  * Real separate-process Office + Android WebView smoke coverage.
  * UI mode and production viewport metadata must both exist after native document load.
  * This tests attempted ASCII keys/Korean clipboard paste, not Korean IME composition,
- * object hit-testing, content edits, or a modified-document save/reopen round trip.
+ * object hit-testing, or arbitrary typed text. Three separate cases exercise actual
+ * structural edits and native/provider save plus independent-parser and engine reopen.
  */
 @RunWith(AndroidJUnit4::class)
 class NativeOfficeModeSmokeTest {
@@ -59,6 +60,130 @@ class NativeOfficeModeSmokeTest {
     @Test fun pptxReadOnlyUsesActualNativeEngine() = runBlocking { exercise(Format.PPTX) }
     @Test fun docxModeOnlyTransitionPreservesScrolledViewportAndDoesNotWrite() = runBlocking {
         exercise(Format.DOCX, toggleOnly = true)
+    }
+
+    @Test fun docxNativePageBreakSavesAndReopens() = runBlocking { saveMutation(Format.DOCX) }
+    @Test fun xlsxNativeColumnInsertSavesAndReopens() = runBlocking { saveMutation(Format.XLSX) }
+    @Test fun pptxNativeSlideInsertSavesAndReopens() = runBlocking { saveMutation(Format.PPTX) }
+
+    /** Actual UI commands, native Save acknowledgement, provider save, parser and engine reopen. */
+    private suspend fun saveMutation(format: Format) {
+        val label = format.extension + "-save-roundtrip"
+        val repo = DocumentRepository(context)
+        val token = "PRESERVE_NATIVE_" + format.extension.uppercase()
+        var seed = repo.create(format)
+        val key = if (format == Format.XLSX) seed.sections.first().id + "#A1"
+            else seed.sections.first().fields.first().id
+        seed = seed.copy(edits = seed.edits.copy(values = mapOf(key to token)))
+        val original = File(context.cacheDir, "tests/native-save-${UUID.randomUUID()}.${format.extension}")
+        original.parentFile!!.mkdirs(); original.writeBytes(byteArrayOf())
+        val uri = FileProvider.getUriForFile(context, context.packageName + ".testfiles", original)
+        val session = repo.save(seed, uri)
+        val originalBefore = DocumentRepository.digest(original)
+        val oldBaseHash = DocumentRepository.digest(session.base)
+        var working = repo.prepareOffice(session)
+        val record = JSONObject().put("format", format.extension).put("scenario", "native-edited-save-reopen")
+            .put("originalBefore", originalBefore).put("token", token)
+        var completed = false
+        fun launch(file: File, id: String, name: String) {
+            context.startActivity(Intent().setClassName(context.packageName,
+                "org.libreoffice.androidlib.StudioOfficeActivity")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra("sessionId", id).putExtra("workingPath", file.absolutePath).putExtra("displayName", name))
+        }
+        suspend fun awaitClosed(file: File, sessionToClose: Session): Boolean {
+            await("Native Save must confirm output before its durable close request", 45_000) {
+                File(file.path + ".close-request").isFile
+            }
+            await("Office process must finish", 15_000) {
+                device.executeShellCommand("pidof ${context.packageName}:office").trim().isEmpty()
+            }
+            val saveOriginal=repo.completeOfficeClose(sessionToClose)
+            assertTrue("Host confirms the released native writer and matching output hash",File(file.path+".closed").isFile)
+            return saveOriginal
+        }
+        fun verifyMutation(file: File) {
+            java.util.zip.ZipFile(file).use { zip ->
+                when (format) {
+                    Format.DOCX -> {
+                        val doc = kr.documentstudio.core.Xml.parse(zip.getInputStream(zip.getEntry("word/document.xml")).use { it.readBytes() })
+                        val breaks = kr.documentstudio.core.Xml.elements(doc, "br").count {
+                            it.getAttributeNS(kr.documentstudio.core.PackageDocument.W, "type") == "page"
+                        }
+                        val before = kr.documentstudio.core.Xml.elements(doc, "pageBreakBefore").count {
+                            it.getAttributeNS(kr.documentstudio.core.PackageDocument.W, "val") !in listOf("0","false","off")
+                        }
+                        assertTrue("Saved DOCX must contain the native page break", breaks + before >= 1)
+                    }
+                    Format.XLSX -> {
+                        val cells = kr.documentstudio.core.PackageDocument.open(file).sections.first().cells
+                        assertEquals("Native column insertion must shift A1 to B1", token, cells["B1"])
+                        assertNotEquals(token, cells["A1"])
+                    }
+                    Format.PPTX -> assertEquals("Native slide insertion must create a second slide",
+                        2, kr.documentstudio.core.PackageDocument.open(file).sections.size)
+                    else -> error("Unexpected roundtrip format")
+                }
+            }
+            val parsed = kr.documentstudio.core.PackageDocument.open(file)
+            val texts = parsed.sections.flatMap { it.fields.map { field -> field.text } + it.cells.values }.joinToString("")
+            assertTrue("Unmodified original text must survive native save", texts.contains(token))
+            assertEquals(format, parsed.format)
+        }
+        try {
+            session.base.copyTo(File(evidence, "$label-input.${format.extension}"), overwrite = true)
+            launch(working, session.id, session.name)
+            visible("원본 보기", 150_000); visible("편집하기").click(); visible("편집 중", 20_000)
+            when (format) {
+                Format.DOCX -> { visible("문단").click(); visible("쪽 나누기").click() }
+                Format.XLSX -> { visible("셀").click(); visible("열 삽입").click() }
+                Format.PPTX -> { visible("슬라이드").click(); visible("새 슬라이드").click() }
+                else -> error("Unexpected roundtrip format")
+            }
+            visible("저장 후 닫기", 20_000).click()
+            assertTrue("Explicit save intent must survive native process exit",awaitClosed(working,session))
+            assertTrue("Only successful native save may approve output", File(working.path + ".edited").isFile)
+            assertEquals("Engine save must not write the provider original", originalBefore, DocumentRepository.digest(original))
+            assertEquals("Engine save must not replace the old baseline", oldBaseHash, DocumentRepository.digest(session.base))
+            verifyMutation(working)
+            working.copyTo(File(evidence, "$label-output.${format.extension}"), overwrite = true)
+            val accepted = repo.acceptOffice(session)
+            assertEquals(session.revision + 1, accepted.revision)
+            assertTrue(accepted.dirty)
+            val saved = repo.save(accepted, uri)
+            assertFalse(saved.dirty)
+            assertNotEquals(originalBefore, DocumentRepository.digest(original))
+            verifyMutation(original)
+            val reopened = repo.open(uri)
+            verifyMutation(reopened.base)
+            record.put("originalAfter", DocumentRepository.digest(original))
+                .put("savedFormat", reopened.format.extension).put("parserReopen", true)
+            working = repo.prepareOffice(reopened)
+            val reopenedHash = DocumentRepository.digest(working)
+            launch(working, reopened.id, reopened.name)
+            visible("원본 보기", 150_000); visible("돌아가기").click(); assertFalse(awaitClosed(working,reopened))
+            assertFalse("Reopening edited content in VIEW cannot save again", File(working.path + ".edited").exists())
+            assertEquals(reopenedHash, DocumentRepository.digest(working))
+            assertEquals(reopened.revision, repo.acceptOffice(reopened).revision)
+            record.put("engineReopen", true).put("result", "passed")
+            completed = true
+        } catch (failure: Throwable) {
+            record.put("result", "failed").put("error", failure.toString()); throw failure
+        } finally {
+            if (!completed) runCatching {
+                device.dumpWindowHierarchy(File(evidence, "$label-failure.xml"))
+                device.takeScreenshot(File(evidence, "$label-failure.png"))
+                if (working.isFile) working.copyTo(File(evidence, "$label-failure.${format.extension}"), overwrite = true)
+                for(name in listOf("office-lifecycle.json","office-view-state-error.json")) {
+                    val metadata=File(working.parentFile,name)
+                    if(metadata.isFile) metadata.copyTo(File(evidence,"$label-$name"),overwrite=true)
+                }
+                device.executeShellCommand("pidof ${context.packageName}:office").trim()
+                    .split(Regex("\\s+")).mapNotNull { it.toIntOrNull() }
+                    .filter { it != Process.myPid() }.forEach { Process.killProcess(it) }
+            }
+            File(evidence, "$label.json").writeText(record.put("completed", completed).toString(2))
+        }
     }
 
     private suspend fun create(repo: DocumentRepository, format: Format, longDocument: Boolean): Pair<Session, File> {
@@ -152,10 +277,12 @@ class NativeOfficeModeSmokeTest {
             device.dumpWindowHierarchy(File(evidence, "$label.xml"))
             device.takeScreenshot(File(evidence, "$label.png"))
             visible("돌아가기").click()
-            await("Native close must complete after BYE", 30_000) { closed.isFile }
+            await("Native close must persist its request before BYE", 30_000) { File(working.path+".close-request").isFile }
             await("The isolated Office process must finish before another document", 15_000) {
                 device.executeShellCommand("pidof ${context.packageName}:office").trim().isEmpty()
             }
+            assertFalse("VIEW close cannot request provider replacement", repo.completeOfficeClose(session))
+            assertTrue("Host confirms closure only after process exit and lock release", closed.isFile)
             assertFalse("Read/mode-only close must not produce .edited", edited.exists())
             assertEquals("Native read-only close cannot reserialize working bytes", beforeWorking, DocumentRepository.digest(working))
             assertEquals("Provider original must remain unchanged", beforeOriginal, DocumentRepository.digest(original))
