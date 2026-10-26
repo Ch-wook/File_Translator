@@ -14,7 +14,7 @@ CanvasKit 0.42.0 BSD-3-Clause와 폰트(SIL OFL 1.1/GUST)의 원문 고지를 `a
 | AndroidX/Compose/Material | BOM 2025.09.01 / Activity 1.11.0 / Lifecycle 해결 2.9.4 | Apache 2.0, Android UI |
 | PDFBox Android / FontBox | 2.0.27.0 포트 | Apache 2.0, PDF 읽기/쓰기 |
 | Apache POI / scratchpad | 5.4.1 | Apache 2.0, DOC/XLS/PPT 런타임 |
-| hwplib | 1.1.10 | Apache 2.0, HWP 런타임, 자체 재배치 POI 포함 |
+| hwplib | 1.1.11 | Apache 2.0, HWP 런타임, 자체 재배치 POI 포함 |
 | hwp2hwpx | edc05278506b663d5bdd98050a51f54b7ff5e0bc | Apache 2.0, 소스 포함 및 5개 결함 수정. [출처/변경](HANGUL_CONVERTER_PROVENANCE.md) |
 | hwpxlib | 1.0.9 | Apache 2.0, HWPX 변환 모델·쓰기 런타임 및 독립 읽기 검사 |
 | HWPX 빈 문서 | hwpxlib upstream commit f9fd2255ac0fc57414e0b657d115e7de51d31c65 | Apache 2.0, 템플릿 자산 |
@@ -34,7 +34,7 @@ CanvasKit 0.42.0 BSD-3-Clause와 폰트(SIL OFL 1.1/GUST)의 원문 고지를 `a
 
 Android 검사 전용 legacy.doc는 Apache POI REL_5_4_1의 test-data/document/simple.doc(Apache 2.0)이며 release 앱에 들어가지 않습니다. legacy.ppt는 프로젝트에서 생성한 검사 자료입니다.
 
-**본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.** HWP는 hwplib를 사용한 제한 텍스트 편집이며 한컴 조판 엔진은 아닙니다. [공식 명세](https://www2.hancom.com/support/downloadCenter/hwpOwpml).
+**본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.** HWP/HWPX 원본 표시와 직접 편집은 Rhwp를 사용하며, hwplib/hwpxlib는 가져오기·저장 파일의 독립 검사와 변환에 사용합니다. 한컴 조판 엔진은 아닙니다. [공식 명세](https://www2.hancom.com/support/downloadCenter/hwpOwpml).
 
 ## 비용과 대안
 

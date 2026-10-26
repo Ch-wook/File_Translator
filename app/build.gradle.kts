@@ -35,7 +35,7 @@ android {
 dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.17")
-    androidTestImplementation("kr.dogfoot:hwplib:1.1.10") { exclude(group="org.apache.poi") }
+    androidTestImplementation("kr.dogfoot:hwplib:1.1.11") { exclude(group="org.apache.poi") }
     implementation(project(":officeruntime"))
     implementation(project(":core"))
     implementation(platform("androidx.compose:compose-bom:2025.09.01"))
