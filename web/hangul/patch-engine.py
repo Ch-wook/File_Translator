@@ -154,3 +154,18 @@ after="""    const positions = this.getControlTextPositions(sec, para);
     return this.doc.splitParagraph(sec, para, logicalOffset, serializeParaMeta(removedParaMeta));"""
 if text.count(before)!=1: raise RuntimeError('Pinned paragraph split boundary changed')
 bridge.write_text(text.replace(before,after,1))
+
+# History may remove the paragraph/cell currently referenced by the cursor.
+# Restore the returned context before selection-reset events notify mobile tools.
+handler=root/'src/engine/input-handler.ts'
+text=handler.read_text()
+for name,command in [('handleUndo','peekRedoTop'),('handleRedo','peekUndoTop')]:
+    start=text.index('  private '+name+'(): void {')
+    end=text.index('\n  /**',start+10)
+    section=text[start:end]
+    restore='      this.restoreEditContextAfterHistory(this.history.'+command+'(), newPos);'
+    reset='      this.resetDerivedStateAfterHistoryJump();'
+    if section.count(restore)!=1 or section.count(reset)!=1: raise RuntimeError('Pinned history cursor restoration changed: '+name)
+    section=section.replace(restore+'\n','',1).replace(reset,restore+'\n'+reset,1)
+    text=text[:start]+section+text[end:]
+handler.write_text(text)

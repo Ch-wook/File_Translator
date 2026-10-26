@@ -34,3 +34,48 @@ jobs:
                   if local(e)=='tc':
                       print('CELL',e.attrib,repr(''.join(t.text or '' for t in e.iter() if local(t)=='t')))
           PY
+
+  probe:
+    if: contains(github.event.head_commit.message, '[probe-083]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: hangul-public-tools-${{ runner.os }}-129dc5ef1d8d0ee37256d9094f6c2e78be374443
+          restore-keys: hangul-public-tools-${{ runner.os }}-
+      - name: Reuse unchanged fixture inputs and build the current engine
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 40374075011 --repo Ch-wook/File_Translator --name mobile-release-logs-129dc5ef1d8d0ee37256d9094f6c2e78be374443 --dir previous
+          python3 - <<'PY'
+          import pathlib,shutil
+          source=next(pathlib.Path('previous').rglob('fixture.hwp')).parent
+          shutil.copytree(source,'core/build/visual-fixtures',dirs_exist_ok=True)
+          pathlib.Path('artifacts/ci').mkdir(parents=True,exist_ok=True)
+          PY
+          python3 scripts/prepare-hangul-engine.py 2>&1 | tee artifacts/ci/probe-prepare.log
+          npm ci --prefix scripts/tests
+          (cd scripts/tests && npx playwright install chromium)
+          node scripts/tests/hangul-mobile.cjs 2>&1 | tee artifacts/ci/probe-mobile.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-engine-probe-${{ github.sha }}
+          path: |
+            artifacts/ci/
+            artifacts/hangul-mobile/
+            core/build/visual-fixtures/
