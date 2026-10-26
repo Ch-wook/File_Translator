@@ -60,6 +60,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           gh run download 40374075011 --repo Ch-wook/File_Translator --name mobile-release-logs-129dc5ef1d8d0ee37256d9094f6c2e78be374443 --dir previous
           python3 - <<'PY'
           import pathlib,shutil

@@ -62,7 +62,7 @@ jobs:
       - name: Bridge policies and mobile engine acceptance
         run: |
           npm ci --prefix scripts/tests
-          node --test scripts/tests/*.test.cjs 2>&1 | tee artifacts/ci/javascript.log
+          node --test --test-reporter=tap scripts/tests/*.test.cjs 2>&1 | tee artifacts/ci/javascript.log
           cd scripts/tests
           npx playwright install chromium
           npm run test:hangul 2>&1 | tee ../../artifacts/ci/hangul-browser.log

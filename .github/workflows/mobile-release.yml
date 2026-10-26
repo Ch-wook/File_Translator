@@ -67,7 +67,7 @@ jobs:
       - name: Real browser editing and independent saved-file parsers
         run: |
           npm ci --prefix scripts/tests
-          node --test scripts/tests/*.test.cjs 2>&1 | tee artifacts/ci/javascript.log
+          node --test --test-reporter=tap scripts/tests/*.test.cjs 2>&1 | tee artifacts/ci/javascript.log
           (cd scripts/tests && npx playwright install chromium && npm run test:hangul) 2>&1 | tee artifacts/ci/hangul-browser.log
           TABLE_SAVE_DIAGNOSTIC=1 node scripts/tests/hangul-mobile.cjs 2>&1 | tee artifacts/ci/table-save-browser.log
           ./gradlew :core:inspectTableSave --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/table-save-records.log
@@ -100,6 +100,17 @@ jobs:
         run: |
           ./gradlew -PstudioAbi=x86_64 :app:assembleDebug :app:assembleDebugAndroidTest --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/gradle-x86.log
           cp app/build/outputs/apk/debug/app-debug.apk artifacts/mobile-build/x86_64.apk
+      - name: Preserve both APKs and their tested engine before acceptance packaging
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-candidate-${{ github.sha }}
+          path: |
+            artifacts/mobile-build/
+            .engine-cache/hangul/runtime/
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
       - name: Emulator acceleration
         run: |
           ./gradlew --stop
