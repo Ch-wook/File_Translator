@@ -36,6 +36,8 @@
   let activeTab = '홈';
   let modeTransition=false, transitionGeneration=0, ownedNativeRestore=null;
   const restoreTrace=[];
+  let heldViewport=null, initialViewportRestored=false;
+  const pinnedLayouts=new WeakSet();
   const controls = [];
   const map = () => window.app && app.map;
   const objectSelected = () => typeof GraphicSelection !== 'undefined' && GraphicSelection.hasActiveSelection();
@@ -83,6 +85,7 @@
       if (!current() || !map()) return;
       const layout = window.app?.activeDocument?.activeLayout;
       if (!layout) {done?.();return;}
+      installViewportPin(layout);
       if (map().getDocType()!=='text' && map().getCurrentPartNumber?.() !== value.part) map().setPart?.(value.part);
       traceRestore('before-zoom',value);
       try {layout.applyZoom?.(value.zoom);}
@@ -108,7 +111,36 @@
       });
     });
   }
+  function installViewportPin(layout) {
+    if(!layout || layout.type!=='ViewLayoutWriter' || pinnedLayouts.has(layout)) return;
+    const refresh=layout.refreshVisibleAreaRectangle;
+    if(typeof refresh!=='function') return;
+    layout.refreshVisibleAreaRectangle=function(...args) {
+      const pin=heldViewport, scale=window.app?.twipsToPixels, properties=this.scrollProperties;
+      if(pin?.layoutType===this.type && properties && Number.isFinite(scale)
+          && Number.isFinite(pin.offsetX) && Number.isFinite(pin.offsetY)) {
+        const x=pin.offsetX*scale, y=pin.offsetY*scale;
+        if(Math.abs(properties.viewX-x)>0.01 || Math.abs(properties.viewY-y)>0.01)
+          traceRestore('pin-refresh',pin);
+        properties.viewX=x;properties.viewY=y;
+      }
+      return refresh.apply(this,args);
+    };
+    pinnedLayouts.add(layout);
+  }
+  function holdViewport(value) {
+    const layout=window.app?.activeDocument?.activeLayout, scale=window.app?.twipsToPixels;
+    const properties=layout?.scrollProperties, rect=layout?.viewedRectangle;
+    if(!validViewport(value) || !properties || !rect || !Number.isFinite(scale) || scale<=0) {
+      heldViewport=null;return;
+    }
+    heldViewport={...value,layoutType:layout.type,
+      offsetX:properties.viewX/scale+value.x-rect.x1,
+      offsetY:properties.viewY/scale+value.y-rect.y1};
+    installViewportPin(layout);
+  }
   function beginModeTransition(value) {
+    if(!modeTransition || !heldViewport) holdViewport(value);
     transitionViewport=value;modeTransition=true;
     return ++transitionGeneration;
   }
@@ -122,6 +154,7 @@
   }
   function cancelModeRestore(event) {
     if(!event.isTrusted) return;
+    heldViewport=null;
     const layer=map()?._docLayer;
     if(ownedNativeRestore && layer?._savedScrollPos===ownedNativeRestore) {
       layer._savedScrollPos=null;layer._restoringViewScroll=false;ownedNativeRestore=null;
@@ -130,7 +163,7 @@
       ++transitionGeneration;modeTransition=false;update();
     }
   }
-  for(const name of ['pointerdown','touchstart','wheel','keydown'])
+  for(const name of ['pointerdown','touchstart','wheel','keydown','beforeinput','compositionstart'])
     document.addEventListener(name,cancelModeRestore,true);
   function persistViewport() {
     let value;
@@ -268,7 +301,13 @@
     });
     app.events.on('updatepermission',()=>{update();refreshLayout();if(modeTransition) restore(transitionViewport,undefined,transitionGeneration);});
     map().on('moveend zoomend updateparts',rememberViewport);
-    try {restore(JSON.parse(bridge()?.getStudioViewState?.() || '{}'));} catch(ignore) { }
+    try {
+      const saved=JSON.parse(bridge()?.getStudioViewState?.() || '{}');
+      restore(saved,()=>{
+        if(validViewport(saved)) holdViewport(snapshot());
+        initialViewportRestored=true;
+      });
+    } catch(ignore) {initialViewportRestored=true;}
     render();policy.ready=true;return true;
   }
   const timer=setInterval(() => {
@@ -278,7 +317,7 @@
     if(map() && map()._docLoaded) {
       if(!bar) mount(); else update();
       // Only an explicit host EDIT launch may enter editing without a toolbar tap.
-      if(bar && !policy.initialIntentHandled) {
+      if(bar && initialViewportRestored && !policy.initialIntentHandled) {
         policy.initialIntentHandled=true;
         if(policy.modeSupported && new URLSearchParams(location.search).get('studioopen')==='EDIT') map()._switchToEditMode();
       }

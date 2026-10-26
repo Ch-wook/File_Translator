@@ -5,7 +5,7 @@ const path = require('node:path');
 const { JSDOM } = require('jsdom');
 const source = fs.readFileSync(path.join(__dirname, '../../officeruntime/src/main/assets/dist/studio-policy.js'), 'utf8');
 
-function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant = true) {
+function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant = true, savedView = null) {
   const dom = new JSDOM('<!doctype html><head></head><body><div id="toolbar-wrapper"></div><input id="insertgraphic" type="file"></body>', {
     url: `file:///android_asset/dist/cool.html?permission=${permission}&startreadonly=true&studioopen=${intent}`, runScripts: 'outside-only'
   });
@@ -19,24 +19,32 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
   w.clearTimeout = id => timeouts.delete(id);
   w.COOLMessageHandler = {
     requestStudioEdit: () => {grants++;return grant && permission === 'edit';},
-    getStudioViewState: () => '{}',
+    getStudioViewState: () => JSON.stringify(savedView || {}),
     saveStudioViewState: state => persisted.push(JSON.parse(state))
   };
   const viewport = () => ({x,y,zoom,part});
+  const userEvents={};
+  const addListener=w.document.addEventListener.bind(w.document);
+  w.document.addEventListener=(name,callback,options)=>{
+    if(['pointerdown','touchstart','wheel','keydown','beforeinput','compositionstart'].includes(name)) userEvents[name]=callback;
+    addListener(name,callback,options);
+  };
   w.GraphicSelection = { hasActiveSelection: () => selected };
   w.app = {
     LOUtil: {}, events: { on: (name, fn) => { listeners[name]=fn; } }, twipsToPixels: 0.1,
     activeDocument: { activeLayout: {
       type: family === 'text' ? 'ViewLayoutWriter' : 'ViewLayoutCalc',
       get viewedRectangle() {return {x1:x,y1:y};},
+      scrollProperties:{viewX:x*0.1,viewY:y*0.1},
+      refreshVisibleAreaRectangle() {x=this.scrollProperties.viewX/0.1;y=this.scrollProperties.viewY/0.1;},
       onResize: () => {layoutResizes++;},
       applyZoom: value => {zoom=value;},
-      scrollTo: (px,py) => {x=px/0.1;y=py/0.1;}
+      scrollTo(px,py) {this.scrollProperties.viewX=px;this.scrollProperties.viewY=py;this.refreshVisibleAreaRectangle();}
     }},
     map: {
       _docLoaded: true, wopi: {}, isEditMode: () => editing,
-      _switchToEditMode: () => {requested++;editing=true;zoom=10;x=0;y=0;listeners.updatepermission?.();w.setTimeout(()=>{x=0;y=0;},50);},
-      setPermission: value => {editing=value==='edit';x=0;y=0;listeners.updatepermission?.();},
+      _switchToEditMode: () => {requested++;editing=true;zoom=10;w.app.activeDocument.activeLayout.scrollTo(0,0);listeners.updatepermission?.();w.setTimeout(()=>w.app.activeDocument.activeLayout.scrollTo(0,0),50);},
+      setPermission: value => {editing=value==='edit';w.app.activeDocument.activeLayout.scrollTo(0,0);listeners.updatepermission?.();},
       getDocType: () => family, getZoom:()=>zoom, getCurrentPartNumber:()=>part, setPart:value=>{part=value;},
       sendUnoCommand: (name,args) => commands.push({name,args}), focus: () => {},
       stateChangeHandler: { getItemValue: name => states[name] },
@@ -57,19 +65,19 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
     if(layer._restoringViewScroll && layer._savedScrollPos) {
       w.app.activeDocument.activeLayout.scrollTo(layer._savedScrollPos.pX1,layer._savedScrollPos.pY1);
       layer._restoringViewScroll=false;layer._savedScrollPos=null;
-    } else {x=0;y=0;}
+    } else {w.app.activeDocument.activeLayout.scrollTo(0,0);}
   };
   const flush = () => {
     for(let round=0;timeouts.size && round<10;round++) {
       const tasks=[...timeouts.values()];timeouts.clear();tasks.forEach(fn=>fn());
     }
   };
-  w.eval(source);tick();flush();
+  w.eval(source);tick();flush();tick();flush();
   const button = label => [...w.document.querySelectorAll('#studio-office-tools button')].find(b=>b.textContent===label);
   const click = label => {const b=button(label);assert.ok(b,`Missing ${label}`);b.click();if(label==='편집하기' || label==='보기로 전환') flush();return b;};
   return {
     w,commands,states,keys,mobile,persisted,tick,click,button,flush,viewport,
-    requests:()=>requested,grants:()=>grants,resizes:()=>layoutResizes,nativeRestores:()=>nativeRestores,nativeCursor,close:()=>w.close(),
+    requests:()=>requested,grants:()=>grants,resizes:()=>layoutResizes,nativeRestores:()=>nativeRestores,nativeCursor,userEvent:name=>userEvents[name]?.({isTrusted:true,target:w.document.body}),close:()=>w.close(),
     select:value=>{selected=value;tick();},
     edit:value=>{editing=value;listeners.updatepermission?.();},
     changed:()=>listeners.commandstatechanged?.({commandName:'.uno:ModifiedStatus',state:'true'})
@@ -108,6 +116,14 @@ test('unknown open intent stays in VIEW; explicit host EDIT is authorized, reado
     assert.equal(readonly.requests(),0);assert.equal(readonly.button('굵게').disabled,true);
     assert.equal(readonly.button('편집하기').hidden,true);
   } finally {unknown.close();explicit.close();readonly.close();}
+});
+test('explicit EDIT waits for the persisted viewport before it captures its mode position', () => {
+  const saved={x:800,y:12000,zoom:5,part:0};
+  const s=workspace('text','edit','EDIT',true,saved);
+  try {
+    assert.equal(s.requests(),1);assert.deepEqual(s.viewport(),saved);
+    for(let i=0;i<3;i++) {s.nativeCursor();assert.deepEqual(s.viewport(),saved);}
+  } finally {s.close();}
 });
 test('native refusal and unapproved engine edit state cannot enable commands', () => {
   const s=workspace('text','edit','VIEW',false);
@@ -216,8 +232,10 @@ test('native cursor invalidation after the mode layout settles reaffirms the sav
     const before=s.viewport();
     s.click('편집하기');
     assert.ok(s.nativeRestores()>0);
-    s.nativeCursor();assert.deepEqual(s.viewport(),before);
+    for(let i=0;i<3;i++) {s.nativeCursor();assert.deepEqual(s.viewport(),before);}
     s.click('보기로 전환');
-    s.nativeCursor();assert.deepEqual(s.viewport(),before);
+    for(let i=0;i<3;i++) {s.nativeCursor();assert.deepEqual(s.viewport(),before);}
+    s.userEvent('compositionstart');s.nativeCursor();
+    assert.equal(s.viewport().y,0,'actual user input releases the saved camera');
   } finally {s.close();}
 });
