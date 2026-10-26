@@ -19,11 +19,15 @@ try:
         source.write_text(text)
         with (out/(name+'.log')).open('w') as log:
             code=subprocess.run(command,stdout=log,stderr=subprocess.STDOUT).returncode
-        assert report.is_file(),(name,'No JUnit result; inspect compilation log')
+        if not report.is_file():
+            print((out/(name+'.log')).read_text()[-16000:],flush=True)
+            raise AssertionError((name,'No JUnit result; inspect compilation log'))
         parsed=ET.parse(report).getroot()
         result={k:int(parsed.get(k,0)) for k in ('tests','failures','errors','skipped')}
         shutil.copy2(report,out/(name+'.xml'))
         print('OPEN_METADATA_REGRESSION',name,code,result,flush=True)
+        for failure in parsed.iter('failure'):
+            print('OPEN_METADATA_FAILURE',name,failure.get('message'),(failure.text or '')[:5000],flush=True)
         assert result['tests']==3 and result['skipped']==0,result
         if name=='before':assert code!=0 and result['failures']==3 and result['errors']==0,result
         else:assert code==0 and result['failures']==result['errors']==0,result

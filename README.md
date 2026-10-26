@@ -1,14 +1,18 @@
-# 문서 스튜디오 0.8.3-preview
+# 문서 스튜디오 0.8.4-preview
 
 Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하기**를 선택하면 문서 화면에서 직접 수정하는 앱입니다. 기존 파일 열기·최근 작업·외부 앱 열기는 기본적으로 보기로 시작합니다.
 
 이 버전은 확인 가능한 원격 `2bfe225`에서 **재구현**했습니다. 이전 환경의 미푸시 0.8.0 소스·패치·APK는 회수하지 못했습니다. [출처와 감사](docs/ORIGINAL_VIEW_AUDIT.md), [검증 자료 안내](docs/ORIGINAL_VIEW_RESULTS.md)를 확인하세요.
 
+## 문서 열기 오류 수정
+
+배포용 HWP를 열지 못하던 문제와 파일 제공자의 이름·MIME 조회 실패로 문서 가져오기가 중단되는 문제를 수정합니다. 배포용 HWP는 원래 제한을 유지한 읽기 전용으로 표시하며, 일반 HWP/HWPX의 명시적 편집과 원본 보호는 유지합니다. [원인·수정·검증](docs/DOCUMENT_OPEN_FIX.md).
+
 ## 다운로드
 
-[Android APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.3-preview/document-studio-0.8.3-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.3-preview/document-studio-0.8.3-preview-source.zip) · [해시·패치·Git 이력·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.3-preview)
+[ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.4-preview/document-studio-0.8.4-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.4-preview/document-studio-0.8.4-preview-source.zip) · [Release·해시·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.4-preview)
 
-휴대폰에는 약 399 MB인 ARM64 APK를 설치하세요. x86_64 APK는 해당 아키텍처용입니다. 새 앱은 **문서 스튜디오 모바일**로 표시되며 기존 0.8.2와 함께 설치됩니다. [설치 실패 분석과 수정](docs/INSTALLATION_FIX.md)을 확인하세요. [배포 파일 9개의 공개 다운로드·해시 확인 완료](docs/releases/0.8.3-preview-download-verification.json). 개발 서명 프리뷰입니다. [모바일 한글 편집 기능·부분 지원·미구현 및 실제 검증](docs/HANGUL_MOBILE_EDITING.md)을 확인하세요.
+0.8.4는 검증·배포 진행 중입니다. 새 Release에 실제 APK가 공개된 뒤 링크가 작동합니다. 휴대폰은 ARM64용을 사용합니다. x86_64 APK는 해당 아키텍처용입니다. 기존 서명키를 확보하지 못했으므로 별도 앱 **문서 스튜디오 열기 수정**(`kr.documentstudio.openpreview`)으로 제공합니다. 기존 앱·데이터를 지울 필요가 없습니다. 새 앱에서 파일 열기를 선택하세요. [기존 설치 실패 분석](docs/INSTALLATION_FIX.md) · [0.8.3의 모바일 편집 기능·부분 지원·미구현](docs/HANGUL_MOBILE_EDITING.md).
 
 ## 휴대폰에서 사용하기
 

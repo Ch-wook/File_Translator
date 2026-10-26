@@ -67,6 +67,10 @@ jobs:
           python3 scripts/prepare-open-fixtures.py
           ./gradlew :app:help :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/fixtures.log
           python3 scripts/prepare-hangul-engine.py 2>&1 | tee artifacts/ci/hangul-prepare.log
+      - name: Reproduce old metadata failure, verify host regressions and compile Android tests
+        run: |
+          python3 scripts/verify-open-regression.py
+          ./gradlew :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/host-regression.log
       - name: Real browser editing and independent saved-file parsers
         run: |
           npm ci --prefix scripts/tests
@@ -76,8 +80,6 @@ jobs:
           ./gradlew :core:inspectTableSave --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/table-save-records.log
           node scripts/tests/hangul-mobile.cjs 2>&1 | tee artifacts/ci/hangul-mobile.log
           ./gradlew :core:verifyVisualRoundTrip :core:verifyMobileRoundTrip --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/roundtrip.log
-      - name: Reproduce old metadata failure and verify the fix
-        run: python3 scripts/verify-open-regression.py
       - name: Configured private signing key, if available
         env:
           KEYSTORE_BASE64: ${{ secrets.STUDIO_KEYSTORE_B64 }}
@@ -95,7 +97,7 @@ jobs:
           STUDIO_KEY_ALIAS: ${{ secrets.STUDIO_KEY_ALIAS }}
           STUDIO_KEY_PASSWORD: ${{ secrets.STUDIO_KEY_PASSWORD }}
         run: |
-          ./gradlew -PstudioAbi=arm64-v8a :core:test :officeruntime:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/gradle-arm64.log
+          ./gradlew -PstudioAbi=arm64-v8a :officeruntime:testDebugUnitTest :app:assembleDebug :app:lintDebug --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/gradle-arm64.log
           cp app/build/outputs/apk/debug/app-debug.apk artifacts/mobile-build/arm64-v8a.apk
       - name: x86_64 APK and instrumentation
         env:

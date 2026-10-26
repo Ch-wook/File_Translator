@@ -2,6 +2,7 @@ package kr.documentstudio
 
 import android.content.ContentProvider
 import android.content.ContentValues
+import android.content.pm.ProviderInfo
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
@@ -13,7 +14,6 @@ import kr.documentstudio.data.DocumentRepository
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -53,7 +53,10 @@ class DocumentOpenMetadataTest {
     }
     private fun provider(source: File): Pair<MetadataProvider,Uri> {
         val authority="document-open-"+UUID.randomUUID()
-        val p=Robolectric.buildContentProvider(MetadataProvider::class.java).create().get().apply {this.source=source}
+        val p=MetadataProvider().apply {
+            this.source=source
+            attachInfo(RuntimeEnvironment.getApplication(),ProviderInfo().apply {this.authority=authority})
+        }
         ShadowContentResolver.registerProviderInternal(authority,p)
         return p to Uri.parse("content://$authority/download/원본.hwpx")
     }
