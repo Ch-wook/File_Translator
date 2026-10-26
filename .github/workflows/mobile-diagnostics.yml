@@ -147,3 +147,19 @@ jobs:
             artifacts/open-corpus/*.tsv
             artifacts/open-corpus/*.json
             core/build/test-results/
+
+  open-test-report:
+    if: contains(github.event.head_commit.message, '[inspect-open-test]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read the failed negative-test assertion from retained evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 40418682300 --repo Ch-wook/File_Translator --name mobile-release-logs-ec8bbcbd02d003e7c54ff4fdd00e4dc27796dc57 --dir retained
+          python3 - <<'PY'
+          import pathlib
+          for p in pathlib.Path('retained').rglob('TEST-kr.documentstudio.core.DistributionViewTest.xml'):
+              print(p.read_text())
+          PY
