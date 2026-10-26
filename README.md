@@ -8,7 +8,7 @@ Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하
 
 [Android APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.3-preview/document-studio-0.8.3-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.3-preview/document-studio-0.8.3-preview-source.zip) · [해시·패치·Git 이력·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.3-preview)
 
-휴대폰에는 ARM64 APK를 설치하세요. x86_64 APK는 해당 아키텍처용입니다. 새 앱은 **문서 스튜디오 모바일**로 표시되며 기존 0.8.2와 함께 설치됩니다. [설치 실패 분석과 수정](docs/INSTALLATION_FIX.md)을 확인하세요. 개발 서명 프리뷰입니다. [모바일 한글 편집 기능·부분 지원·미구현 및 실제 검증](docs/HANGUL_MOBILE_EDITING.md)을 확인하세요.
+휴대폰에는 약 399 MB인 ARM64 APK를 설치하세요. x86_64 APK는 해당 아키텍처용입니다. 새 앱은 **문서 스튜디오 모바일**로 표시되며 기존 0.8.2와 함께 설치됩니다. [설치 실패 분석과 수정](docs/INSTALLATION_FIX.md)을 확인하세요. 개발 서명 프리뷰입니다. [모바일 한글 편집 기능·부분 지원·미구현 및 실제 검증](docs/HANGUL_MOBILE_EDITING.md)을 확인하세요.
 
 ## 휴대폰에서 사용하기
 
@@ -38,6 +38,8 @@ Android 10 이상, arm64-v8a/x86_64를 지원합니다. Office 엔진은 Android
 **검증용 개발 서명 프리뷰입니다.** 실제 Android 휴대폰 종합 인수와 모든 형식의 고급 문서 보존 검증은 남아 있습니다. 전용 글꼴·복잡한 한글 컨트롤·Office 고급 요소·PDF 임의 콘텐츠를 상용 프로그램과 동일하게 처리한다고 보장하지 않습니다. [형식별 지원과 제한](docs/SUPPORT_MATRIX.md)을 확인하세요.
 
 APK는 [GitHub Releases](https://github.com/Ch-wook/File_Translator/releases)에 실제 첨부된 파일로 제공합니다. 개발 서명이 기존 설치와 다르면 바로 업데이트되지 않으므로 기존 작업을 보존한 상태에서 확인하세요.
+
+2026-10-26 검증: Android 35 x86_64 21건, 단위 테스트 135건, JavaScript 22건, 실제 엔진 브라우저 7개 시나리오와 HWP/HWPX 독립 저장 파서 검사 통과. [실행 결과·저장 보존·설치 검증](docs/HANGUL_MOBILE_EDITING.md#실제-완료한-검증--2026-10-26)을 확인하세요. 실제 휴대폰 검증은 남아 있습니다.
 
 ## 빌드와 검증
 

@@ -57,7 +57,7 @@
 
 실행 환경 장애 때문에 로컬 셸·물리 휴대폰에 접근할 수 없다. 코드는 GitHub API로 보존하고 GitHub Actions에서 빌드·실행한다. Chromium의 휴대폰 화면은 Android 기기 검증과 구분하며, x86_64 Android 에뮬레이터의 테스트 IME는 실제 삼성 키보드/Gboard 또는 ARM64 휴대폰 검증을 대신하지 않는다.
 
-실제 실행 결과와 Release 링크는 검증 완료 후 아래에 추가한다. 통과하지 않은 검사를 통과로 표시하지 않는다.
+아래 실행 결과는 2026-10-26의 실제 빌드와 검증 자료를 기준으로 한다.
 
 
 ### 편집 회귀 수정
@@ -77,3 +77,28 @@
 기존 문단의 끝에서 줄바꿈할 때 마지막 글자 앞이 분할되는 경우를 실제 저장 XML로 재현했다. 커서는 글자 위치를 사용하지만 엔진 문단 분할은 이동 가능한 표·그림·도형·수식·각주/미주·번호 개체의 자리까지 센 논리 위치를 받았다. JS/WASM 경계에서 엔진의 실제 개체 위치와 종류를 사용해 변환한다. 키보드 Enter와 multiline 붙여넣기, undo/redo 후 기존 문단의 모든 글자가 유지되는지 즉시 검사하고 저장 후 독립 파서 검사도 유지한다.
 
 문단이 사라지는 undo/redo에서는 복원된 유효 커서/보조 영역을 먼저 적용한 뒤 선택 초기화 이벤트를 보낸다. 도구 상태가 이미 삭제된 문단이나 셀의 서식을 조회하는 오류를 방지한다. Enter 실행 취소/다시 실행의 실제 키 입력 경로로 검증한다.
+
+## 실제 완료한 검증 — 2026-10-26
+
+- 빌드 커밋: [2eb73f437994ae52b15d206611884679b530e5c1](https://github.com/Ch-wook/File_Translator/commit/2eb73f437994ae52b15d206611884679b530e5c1).
+- [전체 빌드·검증 실행](https://github.com/Ch-wook/File_Translator/actions/runs/40378159992): **성공**. core JUnit 120건, Office 런타임 단위 2건, app Robolectric 13건, JavaScript 22건 모두 실패·오류·건너뜀 0건. TypeScript 검사와 lint 통과.
+- 실제 Rhwp/Chromium 7개 시나리오(기존 5 + 모바일 HWP/HWPX 2) 통과. 외부 요청과 처리되지 않은 JavaScript 오류 0건. 부분 글꼴/크기/색·굵게·실제 자간/장평, 문단 범위, 목록, 찾기/바꾸기, 서식 복사, 원자적 선택 교체 undo/redo, 행·열 추가/삭제, 병합/나누기 3회, 셀 부분 서식, 실제 파일 선택/그림 터치 배치·크기 조절, 길게 누르기/선택 핸들, 자동 저장·엔진 재열기를 확인했다.
+- hwplib/hwpxlib 독립 파서: HWP/HWPX 저장 후 재열기, 선택 문자 속성과 인접 문자 보존, 기존 문단·셀 내용/서식, 표 구조/텍스트, 삽입 PNG의 정확한 바이트 보존 통과. 문단 끝 Enter와 undo/redo, 여러 줄 붙여넣기의 마지막 글자 보존도 확인했다.
+- **Android 35 x86_64 에뮬레이터 21건**, 실패·오류·건너뜀 0건. 기존 P0 19건과 실제 InputConnection 기반 테스트 IME의 HWP/HWPX 편집·저장·재열기 2건이다. DOC/DOCX/XLS/XLSX/PPT/PPTX의 네이티브 보기, DOCX 보기 위치 유지 및 쪽 나누기 저장, XLSX 열 삽입 저장, PPTX 슬라이드 삽입 저장의 기존 회귀 검사를 포함한다.
+- testOnly 옵션 없이 설치·실행, 0.8.2 병행 설치, 이전 APK 해시/개인 데이터 보존, 같은 서명 재설치 후 새 앱 개인 데이터 보존 통과.
+- ARM64/x86_64 각각 독립 APK 생성. 서명 인증서 일치, APK/ELF 16KB 정렬, testOnly/INTERNET 권한/배포 APK 안의 테스트 IME 부재, APK 속 한글 엔진 자산과 검증 자산의 바이트 일치, Office 정책 자산 일치 통과.
+- 소스 ZIP의 모든 추적 파일을 커밋 blob과 대조했다. 변경 패치 역적용 검사와 Git bundle 검증을 통과했다. 배포 작업은 검증된 빌드 산출물 9개를 재사용하며 업로드/공개 다운로드 크기·SHA-256을 다시 확인한다.
+
+**실제 ARM64 휴대폰·삼성 키보드·Gboard 종합 검증은 수행하지 않았다.** 위 표의 고급/미구현 기능과 복잡한 문서 호환성 제한은 계속 적용된다.
+
+## 배포
+
+[0.8.3-preview Release](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.3-preview) · [휴대폰 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.3-preview/document-studio-0.8.3-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.3-preview/document-studio-0.8.3-preview-source.zip) · [SHA256SUMS](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.3-preview/SHA256SUMS).
+
+개발 서명 프리뷰이며 Android 10 이상 64비트 ARM64 휴대폰용이다(Office는 Android 11 이상). 앱 이름은 **문서 스튜디오 모바일**이다. 기존 0.8.2 앱을 지우지 않고 함께 설치한다.
+
+ARM64: 398,851,877 bytes; SHA-256 `983ecb43e86b5df77603faa021f51f963402100af148c96e9e7b278d3c7b025d`.
+
+x86_64: 410,738,367 bytes; SHA-256 `22c77d55390b9334e1a69682f457eb955992677e33a91759ea79f184f40380ef`.
+
+배포 문서·워크플로만 추가한 태그 커밋과 APK 빌드 커밋은 구분한다. 소스 ZIP은 APK를 만든 위 빌드 커밋의 정확한 소스이며, 태그와의 앱 코드 차이가 없음을 배포 과정에서 확인한다.
