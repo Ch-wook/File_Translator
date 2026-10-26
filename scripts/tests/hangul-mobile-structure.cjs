@@ -111,7 +111,8 @@ module.exports=async function mobileStructure({page,frame,call,context}){
   await touch('touchStart',a.x,a.y);for(let step=1;step<=8;step++){await touch('touchMove',a.x+(b.x-a.x)*step/8,a.y+(b.y-a.y)*step/8);await page.waitForTimeout(20);}await touch('touchEnd');
  };
  // Insert a real image through the existing file picker and touch placement.
- await call('navigate',true);await call('plainText','\nMOBILE_IMAGE_ANCHOR\n');
+ await call('navigate',true);await call('plainText','\nMOBILE_IMAGE_ANCHOR\n');await call('focus');
+ const insertionCaret=await frame.locator('.caret').filter({visible:true}).first().boundingBox();assert.ok(insertionCaret);
  await page.locator('#groups').getByRole('tab',{name:'그림',exact:true}).click();
  const chooser=page.waitForEvent('filechooser');
  await page.locator('#tools').getByRole('button',{name:'그림 삽입',exact:true}).click();
@@ -119,9 +120,14 @@ module.exports=async function mobileStructure({page,frame,call,context}){
  await page.waitForTimeout(300);
  const canvas=await frame.locator('canvas.document-page-canvas').last().boundingBox();assert.ok(canvas);
  const bounds=await page.locator('#engine').boundingBox();assert.ok(bounds);
- const start={x:Math.max(bounds.x+40,Math.min(bounds.x+bounds.width-130,canvas.x+canvas.width*.35)),y:Math.max(bounds.y+100,Math.min(bounds.y+bounds.height-140,canvas.y+160))};
+ const start={x:Math.max(bounds.x+40,Math.min(bounds.x+bounds.width-130,insertionCaret.x+15)),y:Math.max(bounds.y+25,Math.min(bounds.y+bounds.height-100,insertionCaret.y+insertionCaret.height/2))};
  await drag(start,{x:start.x+70,y:start.y+55});
- await page.waitForTimeout(750);await page.touchscreen.tap(start.x+30,start.y+25);
+ await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.mobile.objects().some(c=>c.type==='image'),null,{timeout:10000});
+ console.log('INSERTED_IMAGE_OBJECTS',JSON.stringify(await call('objects')));
+ let inserted=(await call('objects')).find(c=>c.type==='image');assert.ok(inserted);
+ await frame.evaluate(rect=>{document.getElementById('scroll-container').scrollTop+=rect.y+rect.height/2-innerHeight/2;},inserted.rect);
+ await page.waitForTimeout(800);inserted=(await call('objects')).find(c=>c.type==='image');
+ await page.touchscreen.tap(bounds.x+inserted.rect.x+inserted.rect.width/2,bounds.y+inserted.rect.y+inserted.rect.height/2);
  await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.mobile.state().object);
  assert.equal(await call('count','가나다라'),1,'Image insertion preserves existing text');
  const imageBefore=(await call('state')).objectDetails;assert.equal(imageBefore.ref.type,'image');

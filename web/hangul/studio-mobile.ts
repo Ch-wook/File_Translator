@@ -79,7 +79,7 @@ export function createStudioMobile(env:Env) {
      const box=sc.getBoundingClientRect(),z=ih.viewportManager.getZoom(),vs=ih.virtualScroll;
      objectDetails={ref,props:ih.getObjectProperties(ref),bbox,rect:bbox?{x:box.left+vs.getPageLeftResolved(bbox.pageIndex,sc.clientWidth)+bbox.x*z,y:box.top+vs.getPageOffset(bbox.pageIndex)+bbox.y*z,width:bbox.w*z,height:bbox.h*z}:null};
    }catch{/* unavailable objects stay disabled */}
-   return {ready:true,epoch,composing:composing(),editing:studioIsEditing(),char:charState(),para:ih.getParaProperties(),selection:ih.hasSelection(),
+   return {ready:true,epoch,placement:Boolean(ih.imagePlacementMode||ih.textboxPlacementMode),composing:composing(),editing:studioIsEditing(),char:charState(),para:ih.getParaProperties(),selection:ih.hasSelection(),
      cell,objectDetails,object:c.isInPictureObjectSelection(),tableObject:c.isInTableObjectSelection(),style:ih.getCurrentStyleId(),
      canUndo:ih.canUndo(),canRedo:ih.canRedo(),copiedFormat:ih.hasCopiedFormat(),copiedChar:Boolean(copiedChar),
      scope:ih.isInCellSelectionMode()?'선택한 셀':ih.hasSelection()?'선택한 글자':'커서 이후 입력'};
@@ -300,6 +300,8 @@ export function createStudioMobile(env:Env) {
    search={query:'',hits:[],index:-1,epoch:-1};return {count:hits(query,sensitive).length,...result()};
  }
  return {state,capture,restore,char,para,font,fonts,defaultFont,copyCharFormat,pasteCharFormat,resetChar,resetPara,dispatch,copy,paste,plainText,createTable,moveCell,selectCells,cell,list,find,replace,
+   objects:()=>{const ih=input(),sc=ih.container.querySelector('#scroll-content'),box=sc.getBoundingClientRect(),z=ih.viewportManager.getZoom(),vs=ih.virtualScroll;
+     return Array.from({length:wasm.pageCount},(_,page:number)=>wasm.getPageControlLayout(page).controls.map((c:any)=>({...c,page,rect:{x:box.left+vs.getPageLeftResolved(page,sc.clientWidth)+c.x*z,y:box.top+vs.getPageOffset(page)+c.y*z,width:c.w*z,height:c.h*z}}))).flat();},
    cursorText:()=>{const p=input().getCursorPosition();return p.parentParaIndex===undefined?wasm.getTextRange(p.sectionIndex,p.paragraphIndex,0,wasm.getParagraphLength(p.sectionIndex,p.paragraphIndex)):p.cellPath?.length?wasm.getTextInCellByPath(p.sectionIndex,p.parentParaIndex,JSON.stringify(p.cellPath),0,wasm.getCellParagraphLengthByPath(p.sectionIndex,p.parentParaIndex,JSON.stringify(p.cellPath))):wasm.getTextInCell(p.sectionIndex,p.parentParaIndex,p.controlIndex,p.cellIndex,p.cellParaIndex,0,wasm.getCellParagraphLength(p.sectionIndex,p.parentParaIndex,p.controlIndex,p.cellIndex,p.cellParaIndex));},
    count:(q:string,s=false)=>hits(q,s).length,styles:()=>wasm.getStyleList(),
    focus:()=>input().focus(),reveal:()=>input().updateCaret(),
