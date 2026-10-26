@@ -20,7 +20,7 @@ class DistributionViewTest {
     @Test fun encryptedHwpRemainsRejected() {
         val encrypted=File.createTempFile("protected-", ".hwp")
         try {
-            POIFSFileSystem(fixture,true).use {fs->
+            fixture.inputStream().use {input->POIFSFileSystem(input)}.use {fs->
                 val header=fs.createDocumentInputStream("FileHeader").use {it.readBytes()}
                 header[36]=(header[36].toInt() or 2).toByte()
                 fs.root.createOrUpdateDocument("FileHeader",header.inputStream())
