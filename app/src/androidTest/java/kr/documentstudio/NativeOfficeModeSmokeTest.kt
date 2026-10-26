@@ -49,7 +49,8 @@ class NativeOfficeModeSmokeTest {
     @Before fun supportedAndroid() {
         assumeTrue("Native Office requires Android 11+", Build.VERSION.SDK_INT >= 30)
         device.wakeUp()
-        device.pressHome()
+        // Reset the CI AOSP Quickstep process; its ANR must not cover the app under test.
+        device.executeShellCommand("am force-stop com.android.launcher3")
     }
 
     @Test fun docReadOnlyUsesActualNativeEngine() = runBlocking { exercise(Format.DOC) }
@@ -338,7 +339,7 @@ class NativeOfficeModeSmokeTest {
     }
 
     private fun visible(text: String, timeout: Long = 15_000): UiObject2 =
-        device.wait(Until.findObject(By.pkg(context.packageName).text(text)), timeout)
+        device.wait(Until.findObject(By.pkg(context.packageName).text(text).enabled(true)), timeout)
             ?: throw AssertionError("Native Office UI missing: $text")
 
     private fun documentBounds(): Rect {

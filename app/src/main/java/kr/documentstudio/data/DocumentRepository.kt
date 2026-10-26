@@ -327,9 +327,15 @@ class DocumentRepository(private val context: Context) {
         require(s.base.name==pending.getString("base") && s.revision==pending.getLong("revision")) {"다른 작업의 종료 요청입니다."}
         require(working.isFile && working.length() in 1..128L*1024*1024)
         java.io.RandomAccessFile(File(dir,"office.lock"),"rw").use {file ->
-            val lock=try {file.channel.tryLock()} catch(e: java.nio.channels.OverlappingFileLockException) {null}
+            var lock: java.nio.channels.FileLock?=null
+            val deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(5)
+            while(lock==null) {
+                lock=try {file.channel.tryLock()} catch(e: java.nio.channels.OverlappingFileLockException) {null}
+                if(lock!=null || System.nanoTime()>=deadline) break
+                Thread.sleep(25)
+            }
             require(lock!=null) {"정밀 편집 엔진의 종료를 기다려 주세요."}
-            lock.use {
+            requireNotNull(lock).use {
                 require(close.getString("hash").matches(Regex("[0-9a-f]{64}")) && digest(working)==close.getString("hash")) {
                     "종료 요청 뒤 작업 파일이 변경되었습니다. 복구본을 보존했습니다."
                 }

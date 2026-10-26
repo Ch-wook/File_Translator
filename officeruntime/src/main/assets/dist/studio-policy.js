@@ -34,6 +34,7 @@
   let bar, actions, hint, tabs, modeButton, modeLabel, saveButton;
   let transitionViewport, persistTimer, lastViewport='';
   let activeTab = '홈';
+  let modeTransition=false, transitionGeneration=0;
   const controls = [];
   const map = () => window.app && app.map;
   const objectSelected = () => typeof GraphicSelection !== 'undefined' && GraphicSelection.hasActiveSelection();
@@ -55,24 +56,47 @@
       && Math.abs(value.x)<=1e12 && Math.abs(value.y)<=1e12 && value.zoom>=0 && value.zoom<=30
       && Number.isInteger(value.part) && value.part>=0 && value.part<=1000000;
   }
-  function restore(value) {
-    if (!validViewport(value)) return;
+  function restore(value, done, generation) {
+    const current=()=>generation===undefined || generation===transitionGeneration;
+    if(!current()) return;
+    if (!validViewport(value)) {done?.();return;}
     const drain = task => window.app?.layoutingService?.onDrain ? app.layoutingService.onDrain(task) : setTimeout(task,0);
     drain(() => {
-      if (!map()) return;
+      if (!current() || !map()) return;
       const layout = window.app?.activeDocument?.activeLayout;
-      if (!layout) return;
-      if (map().getCurrentPartNumber?.() !== value.part) map().setPart?.(value.part);
+      if (!layout) {done?.();return;}
+      if (map().getDocType()!=='text' && map().getCurrentPartNumber?.() !== value.part) map().setPart?.(value.part);
       layout.applyZoom?.(value.zoom);
       drain(() => {
-        const current=window.app?.activeDocument?.activeLayout, ratio=window.app.twipsToPixels;
-        if (Number.isFinite(ratio)) current?.scrollTo?.(value.x*ratio,value.y*ratio);
+        if(!current()) return;
+        const active=window.app?.activeDocument?.activeLayout, ratio=window.app.twipsToPixels;
+        if (Number.isFinite(ratio)) active?.scrollTo?.(value.x*ratio,value.y*ratio);
+        drain(()=>{if(current()) done?.();});
       });
     });
   }
+  function beginModeTransition(value) {
+    transitionViewport=value;modeTransition=true;
+    return ++transitionGeneration;
+  }
+  function settleModeTransition(value, generation) {
+    // Native cursor activation can arrive after the synchronous permission event.
+    // Keep tools gated through the layout drain and that short Android UI transition.
+    restore(value,()=>setTimeout(()=>restore(value,()=>{
+      if(generation!==transitionGeneration) return;
+      modeTransition=false;update();persistViewport();
+    },generation),500),generation);
+  }
+  function cancelModeRestore(event) {
+    if(modeTransition && !bar?.contains(event.target)) {
+      ++transitionGeneration;modeTransition=false;update();
+    }
+  }
+  for(const name of ['pointerdown','touchstart','wheel','keydown'])
+    document.addEventListener(name,cancelModeRestore,true);
   function persistViewport() {
     let value;
-    try { value=snapshot() || {error:'layout-unavailable',family:map()?.getDocType?.()}; }
+    try { value=(modeTransition && validViewport(transitionViewport) ? transitionViewport : snapshot()) || {error:'layout-unavailable',family:map()?.getDocType?.()}; }
     catch(error) { value={error:String(error.message || error),family:map()?.getDocType?.()}; }
     // The native validator stores only valid coordinates. Invalid values are
     // retained separately as bounded view diagnostics, never as document data.
@@ -86,22 +110,25 @@
     const m=map(), enter=m._switchToEditMode;
     if (typeof enter!=='function' || typeof m.setPermission!=='function') return false;
     m._switchToEditMode=function(...args) {
+      if(modeTransition) return false;
       const value=snapshot();
       if (new URLSearchParams(location.search).get('permission')!=='edit' || !bridge()?.requestStudioEdit?.()) {
         hint.textContent='이 문서는 편집할 수 없습니다.';return false;
       }
-      transitionViewport=value;policy.authorized=true;policy.wasAuthorized=true;
+      const generation=beginModeTransition(value);
+      policy.authorized=true;policy.wasAuthorized=true;
       const result=enter.apply(this,args);
-      restore(value);return result;
+      update();refreshLayout();settleModeTransition(value,generation);return result;
     };
     const permission=m.setPermission;
     m.setPermission=function(value,...args) {
-      const viewport=snapshot();
+      const viewport=modeTransition && validViewport(transitionViewport) ? transitionViewport : snapshot();
+      const generation=beginModeTransition(viewport);
       const result=permission.call(this,value,...args);
       // Upstream commits a pending Calc cell before entering read-only mode.
       // Do not revoke the gate before that commit has reached the native core.
       if (value==='readonly' || value==='view') policy.authorized=false;
-      transitionViewport=viewport;restore(viewport);update();return result;
+      update();refreshLayout();settleModeTransition(viewport,generation);return result;
     };
     return true;
   }
@@ -129,9 +156,10 @@
     modeButton.setAttribute('aria-label',modeButton.textContent);
     modeButton.hidden=!policy.modeSupported || new URLSearchParams(location.search).get('permission')!=='edit';
     saveButton.hidden=!policy.changed;
+    modeButton.disabled=modeTransition;saveButton.disabled=modeTransition;
     controls.forEach(({ b, item }) => {
       const state = item.name && map().stateChangeHandler && map().stateChangeHandler.getItemValue('.uno:' + item.name);
-      b.disabled = !editing || (item.needsObject && !object) || state === 'disabled';
+      b.disabled = !editing || modeTransition || (item.needsObject && !object) || state === 'disabled';
       if (state === 'true' || state === 'false') b.setAttribute('aria-pressed', state);
       else b.removeAttribute('aria-pressed');
     });
@@ -196,7 +224,7 @@
       if(event.commandName==='.uno:ModifiedStatus' && String(event.state)==='true' && policy.wasAuthorized) policy.changed=true;
       update();
     });
-    app.events.on('updatepermission',()=>{update();refreshLayout();restore(transitionViewport);});
+    app.events.on('updatepermission',()=>{update();refreshLayout();if(modeTransition) restore(transitionViewport,undefined,transitionGeneration);});
     map().on('moveend zoomend updateparts',rememberViewport);
     try {restore(JSON.parse(bridge()?.getStudioViewState?.() || '{}'));} catch(ignore) { }
     render();policy.ready=true;return true;

@@ -34,7 +34,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
     }},
     map: {
       _docLoaded: true, wopi: {}, isEditMode: () => editing,
-      _switchToEditMode: () => {requested++;editing=true;zoom=10;listeners.updatepermission?.();},
+      _switchToEditMode: () => {requested++;editing=true;zoom=10;x=0;y=0;listeners.updatepermission?.();w.setTimeout(()=>{x=0;y=0;},50);},
       setPermission: value => {editing=value==='edit';x=0;y=0;listeners.updatepermission?.();},
       getDocType: () => family, getZoom:()=>zoom, getCurrentPartNumber:()=>part, setPart:value=>{part=value;},
       sendUnoCommand: (name,args) => commands.push({name,args}), focus: () => {},
@@ -48,9 +48,9 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
       const tasks=[...timeouts.values()];timeouts.clear();tasks.forEach(fn=>fn());
     }
   };
-  w.eval(source);tick();
+  w.eval(source);tick();flush();
   const button = label => [...w.document.querySelectorAll('#studio-office-tools button')].find(b=>b.textContent===label);
-  const click = label => {const b=button(label);assert.ok(b,`Missing ${label}`);b.click();return b;};
+  const click = label => {const b=button(label);assert.ok(b,`Missing ${label}`);b.click();if(label==='편집하기' || label==='보기로 전환') flush();return b;};
   return {
     w,commands,states,keys,mobile,persisted,tick,click,button,flush,viewport,
     requests:()=>requested,grants:()=>grants,resizes:()=>layoutResizes,close:()=>w.close(),
@@ -175,4 +175,21 @@ test('pinned native layouts resize without the removed map invalidateSize API', 
       assert.ok(s.persisted.some(value=>Number.isFinite(value.x) && Number.isFinite(value.zoom)));
     } finally {s.close();}
   }
+});
+
+test('mode tools wait for delayed native caret activation before restoring the original viewport', () => {
+  const s=workspace('text');
+  try {
+    const before=s.viewport();
+    s.button('편집하기').click();
+    assert.equal(s.button('보기로 전환').disabled,true);
+    assert.equal(s.button('굵게').disabled,true);
+    s.button('보기로 전환').click();
+    assert.equal(s.w.app.map.isEditMode(),true);
+    s.flush();
+    assert.deepEqual(s.viewport(),before);
+    assert.equal(s.button('보기로 전환').disabled,false);
+    assert.equal(s.button('굵게').disabled,false);
+    s.click('보기로 전환');assert.deepEqual(s.viewport(),before);
+  } finally {s.close();}
 });

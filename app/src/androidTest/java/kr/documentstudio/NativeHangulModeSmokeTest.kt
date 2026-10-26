@@ -50,6 +50,10 @@ class NativeHangulModeSmokeTest {
             .putExtra("sessionId",session.id)
             .putExtra("workingPath",working.absolutePath)
             .putExtra("displayName","Android 원본 보기.${format.extension}")
+        device.wakeUp()
+        // AOSP Quickstep can show its own ANR over an already loaded WebView.
+        // Reset that unrelated launcher before starting the document Activity.
+        device.executeShellCommand("am force-stop com.android.launcher3")
         context.startActivity(launch)
         try {
             await("The real engine must report loaded original view",120_000) {
