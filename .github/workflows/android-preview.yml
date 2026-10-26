@@ -224,7 +224,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 40277128748 --repo "$GITHUB_REPOSITORY" --name verification-logs-ada18f3e8eaadb5665ad691c7fe62260cd8a5142 --dir evidence
+          gh run download 40281706445 --repo "$GITHUB_REPOSITORY" --name verification-logs-8269576bf783bf61fe971ba21d37c6dd97b0b292 --dir evidence
           python3 - <<'PY'
           import pathlib,xml.etree.ElementTree as ET,json
           for p in pathlib.Path('evidence').rglob('*.xml'):
@@ -251,4 +251,12 @@ jobs:
                   if re.search(r'CONSOLE|Javascript|JavaScript|ReadOnly|chromium.*(?:Error|error)|Bridge|WrongThread|FATAL EXCEPTION|Exception',line):
                       indices.update(range(max(0,i-2),min(len(lines),i+5)))
               print('DEVICE_LOG_EXCERPTS',p,'\n'.join(lines[i] for i in sorted(indices))[-45000:])
+          PY
+          python3 - <<'PY'
+          import pathlib,re
+          for p in pathlib.Path('evidence').rglob('logcat-*NativeOfficeModeSmokeTest*.txt'):
+              if 'xlsxReadOnly' not in p.name and 'docxReadOnly' not in p.name: continue
+              print('OFFICE_PROCESS_LIFECYCLE',p)
+              for line in p.read_text(errors='replace').splitlines():
+                  if re.search(r'ActivityManager|ActivityTaskManager|libc|DEBUG|crash|tombstone|signal|force.?stop|died|killed|zygote|Finish|finishing|WindowManager|Process',line,re.I): print(line)
           PY
