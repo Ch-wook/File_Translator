@@ -131,3 +131,26 @@ text=cursor.read_text()
 before="function findWordAt(text: string, offset: number):"
 if text.count(before)!=1: raise RuntimeError('Pinned cursor word boundary source changed')
 cursor.write_text(text.replace(before,"export "+before,1))
+
+# Cursor positions use text scalar offsets. The pinned Paragraph::split_at consumes
+# logical positions that also count movable controls, including floating objects.
+# Match its reviewed control kinds at this JS/WASM boundary.
+bridge=root/'src/core/wasm-bridge.ts'
+text=bridge.read_text()
+before="    return this.doc.splitParagraph(sec, para, charOffset, serializeParaMeta(removedParaMeta));"
+after="""    const positions = this.getControlTextPositions(sec, para);
+    let logicalOffset = charOffset;
+    if (positions.length > 0) {
+      let bodyPara = para;
+      for (let section = 0; section < sec; section++) bodyPara += this.getParagraphCount(section);
+      const movable = new Set(['tbl', 'gso', 'eqed', 'fn', 'en', 'atno', 'tcps']);
+      for (const control of this.getControls()) {
+        if (control.list === 0 && control.para === bodyPara &&
+            movable.has(control.ctrlId.trim()) && positions[control.controlIndex] < charOffset) {
+          logicalOffset++;
+        }
+      }
+    }
+    return this.doc.splitParagraph(sec, para, logicalOffset, serializeParaMeta(removedParaMeta));"""
+if text.count(before)!=1: raise RuntimeError('Pinned paragraph split boundary changed')
+bridge.write_text(text.replace(before,after,1))

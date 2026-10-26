@@ -12,7 +12,16 @@ const image=pngBytes();
 // Runs inside the production phone host. Only setup/navigation use the controller; gestures use actual touch events.
 module.exports=async function mobileStructure({page,frame,call,context}){
  const report={};const near=(a,b)=>assert.ok(Math.abs(a-b)<.08,JSON.stringify({actual:a,expected:b}));
+ await call('navigate',true);const originalEnd=await call('cursorText');
+ assert.ok(originalEnd);assert.equal(await call('count',originalEnd),1);
+ await call('focus');await page.keyboard.press('Enter');
+ assert.equal(await call('count',originalEnd),1,'Enter after an anchored table preserves every existing character');
+ await call('dispatch','edit:undo');assert.equal(await call('count',originalEnd),1);
+ await call('dispatch','edit:redo');assert.equal(await call('count',originalEnd),1);
+ await call('dispatch','edit:undo');report.anchoredParagraphEnterUndo=true;
  await call('navigate',true);await call('plainText','\nMOBILE_BEFORE\nMOBILE_PARA\nMOBILE_AFTER\nTABLE_ANCHOR');
+ assert.equal(await call('count',originalEnd),1,'Multiline paste at document end preserves the last original character');
+ assert.equal(await call('cursorText'),'TABLE_ANCHOR','New text follows the original paragraph, including its final character');
  await call('find','MOBILE_BEFORE');const before=(await call('state')).para;
  await call('find','MOBILE_AFTER');const after=(await call('state')).para;
  await call('find','MOBILE_PARA');
