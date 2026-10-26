@@ -39,8 +39,15 @@ public final class DocumentViewState {
             out.write(bytes);
             out.getFD().sync();
             state.finishWrite(out);
+            new File(directory, "office-view-state-error.json").delete();
         } catch (Exception failure) {
             if (out != null) state.failWrite(out);
+            AtomicFile error = new AtomicFile(new File(directory, "office-view-state-error.json"));
+            FileOutputStream diagnostic = null;
+            try {
+                byte[] bytes = new JSONObject().put("error", failure.toString()).put("view", text).toString().getBytes(StandardCharsets.UTF_8);
+                diagnostic = error.startWrite(); diagnostic.write(bytes); diagnostic.getFD().sync(); error.finishWrite(diagnostic);
+            } catch (Exception ignored) { if (diagnostic != null) error.failWrite(diagnostic); }
         }
     }
     public static void markEdited(File working) throws IOException {

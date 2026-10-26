@@ -7,7 +7,10 @@
   const style = document.createElement('style');
   style.textContent = `
     #AIAssistant-tab-label, #AIAssistant-tab, [id*="aiassistant"], [id*="ai-assistant"] { display:none !important; }
-    #studio-office-tools { --studio-accent:#2858a5; background:var(--color-background-lighter,#fff); color:var(--color-main-text,#243247); border-top:1px solid var(--color-border,#e3e8ef); font:13px system-ui,sans-serif; flex:none; }
+    html[data-studio-office-host] #document-container.readonly.mobile { position:relative !important; top:auto !important; min-height:0; }
+    #toolbar-wrapper.studio-office-host { display:flex !important; position:relative; z-index:20 !important; flex-shrink:0; }
+    #toolbar-wrapper.studio-office-host.readonly > :not(#studio-office-tools) { display:none !important; }
+    #studio-office-tools { position:relative; z-index:1; pointer-events:auto; --studio-accent:#2858a5; background:var(--color-background-lighter,#fff); color:var(--color-main-text,#243247); border-top:1px solid var(--color-border,#e3e8ef); font:13px system-ui,sans-serif; flex:none; }
     #studio-office-tools[data-family="spreadsheet"] { --studio-accent:#217346; }
     #studio-office-tools[data-family="presentation"] { --studio-accent:#b94d30; }
     #studio-office-mode { display:flex; align-items:center; gap:4px; padding:3px 8px; }
@@ -39,7 +42,7 @@
     const layout = window.app?.activeDocument?.activeLayout;
     const rect = layout?.viewedRectangle;
     if (!rect || !map()?.getZoom) return null;
-    return { x:rect.x1, y:rect.y1, zoom:map().getZoom(), part:map().getCurrentPartNumber?.() || 0 };
+    return { x:Number(rect.x1), y:Number(rect.y1), zoom:Number(map().getZoom()), part:map().getDocType()==='text' ? 0 : Number(map().getCurrentPartNumber?.() || 0) };
   }
   function validViewport(value) {
     return value && ['x','y','zoom','part'].every(key => Number.isFinite(value[key]))
@@ -62,11 +65,13 @@
     });
   }
   function persistViewport() {
-    const value = snapshot();
-    if (validViewport(value)) {
-      const text=JSON.stringify(value);
-      if (text!==lastViewport) {bridge()?.saveStudioViewState?.(text);lastViewport=text;}
-    }
+    let value;
+    try { value=snapshot() || {error:'layout-unavailable',family:map()?.getDocType?.()}; }
+    catch(error) { value={error:String(error.message || error),family:map()?.getDocType?.()}; }
+    // The native validator stores only valid coordinates. Invalid values are
+    // retained separately as bounded view diagnostics, never as document data.
+    const text=JSON.stringify(value);
+    if (text!==lastViewport) {bridge()?.saveStudioViewState?.(text);lastViewport=text;}
   }
   function rememberViewport() {
     clearTimeout(persistTimer); persistTimer=setTimeout(persistViewport,250);
@@ -158,6 +163,7 @@
   function mount() {
     const wrapper = document.getElementById('toolbar-wrapper');
     if (!wrapper) return false;
+    document.documentElement.dataset.studioOfficeHost='true';wrapper.classList.add('studio-office-host');
     bar = document.createElement('section'); bar.id='studio-office-tools'; bar.dataset.family=map().getDocType(); bar.setAttribute('aria-label','문서 편집 도구');
     const mode=document.createElement('div');mode.id='studio-office-mode';
     modeLabel=document.createElement('span');modeLabel.id='studio-office-mode-label';modeLabel.setAttribute('aria-live','polite');mode.appendChild(modeLabel);
@@ -175,6 +181,9 @@
     const toggle=button('도구 접기',()=>{const collapsed=bar.dataset.collapsed!=='true';bar.dataset.collapsed=String(collapsed);toggle.textContent=collapsed?'도구 펼치기':'도구 접기';toggle.setAttribute('aria-label',toggle.textContent);toggle.setAttribute('aria-expanded',String(!collapsed));map().invalidateSize();},tabs);
     toggle.id='studio-office-toggle';toggle.setAttribute('aria-expanded','true');
     bar.append(mode,tabs,actions,hint);wrapper.appendChild(bar);
+    // Keep map touch/drag handlers from consuming host toolbar taps.
+    if(window.L?.DomEvent?.disableClickPropagation) L.DomEvent.disableClickPropagation(bar);
+    else for(const name of ['mousedown','touchstart','pointerdown','dblclick','contextmenu']) bar.addEventListener(name,event=>event.stopPropagation());
     policy.modeSupported=installModeGate();
     if(!policy.modeSupported) {hint.textContent='이 엔진에서는 모드 전환을 지원하지 않습니다.';modeButton.hidden=true;}
     map().on('commandstatechanged',event=>{

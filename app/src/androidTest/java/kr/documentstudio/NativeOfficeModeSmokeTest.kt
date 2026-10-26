@@ -182,6 +182,8 @@ class NativeOfficeModeSmokeTest {
                     device.takeScreenshot(File(evidence, "$label-failure.png"))
                 }
                 if (viewportFile.exists()) viewportFile.copyTo(File(evidence, "$label-viewport.json"), overwrite = true)
+                val viewError=File(working.parentFile,"office-view-state-error.json")
+                if(viewError.exists()) viewError.copyTo(File(evidence,"$label-viewport-error.json"),overwrite=true)
                 record.put("completed", completed)
                 File(evidence, "$label.json").writeText(record.toString(2))
             }
