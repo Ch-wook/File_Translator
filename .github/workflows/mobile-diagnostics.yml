@@ -1,0 +1,36 @@
+name: Inspect mobile saved-file evidence
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    if: contains(github.event.head_commit.message, '[diagnose-083]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect the retained input and output without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 40371961174 --repo Ch-wook/File_Translator --name mobile-release-logs-64bae1978a511159ca1168da9e5e75dae44d289e --dir previous
+          python3 - <<'PY'
+          import pathlib,zipfile,xml.etree.ElementTree as ET
+          for name in ('fixture.hwpx','mobile-formatting.hwpx'):
+              p=next(pathlib.Path('previous').rglob(name))
+              with zipfile.ZipFile(p) as z:
+                  body=ET.fromstring(z.read('Contents/section0.xml'))
+              local=lambda e:e.tag.rsplit('}',1)[-1]
+              print('DOCUMENT',name)
+              print('ALL_TEXT',repr(''.join(e.text or '' for e in body.iter() if local(e)=='t')))
+              for e in body.iter():
+                  if local(e)=='run':
+                      direct=''.join(''.join(c.itertext()) for c in e if local(c)=='t')
+                      print('RUN',e.attrib,repr(direct))
+              for e in body.iter():
+                  if local(e)=='tc':
+                      print('CELL',e.attrib,repr(''.join(t.text or '' for t in e.iter() if local(t)=='t')))
+          PY
