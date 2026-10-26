@@ -36,6 +36,9 @@ for abi in ('arm64-v8a','x86_64'):
     cert=re.findall(r'certificate SHA-256 digest: (.+)',signature);assert len(cert)==1
     with zipfile.ZipFile(apk) as z:
         assert z.testzip() is None
+        for dex in z.namelist():
+            if re.fullmatch(r'classes\d*\.dex',dex):
+                assert b'Lkr/documentstudio/fixtures/KoreanImeFixture;' not in z.read(dex),'Test-only IME leaked into main APK'
         libraries=[p for p in z.infolist() if p.filename.startswith('lib/') and p.filename.endswith('.so')]
         assert {p.filename.split('/')[1] for p in libraries}=={abi}
         assert 'lib/'+abi+'/libandroidapp.so' in z.namelist()

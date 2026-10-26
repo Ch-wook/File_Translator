@@ -64,12 +64,12 @@ class NativeHangulEditingTest {
     private fun imeStatus(): JSONObject=runCatching {
         JSONObject(device.executeShellCommand("run-as "+instrumentation.context.packageName+" cat files/ime-fixture-status.json"))
     }.getOrDefault(JSONObject())
-    private fun awaitNumberConnection() {
-        await("Android must connect the numeric panel input to the IME") {
+    private fun awaitConnection(kind: Int) {
+        await("Android must connect the focused input to IME class "+kind) {
             val id=++sequence
             probe("ime",data=Bundle().apply {putString("command","status");putInt("sequence",id)})
             SystemClock.sleep(80)
-            imeStatus().optInt("sequence")==id && (imeStatus().optInt("inputType") and 15) == 2
+            imeStatus().optInt("sequence")==id && (imeStatus().optInt("inputType") and 15) == kind
         }
     }
     private fun count(text: String)= (value("window.rhwpStudio.documentStudio.mobile.count("+JSONObject.quote(text)+")") as Number).toInt()
@@ -120,7 +120,8 @@ class NativeHangulEditingTest {
             await("Explicit editing must become active") {json("({state:document.body.dataset.state})").optString("state")=="EDITING"}
             eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.plainText('IME_START|');document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.focus()")
             probe("show-ime")
-            await("The test-only Korean IME must appear") {device.hasObject(By.text("한국어 입력 검증 IME"))}
+            awaitConnection(1)
+            await("The test-only Korean IME must appear") {device.hasObject(By.text("한국어 입력 검증 IME")) || device.hasObject(By.textStartsWith("IME 요청 "))}
             for(text in listOf("ㅎ","하","한"))ime("compose",text)
             ime("commit","한");ime("compose","ㄱ");ime("compose","그");ime("compose","글");ime("commit","글")
             await("Korean syllables must compose once without separated jamo") {mCount("IME_START|한글")==1}
@@ -144,7 +145,7 @@ class NativeHangulEditingTest {
             val rangeBefore=mJson("capture()").getJSONObject("range").toString()
             tapVisibleControl("글자 모양")
             tapVisibleControl("크기(pt)")
-            awaitNumberConnection()
+            awaitConnection(2)
             ime("selectAll");ime("commit","18")
             await("The numeric field must apply only the selected document text") {mJson("state()").getJSONObject("char").optInt("fontSize")==1800}
             tapVisibleControl("글자색 #e53935")
@@ -181,8 +182,9 @@ class NativeHangulEditingTest {
             eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('KEEP_CELL')")
             assertFalse("Cell character formatting must leave another cell unchanged",mJson("state()").getJSONObject("char").getBoolean("underline"))
             eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('셀입력');document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.focus()")
-            val viewport=json("(function(){const f=document.getElementById('engine'),r=f.getBoundingClientRect(),c=f.contentDocument.querySelector('.caret').getBoundingClientRect();return {frameTop:r.top,frameBottom:r.bottom,caretBottom:r.top+c.bottom,caretHeight:c.height,height:innerHeight};})()")
-            assertTrue("The IME must not cover the active caret",viewport.getDouble("caretHeight")>0 && viewport.getDouble("caretBottom")<=viewport.getDouble("frameBottom")+3)
+            ime("key",key=KeyEvent.KEYCODE_DPAD_RIGHT)
+            val viewport=json("(function(){const f=document.getElementById('engine'),r=f.getBoundingClientRect(),c=f.contentDocument.querySelector('.caret').getBoundingClientRect();return {frameTop:r.top,frameBottom:r.bottom,caretBottom:r.top+c.bottom,caretTop:r.top+c.top,caretHeight:c.height,height:innerHeight};})()")
+            assertTrue("The IME must not cover the active caret",viewport.getDouble("caretHeight")>0 && viewport.getDouble("caretTop")>=viewport.getDouble("frameTop")-3 && viewport.getDouble("caretBottom")<=viewport.getDouble("frameBottom")+3)
             device.takeScreenshot(File(output,format.extension+"-keyboard-format.png"))
             assertEquals("Working-copy edits must not overwrite the baseline",baseline,DocumentRepository.digest(session.base))
             eval("window.documentStudioHost.saveAndClose()")

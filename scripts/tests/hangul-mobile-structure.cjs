@@ -118,11 +118,11 @@ module.exports=async function mobileStructure({page,frame,call,context}){
  await drag(start,{x:start.x+70,y:start.y+55});
  await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.mobile.state().object);
  assert.equal(await call('count','가나다라'),1,'Image insertion preserves existing text');
- const image=(await call('state')).objectDetails;assert.equal(image.ref.type,'image');
+ const imageBefore=(await call('state')).objectDetails;assert.equal(imageBefore.ref.type,'image');
  const resize=frame.getByRole('button',{name:'개체 크기 se',exact:true});await resize.waitFor({state:'visible'});
  const grip=await resize.boundingBox();await drag({x:grip.x+22,y:grip.y+22},{x:grip.x+47,y:grip.y+42});
  const resized=(await call('state')).objectDetails;
- assert.ok(resized.props.width!==image.props.width||resized.props.height!==image.props.height,'Touch resize changes real image properties');
+ assert.ok(resized.props.width!==imageBefore.props.width||resized.props.height!==imageBefore.props.height,'Touch resize changes real image properties');
  await call('dispatch','edit:undo');
  report.imageFilePicker=true;report.imageTouchPlacement=true;report.imageTouchResize=true;report.imageUndo=true;
 
