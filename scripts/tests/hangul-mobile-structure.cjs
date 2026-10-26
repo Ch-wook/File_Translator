@@ -112,7 +112,7 @@ module.exports=async function mobileStructure({page,frame,call,context}){
  await page.locator('#tools').getByRole('button',{name:'그림 삽입',exact:true}).click();
  await(await chooser).setFiles({name:'mobile-image.png',mimeType:'image/png',buffer:image});
  await page.waitForTimeout(300);
- const canvas=await frame.locator('.page-canvas').last().boundingBox();assert.ok(canvas);
+ const canvas=await frame.locator('canvas.document-page-canvas').last().boundingBox();assert.ok(canvas);
  const bounds=await page.locator('#engine').boundingBox();assert.ok(bounds);
  const start={x:Math.max(bounds.x+40,Math.min(bounds.x+bounds.width-130,canvas.x+canvas.width*.35)),y:Math.max(bounds.y+100,Math.min(bounds.y+bounds.height-140,canvas.y+160))};
  await drag(start,{x:start.x+70,y:start.y+55});

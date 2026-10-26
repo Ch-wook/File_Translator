@@ -109,6 +109,14 @@ object MobileRoundTripTool {
                 val base=Xml.elements(h,"charPr").first {it.getAttribute("id")==id}
                 fun signature(s: Element)=listOf(s.getAttribute("height"),s.getAttribute("textColor"),Xml.child(s,"bold")!=null,Xml.child(s,"italic")!=null,Xml.child(s,"ratio")?.getAttribute("hangul"),Xml.child(s,"spacing")?.getAttribute("hangul"))
                 require(signature(shapes[first+5])==signature(base)) {"Unselected HWPX formatting changed"}
+                require(Xml.elements(body,"tbl").size==Xml.elements(b,"tbl").size+1) {"An existing table was lost"}
+                for(label in Xml.elements(b,"t").map {it.textContent}.filter {it.startsWith("KEEP_CELL_")}) {
+                    val saved=Xml.elements(body,"t").single {it.textContent==label}
+                    val old=Xml.elements(b,"t").single {it.textContent==label}
+                    val oldId=(old.parentNode as Element).getAttribute("charPrIDRef")
+                    val savedId=(saved.parentNode as Element).getAttribute("charPrIDRef")
+                    require(signature(properties.getValue(savedId))==signature(Xml.elements(h,"charPr").first {it.getAttribute("id")==oldId})) {"Untouched original cell format changed"}
+                }
             }
             val table=Xml.elements(body,"tbl").first {Xml.elements(it,"t").any {t->t.textContent.contains("MOBILE_CELL_A")}}
             require(Xml.elements(table,"tr").size==2 && Xml.elements(table,"tc").size==4)
