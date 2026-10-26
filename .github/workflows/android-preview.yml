@@ -222,43 +222,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Read previous Android failure evidence
+      - name: Inspect actual pinned APK layout methods
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 40281706445 --repo "$GITHUB_REPOSITORY" --name verification-logs-8269576bf783bf61fe971ba21d37c6dd97b0b292 --dir evidence
+          gh run download 40288624953 --repo "$GITHUB_REPOSITORY" --name document-studio-preview-7d9fc495637ed4ab9ddce5a4efdc05624e5a2442 --dir delivery
           python3 - <<'PY'
-          import pathlib,xml.etree.ElementTree as ET,json
-          for p in pathlib.Path('evidence').rglob('*.xml'):
-              if not p.name.startswith('TEST-'): continue
-              root=ET.parse(p).getroot()
-              print('SUITE',p,root.attrib)
-              for case in root.iter('testcase'):
-                  for failure in list(case.findall('failure'))+list(case.findall('error')):
-                      print('FAILURE',case.attrib,failure.attrib,(failure.text or '')[:14000])
-          for p in pathlib.Path('evidence').rglob('*.json'):
-              if p.stat().st_size<100000: print('JSON',p,p.read_text())
-          for p in pathlib.Path('evidence').rglob('android-runtime.log'):
-              print('ANDROID_RUNTIME',p,p.read_text()[-30000:])
-          PY
-          python3 - <<'PY'
-          import pathlib,re
-          for p in pathlib.Path('evidence').rglob('*'):
-              if p.is_file(): print('EVIDENCE_FILE',p,p.stat().st_size)
-              if not p.is_file() or p.suffix not in ('.txt','.log') or 'logcat' not in p.name.lower(): continue
-              text=p.read_text(errors='replace')
-              lines=text.splitlines()
-              indices=set()
-              for i,line in enumerate(lines):
-                  if re.search(r'CONSOLE|Javascript|JavaScript|ReadOnly|chromium.*(?:Error|error)|Bridge|WrongThread|FATAL EXCEPTION|Exception',line):
-                      indices.update(range(max(0,i-2),min(len(lines),i+5)))
-              print('DEVICE_LOG_EXCERPTS',p,'\n'.join(lines[i] for i in sorted(indices))[-45000:])
-          PY
-          python3 - <<'PY'
-          import pathlib,re
-          for p in pathlib.Path('evidence').rglob('logcat-*NativeOfficeModeSmokeTest*.txt'):
-              if 'xlsxReadOnly' not in p.name and 'docxReadOnly' not in p.name: continue
-              print('OFFICE_PROCESS_LIFECYCLE',p)
-              for line in p.read_text(errors='replace').splitlines():
-                  if re.search(r'ActivityManager|ActivityTaskManager|libc|DEBUG|crash|tombstone|signal|force.?stop|died|killed|zygote|Finish|finishing|WindowManager|Process',line,re.I): print(line)
+          import pathlib,zipfile,re
+          apk=next(pathlib.Path('delivery').glob('*.apk'))
+          with zipfile.ZipFile(apk) as z:
+              paths=[p for p in z.namelist() if re.search(r'ViewLayout(?:Writer|Calc|Base)?\\.js$|Simple(?:Point|Rectangle)\\.js$',p)]
+              for p in paths:
+                  text=z.read(p).decode()
+                  print('ACTUAL_LAYOUT_FILE',p,len(text))
+                  for term in ['scrollTo(', 'scrollTo (','scroll(', 'applyZoom(', 'get viewedRectangle', 'get pX1', 'get pY1', 'get x1', 'get y1','twipsToPixels']:
+                      index=text.find(term)
+                      if index>=0: print('ACTUAL_LAYOUT_METHOD',p,term,repr(text[max(0,index-100):index+2400]))
+              bundle=z.read('assets/dist/bundle.js').decode()
+              for pattern in [r'scrollTo\\([a-zA-Z,= !0-9]*\\)\\{',r'get pY1\\(\\)',r'get pX1\\(\\)']:
+                  matches=list(re.finditer(pattern,bundle))
+                  print('BUNDLE_METHOD_COUNT',pattern,len(matches))
+                  for match in matches[:8]: print('BUNDLE_METHOD',repr(bundle[max(0,match.start()-100):match.start()+1800]))
           PY
