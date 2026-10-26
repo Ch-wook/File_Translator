@@ -14,3 +14,16 @@ replace_once("isEditable: !isFormMode || canEditFormField,", "isEditable: studio
 replace_once("canUndo: inputHandler?.canUndo() ?? false,", "canUndo: studioMayWrite() && (inputHandler?.canUndo() ?? false),")
 replace_once("canRedo: inputHandler?.canRedo() ?? false,", "canRedo: studioMayWrite() && (inputHandler?.canRedo() ?? false),")
 main.write_text(source)
+
+# Search, table creation and some native navigation return valid flat cell positions.
+# The pinned formatting commands formerly serialized these as [], silently changing no text.
+# Use the engine's existing canonical cell-axis fallback for both apply and history restoration.
+command=root/'src/engine/command.ts'
+text=command.read_text()
+for before,after in [
+    ("return JSON.stringify(pos.cellPath ?? []);", "return JSON.stringify(cellAxisPath(pos));"),
+    ("const path = (pos.cellPath ?? []).map((e) => ({ ...e }));", "const path = cellAxisPath(pos).map((e) => ({ ...e }));"),
+]:
+    if text.count(before)!=1: raise RuntimeError('Pinned cell formatting source changed: '+before)
+    text=text.replace(before,after,1)
+command.write_text(text)
