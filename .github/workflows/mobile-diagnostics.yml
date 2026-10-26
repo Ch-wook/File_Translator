@@ -157,9 +157,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 40418682300 --repo Ch-wook/File_Translator --name mobile-release-logs-ec8bbcbd02d003e7c54ff4fdd00e4dc27796dc57 --dir retained
+          gh run download 40419044367 --repo Ch-wook/File_Translator --name mobile-release-logs-070ab2aea03cf92ae92db82d3d18ee39e9644faf --dir retained
           python3 - <<'PY'
           import pathlib
-          for p in pathlib.Path('retained').rglob('TEST-kr.documentstudio.core.DistributionViewTest.xml'):
-              print(p.read_text())
+          for p in pathlib.Path('retained').rglob('*'):
+              if p.is_file() and (p.name=='after.xml' or p.name=='after.log'):
+                  print('RETAINED_REPORT',p)
+                  text=p.read_text()
+                  print(text[:24000] if p.suffix=='.xml' else '\n'.join(l for l in text.splitlines() if any(s in l for s in ('Exception','Error','FAILED','Caused by','e: '))))
           PY
