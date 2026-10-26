@@ -53,6 +53,11 @@ module.exports=async function mobileStructure({page,frame,call,context}){
  await call('focus');await page.keyboard.insertText('MOBILE_CARET');
  await call('find','MOBILE_CARET');assert.equal((await call('state')).char.fontSize,1500);assert.equal((await call('state')).char.textColor.toLowerCase(),'#1e88e5');
  report.futureTypingFormat=true;
+ const selectedCaret=await call('capture');await call('focus');await page.keyboard.press('ArrowLeft');
+ assert.equal((await call('capture')).pos.charOffset,selectedCaret.range.anchor.charOffset,'Left arrow collapses to the selection start');
+ await call('find','MOBILE_CARET');const selectedRight=await call('capture');await call('focus');await page.keyboard.press('ArrowRight');
+ assert.equal((await call('capture')).pos.charOffset,selectedRight.range.focus.charOffset,'Right arrow collapses to the selection end without skipping a character');
+ await call('find','MOBILE_CARET');
  await frame.evaluate(()=>{
   const input=document.querySelector('[aria-label="문서 편집 입력"]');input.focus();
   input.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,data:''}));

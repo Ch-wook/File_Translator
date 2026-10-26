@@ -104,3 +104,23 @@ before="try { fn(); } catch (e) { console.error(\x60[table] \x24{label} 실패:\
 after="try { fn(); } catch (e) { console.error(\x60[table] \x24{label} 실패:\x60, e); throw e; }"
 if text.count(before)!=1: raise RuntimeError('Pinned table error reporting changed')
 table.write_text(text.replace(before,after,1))
+
+# Arrow keys collapse an existing text range before moving again.
+keyboard=root/'src/engine/input-handler-keyboard.ts'
+text=keyboard.read_text()
+before="""      if (e.shiftKey) {
+        this.cursor.setAnchor();
+      } else {
+        this.cursor.clearSelection();
+      }
+      if (!e.shiftKey && moveH === 1 && this.tryEnterExitedFieldStart?.()) {"""
+after="""      const studioSelection = !e.shiftKey && moveH !== null ? this.getNonEmptySelection?.() : null;
+      if (studioSelection) {
+        this.cursor.clearSelection();
+        this.cursor.moveTo(moveH! < 0 ? studioSelection.start : studioSelection.end);
+        this.updateCaret();
+        break;
+      }
+""" + before
+if text.count(before)!=1: raise RuntimeError('Pinned arrow selection source changed')
+keyboard.write_text(text.replace(before,after,1))
