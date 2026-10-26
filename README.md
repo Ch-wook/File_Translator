@@ -1,4 +1,4 @@
-# 문서 스튜디오 0.8.1-preview
+# 문서 스튜디오 0.8.2-preview
 
 Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하기**를 선택하면 문서 화면에서 직접 수정하는 앱입니다. 기존 파일 열기·최근 작업·외부 앱 열기는 기본적으로 보기로 시작합니다.
 
@@ -6,9 +6,9 @@ Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하
 
 ## 다운로드
 
-[Android APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.1-preview/document-studio-0.8.1-preview-debug.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.1-preview/document-studio-0.8.1-preview-source.zip) · [해시·패치·Git 이력·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.1-preview)
+[Android APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.2-preview/document-studio-0.8.2-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.2-preview/document-studio-0.8.2-preview-source.zip) · [해시·패치·Git 이력·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.2-preview)
 
-APK는 약 638 MB인 개발 서명 프리뷰입니다. 실제 휴대폰 종합 인수 전의 빌드이며 지원 범위와 검증 결과를 먼저 확인하세요.
+휴대폰에는 ARM64 APK를 설치하세요. x86_64 APK는 해당 아키텍처용입니다. 새 앱은 **문서 스튜디오 프리뷰**로 표시되며 기존 앱과 함께 설치됩니다. [설치 실패 분석과 수정](docs/INSTALLATION_FIX.md)을 확인하세요. 개발 서명 프리뷰입니다. 실제 휴대폰 종합 인수 전의 빌드이며 지원 범위와 검증 결과를 먼저 확인하세요.
 
 ## 휴대폰에서 사용하기
 
@@ -50,7 +50,7 @@ node --test scripts/tests/*.test.cjs
 ./gradlew :core:verifyVisualRoundTrip --max-workers=2 --console=plain
 ```
 
-GitHub Actions의 `Android preview verification`으로도 실행합니다. APK·전체 추적 소스 ZIP·패치·Git bundle·검증 ZIP·SHA256SUMS를 생성합니다. 실제 실행 결과는 해당 커밋의 Actions 로그와 검증 ZIP을 기준으로 확인합니다.
+GitHub Actions의 `Android preview verification`으로도 실행합니다. ABI별 APK·전체 추적 소스 ZIP·패치·Git bundle·검증 ZIP·SHA256SUMS를 생성합니다. 실제 실행 결과는 해당 커밋의 Actions 로그와 검증 ZIP을 기준으로 확인합니다.
 
 [사용 안내](docs/USER_GUIDE.md) · [한글 엔진 출처](web/hangul/PROVENANCE.md) · [Office 엔진 출처](officeruntime/PROVENANCE.md) · [오픈소스 고지](docs/THIRD_PARTY.md)
 

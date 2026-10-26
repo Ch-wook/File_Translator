@@ -42,7 +42,7 @@ class P0ModeUiTest {
         }
         compose.waitForIdle();assertEquals("한국어 본문\n두 번째 줄",vm.state.value.session!!.edits.text)
         val file=File(compose.activity.cacheDir,"tests/${UUID.randomUUID()}.txt").apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}
-        val uri=FileProvider.getUriForFile(compose.activity,"kr.documentstudio.testfiles",file)
+        val uri=FileProvider.getUriForFile(compose.activity,compose.activity.packageName+".testfiles",file)
         compose.runOnUiThread {vm.save(uri)};ready()
         assertEquals("한국어 본문\n두 번째 줄",file.readText())
         compose.onNodeWithTag("read-document").performClick();compose.waitForIdle()

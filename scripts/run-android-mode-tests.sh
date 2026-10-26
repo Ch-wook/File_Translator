@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -uo pipefail
 mkdir -p artifacts/ci artifacts/native-android
-./gradlew :app:connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true "-Pandroid.testInstrumentationRunnerArguments.class=${MODE_TEST_CLASSES:-kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest}" --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/android-emulator.log
+mode_gradle_args=()
+if [ -n "${STUDIO_ABI:-}" ]; then mode_gradle_args+=("-PstudioAbi=$STUDIO_ABI"); fi
+./gradlew "${mode_gradle_args[@]}" :app:connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true "-Pandroid.testInstrumentationRunnerArguments.class=${MODE_TEST_CLASSES:-kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest}" --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/android-emulator.log
 mode_test_status=${PIPESTATUS[0]}
-adb pull /sdcard/Android/data/kr.documentstudio/files/native-hangul-smoke artifacts/native-android/ || true
-adb pull /sdcard/Android/data/kr.documentstudio/files/native-office-mode-smoke artifacts/native-android/ || true
+adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-hangul-smoke artifacts/native-android/ || true
+adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-office-mode-smoke artifacts/native-android/ || true
 adb logcat -d -s AndroidRuntime:E > artifacts/ci/android-runtime.log || true
 python3 - <<'PY'
 import pathlib,xml.etree.ElementTree as ET,json

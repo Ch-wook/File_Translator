@@ -3,12 +3,14 @@ android {
     namespace = "kr.documentstudio"
     compileSdk = 36
     defaultConfig {
-        applicationId = "kr.documentstudio"
+        applicationId = "kr.documentstudio.preview"
         minSdk = 29
         targetSdk = 36
-        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
-        versionCode = 11
-        versionName = "0.8.1-preview"
+        val phoneAbi = providers.gradleProperty("studioAbi").orNull
+        require(phoneAbi == null || phoneAbi in listOf("arm64-v8a", "x86_64")) { "Unsupported studioAbi" }
+        ndk { abiFilters += phoneAbi?.let { listOf(it) } ?: listOf("arm64-v8a", "x86_64") }
+        versionCode = 12
+        versionName = "0.8.2-preview"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     sourceSets.getByName("main").assets.srcDir(rootProject.file(".engine-cache/hangul/runtime"))
@@ -26,6 +28,7 @@ android {
             keyPassword = requireNotNull(System.getenv("STUDIO_KEY_PASSWORD"))
         }
         buildTypes.getByName("release").signingConfig = releaseSigning
+        buildTypes.getByName("debug").signingConfig = releaseSigning
     }
     packaging { resources.excludes += setOf("META-INF/DEPENDENCIES", "META-INF/LICENSE", "META-INF/LICENSE.txt", "META-INF/NOTICE", "META-INF/NOTICE.txt", "META-INF/versions/**", "META-INF/services/javax.xml.stream.*"); jniLibs.keepDebugSymbols += "**/*.so" }
 }

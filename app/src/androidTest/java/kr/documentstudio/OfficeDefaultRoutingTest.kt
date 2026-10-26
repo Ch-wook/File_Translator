@@ -56,7 +56,7 @@ class OfficeDefaultRoutingTest {
         main {model.consumeOfficeLaunch(model.state.value.officeLaunch!!)}
         val app=ApplicationProvider.getApplicationContext<Application>()
         val file=File(app.cacheDir,"tests/${UUID.randomUUID()}.docx").apply {parentFile!!.mkdirs();original.base.copyTo(this)}
-        val uri=FileProvider.getUriForFile(app,"kr.documentstudio.testfiles",file)
+        val uri=FileProvider.getUriForFile(app,app.packageName+".testfiles",file)
         main {model.open(uri,visual=true)};await(model)
         assertEquals(model.state.value.session!!.id,model.state.value.officeLaunch!!.sessionId)
         assertNotEquals(original.id,model.state.value.officeLaunch!!.sessionId)
@@ -76,7 +76,7 @@ class OfficeDefaultRoutingTest {
         main {model.state.value.officeLaunch?.let {model.consumeOfficeLaunch(it)}}
         val app=ApplicationProvider.getApplicationContext<Application>()
         val file=File(app.cacheDir,"tests/${UUID.randomUUID()}.docx").apply {parentFile!!.mkdirs();writeText("not a word file")}
-        val uri=FileProvider.getUriForFile(app,"kr.documentstudio.testfiles",file)
+        val uri=FileProvider.getUriForFile(app,app.packageName+".testfiles",file)
         main {model.open(uri,visual=true)};await(model)
         assertEquals(id,model.state.value.active)
         assertNull(model.state.value.officeLaunch)
