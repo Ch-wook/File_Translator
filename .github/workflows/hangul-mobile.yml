@@ -45,6 +45,16 @@ jobs:
             ~/.gradle/wrapper
           key: android-gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: android-gradle-${{ runner.os }}-
+      - uses: actions/cache@v4
+        id: engine-cache
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: hangul-public-tools-${{ runner.os }}-${{ github.sha }}
+          restore-keys: hangul-public-tools-${{ runner.os }}-
       - name: Prepare fixtures and the actual offline Rhwp engine
         run: |
           ./gradlew :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/fixtures.log
@@ -54,12 +64,21 @@ jobs:
           npm ci --prefix scripts/tests
           node --test scripts/tests/*.test.cjs 2>&1 | tee artifacts/ci/javascript.log
           cd scripts/tests
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
           npm run test:hangul 2>&1 | tee ../../artifacts/ci/hangul-browser.log
           node hangul-mobile.cjs 2>&1 | tee ../../artifacts/ci/hangul-mobile.log
       - name: Independent saved-file parser checks
         run: |
           ./gradlew :core:verifyVisualRoundTrip :core:verifyMobileRoundTrip --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/roundtrip.log
+      - uses: actions/cache/save@v4
+        if: always() && steps.engine-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: hangul-public-tools-${{ runner.os }}-${{ github.sha }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

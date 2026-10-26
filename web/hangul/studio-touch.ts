@@ -103,8 +103,8 @@ export function installStudioTouch(getInput:()=>any,eventBus:any) {
      if(!resize||resize.id!==e.pointerId)return;e.preventDefault();const ih=input();if(!ih)return;
      mouse('mousemove',resize.x+e.clientX-resize.startX,resize.y+e.clientY-resize.startY,ih.container);
    });
-   for(const event of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(event,(e:PointerEvent)=>{
-     if(!resize)return;mouse('mouseup',resize.x+e.clientX-resize.startX,resize.y+e.clientY-resize.startY,document);resize=null;refresh();
+   for(const event of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(event,(ev:Event)=>{
+     const e=ev as PointerEvent;if(!resize)return;mouse('mouseup',resize.x+e.clientX-resize.startX,resize.y+e.clientY-resize.startY,document);resize=null;refresh();
    });
  });
  function objectTarget(x:number,y:number,ih:any) {
