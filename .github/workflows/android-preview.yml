@@ -231,7 +231,8 @@ jobs:
           import pathlib,zipfile,re
           apk=next(pathlib.Path('delivery').glob('*.apk'))
           with zipfile.ZipFile(apk) as z:
-              paths=[p for p in z.namelist() if re.search(r'ViewLayout(?:Writer|Calc|Base)?\\.js$|Simple(?:Point|Rectangle)\\.js$',p)]
+              print('APK_LAYOUT_FILES',[p for p in z.namelist() if 'ViewLayout' in p or 'SimplePoint' in p or 'SimpleRectangle' in p])
+              paths=[p for p in z.namelist() if re.search(r'ViewLayout(?:Writer|Calc|Base)?\.js$|Simple(?:Point|Rectangle)\.js$',p)]
               for p in paths:
                   text=z.read(p).decode()
                   print('ACTUAL_LAYOUT_FILE',p,len(text))
@@ -239,7 +240,7 @@ jobs:
                       index=text.find(term)
                       if index>=0: print('ACTUAL_LAYOUT_METHOD',p,term,repr(text[max(0,index-100):index+2400]))
               bundle=z.read('assets/dist/bundle.js').decode()
-              for pattern in [r'scrollTo\\([a-zA-Z,= !0-9]*\\)\\{',r'get pY1\\(\\)',r'get pX1\\(\\)']:
+              for pattern in [r'scrollTo\([a-zA-Z,= !0-9]*\)\{',r'get pY1\(\)',r'get pX1\(\)']:
                   matches=list(re.finditer(pattern,bundle))
                   print('BUNDLE_METHOD_COUNT',pattern,len(matches))
                   for match in matches[:8]: print('BUNDLE_METHOD',repr(bundle[max(0,match.start()-100):match.start()+1800]))
