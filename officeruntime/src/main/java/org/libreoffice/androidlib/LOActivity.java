@@ -1736,8 +1736,10 @@ public class LOActivity extends AppCompatActivity {
                             return false;
                         }
                         mIsEditModeActive = true;
-                        // prompt for file conversion
-                        requestForOdf();
+                        // Studio edits the existing work copy in its original format.
+                        // Format conversion is a separate explicit export action.
+                        if (!(this instanceof StudioOfficeActivity))
+                            runOnUiThread(this::requestForOdf);
                         break;
                     case "off":
                         mIsEditModeActive = false;

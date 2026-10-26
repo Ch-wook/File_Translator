@@ -12,7 +12,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
   const w = dom.window, commands = [], states = {}, listeners = {}, mobile = [], persisted = [], keys = [];
   const timeouts = new Map();
   let tick, editing = false, selected = false, requested = 0, grants = 0, serial = 0;
-  let zoom = 7, part = 2, x = 120, y = 340;
+  let zoom = 7, part = family === 'text' ? 0 : 2, x = 120, y = 340;
   w.postMobileMessage = message => mobile.push(message);
   w.setInterval = f => { tick=f; return 1; }; w.clearInterval = () => {};
   w.setTimeout = f => { const id=++serial;timeouts.set(id,f);return id; };
@@ -73,14 +73,16 @@ test('all Office families open in VIEW with mutation controls blocked and no nat
   }
 });
 test('explicit editing requests native authorization once and preserves part, zoom and viewport both ways', () => {
-  const s=workspace();
-  try {
-    const before=s.viewport();s.click('편집하기');s.flush();
-    assert.equal(s.requests(),1);assert.equal(s.grants(),1);assert.deepEqual(s.viewport(),before);
-    assert.equal(s.button('굵게').disabled,false);
-    s.click('보기로 전환');s.flush();assert.deepEqual(s.viewport(),before);
-    assert.equal(s.button('굵게').disabled,true);s.tick();assert.equal(s.requests(),1);
-  } finally {s.close();}
+  for (const family of ['text','spreadsheet','presentation']) {
+    const s=workspace(family);
+    try {
+      const before=s.viewport();s.click('편집하기');s.flush();
+      assert.equal(s.requests(),1);assert.equal(s.grants(),1);assert.deepEqual(s.viewport(),before);
+      assert.equal(s.button('굵게').disabled,false);
+      s.click('보기로 전환');s.flush();assert.deepEqual(s.viewport(),before);
+      assert.equal(s.button('굵게').disabled,true);s.tick();assert.equal(s.requests(),1);
+    } finally {s.close();}
+  }
 });
 test('unknown open intent stays in VIEW; explicit host EDIT is authorized, readonly capability cannot edit', () => {
   const unknown=workspace('text','edit','unexpected'), explicit=workspace('text','edit','EDIT'), readonly=workspace('text','readonly','EDIT');
