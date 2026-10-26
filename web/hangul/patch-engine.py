@@ -78,7 +78,7 @@ operations=[
 ]
 for statement,row,col,keep in operations:
     before=statement+"\n          return pos;"
-    after="const result = "+statement+"\n          if (!result.ok) throw new Error('표 변경을 적용하지 못했습니다.');\n          (ih as any).cursor.clearSelection();(ih as any).cursor.exitCellSelectionMode();(ih as any).cellSelectionRenderer?.clear();\n          return studioTablePosition(wasm,pos,"+row+","+col+","+str(keep).lower()+");"
+    after="const result = "+statement+"\n          if (!result.ok) throw new Error('표 변경을 적용하지 못했습니다.');\n          const next = studioTablePosition(wasm,pos,"+row+","+col+","+str(keep).lower()+");\n          (ih as any).cursor.moveTo(next);\n          (ih as any).cursor.clearSelection();(ih as any).cursor.exitCellSelectionMode();(ih as any).cellSelectionRenderer?.clear();\n          return next;"
     if text.count(before)!=1: raise RuntimeError('Pinned table position source changed: '+before)
     text=text.replace(before,after,1)
 table.write_text(text)

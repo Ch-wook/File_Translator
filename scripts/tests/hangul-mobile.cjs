@@ -7,8 +7,8 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
  const browser=await chromium.launch({headless:true,args:['--no-sandbox']});const results=[];
  try{for(const format of ['hwp','hwpx']){
   const context=await browser.newContext({viewport:{width:412,height:915},isMobile:true,hasTouch:true});
-  const page=await context.newPage(),errors=[],external=[];
-  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.error('ENGINE_CONSOLE',m.text());});
+  const page=await context.newPage(),errors=[],external=[],engineErrors=[];
+  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'){console.error('ENGINE_CONSOLE',m.text());if(/\[EventBus\]|\[table\]|커맨드 실행 실패/.test(m.text()))engineErrors.push(m.text());}});
   await context.addInitScript(({format})=>{
    let chunks=[];window.__clip={text:'',html:''};window.__writeCount=0;
    window.DocumentStudio={describe:()=>JSON.stringify({name:'모바일 서식.'+format,format,openIntent:'VIEW'}),
@@ -84,7 +84,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   assert.equal(reopened.fontSize,1800);assert.equal(reopened.bold,true);assert.equal(reopened.textColor.toLowerCase(),'#e53935');
   assert.equal(reopened.ratios[0],85);assert.equal(reopened.spacings[0],12);
   await call('find','ABC');for(const key of ['fontSize','bold','textColor','ratios','spacings'])assert.deepEqual((await call('state')).char[key],outsideBefore[key],'Reopened unselected '+key+' remains');
-  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
+  assert.deepEqual(errors,[]);assert.deepEqual(engineErrors,[]);assert.deepEqual(external,[]);
   await page.screenshot({path:path.join(out,'mobile-format-'+format+'.png'),fullPage:true});
   results.push({format,phone:true,partialSelection:true,font,structure,combinedCharacterFormatting:true,spacingMetrics:{base,spaced,narrow},unselectedPreserved:true,clipboardRichAndPlain:true,atomicPasteUndoRedo:true,autosave:true,savedAndReopened:true,bytes:bytes.length});
   await context.close();
