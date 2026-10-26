@@ -228,7 +228,7 @@ class NativeHangulEditingTest {
             File(output,format.extension+"-editing.json").writeText(evidence.toString(2))
         } catch(error: Throwable) {
             runCatching {device.takeScreenshot(File(output,format.extension+"-failure.png"));device.dumpWindowHierarchy(File(output,format.extension+"-failure.xml"))}
-            runCatching {File(output,format.extension+"-failure.json").writeText(JSONObject().put("error",error.toString()).put("state",mJson("state()")).toString(2))}
+            runCatching {File(output,format.extension+"-failure.json").writeText(JSONObject().put("error",error.toString()).put("cursorText",m("cursorText()")).put("ime",imeStatus()).put("state",mJson("state()")).toString(2))}
             throw error
         } finally {
             if(previousIme.isNotBlank() && previousIme!="null")device.executeShellCommand("ime set "+previousIme)

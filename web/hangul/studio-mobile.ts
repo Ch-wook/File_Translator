@@ -300,6 +300,7 @@ export function createStudioMobile(env:Env) {
    search={query:'',hits:[],index:-1,epoch:-1};return {count:hits(query,sensitive).length,...result()};
  }
  return {state,capture,restore,char,para,font,fonts,defaultFont,copyCharFormat,pasteCharFormat,resetChar,resetPara,dispatch,copy,paste,plainText,createTable,moveCell,selectCells,cell,list,find,replace,
+   cursorText:()=>{const p=input().getCursorPosition();return p.parentParaIndex===undefined?wasm.getTextRange(p.sectionIndex,p.paragraphIndex,0,wasm.getParagraphLength(p.sectionIndex,p.paragraphIndex)):p.cellPath?.length?wasm.getTextInCellByPath(p.sectionIndex,p.parentParaIndex,JSON.stringify(p.cellPath),0,wasm.getCellParagraphLengthByPath(p.sectionIndex,p.parentParaIndex,JSON.stringify(p.cellPath))):wasm.getTextInCell(p.sectionIndex,p.parentParaIndex,p.controlIndex,p.cellIndex,p.cellParaIndex,0,wasm.getCellParagraphLength(p.sectionIndex,p.parentParaIndex,p.controlIndex,p.cellIndex,p.cellParaIndex));},
    count:(q:string,s=false)=>hits(q,s).length,styles:()=>wasm.getStyleList(),
    focus:()=>input().focus(),reveal:()=>input().updateCaret(),
    navigate:(end=false)=>{const ih=input();ih.cursor.clearSelection();if(end)ih.cursor.moveToDocumentEnd();else ih.cursor.moveTo({sectionIndex:0,paragraphIndex:0,charOffset:0});ih.updateCaret();},
