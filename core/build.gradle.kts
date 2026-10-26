@@ -18,3 +18,10 @@ listOf("prepareVisualFixtures" to "prepare","verifyVisualRoundTrip" to "verify")
         args(mode,layout.buildDirectory.dir("visual-fixtures").get().asFile.absolutePath)
     }
 }
+
+tasks.register<JavaExec>("verifyMobileRoundTrip") {
+    dependsOn(tasks.testClasses)
+    classpath=sourceSets.test.get().runtimeClasspath
+    mainClass.set("kr.documentstudio.core.MobileRoundTripTool")
+    args(layout.buildDirectory.dir("visual-fixtures").get().asFile.absolutePath)
+}

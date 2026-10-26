@@ -35,7 +35,9 @@ export function installStudioBridge(bridge: any): void {
     const original = descriptor.value;
     bridge[name] = function(...args: unknown[]) {
       // Caret stamps are serialized metadata, not a navigation requirement.
-      if (!studioMayWrite() && name === 'setCaretPosition') return;
+      if (!studioMayWrite() && ['setCaretPosition','clearActiveField'].includes(name)) return;
+      // Search navigation must retain original field guides in VIEW.
+      if (!studioMayWrite() && name === 'setActiveField') return false;
       if (!studioMayWrite() && !readMethods.has(name)) return blocked(name);
       const answer = Reflect.apply(original, bridge, args);
       if (name !== 'borrowDocumentHandle' || !answer) return answer;

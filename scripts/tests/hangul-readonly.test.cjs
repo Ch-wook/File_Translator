@@ -22,6 +22,8 @@ class Bridge {
  futureUnknownMutation(){this.mutations++;return true;}
  borrowDocumentHandle(){return {exportHwp(){return new Uint8Array([1]);},setFieldValue(){throw new Error('raw mutation escaped');}};}
  setCaretPosition(){this.mutations++;}
+ clearActiveField(){this.mutations++;}
+ setActiveField(){this.mutations++;return true;}
 }
 test('VIEW refuses actual bridge mutations and unknown methods',()=>{
  policy.studioSetEditing(false);const bridge=new Bridge();policy.installStudioBridge(bridge);
@@ -60,4 +62,12 @@ test('VIEW permits renderer bootstrap helper without granting later document wri
  assert.equal(policy.studioIsEditing(),false);assert.equal(bridge.mutations,0);
  assert.throws(()=>bridge.setPageMargin(),/setPageMargin/);
  assert.throws(()=>bridge.futureUnknownMutation(),/futureUnknownMutation/);
+});
+
+test('VIEW search caret updates retain field guides and never write active-field state',()=>{
+ policy.studioSetEditing(false);const bridge=new Bridge();policy.installStudioBridge(bridge);
+ assert.equal(bridge.clearActiveField(),undefined);assert.equal(bridge.setActiveField({}),false);
+ assert.equal(bridge.mutations,0);assert.equal(policy.studioIsEditing(),false);
+ policy.studioSetEditing(true);bridge.clearActiveField();assert.equal(bridge.setActiveField({}),true);assert.equal(bridge.mutations,2);
+ policy.studioSetEditing(false);
 });
