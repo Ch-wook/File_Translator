@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   web:
-    if: "!contains(github.event.head_commit.message, '[publish-083]') && !contains(github.event.head_commit.message, '[diagnose-083]') && !contains(github.event.head_commit.message, '[release-build]')"
+    if: "!contains(github.event.head_commit.message, '[publish-') && !contains(github.event.head_commit.message, '[diagnose-083]') && !contains(github.event.head_commit.message, '[release-build]')"
     runs-on: ubuntu-latest
     timeout-minutes: 40
     defaults:

@@ -43,14 +43,17 @@ Android 10 이상, arm64-v8a/x86_64를 지원합니다. Office 엔진은 Android
 
 APK는 [GitHub Releases](https://github.com/Ch-wook/File_Translator/releases)에 실제 첨부된 파일로 제공합니다. 개발 서명이 기존 설치와 다르면 바로 업데이트되지 않으므로 기존 작업을 보존한 상태에서 확인하세요.
 
-2026-10-26 검증: Android 35 x86_64 21건, 단위 테스트 135건, JavaScript 22건, 실제 엔진 브라우저 7개 시나리오와 HWP/HWPX 독립 저장 파서 검사 통과. [실행 결과·저장 보존·설치 검증](docs/HANGUL_MOBILE_EDITING.md#실제-완료한-검증--2026-10-26)을 확인하세요. 실제 휴대폰 검증은 남아 있습니다.
+이전 0.8.3-preview의 2026-10-26 검증 기록: Android 35 x86_64 21건, 단위 테스트 135건, JavaScript 22건, 실제 엔진 브라우저 7개 시나리오와 HWP/HWPX 독립 저장 파서 검사 통과. [실행 결과·저장 보존·설치 검증](docs/HANGUL_MOBILE_EDITING.md#실제-완료한-검증--2026-10-26)을 확인하세요. 실제 휴대폰 검증은 남아 있습니다.
 
 ## 빌드와 검증
 
 JDK 17, Node.js 24, Python 3.11 이상, SDK 36, Build Tools 35.0.0, NDK 28.2.13676358, CMake 3.22.1이 필요합니다. 최초 빌드에 고정 해시의 엔진 다운로드와 충분한 공간이 필요합니다.
 
 ```sh
-./gradlew :core:test :core:prepareVisualFixtures :officeruntime:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=2 --console=plain
+python3 scripts/prepare-open-fixtures.py
+./gradlew :app:help :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain
+python3 scripts/prepare-hangul-engine.py
+./gradlew :officeruntime:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=2 --console=plain
 npm ci --prefix scripts/tests
 node --test scripts/tests/*.test.cjs
 (cd scripts/tests && npx playwright install chromium && npm run test:hangul)
@@ -59,7 +62,7 @@ node scripts/tests/hangul-mobile.cjs
 ./gradlew :core:verifyVisualRoundTrip :core:verifyMobileRoundTrip --max-workers=2 --console=plain
 ```
 
-모바일 편집은 GitHub Actions의 `Build and verify mobile editing APKs`에서 실제 엔진 브라우저 7개 시나리오, 독립 HWP/HWPX 저장 파서, Android 35 x86_64에서 기존 P0 및 실제 InputConnection 편집 테스트 총 21건을 검증합니다. 실제 휴대폰·삼성 키보드·Gboard 검증은 남아 있습니다. `Android preview verification`은 이전 경로입니다. ABI별 APK·전체 추적 소스 ZIP·패치·Git bundle·검증 ZIP·SHA256SUMS를 생성합니다. 실제 실행 결과는 해당 커밋의 Actions 로그와 검증 ZIP을 기준으로 확인합니다.
+모바일 편집은 GitHub Actions의 `Build and verify mobile editing APKs`에서 실제 엔진 브라우저 7개 시나리오, 독립 HWP/HWPX 저장 파서, Android 35 x86_64에서 기존 P0 및 실제 InputConnection 편집 검증에 외부 열기 2건을 추가한 총 23건의 통과를 요구합니다. 실제 휴대폰·삼성 키보드·Gboard 검증은 남아 있습니다. `Android preview verification`은 이전 경로입니다. ABI별 APK·전체 추적 소스 ZIP·패치·Git bundle·검증 ZIP·SHA256SUMS를 생성합니다. 실제 실행 결과는 해당 커밋의 Actions 로그와 검증 ZIP을 기준으로 확인합니다.
 
 [사용 안내](docs/USER_GUIDE.md) · [한글 엔진 출처](web/hangul/PROVENANCE.md) · [Office 엔진 출처](officeruntime/PROVENANCE.md) · [오픈소스 고지](docs/THIRD_PARTY.md)
 
