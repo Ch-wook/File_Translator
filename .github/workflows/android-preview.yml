@@ -7,7 +7,7 @@ permissions:
   contents: write
   actions: read
 concurrency:
-  group: original-view-preview
+  group: original-view-${{ contains(github.event.head_commit.message, '[diagnostics]') && 'diagnostics' || 'verify' }}
   cancel-in-progress: true
 jobs:
   verify:
@@ -195,6 +195,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh run download 40274912158 --repo "$GITHUB_REPOSITORY" --name verification-logs-a425d6c02b5d68a7f625b539b33bf2d95df71836 --dir evidence
+          gh run download 40274912158 --repo "$GITHUB_REPOSITORY" --name document-studio-preview-a425d6c02b5d68a7f625b539b33bf2d95df71836 --dir delivery
           python3 - <<'PY'
           import pathlib,xml.etree.ElementTree as ET,json
           for p in pathlib.Path('evidence').rglob('*.xml'):
@@ -208,4 +209,25 @@ jobs:
               if p.stat().st_size<100000: print('JSON',p,p.read_text())
           for p in pathlib.Path('evidence').rglob('android-runtime.log'):
               print('ANDROID_RUNTIME',p,p.read_text()[-30000:])
+          PY
+          python3 - <<'PY'
+          import pathlib,zipfile,re,gzip
+          apk=next(pathlib.Path('delivery').glob('*.apk'))
+          terms=['activeDocument','activeLayout','viewedRectangle','getScrollOffset','getCurrentPartNumber','saveStudioViewState','setviewreadonly']
+          totals={t:0 for t in terms};shown={t:0 for t in terms}
+          with zipfile.ZipFile(apk) as z:
+              for name in z.namelist():
+                  if not name.startswith('assets/') or 'studio-policy' in name or not name.endswith(('.js','.js.gz')): continue
+                  data=z.read(name)
+                  if name.endswith('.gz'): data=gzip.decompress(data)
+                  text=data.decode('utf-8',errors='replace')
+                  counts={t:text.count(t) for t in terms}
+                  for t,n in counts.items(): totals[t]+=n
+                  if any(counts.values()): print('RUNTIME_API_FILE',name,len(data),counts)
+                  for term in terms:
+                      for m in re.finditer(re.escape(term),text):
+                          if shown[term]>=3: break
+                          print('RUNTIME_API_SNIPPET',name,term,repr(text[max(0,m.start()-250):m.start()+900]))
+                          shown[term]+=1
+          print('RUNTIME_API_TOTALS',totals)
           PY
