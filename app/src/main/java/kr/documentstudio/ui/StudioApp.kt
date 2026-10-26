@@ -52,6 +52,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kr.documentstudio.*
@@ -106,9 +109,18 @@ fun StudioApp(vm: EditorViewModel) {
             .putExtra("sessionId",s.id).putExtra("workingPath",file.absolutePath).putExtra("displayName",s.name).putExtra("openIntent",intentMode.name))
     }}
     val openOffice: (String)->Unit = {id -> launchOffice(id,OpenIntent.VIEW)}
-    LaunchedEffect(state.officeLaunch,state.busy) {
+    val documentLaunchLifecycle=LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(state.officeLaunch,state.busy,documentLaunchLifecycle) {
         val request=state.officeLaunch
-        if(request!=null && !state.busy) {vm.consumeOfficeLaunch(request);launchOffice(request.sessionId,request.openIntent)}
+        if(request!=null && !state.busy) {
+            // External cold-start imports can finish before MainActivity is resumed.
+            // Keep the request until the host is foregrounded instead of launching
+            // a native window underneath the Activity that is still starting.
+            documentLaunchLifecycle.currentStateFlow.first {it.isAtLeast(Lifecycle.State.RESUMED)}
+            if(vm.state.value.officeLaunch==request && !vm.state.value.busy) {
+                vm.consumeOfficeLaunch(request);launchOffice(request.sessionId,request.openIntent)
+            }
+        }
     }
     val saveAs: ()->Unit = { state.session?.let { s -> pendingSaveId=s.id;saveLaunchers.getValue(s.format).launch(s.name.substringBeforeLast('.',s.name)+".${s.format.extension}") } }
     val save: ()->Unit = { state.session?.let { s -> if(s.uri==null || s.pdf?.archival==true) saveAs() else vm.save(Uri.parse(s.uri),s.id) } }
