@@ -58,6 +58,7 @@ async function checkpoint(){
 }
 async function setEditing(value){
  if(!ready||pending||switching||editing===value)return;
+ const view=editor.captureView();
  switching=true;clearTimeout(timer);update();
  try{
   if(value){
@@ -71,7 +72,9 @@ async function setEditing(value){
    if(!native.setEditing(false))throw new Error('보기 모드로 전환하지 못했습니다.');
    editing=false;message('원본 보기 · 편집하기를 선택하면 같은 위치에서 수정할 수 있습니다.');
   }
-  persistView();
+  // Apply host tool/status layout before restoring the engine's document position.
+  // Showing the mobile toolbar resizes the iframe after the engine mode changes.
+  update();await editor.restoreView(view);persistView();
  }catch(error){message(String(error.message||error),true);}
  finally{switching=false;update();}
 }

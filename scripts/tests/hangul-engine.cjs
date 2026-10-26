@@ -69,7 +69,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
    });
    const beforeMode=await frame.evaluate(()=>window.rhwpStudio.documentStudio.captureView());
    await page.locator('#mode').click();
-   await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.isEditing());
+   await page.waitForFunction(()=>document.body.dataset.state==='EDITING'&&!document.getElementById('mode').disabled);await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.isEditing());
    const afterMode=await frame.evaluate(()=>window.rhwpStudio.documentStudio.captureView());
    assert.ok(Math.abs(beforeMode.scrollTop-afterMode.scrollTop)<=2,'VIEW to EDIT preserves scroll');
    assert.equal(beforeMode.zoom,afterMode.zoom,'VIEW to EDIT preserves zoom');
@@ -87,11 +87,11 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
     await page.keyboard.press('Home');await page.keyboard.press('Shift+End');await page.keyboard.insertText('CELL_CHANGED');
    }
    await page.waitForTimeout(900);
-   await page.locator('#mode').click();await frame.waitForFunction(()=>!window.rhwpStudio.documentStudio.isEditing());
+   await page.locator('#mode').click();await page.waitForFunction(()=>document.body.dataset.state==='READING'&&!document.getElementById('mode').disabled);await frame.waitForFunction(()=>!window.rhwpStudio.documentStudio.isEditing());
    const savedView=await frame.evaluate(()=>window.rhwpStudio.documentStudio.captureView());
-   await page.locator('#mode').click();await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.isEditing());
+   await page.locator('#mode').click();await page.waitForFunction(()=>document.body.dataset.state==='EDITING'&&!document.getElementById('mode').disabled);await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.isEditing());
    const editingView=await frame.evaluate(()=>window.rhwpStudio.documentStudio.captureView());
-   assert.equal(savedView.zoom,editingView.zoom);assert.ok(Math.abs(savedView.scrollTop-editingView.scrollTop)<=2);
+   assert.equal(savedView.zoom,editingView.zoom);assert.ok(Math.abs(savedView.scrollTop-editingView.scrollTop)<=2,JSON.stringify({savedView,editingView}));
    await page.locator('#save').click();
    await page.waitForFunction(()=>window.__nativeClosed,null,{timeout:60000});
    const exported=await page.evaluate(()=>({base64:window.__saved,report:window.__saveReport,original:window.__saveOriginal,status:document.getElementById('status').textContent}));
