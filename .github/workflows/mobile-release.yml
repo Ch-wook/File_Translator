@@ -20,6 +20,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Validate delivery scripts before tool downloads
+        run: python3 -m py_compile scripts/package-mobile-release.py scripts/test-mobile-installation.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
