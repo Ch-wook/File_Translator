@@ -85,6 +85,8 @@ class NativeOfficeFontTest {
             val selectedFont="NanumGothic"
             waitFor("Actual Korean font exists in shared picker"){eval("Array.from(document.querySelectorAll('[role=option]')).some(e=>e.getAttribute('aria-label')==="+JSONObject.quote(selectedFont)+")")=="true"}
             tap(selectedFont);SystemClock.sleep(500)
+            eval("(function(){const input=document.querySelector('[aria-label=\"크기(pt)\"]');input.focus({preventScroll:true});input.value='17';input.dispatchEvent(new Event('input',{bubbles:true}));})()")
+            waitFor("Typing a size applies natively without stealing the settings keyboard"){eval("Number(app.map.stateChangeHandler.getItemValue('.uno:FontHeight'))===17 && document.activeElement===document.querySelector('[aria-label=\"크기(pt)\"]')")=="true"}
             tap("18");waitFor("Selected text changes size"){eval("Number(app.map.stateChangeHandler.getItemValue('.uno:FontHeight'))")=="18"}
             val boldBefore=eval("app.map.stateChangeHandler.getItemValue('.uno:Bold')")=="true"
             tap("굵게");waitFor("Bold toggles the selected range"){eval("app.map.stateChangeHandler.getItemValue('.uno:Bold')")==(!boldBefore).toString()}

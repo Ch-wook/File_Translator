@@ -161,7 +161,8 @@ test('shared font picker uses native available faces and sends font-only UNO pro
  assert.equal(s.w.document.querySelectorAll('[role=option]').length,1);
  s.button('Noto Sans KR').click();await Promise.resolve();
  const c=s.commands.at(-1);assert.equal(c.name,'.uno:CharFontName');assert.deepEqual(JSON.parse(JSON.stringify(c.args)),{'CharFontName.FamilyName':{type:'string',value:'Noto Sans KR'}});
- s.click('18');assert.deepEqual(sizes,['18']);assert.deepEqual(filtered,[],'Formatting must bypass Android clipboard filtering so parameters reach the engine');
+ const field=s.w.document.querySelector('[aria-label="크기(pt)"]');field.focus();field.value='17';field.dispatchEvent(new s.w.Event('input'));
+ s.click('18');s.flush();assert.equal(field.value,'18');assert.deepEqual(sizes,['18'],'Quick size cancels the older pending typed size');assert.deepEqual(filtered,[],'Formatting must bypass Android clipboard filtering so parameters reach the engine');
  }finally{s.close();}
 });
 test('clipboard is dispatched once after approval and blocked in VIEW',()=>{

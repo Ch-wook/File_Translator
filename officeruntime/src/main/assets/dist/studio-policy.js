@@ -212,17 +212,20 @@
     if(!['Copy','SelectAll'].includes(name))policy.lastEditCommand=Date.now();
     // Android's clipboard helper consumes EVERY command and drops its args.
     // It is only valid for argument-free clipboard operations.
+    const settingsInput=document.activeElement?.matches('#studio-office-actions input[type=number],#studio-office-actions input[type=color]')?document.activeElement:null;
     const clipboard=['Copy','Cut','Paste','PasteSpecial','PasteUnformatted'].includes(name);
     if(clipboard&&!args&&map()._clip?.filterExecCopyPaste('.uno:'+name)) {map().focus(false);return;}
     if(name==='FontHeight'&&args?.['FontHeight.Height']&&typeof map().applyFontSize==='function')
       map().applyFontSize(String(args['FontHeight.Height'].value));
     else map().sendUnoCommand('.uno:'+name,args);
-    map().focus(false);
+    if(settingsInput?.isConnected){if(document.activeElement!==settingsInput)settingsInput.focus({preventScroll:true});}
+    else map().focus(false);
   }
   function command(label, name, needsObject = false) {
     return { label, name, needsObject, run: () => uno(name) };
   }
   const bundledFonts={
+    '나눔고딕':'NanumGothic-Regular.ttf','나눔명조':'NanumMyeongjo-Regular.ttf','고운돋움':'GowunDodum-Regular.ttf','고운바탕':'GowunBatang-Regular.ttf',
     'NanumGothic':'NanumGothic-Regular.ttf','NanumMyeongjo':'NanumMyeongjo-Regular.ttf','Gowun Dodum':'GowunDodum-Regular.ttf','Gowun Batang':'GowunBatang-Regular.ttf','Lato':'Lato-Regular.ttf','Cousine':'Cousine-Regular.ttf',
     'Noto Sans KR':'NotoSansKR.ttf','Noto Sans KR Thin':'NotoSansKR.ttf','Caladea':'Caladea-Regular.ttf','Carlito':'Carlito-Regular.ttf',
     'Gentium Basic':'GenBasR.ttf','Gentium Book Basic':'GenBkBasR.ttf',
@@ -237,7 +240,7 @@
   }
   function add(item,parent=actions){const b=button(item.label,item.run,parent);if(item.name)b.dataset.command=item.name;controls.push({b,item});return b;}
   function flushSettings(){return UI.flushFields(actions);}
-  function closeSheet(){try{flushSettings();}catch(error){UI.toast(error.message,true);return;}picker?.dispose();picker=null;groupOpen=false;fontList=false;sheet.hidden=true;renderDock();refreshLayout();}
+  function closeSheet(){const restoreFocus=actions.contains(document.activeElement);try{flushSettings();}catch(error){UI.toast(error.message,true);return;}picker?.dispose();picker=null;groupOpen=false;fontList=false;sheet.hidden=true;renderDock();refreshLayout();if(restoreFocus&&editable())map().focus(false);}
   function openSheet(name){try{flushSettings();}catch(error){UI.toast(error.message,true);return;}activeTab=name;groupOpen=true;fontList=false;render();}
   function currentContext(){if(objectSelected())return '그림';if(map()?.getDocType()==='spreadsheet')return '셀';if(/table|cell/i.test(contextName))return '표';if(map()?.getDocType()==='presentation')return '슬라이드';return '표';}
   function renderDock(){
@@ -301,7 +304,7 @@
     }else if(activeTab==='글자'||activeTab==='서식'){
       const font=button((state('CharFontName')||'문서 글꼴')+' ▾',()=>{fontList=true;render();});font.dataset.currentFont='true';font.setAttribute('aria-label','글꼴 선택');font.setAttribute('aria-description','현재 글꼴: '+(state('CharFontName')||'혼합 글꼴'));
       numeric('크기(pt)',state('FontHeight')!==undefined&&Number(state('FontHeight'))<=0?'':Number(state('FontHeight'))||12,v=>uno('FontHeight',{'FontHeight.Height':{type:'float',value:v}}),{step:.5});
-      const sizes=row();for(const size of [8,9,10,11,12,14,16,18,20,24,28,32])button(String(size),()=>uno('FontHeight',{'FontHeight.Height':{type:'float',value:size}}),sizes);
+      const sizes=row();for(const size of [8,9,10,11,12,14,16,18,20,24,28,32])button(String(size),()=>{actions.querySelector('[aria-label="크기(pt)"]')?.studioSet?.(size);uno('FontHeight',{'FontHeight.Height':{type:'float',value:size}});},sizes);
       for(const [label,name]of [['굵게','Bold'],['기울임','Italic'],['밑줄','Underline'],['취소선','Strikeout'],['위 첨자','SuperScript'],['아래 첨자','SubScript']])items.push(command(label,name));
       items.forEach(item=>add(item));palette('글자색',family==='text'?'Color':'FontColor');
       if(family==='text')palette('형광펜·글자 배경색','CharBackColor');
@@ -387,7 +390,7 @@
       {label:'축소',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(Math.max(0,map().getZoom()-1));}},
       {label:map().uiManager?.isRulerVisible?.()?'눈금자 숨기기':'눈금자 표시',hidden:family!=='text',action:()=>{map().uiManager.toggleRuler();refreshLayout();}},
       {label:groupOpen?'도구 접기':'도구 펼치기',hidden:!editable(),action:()=>groupOpen?closeSheet():openSheet(activeTab)},
-      {label:policy.changed?'수정됨 · 작업 복사본 보호 중':'수정 없이 원본 보기',disabled:true},
+      {label:policy.changed?'수정됨 · 작업 복사본 보호 중':editable()?'편집 모드 · 변경 사항 없음':'수정 없이 원본 보기',disabled:true},
       {label:'작업 화면으로 돌아가기',action:()=>{void saveAndClose(false);}}
     ]);
     const family=map().getDocType();

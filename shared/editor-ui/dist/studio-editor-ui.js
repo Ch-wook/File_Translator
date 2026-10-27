@@ -72,7 +72,7 @@
    if(!input.checkValidity()||(type==='number'&&(!input.value.trim()||!Number.isFinite(v)))){input.setAttribute('aria-invalid','true');return -1;}
    input.removeAttribute('aria-invalid');modified=false;apply(v);return 1;
  };
- input.studioCommit=commit;input.oninput=()=>{modified=true;clearTimeout(pending);pending=setTimeout(commit,180);};input.onchange=commit;input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();commit();}};wrap.append(input);parent.append(wrap);return input;
+ input.studioCommit=commit;input.studioSet=value=>{clearTimeout(pending);modified=false;input.value=String(value);input.removeAttribute('aria-invalid');};input.oninput=()=>{modified=true;clearTimeout(pending);pending=setTimeout(commit,180);};input.onchange=commit;input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();commit();}};wrap.append(input);parent.append(wrap);return input;
  }
  function flushFields(root){let changed=0;for(const input of root.querySelectorAll('input'))if(input.studioCommit){const result=input.studioCommit();if(result<0)throw new Error('입력한 서식 값의 범위를 확인하세요.');changed+=result;}return changed;}
 
