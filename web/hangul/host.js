@@ -21,8 +21,8 @@ function update(){
  groups.hidden=!editing;
  dock.hidden=!editing||!toolsVisible;
  undo.hidden=redo.hidden=!editing;
- undo.disabled=!ready||pending||switching||!editor?.enabled('edit:undo');
- redo.disabled=!ready||pending||switching||!editor?.enabled('edit:redo');
+ undo.disabled=!ready||pending||switching||editor?.composing()||!editor?.enabled('edit:undo');
+ redo.disabled=!ready||pending||switching||editor?.composing()||!editor?.enabled('edit:redo');
  const back=document.getElementById('back');back.disabled=pending||switching;back.setAttribute('aria-label',editing?'보기로':'작업 화면');back.title=back.getAttribute('aria-label');
  mobileUI.update();
 }
@@ -95,8 +95,8 @@ window.documentStudioHost={
  async back(){if(editing)await setEditing(false);else await close(false);},
 };
 UI.iconButton(document.getElementById('back'),'작업 화면','back',()=>window.documentStudioHost.back());
-UI.iconButton(undo,'실행 취소','undo',()=>editor?.mobile.dispatch('edit:undo'));
-UI.iconButton(redo,'다시 실행','redo',()=>editor?.mobile.dispatch('edit:redo'));
+UI.iconButton(undo,'실행 취소','undo',()=>mobileUI.history('undo'));
+UI.iconButton(redo,'다시 실행','redo',()=>mobileUI.history('redo'));
 UI.iconButton(save,'저장 후 닫기','done',()=>close(true));
 const more=UI.iconButton(document.getElementById('more'),'문서 메뉴','more');
 UI.popup(more,()=>[

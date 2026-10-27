@@ -208,6 +208,7 @@
   }
   function uno(name, args) {
     if (!editable()) return;
+    if(!['Copy','SelectAll'].includes(name))policy.lastEditCommand=Date.now();
     if (!map()._clip || !map()._clip.filterExecCopyPaste('.uno:' + name, args)) map().sendUnoCommand('.uno:' + name, args);
     map().focus(false);
   }
@@ -244,7 +245,7 @@
     modeButton.textContent='편집하기';modeButton.setAttribute('aria-label','편집하기');
     modeButton.hidden=editing||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit';
     modeButton.disabled=modeTransition||!initialViewportRestored;
-    saveButton.hidden=!editing&&!policy.changed;saveButton.disabled=modeTransition;
+    saveButton.hidden=!editing&&!policy.changed;saveButton.disabled=modeTransition||!policy.changed;
     undoButton.hidden=redoButton.hidden=!editing;
     for(const {b,item}of controls){const value=item.name&&state(item.name);b.disabled=!editing||modeTransition||(item.needsObject&&!object)||value==='disabled';if(value==='true'||value==='false')b.setAttribute('aria-pressed',value);else b.removeAttribute('aria-pressed');}
     undoButton.disabled=!editing||modeTransition||state('Undo')==='disabled';redoButton.disabled=!editing||modeTransition||state('Redo')==='disabled';
@@ -323,7 +324,7 @@
     if(modeTransition)return;
     try{
       const changed=flushSettings();
-      if(changed&&!policy.changed){const end=Date.now()+3000;while(!policy.changed&&Date.now()<end)await new Promise(resolve=>setTimeout(resolve,40));}
+      if(!policy.changed&&(changed||Date.now()-(policy.lastEditCommand||0)<3000)){const end=Date.now()+3000;while(!policy.changed&&Date.now()<end)await new Promise(resolve=>setTimeout(resolve,40));}
       persistViewport();window.postMobileMessage(saveOriginal?'DOCUMENT_STUDIO_SAVE_AND_CLOSE':'BYE');
     }catch(error){UI.toast(String(error.message||error),true);}
   }

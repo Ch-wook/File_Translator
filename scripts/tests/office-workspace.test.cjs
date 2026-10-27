@@ -169,7 +169,9 @@ test('clipboard is dispatched once after approval and blocked in VIEW',()=>{
 });
 test('mode changes do not mark content modified, actual changes expose save after returning to VIEW',()=>{
  const s=workspace();try{
- s.click('편집하기');assert.equal(s.w.studioOffice.changed,false);s.changed();s.click('보기로 전환');assert.equal(s.button('저장 후 닫기').hidden,false);
+ s.click('편집하기');assert.equal(s.w.studioOffice.changed,false);assert.equal(s.button('저장 후 닫기').disabled,true);
+ s.click('문단');s.click('쪽 나누기');s.button('저장 후 닫기').click();assert.deepEqual(s.mobile,[],'Do not close before native modified acknowledgement');
+ s.changed();assert.equal(s.button('저장 후 닫기').disabled,false);s.click('보기로 전환');assert.equal(s.button('저장 후 닫기').hidden,false);
  s.click('저장 후 닫기');assert.deepEqual(s.mobile,['DOCUMENT_STUDIO_SAVE_AND_CLOSE']);
  }finally{s.close();}
 });

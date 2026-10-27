@@ -40,8 +40,10 @@ class CommonMobileUiTest {
         compose.onNodeWithTag("mobile-editor-header").assertHeightIsEqualTo(48.dp)
         compose.onNodeWithTag("mobile-editor-dock").assertHeightIsEqualTo(48.dp)
         compose.onNodeWithText("글자").performClick()
-        compose.onNodeWithText("글꼴 · 고정폭").performScrollTo().performClick()
-        compose.onNodeWithText("Noto Sans KR").performScrollTo().performClick()
+        compose.onNode(hasText("글꼴 ·",substring=true)).performScrollTo().performClick()
+        compose.onNode(hasText("Noto Sans KR",substring=true) and hasClickAction()).performScrollTo().performClick();compose.waitForIdle()
+        compose.onNode(hasText("글꼴 ·",substring=true)).performScrollTo().performClick()
+        compose.onNode(hasText("시스템 바탕",substring=true) and hasClickAction()).performScrollTo().performClick();compose.waitForIdle()
         compose.onNodeWithContentDescription("설정 닫기").performClick()
         compose.runOnUiThread {
             val input=find(compose.activity.window.decorView,EditText::class.java)!!
