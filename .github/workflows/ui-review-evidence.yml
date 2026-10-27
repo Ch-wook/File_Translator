@@ -19,19 +19,23 @@ jobs:
           python3 - <<'PY'
           import base64,json,pathlib,subprocess,xml.etree.ElementTree as ET
           repo='Ch-wook/File_Translator'
-          candidates=[('40482199782','hangul-mobile-web-fad0f26e39806cda37172539e8cfd049df1d8050'),('40482199771','focused-mobile-ui-fad0f26e39806cda37172539e8cfd049df1d8050'),('40481181541','mobile-release-logs-5d96549577646c5c76d4cbc9ef180197755fa1f4')]
+          candidates=[('40483459935','mobile-release-logs-1db5dc8b72fe442f60ac9112c09c38616a73182a')]
           for run,name in candidates:
               dest=pathlib.Path('evidence')/run
               subprocess.run(['gh','run','download',run,'--repo',repo,'--name',name,'--dir',str(dest)],check=True)
               pictures=list(dest.rglob('*.png'))
-              patterns=['compact-web-412x915.png'] if run=='40482199782' else ['formatted-target.png','docx-compact-font.png','text-character-panel.png'] if run=='40482199771' else ['pptx-save-roundtrip-failure.png']
+              patterns=['hwpx-failure.png','docx-save-roundtrip-failure.png','pptx-save-roundtrip-failure.png']
               for pattern in patterns:
                   p=next((p for p in pictures if p.name==pattern),None)
                   if p:print('ACTUAL_COMPACT_UI_PNG',json.dumps({'path':str(p.relative_to(dest)),'run':run,'base64':base64.b64encode(p.read_bytes()).decode()}),flush=True)
-              for p in dest.rglob('failure.xml'):
+              for p in dest.rglob('*failure.xml'):
                   nodes=ET.parse(p).getroot().iter('node')
-                  selected=[{key:n.get(key) for key in ('text','content-desc','bounds','enabled','visible-to-user')} for n in nodes if n.get('package')=='kr.documentstudio.compactpreview' and (n.get('text') or n.get('content-desc'))]
+                  selected=[{key:n.get(key) for key in ('text','content-desc','bounds','enabled','visible-to-user','package')} for n in nodes if n.get('package')!='com.android.inputmethod.latin' and (n.get('text') or n.get('content-desc'))]
                   print('ACTUAL_APP_UI_NODES',str(p.relative_to(dest)),json.dumps(selected,ensure_ascii=False))
+              for p in dest.rglob('android-all-processes.log'):
+                  import re
+                  lines=[line for line in p.read_text(errors='replace').splitlines() if re.search(r'ANR|am_anr|Input dispatching|not responding|Timeout waiting for.*window',line,re.I)]
+                  print('ACTUAL_SYSTEM_INPUT_DIAGNOSTIC',json.dumps(lines[-100:]))
               for p in dest.rglob('*.json'):
                   if p.name in ('android-summary.json','summary.json') or 'failure' in p.name or p.name=='ui-state.json':
                       text=p.read_text()
