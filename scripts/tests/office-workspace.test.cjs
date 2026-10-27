@@ -146,7 +146,7 @@ test('Writer paragraph, Calc cells/formulas and Impress slides retain format-spe
  w.click('편집하기');w.click('문단');w.click('쪽 설정');assert.equal(w.commands.at(-1).name,'.uno:PageDialog');
  c.click('편집하기');c.click('셀');c.click('열 삽입');assert.equal(c.commands.at(-1).name,'.uno:InsertColumnsBefore');
  c.click('셀 서식');assert.equal(c.commands.at(-1).name,'.uno:FormatCellDialog');c.click('함수 마법사');assert.equal(c.commands.at(-1).name,'.uno:FunctionDialog');
- p.click('편집하기');p.click('슬라이드');p.click('슬라이드 복제');assert.equal(p.commands.at(-1).name,'.uno:DuplicatePage');
+ p.click('편집하기');p.select(true);p.click('더보기');p.click('슬라이드 도구');p.click('슬라이드 복제');assert.equal(p.commands.at(-1).name,'.uno:DuplicatePage');
  p.click('더보기');p.click('개체');assert.equal(p.button('자유 배치'),undefined);
  }finally{w.close();c.close();p.close();}
 });

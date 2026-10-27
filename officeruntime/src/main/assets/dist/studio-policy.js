@@ -321,6 +321,7 @@
       for(const [label,name]of [['새 슬라이드','InsertPage'],['슬라이드 복제','DuplicatePage'],['슬라이드 삭제','DeletePage']])add(command(label,name));
     }else{
       for(const [label,name]of [['잘라내기','Cut'],['복사','Copy'],['붙여넣기','Paste'],['서식 없이 붙여넣기','PasteUnformatted'],['전체 선택','SelectAll'],['찾기·바꾸기','SearchDialog'],['글자 모양','FontDialog']])add(command(label,name));
+      button(family==='presentation'?'슬라이드 도구':family==='spreadsheet'?'셀 도구':'표 도구',()=>openSheet(family==='presentation'?'슬라이드':family==='spreadsheet'?'셀':'표'));
       button('개체',()=>openSheet('개체'));button('읽기 모드로 전환',()=>map().setPermission('readonly'));
     }
     update();refreshLayout();

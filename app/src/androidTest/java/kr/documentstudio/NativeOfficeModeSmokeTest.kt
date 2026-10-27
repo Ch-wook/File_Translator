@@ -138,7 +138,7 @@ class NativeOfficeModeSmokeTest {
             when (format) {
                 Format.DOCX -> { visible("문단").click(); visible("쪽 나누기").click() }
                 Format.XLSX -> { visible("셀").click(); visible("열 삽입").click() }
-                Format.PPTX -> { visible("슬라이드").click(); visible("새 슬라이드").click() }
+                Format.PPTX -> { visible("더보기").click(); visible("슬라이드 도구").click(); visible("새 슬라이드").click() }
                 else -> error("Unexpected roundtrip format")
             }
             visible("저장 후 닫기", 20_000).click()

@@ -19,15 +19,12 @@ jobs:
           python3 - <<'PY'
           import base64,json,pathlib,subprocess,xml.etree.ElementTree as ET
           repo='Ch-wook/File_Translator'
-          candidates=[('40480404587','hangul-mobile-web-b85aa606d55ebcd401f677bc081e1a62f7c3de13'),('40480404675','focused-mobile-ui-b85aa606d55ebcd401f677bc081e1a62f7c3de13')]
-          native_run='40481181541';native_sha='5d96549577646c5c76d4cbc9ef180197755fa1f4'
-          info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{native_run}']))
-          if info['status']=='completed':candidates.append((native_run,'mobile-release-logs-'+native_sha))
+          candidates=[('40482199782','hangul-mobile-web-fad0f26e39806cda37172539e8cfd049df1d8050'),('40482199771','focused-mobile-ui-fad0f26e39806cda37172539e8cfd049df1d8050'),('40481181541','mobile-release-logs-5d96549577646c5c76d4cbc9ef180197755fa1f4')]
           for run,name in candidates:
               dest=pathlib.Path('evidence')/run
               subprocess.run(['gh','run','download',run,'--repo',repo,'--name',name,'--dir',str(dest)],check=True)
               pictures=list(dest.rglob('*.png'))
-              patterns=['compact-web-412x915.png','hwpx-edit-requested.png','docx-compact-font.png','docx-view.png','xlsx-view.png','pptx-view.png','failure.png','text-character-panel.png']
+              patterns=['compact-web-412x915.png'] if run=='40482199782' else ['formatted-target.png','docx-compact-font.png','text-character-panel.png'] if run=='40482199771' else ['pptx-save-roundtrip-failure.png']
               for pattern in patterns:
                   p=next((p for p in pictures if p.name==pattern),None)
                   if p:print('ACTUAL_COMPACT_UI_PNG',json.dumps({'path':str(p.relative_to(dest)),'run':run,'base64':base64.b64encode(p.read_bytes()).decode()}),flush=True)
