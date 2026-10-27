@@ -237,7 +237,7 @@
   }
   function update(){
     if(!bar)return;const editing=editable(),object=objectSelected();
-    bar.dataset.editing=String(editing);bottom.hidden=!editing;sheet.hidden=!editing||!groupOpen;
+    bar.dataset.editing=String(editing);const searching=groupOpen&&activeTab==='찾기';bottom.hidden=!editing&&!searching;sheet.hidden=!groupOpen||(!editing&&!searching);tabs.hidden=!editing;
     modeLabel.textContent=editing?'편집 중':'원본 보기';
     modeButton.textContent='편집하기';modeButton.setAttribute('aria-label','편집하기');
     modeButton.hidden=editing||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit';
@@ -248,7 +248,7 @@
     undoButton.disabled=!editing||modeTransition||state('Undo')==='disabled';redoButton.disabled=!editing||modeTransition||state('Redo')==='disabled';
     const back=header.querySelector('#studio-office-back');back.setAttribute('aria-label',editing?'보기로 전환':'돌아가기');back.disabled=modeTransition||!initialViewportRestored;
     const input=actions.querySelector('[aria-label="크기(pt)"]');if(input&&document.activeElement!==input){const value=state('FontHeight');if(value&&Number.isFinite(Number(value)))input.value=value;}
-    const font=actions.querySelector('[data-current-font]');if(font){const name=state('CharFontName')||'문서 글꼴';font.textContent=name+' ▾';font.setAttribute('aria-label','글꼴 선택 · '+name);}
+    const font=actions.querySelector('[data-current-font]');if(font){const name=state('CharFontName')||'문서 글꼴';font.textContent=name+(fonts().includes(name)?'':' · 대체 표시')+' ▾';font.setAttribute('aria-label','글꼴 선택 · '+name);}
     hint.textContent=editing?'편집 중':'원본 보기';
     const context=currentContext();if(context!==previousContext){previousContext=context;if(groupOpen&&['그림','표','셀','슬라이드'].includes(activeTab))closeSheet();renderDock();}
   }
@@ -275,7 +275,13 @@
       picker=UI.fontPicker(actions,{fonts:available,current:state('CharFontName'),onPick:name=>{if(!editable()||modeTransition)return;uno('CharFontName',{'CharFontName.FamilyName':{type:'string',value:name}});fontList=false;render();},preview:previewFont,key:'studio-office-fonts',note:'실제 번들 글꼴 · 원래 글꼴이 없으면 대체 표시됩니다. 글꼴 변경은 선택 영역 또는 이후 입력에 적용됩니다.'});
       update();refreshLayout();return;
     }
-    if(activeTab==='글자'){
+    if(activeTab==='찾기'){
+      const r=row(),q=document.createElement('input');q.type='search';q.setAttribute('aria-label','찾을 내용');q.placeholder='찾을 내용';r.append(q);
+      const find=backwards=>{if(q.value&&typeof map().search==='function'){releaseViewportPin();map().search(q.value,backwards);}};
+      button('이전 결과',()=>find(true));button('다음 결과',()=>find(false));
+      q.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();find(false);}};
+      update();refreshLayout();return;
+    }else if(activeTab==='글자'){
       const font=button((state('CharFontName')||'문서 글꼴')+' ▾',()=>{fontList=true;render();});font.dataset.currentFont='true';font.setAttribute('aria-label','글꼴 선택 · '+(state('CharFontName')||'문서 글꼴'));
       numeric('크기(pt)',Number(state('FontHeight'))||12,v=>uno('FontHeight',{'FontHeight.Height':{type:'float',value:v}}),{step:.5});
       const sizes=row();for(const size of [8,9,10,11,12,14,16,18,20,24,28,32])button(String(size),()=>uno('FontHeight',{'FontHeight.Height':{type:'float',value:size}}),sizes);
@@ -284,6 +290,7 @@
       if(family==='text')palette('형광펜·글자 배경색','CharBackColor');
       add(command('자간·장평·글자 위치','FontDialog'));add(command('선택 글자 서식 초기화','ResetAttributes'));
     }else if(activeTab==='문단'){
+      if(family==='spreadsheet'){add(command('셀 정렬·줄바꿈','FormatCellDialog'));update();refreshLayout();return;}
       for(const [label,name]of [['왼쪽 정렬','LeftPara'],['가운데 정렬','CenterPara'],['오른쪽 정렬','RightPara'],['양쪽 정렬','JustifyPara'],['글머리표','DefaultBullet'],['번호 매기기','DefaultNumbering'],['들여쓰기 증가','IncrementIndent'],['들여쓰기 감소','DecrementIndent'],['줄 간격·문단 간격·테두리','ParagraphDialog']])add(command(label,name));
       if(family==='text'){add(command('쪽 설정','PageDialog'));add(command('쪽 나누기','InsertPagebreak'));}
     }else if(activeTab==='표'){
@@ -330,9 +337,9 @@
     const lower=document.getElementById('toolbar-down');if(lower)lower.before(bottom);else document.body.append(bottom);
     UI.popup(more,()=>[
       {label:editable()?'읽기 모드로 전환':'편집하기',hidden:!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit',disabled:modeTransition||!initialViewportRestored,action:()=>editable()?map().setPermission('readonly'):map()._switchToEditMode()},
-      {label:'찾기·바꾸기',disabled:!editable(),action:()=>uno('SearchDialog')},
-      {label:'확대 '+Math.round((map().getZoomScale?.(map().getZoom(),10)||1)*100)+'%',action:()=>{releaseViewportPin();map().zoomIn?.();}},
-      {label:'축소',action:()=>{releaseViewportPin();map().zoomOut?.();}},
+      {label:editable()?'찾기·바꾸기':'찾기',disabled:!editable()&&typeof map().search!=='function',action:()=>editable()?uno('SearchDialog'):openSheet('찾기')},
+      {label:'확대 '+Math.round((map().getZoomScale?.(map().getZoom(),10)||1)*100)+'%',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(map().getZoom()+1);}},
+      {label:'축소',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(Math.max(0,map().getZoom()-1));}},
       {label:map().uiManager?.isRulerVisible?.()?'눈금자 숨기기':'눈금자 표시',hidden:family!=='text',action:()=>{map().uiManager.toggleRuler();refreshLayout();}},
       {label:groupOpen?'도구 접기':'도구 펼치기',hidden:!editable(),action:()=>groupOpen?closeSheet():openSheet(activeTab)},
       {label:policy.changed?'수정됨 · 작업 복사본 보호 중':'수정 없이 원본 보기',disabled:true},

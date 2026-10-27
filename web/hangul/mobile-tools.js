@@ -59,7 +59,7 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
  function textPanel() {
    line(state.scope||'선택한 글자');
    const family=state.char?.fontFamily||state.char?.fontFamilies?.[0]||'문서 기본 글꼴';
-   const fontButton=button(family+' ▾',()=>{fontList=true;render();},line('글꼴'));fontButton.className='font-current';fontButton.setAttribute('aria-label','글꼴 선택 · '+family);
+   const fontButton=button(family+(api().fonts().includes(family)?'':' · 대체 표시')+' ▾',()=>{fontList=true;render();},line('글꼴'));fontButton.className='font-current';fontButton.setAttribute('aria-label','글꼴 선택 · '+family);
    const sizes=line('글자 크기');number('fontSize','크기(pt)',(state.char?.fontSize||1000)/100,1,4096,.5,(m,v)=>m.char({fontSize:Math.round(v*100)},target),sizes);
    button('글자 크기 −',()=>execute(m=>m.char({fontSize:Math.max(100,(m.state().char.fontSize||1000)-100)},target)),sizes);
    button('글자 크기 ＋',()=>execute(m=>m.char({fontSize:Math.min(409600,(m.state().char.fontSize||1000)+100)},target)),sizes);

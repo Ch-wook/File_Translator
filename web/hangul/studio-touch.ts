@@ -118,6 +118,30 @@ export function installStudioTouch(getInput:()=>any,eventBus:any) {
    return x>=left&&x<=left+b.w*z&&y>=top&&y<=top+b.h*z;
  }
  function cancelPress(){clearTimeout(pressTimer);pressTimer=0;press=null;}
+ // Pinch the document viewport, never the page's character sizes.
+ let pinch:{distance:number;zoom:number}|null=null;
+ const distance=(touches:TouchList)=>Math.hypot(touches[1].clientX-touches[0].clientX,touches[1].clientY-touches[0].clientY);
+ document.addEventListener('touchstart',e=>{
+   const ih=input(),target=e.target as Element;
+   if(!ih||!target.closest('#scroll-container')||target.closest('#studio-touch-layer'))return;
+   if(e.touches.length===2&&!ih.isComposing&&!ih._iosComposing){
+     cancelPress();
+     if(objectGesture){mouse('mouseup',objectGesture.x,objectGesture.y,document);objectGesture=null;}
+     pinch={distance:Math.max(1,distance(e.touches)),zoom:ih.viewportManager.getZoom()};
+     suppressUntil=Date.now()+10000;e.preventDefault();e.stopImmediatePropagation();
+   }else if(pinch){e.preventDefault();e.stopImmediatePropagation();}
+ },{passive:false,capture:true});
+ document.addEventListener('touchmove',e=>{
+   if(!pinch)return;e.preventDefault();e.stopImmediatePropagation();
+   const ih=input();if(!ih||e.touches.length!==2)return;
+   const box=ih.container.getBoundingClientRect(),x=(e.touches[0].clientX+e.touches[1].clientX)/2,y=(e.touches[0].clientY+e.touches[1].clientY)/2;
+   ih.viewportManager.setZoom(Math.max(.1,Math.min(5,pinch.zoom*distance(e.touches)/pinch.distance)),{x:(x-box.left)/box.width,y:(y-box.top)/box.height});
+   refresh();(window.parent as any).documentStudioHost?.toolsChanged?.();
+ },{passive:false,capture:true});
+ for(const name of ['touchend','touchcancel'])document.addEventListener(name,(event:Event)=>{
+   const e=event as TouchEvent;if(!pinch)return;e.preventDefault();e.stopImmediatePropagation();
+   if(!e.touches.length||name==='touchcancel'){pinch=null;suppressUntil=Date.now()+700;refresh();}
+ },{passive:false,capture:true});
  document.addEventListener('touchstart',e=>{
    const ih=input(),target=e.target as Element;
    if(e.touches.length!==1||!ih||!studioIsEditing()||!target.closest('#scroll-container')||target.closest('#studio-touch-layer')){cancelPress();return;}

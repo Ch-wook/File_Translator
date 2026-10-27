@@ -54,10 +54,11 @@ class NativeEditorController {
     private var range: Pair<Int,Int>?=null
     fun capture(){editor?.let {range=it.selectionStart.coerceAtLeast(0) to it.selectionEnd.coerceAtLeast(0)}}
     fun restore(){editor?.let {v->range?.let {(a,b)->v.setSelection(a.coerceIn(0,v.length()),b.coerceIn(0,v.length()))}}}
+    fun focus(){restore();editor?.let {v->if(v.keyListener!=null){v.requestFocus();(v.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showSoftInput(v,android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)}}}
     fun clipboard(id: Int){restore();editor?.let {it.onTextContextMenuItem(id);capture()}}
     fun markdown(command: String){restore();editor?.let {v->
         val edit=MarkdownEditing.apply(v.text.toString(),v.selectionStart,v.selectionEnd,command)
-        v.text.replace(0,v.length(),edit.text);v.setSelection(edit.first,edit.last);capture()
+        v.text.replace(0,v.length(),edit.text);v.setSelection(edit.first,edit.last);capture();v.requestFocus()
     }}
     fun navigate(end: Boolean){editor?.let {v->v.setSelection(if(end)v.length() else 0);v.requestFocus();v.bringPointIntoView(v.selectionStart);capture()}}
 }

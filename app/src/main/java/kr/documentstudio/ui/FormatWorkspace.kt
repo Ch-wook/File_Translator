@@ -63,7 +63,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
             if(!editing) FilledTonalButton({vm.beginEditing()},enabled=!busy && presentation!=PresentationState.READ_ONLY && presentation!=PresentationState.ERROR,
                 modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).testTag("edit-document")) {Icon(Icons.Default.Edit,null);Text("편집하기")}
         }
-        if(panel!=null) MobileEditorSheet(if(fontList)"보기 글꼴" else panel!!,sheetLimit,{panel=null;fontList=false}) {
+        if(panel!=null) MobileEditorSheet(if(fontList)"보기 글꼴" else panel!!,sheetLimit,{panel=null;fontList=false;if(editing&&s.format!=Format.PDF)textController.focus()}) {
           when(panel) {
             "글자"->if(s.format==Format.PDF) {
                 val run=pdfController.selected as? PdfBodyRun

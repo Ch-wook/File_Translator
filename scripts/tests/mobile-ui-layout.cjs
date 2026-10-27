@@ -15,8 +15,26 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   });
   await page.goto('https://hangul.documentstudio.local/');
   await page.waitForFunction(()=>window.__ready||window.__failure,null,{timeout:90000});assert.equal(await page.evaluate(()=>window.__failure),undefined);
+  const frameForPinch=page.frames().find(f=>f.url().includes('/engine/index.html'));
+  const cdp=await context.newCDPSession(page);
+  async function pinchCheck(){
+    const before=await frameForPinch.evaluate(()=>window.rhwpStudio.documentStudio.captureView());
+    const selected=await frameForPinch.evaluate(()=>window.rhwpStudio.documentStudio.mobile.capture().range);
+    const box=await page.locator('#engine').boundingBox(),cx=box.x+box.width/2,cy=box.y+Math.min(230,box.height/2);
+    const points=d=>[{x:cx-d,y:cy,radiusX:3,radiusY:3},{x:cx+d,y:cy,radiusX:3,radiusY:3}];
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points(35)});
+    for(const d of [42,50,60,70])await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:points(d)});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    const after=await frameForPinch.evaluate(()=>window.rhwpStudio.documentStudio.captureView());
+    assert.ok(after.zoom>before.zoom*1.5,JSON.stringify({before,after}));
+    assert.deepEqual(await frameForPinch.evaluate(()=>window.rhwpStudio.documentStudio.mobile.capture().range),selected);
+    assert.equal(await frameForPinch.evaluate(()=>window.rhwpStudio.documentStudio.dirty()),false);
+    await frameForPinch.evaluate(view=>window.rhwpStudio.documentStudio.restoreView(view),before);
+  }
+  await pinchCheck();
   await page.locator('#mode').click();await page.waitForFunction(()=>document.body.dataset.state==='EDITING'&&!document.getElementById('mode').disabled);
   const metrics=()=>page.evaluate(()=>Object.fromEntries(['header','#status-row','#engine','#groups','#tools','#mobile-panel','#edit-dock','#detail-sheet'].map(key=>{const e=document.querySelector(key),r=e.getBoundingClientRect();return[key,{top:r.top,bottom:r.bottom,height:r.height,width:r.width,hidden:e.hidden}];})));
+  await pinchCheck();
   const closed=await metrics();await page.screenshot({path:path.join(out,'compact-web-'+viewport.width+'x'+viewport.height+'.png')});
   assert.equal(closed.header.height,48);assert.equal(closed['#edit-dock'].height,48);assert.equal(closed['#engine'].height,viewport.height-96);
   await page.locator('#groups').getByRole('button',{name:'글자',exact:true}).click();const opened=await metrics();
