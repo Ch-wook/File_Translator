@@ -7,18 +7,18 @@ permissions:
   contents: write
   actions: read
 concurrency:
-  group: publish-document-studio-084
+  group: publish-document-studio-085
   cancel-in-progress: false
 jobs:
   publish:
-    if: contains(github.event.head_commit.message, '[publish-084]')
+    if: contains(github.event.head_commit.message, '[publish-085]')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_SHA: 4328146f0e0cc624d1dc41d262e6b649aea3dbc7
-      VERIFIED_RUN: '40424845558'
-      PREVIEW_TAG: v0.8.4-preview
+      VERIFIED_SHA: 2c0bad21b295e61e25a78a2d44aca2f280afebf1
+      VERIFIED_RUN: '40452640049'
+      PREVIEW_TAG: v0.8.5-preview
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,11 +48,11 @@ jobs:
           for line in (delivery/'SHA256SUMS').read_text().splitlines():
               expected,name=line.split('  ',1);p=delivery/name;assert p.parent==delivery and p.is_file()
               with p.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()==expected,name
-          with zipfile.ZipFile(delivery/'document-studio-0.8.4-preview-verification.zip') as z:
+          with zipfile.ZipFile(delivery/'document-studio-0.8.5-preview-verification.zip') as z:
               assert z.testzip() is None
               result=json.loads(z.read('artifacts/ci/summary.json'))
               assert result['commit']==sha and result['androidEmulatorOutcome']=='success' and result['physicalDeviceTested'] is False,result
-              assert result['androidTests']=={'tests':23,'failures':0,'errors':0,'skipped':0},result
+              assert result['androidTests']=={'tests':27,'failures':0,'errors':0,'skipped':0},result
               regression=json.loads(z.read('artifacts/ci/open-regression/summary.json'))
               assert regression=={'before':{'tests':3,'failures':3,'errors':0,'skipped':0},'after':{'tests':3,'failures':0,'errors':0,'skipped':0}},regression
               for name in ('metadata-free-hwp.json','metadata-free-hwpx.json','distribution-read-only.json'):
@@ -62,9 +62,9 @@ jobs:
                   manifest=z.read('artifacts/ci/'+abi+'-manifest.txt').decode()
                   assert "minSdkVersion:'29'" in manifest and "targetSdkVersion:'36'" in manifest,manifest
               install=result['installation']
-              assert install['cleanInstallWithoutTestFlag'] and install['coexistsWith083'] and install['priorApkHashUnchanged'] and install['priorPrivateDataPreserved'] and install['sameSignerReinstallPreservedPrivateData'],install
+              assert install['cleanInstallWithoutTestFlag'] and install['coexistsWith084'] and install['priorApkHashUnchanged'] and install['priorPrivateDataPreserved'] and install['sameSignerReinstallPreservedPrivateData'],install
               for counts in result['unitTests'].values():assert counts['tests']>0 and counts['failures']==counts['errors']==counts['skipped']==0
-              assert result['originalBrowserScenarios']==5 and result['javascriptTests']==22 and result['independentPartialFormattingParser'],result
+              assert result['originalBrowserScenarios']==5 and result['javascriptTests']==20 and result['independentPartialFormattingParser'],result
               mobile=result['mobileEngineTests']
               assert len(mobile)==2 and {r['format'] for r in mobile}=={'hwp','hwpx'}
               for r in mobile:
@@ -73,10 +73,10 @@ jobs:
           apks=result['apks'];assert {a['abi'] for a in apks}=={'arm64-v8a','x86_64'}
           assert len({a['certificateSHA256'] for a in apks})==1
           for item in apks:
-              assert item['applicationId']=='kr.documentstudio.openpreview' and item['versionCode']==14 and item['versionName']=='0.8.4-preview' and not item['testOnly'] and item['elf16k']
+              assert item['applicationId']=='kr.documentstudio.compactpreview' and item['versionCode']==15 and item['versionName']=='0.8.5-preview' and not item['testOnly'] and item['elf16k']
               p=delivery/item['file'];assert p.stat().st_size==item['bytes']
               with p.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()==item['sha256']
-          with zipfile.ZipFile(delivery/'document-studio-0.8.4-preview-source.zip') as z:
+          with zipfile.ZipFile(delivery/'document-studio-0.8.5-preview-source.zip') as z:
               assert z.testzip() is None
               tracked={}
               for entry in subprocess.check_output(['git','ls-tree','-r','-z',sha]).split(b'\0'):
@@ -90,12 +90,12 @@ jobs:
           notes=(delivery/'README.txt').read_text()
           notes+='\n실행 검증: Android '+str(result['androidTests']['tests'])+'건, 단위 '+str(units['tests'])+'건 — 실패·오류·건너뜀 0건.\n'
           notes+='이름/MIME 조회 회귀: 동일 3건에서 수정 전 3건 실패 → 수정 후 3건 통과.\n'
-          notes+='실제 엔진 브라우저 7개 시나리오, JavaScript 22건, TypeScript·lint, HWP/HWPX 독립 저장 파서 검사 통과.\n'
-          notes+='설치·기존 0.8.3 APK/개인 데이터 보존·재설치 확인. 실제 ARM64 휴대폰 검증은 미완료.\n'
+          notes+='실제 엔진 브라우저 7개 시나리오, JavaScript 20건, TypeScript·lint, HWP/HWPX 독립 저장 파서 검사 통과.\n'
+          notes+='설치·기존 0.8.4 APK/개인 데이터 보존·재설치 확인. 실제 ARM64 휴대폰 검증은 미완료.\n'
           notes+='전체 결과·원본 해시·재열기 증거는 verification.zip에 포함했습니다.\n'
           for item in apks:notes+='\n'+item['abi']+': '+str(item['bytes'])+' bytes, SHA-256 '+item['sha256']+'\n'
           notes+='\n빌드 커밋: '+sha+'\n태그 커밋: '+os.environ['GITHUB_SHA']+' (앱 코드 차이 없음; 배포 문서·CI만 추가)\n'
-          notes+='문서 열기 수정 원인·검증: https://github.com/'+repo+'/blob/codex/hangul-mobile-editing/docs/DOCUMENT_OPEN_FIX.md\n'
+          notes+='모든 형식 모바일 편집 UI 원인·검증: https://github.com/'+repo+'/blob/codex/hangul-mobile-editing/docs/COMMON_MOBILE_UI_RESULTS.md\n'
           notes+='기능·검증·지원 제한: https://github.com/'+repo+'/blob/codex/hangul-mobile-editing/docs/HANGUL_MOBILE_EDITING.md\n'
           pathlib.Path('release-notes.md').write_text(notes)
           print('VERIFIED_MOBILE_EDITING_ARTIFACTS',json.dumps(result),flush=True)
@@ -124,7 +124,7 @@ jobs:
                   obj=json.loads(ref.stdout)['object'];assert obj['type']=='commit';same_app(obj['sha'])
               else:assert '404' in ref.stderr,ref.stderr
               subprocess.run(['gh','release','create',tag,*[str(p) for p in sorted(expected.values())],
-                              '--draft','--prerelease','--target',sha,'--title','문서 스튜디오 0.8.4-preview · 문서 열기 수정',
+                              '--draft','--prerelease','--target',sha,'--title','문서 스튜디오 0.8.5-preview · 모든 형식 모바일 편집 UI',
                               '--notes-file','release-notes.md'],check=True)
               release=next(r for r in api(f'repos/{repo}/releases?per_page=100') if r['tag_name']==tag)
           assets=api(f"repos/{repo}/releases/{release['id']}/assets?per_page=100")

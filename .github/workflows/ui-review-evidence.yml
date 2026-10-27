@@ -1,0 +1,38 @@
+name: Review actual compact editor screenshots
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  evidence:
+    if: contains(github.event.head_commit.message, '[ui-evidence]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read exact completed browser and native evidence
+        run: |
+          python3 - <<'PY'
+          import base64,json,pathlib,subprocess
+          repo='Ch-wook/File_Translator'
+          candidates=[('40452198267','hangul-mobile-web-8ee0d1b8578fa94cc25bc0e8c8a16836ea0bc332')]
+          native_run='40452640049';native_sha='2c0bad21b295e61e25a78a2d44aca2f280afebf1'
+          info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{native_run}']))
+          if info['status']=='completed':candidates.append((native_run,'mobile-release-logs-'+native_sha))
+          for run,name in candidates:
+              dest=pathlib.Path('evidence')/run
+              subprocess.run(['gh','run','download',run,'--repo',repo,'--name',name,'--dir',str(dest)],check=True)
+              pictures=list(dest.rglob('*.png'))
+              patterns=['compact-web-412x915.png','hwpx-edit-requested.png','docx-compact-font.png','docx-view.png','xlsx-view.png','pptx-view.png','failure.png']
+              for pattern in patterns:
+                  p=next((p for p in pictures if p.name==pattern),None)
+                  if p:print('ACTUAL_COMPACT_UI_PNG',json.dumps({'path':str(p.relative_to(dest)),'run':run,'base64':base64.b64encode(p.read_bytes()).decode()}),flush=True)
+              for p in dest.rglob('*.json'):
+                  if p.name in ('android-summary.json','summary.json') or 'failure' in p.name:
+                      text=p.read_text()
+                      if len(text)<30000:print('ACTUAL_UI_RESULT',str(p.relative_to(dest)),text)
+          PY
