@@ -44,5 +44,10 @@ class MarkdownUiTest {
         compose.waitUntil(10000) {vm.state.value.session!!.edits.text.startsWith("- [x]")}
         compose.onNodeWithContentDescription("실행 취소").performClick();compose.waitForIdle();assertTrue(vm.state.value.session!!.edits.text.startsWith("- [ ]"))
         compose.onNodeWithContentDescription("다시 실행").performClick();compose.waitForIdle();assertTrue(vm.state.value.session!!.edits.text.startsWith("- [x]"))
+        // Returning from preview must attach the latest source, not mutate an old detached EditText.
+        compose.onNodeWithText("글자").performClick();compose.waitForIdle()
+        compose.onNodeWithText("굵게").performScrollTo().performClick();compose.waitForIdle()
+        assertTrue("Formatting after preview cannot revert the checked task",vm.state.value.session!!.edits.text.startsWith("- [x]"))
+        assertTrue(vm.state.value.session!!.edits.text.endsWith("한글"))
     }
 }

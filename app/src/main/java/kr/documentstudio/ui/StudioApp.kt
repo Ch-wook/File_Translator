@@ -311,8 +311,7 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
         })
         contentDescription="문서 본문"
         setOnFocusChangeListener {_,hasFocus -> if(hasFocus) onFocused()}
-    }.also {editor=it;controller?.editor=it;it.onSelectionUpdate={a,b->controller?.selectionChanged(a,b)};inputKeyListener=it.keyListener} },update={view ->
-        controller?.editor=view
+    }.also {editor=it;it.onSelectionUpdate={a,b->if(controller?.editor===it)controller?.selectionChanged(a,b)};inputKeyListener=it.keyListener} },update={view ->
         if(view.showLineNumbers!=showLineNumbers){val x=view.scrollX;val y=view.scrollY;view.showLineNumbers=showLineNumbers;view.setPadding(if(showLineNumbers)92 else 24,24,28,24);view.scrollTo(x,y);view.invalidate()}
         if(view.typeface!=desiredFace) {val a=view.selectionStart.coerceIn(0,view.length());val b=view.selectionEnd.coerceIn(0,view.length());val x=view.scrollX;val y=view.scrollY;view.typeface=desiredFace;view.setSelection(a,b);view.scrollTo(x,y)}
         view.textSize=fontSize;view.isEnabled=!busy;view.setHorizontallyScrolling(!wrap)
@@ -332,7 +331,8 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
             val x=view.scrollX;val y=view.scrollY
             view.tag=true;view.setText(text);view.setSelection(start,end);view.tag=false;view.scrollTo(x,y)
         }
-    },modifier=Modifier.fillMaxWidth().weight(1f))
+        controller?.attach(view)
+    },onRelease={view->controller?.detach(view)},modifier=Modifier.fillMaxWidth().weight(1f))
 }
 }
 

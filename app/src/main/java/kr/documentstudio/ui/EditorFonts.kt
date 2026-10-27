@@ -14,6 +14,9 @@ object EditorFonts {
         "Lato" to "Lato-Regular.ttf",
         "Cousine" to "Cousine-Regular.ttf"
     )
+    val korean=setOf("Noto Sans KR","NanumGothic","NanumMyeongjo","Gowun Dodum","Gowun Batang")
+    private val labels=mapOf("NanumGothic" to "나눔고딕","NanumMyeongjo" to "나눔명조","Gowun Dodum" to "고운돋움","Gowun Batang" to "고운바탕")
+    fun label(name: String)=labels[name]?.let {"$it · $name"} ?: name
     val names=files.keys.toList()+listOf("시스템 고딕","시스템 바탕","고정폭")
     private val cache=mutableMapOf<String,Typeface>()
     @Synchronized fun face(context: Context,name: String): Typeface=cache.getOrPut(name) {

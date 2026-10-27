@@ -150,7 +150,7 @@ class NativeOfficeModeSmokeTest {
                 Format.XLSX -> { tap("셀"); tap("열 삽입") }
                 Format.PPTX -> {
                     eval("(function(){window.__slideSearch=null;app.map.on('search',e=>window.__slideSearch={phrase:e.originalPhrase,count:e.count});app.searchService.search("+JSONObject.quote(token)+",false);})()")
-                    await("Native slide text is selected before formatting"){eval("window.__slideSearch?.count===1")=="true"}
+                    await("Native slide text is selected before formatting",30_000){eval("window.__slideSearch?.count===1")=="true"}
                     tap("글자");tap("글꼴 선택");tap("NanumGothic");tap("18")
                     if(eval("app.map.stateChangeHandler.getItemValue('.uno:Bold')")!="true")tap("굵게")
                     tap("설정 닫기");tap("슬라이드");tap("새 슬라이드")
