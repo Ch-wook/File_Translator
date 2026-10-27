@@ -1271,7 +1271,7 @@ public class LOActivity extends AppCompatActivity {
     @JavascriptInterface
     public String getStudioDocumentName() {
         String name = getIntent().getStringExtra("displayName");
-        return name == null || name.isBlank() ? "Office 문서" : name;
+        return name == null || name.trim().isEmpty() ? "Office 문서" : name;
     }
 
     @JavascriptInterface
