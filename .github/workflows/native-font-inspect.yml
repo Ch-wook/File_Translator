@@ -25,10 +25,10 @@ jobs:
           import re
           with zipfile.ZipFile(p) as z:
               bundle=z.read('assets/dist/bundle.js').decode()
-              patterns=[r'filterExecCopyPaste\s*\([^)]*\)\s*\{',r'filterExecCopyPaste:function',r'sendUnoCommand:function',r'applyFontSize:function',r'applyFont:function',r'search:function',r'_onSearchResultSelection:function',r'_onTextSelectionContentMsg:function',r'SearchItem.SearchString',r'getTextSelection',r'GoRightSel']
+              patterns=[r'filterExecCopyPaste\s*\([^)]*\)\s*\{',r'filterExecCopyPaste:function',r'sendUnoCommand:function',r'applyFontSize:function',r'applyFont:function',r'search:function',r'_onSearchResultSelection:function',r'_onTextSelectionContentMsg:function',r'SearchItem.SearchString',r'getTextSelection',r'GoRightSel',r'_textInput.focus',r'focus:function']
               for pattern in patterns:
                   for match in list(re.finditer(pattern,bundle))[:3]:
-                      print('EXACT_COMMAND_API',json.dumps({'pattern':pattern,'code':bundle[max(0,match.start()-80):match.end()+2500]}))
+                      print('EXACT_COMMAND_API',json.dumps({'pattern':pattern,'code':bundle[max(0,match.start()-80):match.end()+9000]}))
           data=pathlib.Path('app/src/main/assets/fonts/NotoSansKR.ttf').read_bytes()
           tables={}
           for i in range(struct.unpack_from('>H',data,4)[0]):
