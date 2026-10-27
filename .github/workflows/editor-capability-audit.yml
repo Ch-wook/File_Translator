@@ -1,0 +1,64 @@
+name: Audit editor fonts and native command APIs
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: contains(github.event.head_commit.message, '[audit-editors]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install fonttools==4.60.1
+      - name: Verify genuine font metadata, glyphs, licenses and pinned bytes
+        run: |
+          mkdir -p artifacts/editor-audit
+          python3 scripts/prepare-studio-fonts.py > artifacts/editor-audit/fonts-download.json
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          from fontTools.ttLib import TTFont
+          root=Path('.engine-cache/studio-fonts/assets/fonts');report=[]
+          for path in sorted(root.glob('*.ttf')):
+              font=TTFont(path)
+              names=font['name']
+              family=names.getBestFamilyName()
+              cmap=font.getBestCmap()
+              sample='가나다한글' if path.name.startswith(('Nanum','Gowun')) else 'ABxy0123'
+              assert all(ord(c) in cmap for c in sample),path
+              item=dict(file=path.name,family=family,subfamily=names.getBestSubFamilyName(),weight=font['OS/2'].usWeightClass,sampleGlyphs=True)
+              report.append(item);print('REAL_FONT',json.dumps(item,ensure_ascii=False))
+          assert len(report)==15,len(report)
+          Path('artifacts/editor-audit/fonts-metadata.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+          PY
+      - name: Inspect exact bundled engine input and sheet APIs
+        run: |
+          python3 - <<'PY'
+          import pathlib,hashlib,urllib.request,zipfile,re,json
+          out=pathlib.Path('artifacts/editor-audit')
+          apk=out/'baseline.apk'
+          with urllib.request.urlopen('https://github.com/Ch-wook/File_Translator/releases/download/v0.8.4-preview/document-studio-0.8.4-preview-x86_64.apk',timeout=120) as src,apk.open('wb') as dst:
+              while block:=src.read(1024*1024):dst.write(block)
+          with apk.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()=='cad44eedc7d433f7a902b875a442f925d02c20686ed81a15da5d6bfaab806d62'
+          with zipfile.ZipFile(apk) as z:
+              source=z.read('assets/dist/bundle.js').decode();html=z.read('assets/dist/cool.html').decode()
+              needles=['.uno:EnterString','.uno:InputLine','InputLine','StringName','GoToCell','NameBox','RenameTable','InsertTable','RemoveTable','MoveTable','getPartName','getNumberOfParts','formulaInputBar','formulabar','formula-bar','AutoFill','FreezePanes','InsertSheet','DuplicatePage','Duplicate']
+              report={}
+              for needle in needles:
+                  hits=list(re.finditer(re.escape(needle),source))
+                  report[needle]=dict(count=len(hits),snippets=[source[max(0,m.start()-160):m.end()+650] for m in hits[:3]])
+                  print('ENGINE_API',json.dumps(dict(needle=needle,**report[needle]),ensure_ascii=False))
+              print('ENGINE_FORMULA_DOM',json.dumps(re.findall(r'<[^>]*\bid="[^"]*(?:formula|inputbar|namebox|address)[^"]*"[^>]*>',html)))
+              (out/'engine-apis.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+          apk.unlink()
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: editor-capability-audit
+          path: artifacts/editor-audit/
