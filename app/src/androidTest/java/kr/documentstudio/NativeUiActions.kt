@@ -22,7 +22,8 @@ internal object NativeUiActions {
         }
     }
     fun tap(device: UiDevice, selector: BySelector, timeout: Long=20000) {
-        tapStable(device,selector.toString(),timeout) {device.findObject(selector.enabled(true))}
+        val enabled=selector.enabled(true)
+        tapStable(device,selector.toString(),timeout) {device.findObject(enabled)}
     }
     private fun tapStable(device: UiDevice,label: String,timeout: Long,find: ()->UiObject2?) {
         device.waitForIdle(1000)
