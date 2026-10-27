@@ -39,9 +39,9 @@ class CommonMobileUiTest {
         compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.setSelection(3,5)}
         compose.onNodeWithTag("mobile-editor-header").assertHeightIsEqualTo(48.dp)
         compose.onNodeWithTag("mobile-editor-dock").assertHeightIsEqualTo(48.dp)
-        compose.onNodeWithText("글자",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("글자").performClick()
         compose.onNodeWithText("글꼴 · 고정폭").performScrollTo().performClick()
-        compose.onNodeWithText("Noto Sans KR",useUnmergedTree=true).performScrollTo().performClick()
+        compose.onNodeWithText("Noto Sans KR").performScrollTo().performClick()
         compose.onNodeWithContentDescription("설정 닫기").performClick()
         compose.runOnUiThread {
             val input=find(compose.activity.window.decorView,EditText::class.java)!!
@@ -53,8 +53,8 @@ class CommonMobileUiTest {
     @Test fun markdownToolsKeepScopeAndReopenAsMarkdownSyntax(){
         compose.runOnUiThread {vm.create(Format.MD)};ready();compose.onNodeWithTag("edit-document").performClick()
         compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.apply {setText("선택 AB 유지");setSelection(3,5)}}
-        compose.onNodeWithText("글자",useUnmergedTree=true).performClick()
-        compose.onNodeWithText("굵게",useUnmergedTree=true).performScrollTo().performClick();compose.waitForIdle()
+        compose.onNodeWithText("글자").performClick()
+        compose.onNodeWithText("굵게").performScrollTo().performClick();compose.waitForIdle()
         assertEquals("선택 **AB** 유지",vm.state.value.session!!.edits.text)
         val file=File(compose.activity.cacheDir,"tests/ui-${UUID.randomUUID()}.md").apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}
         val uri=FileProvider.getUriForFile(compose.activity,compose.activity.packageName+".testfiles",file)
@@ -70,8 +70,8 @@ class CommonMobileUiTest {
         lateinit var canvas: PdfObjectCanvas;var width=0
         val hash=kr.documentstudio.data.DocumentRepository.digest(vm.state.value.session!!.base)
         compose.runOnUiThread {canvas=find(compose.activity.window.decorView,PdfObjectCanvas::class.java)!!;width=canvas.width}
-        compose.onNodeWithText("더보기",useUnmergedTree=true).performClick()
-        compose.onNodeWithText("확대",useUnmergedTree=true).performScrollTo().performClick()
+        compose.onNodeWithText("더보기").performClick()
+        compose.onNodeWithText("확대").performScrollTo().performClick()
         compose.waitUntil(10000){var wider=false;compose.runOnUiThread {wider=canvas.width>width};wider}
         compose.onNodeWithContentDescription("설정 닫기").performClick()
         compose.runOnUiThread {assertSame(canvas,find(compose.activity.window.decorView,PdfObjectCanvas::class.java))}

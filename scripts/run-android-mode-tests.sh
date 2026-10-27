@@ -9,6 +9,7 @@ adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-
 adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-office-mode-smoke artifacts/native-android/ || true
 adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-hangul-editing artifacts/native-android/ || true
 adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-document-open artifacts/native-android/ || true
+adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-office-font artifacts/native-android/ || true
 adb logcat -d -s AndroidRuntime:E > artifacts/ci/android-runtime.log || true
 adb logcat -d -b all > artifacts/ci/android-all-processes.log || true
 python3 - <<'PY'

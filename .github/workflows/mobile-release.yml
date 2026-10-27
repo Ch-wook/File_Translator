@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: mobile-release-084-${{ contains(github.event.head_commit.message, '[release-build]') }}
+  group: mobile-release-085-${{ contains(github.event.head_commit.message, '[release-build]') }}
   cancel-in-progress: true
 jobs:
   verify:
@@ -75,6 +75,7 @@ jobs:
         run: |
           npm ci --prefix scripts/tests
           node --test --test-reporter=tap scripts/tests/*.test.cjs 2>&1 | tee artifacts/ci/javascript.log
+          node scripts/tests/mobile-ui-layout.cjs 2>&1 | tee artifacts/ci/mobile-ui-layout.log
           (cd scripts/tests && npx playwright install chromium && npm run test:hangul) 2>&1 | tee artifacts/ci/hangul-browser.log
           TABLE_SAVE_DIAGNOSTIC=1 node scripts/tests/hangul-mobile.cjs 2>&1 | tee artifacts/ci/table-save-browser.log
           ./gradlew :core:inspectTableSave --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/table-save-records.log
@@ -127,8 +128,8 @@ jobs:
         continue-on-error: true
         env:
           STUDIO_ABI: x86_64
-          STUDIO_PACKAGE: kr.documentstudio.openpreview
-          MODE_TEST_CLASSES: kr.documentstudio.DocumentOpenRegressionTest,kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest
+          STUDIO_PACKAGE: kr.documentstudio.compactpreview
+          MODE_TEST_CLASSES: kr.documentstudio.CommonMobileUiTest,kr.documentstudio.NativeOfficeFontTest,kr.documentstudio.DocumentOpenRegressionTest,kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest
           STUDIO_STORE_PASSWORD: ${{ secrets.STUDIO_STORE_PASSWORD }}
           STUDIO_KEY_ALIAS: ${{ secrets.STUDIO_KEY_ALIAS }}
           STUDIO_KEY_PASSWORD: ${{ secrets.STUDIO_KEY_PASSWORD }}
@@ -170,6 +171,7 @@ jobs:
             artifacts/open-fixtures/
             artifacts/mobile-install/
             artifacts/hangul-mobile/
+            artifacts/mobile-ui/
             artifacts/document-engines/
             artifacts/native-android/
             app/build/reports/
