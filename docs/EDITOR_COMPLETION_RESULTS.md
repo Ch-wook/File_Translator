@@ -176,3 +176,9 @@ applicationId: `kr.documentstudio.editorspreview`, versionCode 16, versionName `
 - `scripts/tests/office-workspace.test.cjs` (수정)
 - `shared/editor-ui/dist/studio-editor-ui.css` (수정)
 - `shared/editor-ui/dist/studio-editor-ui.js` (수정)
+
+## 공개 배포 확인
+
+Release v0.8.6-preview의 자산 10개를 익명으로 다운로드해 크기와 SHA-256을 확인했다. 기존 v0.8.5-preview 태그 및 자산 12개도 그대로 유지됨을 대조했다. [공개 다운로드 확인서](releases/0.8.6-preview-download-verification.json).
+
+APK 빌드: 728892f6071d2274aea1f4ca309f2b0785377440. 태그/소스 아카이브: 3557852a18016c16eb61fc12e53818c4cff49ed2. 이 확인서 추가 커밋은 앱 코드·기존 Release 자산을 변경하지 않는다.
