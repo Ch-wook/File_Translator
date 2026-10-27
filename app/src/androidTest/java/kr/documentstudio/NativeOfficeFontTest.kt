@@ -80,9 +80,9 @@ class NativeOfficeFontTest {
             tap(label)
             val catalog=eval("JSON.stringify(Object.keys(app.map.getToolbarCommandValues('.uno:CharFontName')||{}))")
             File(out,"available-fonts.json").writeText(catalog)
-            for(name in listOf("Nanum Gothic","Nanum Myeongjo","Gowun Dodum","Gowun Batang","Lato","Cousine"))
+            for(name in listOf("NanumGothic","NanumMyeongjo","Gowun Dodum","Gowun Batang","Lato","Cousine"))
                 assertTrue("Bundled family must be registered in native Office: $name",eval("Object.keys(app.map.getToolbarCommandValues('.uno:CharFontName')||{}).includes("+JSONObject.quote(name)+")")=="true")
-            val selectedFont="Nanum Gothic"
+            val selectedFont="NanumGothic"
             waitFor("Actual Korean font exists in shared picker"){eval("Array.from(document.querySelectorAll('[role=option]')).some(e=>e.getAttribute('aria-label')==="+JSONObject.quote(selectedFont)+")")=="true"}
             tap(selectedFont);SystemClock.sleep(500)
             tap("18");waitFor("Selected text changes size"){eval("Number(app.map.stateChangeHandler.getItemValue('.uno:FontHeight'))")=="18"}

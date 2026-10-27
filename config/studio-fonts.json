@@ -4,7 +4,7 @@
   "license": "OFL-1.1",
   "families": [
     {
-      "family": "Nanum Gothic",
+      "family": "NanumGothic",
       "language": "한국어",
       "files": [
         {
@@ -28,7 +28,7 @@
       ]
     },
     {
-      "family": "Nanum Myeongjo",
+      "family": "NanumMyeongjo",
       "language": "한국어",
       "files": [
         {

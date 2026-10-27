@@ -31,6 +31,7 @@
  const read=k=>{try{const value=JSON.parse(localStorage.getItem(k)||'[]');return Array.isArray(value)?value.filter(n=>available.includes(n)):[];}catch{return [];}};
  const persist=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{/* Private/full storage must not invalidate a successful document edit. */}};
  let recent=read(key).slice(0,5),favorites=read(key+'-favorites'),category='전체',disposed=false,observer;
+ const aliases={'NanumGothic':'나눔고딕','NanumMyeongjo':'나눔명조','Gowun Dodum':'고운돋움','Gowun Batang':'고운바탕','Noto Sans KR':'본고딕','Noto Serif KR':'본명조'};
  const filters=document.createElement('div');filters.className='studio-ui-font-filters';filters.setAttribute('role','group');filters.setAttribute('aria-label','글꼴 분류');
  const korean=name=>/Noto (?:Sans|Serif) (?:KR|CJK)|Nanum|Gowun|Pretendard|Spoqa|D2Coding|나눔|고운|본고딕|본명조|한글/i.test(name);
  const info=document.createElement('div');info.className='studio-ui-font-note';info.textContent=note;
@@ -40,7 +41,7 @@
    if(disposed)return;observer?.disconnect();list.replaceChildren();
    for(const b of filters.children)b.setAttribute('aria-pressed',String(b.textContent===category));
    const q=search.value.trim().toLocaleLowerCase();
-   const filtered=available.filter(n=>n.toLocaleLowerCase().includes(q)&&(category==='전체'||category==='즐겨찾기'&&favorites.includes(n)||category==='한국어'&&korean(n)||category==='영문·기타'&&!korean(n)));
+   const filtered=available.filter(n=>(n+' '+(aliases[n]||'')).toLocaleLowerCase().includes(q)&&(category==='전체'||category==='즐겨찾기'&&favorites.includes(n)||category==='한국어'&&korean(n)||category==='영문·기타'&&!korean(n)));
    const ordered=[...recent.filter(n=>filtered.includes(n)),...filtered.filter(n=>!recent.includes(n))];
    if(onDefault&&!q){const reset=document.createElement('button');reset.className='studio-ui-font-option';reset.type='button';reset.textContent='문서 기본 글꼴 복원';retain(reset);reset.onclick=onDefault;list.append(reset);}
    observer=typeof IntersectionObserver!=='undefined'?new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){const option=entry.target;observer.unobserve(option);Promise.resolve(preview?.(option.dataset.family)).then(ok=>{if(disposed)return;const sample=option.querySelector('.studio-ui-font-preview');if(ok===true)sample.style.fontFamily='"'+option.dataset.family.replaceAll('"','')+'"';else sample.textContent='미리보기는 기본 글꼴로 표시';}).catch(()=>{});}},{root:panel,rootMargin:'40px'}):null;
@@ -51,7 +52,7 @@
      const row=document.createElement('div');row.className='studio-ui-font-row';
      const option=document.createElement('button');option.className='studio-ui-font-option';option.type='button';option.dataset.family=name;option.setAttribute('role','option');option.setAttribute('aria-label',name);option.setAttribute('aria-selected',String(name===current));
      const copy=document.createElement('span');copy.className='studio-ui-font-copy';
-     const label=document.createElement('span');label.textContent=name;
+     const label=document.createElement('span');label.textContent=name+(aliases[name]?' · '+aliases[name]:'');
      const sample=document.createElement('span');sample.className='studio-ui-font-preview';sample.textContent='가나다 Aa 123';copy.append(label,sample);option.append(copy);if(name===current)option.append(svg('check'));retain(option);
      option.onclick=async()=>{if(option.disabled)return;option.disabled=true;try{await onPick(name);recent=[name,...recent.filter(n=>n!==name)].slice(0,5);persist(key,recent);current=name;draw();}catch(e){toast(String(e.message||e),true);}finally{option.disabled=false;}};
      const star=document.createElement('button');star.type='button';star.className='studio-ui-font-star';star.textContent=favorites.includes(name)?'★':'☆';star.setAttribute('aria-label',name+' 즐겨찾기');star.setAttribute('aria-pressed',String(favorites.includes(name)));retain(star);

@@ -7,6 +7,7 @@ import android.widget.EditText
 // The Compose host uses a platform theme; AppCompat is used only by the isolated Office activity.
 @android.annotation.SuppressLint("AppCompatCustomView")
 class LineNumberEditText(context: Context): EditText(context) {
+    var showLineNumbers: Boolean=true
     var onSelectionUpdate: ((Int,Int)->Unit)?=null
     override fun onSelectionChanged(start: Int,end: Int) {
         super.onSelectionChanged(start,end)
@@ -19,7 +20,7 @@ class LineNumberEditText(context: Context): EditText(context) {
         if(text!=null) logicalStarts=(listOf(0)+text.indices.filter {text[it]=='\n'}.map {it+1}).toIntArray()
     }
     override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas);val current=layout ?: return;numberPaint.textSize=textSize*0.75f
+        super.onDraw(canvas);if(!showLineNumbers)return;val current=layout ?: return;numberPaint.textSize=textSize*0.75f
         for(line in current.getLineForVertical(scrollY)..current.getLineForVertical(scrollY+height)) {
             val logical=logicalStarts.binarySearch(current.getLineStart(line))
             if(logical>=0) canvas.drawText((logical+1).toString(),scrollX+paddingLeft-10f,current.getLineBaseline(line)+totalPaddingTop.toFloat(),numberPaint)

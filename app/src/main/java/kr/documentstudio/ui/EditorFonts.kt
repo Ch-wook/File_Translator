@@ -7,8 +7,8 @@ import android.graphics.Typeface
 object EditorFonts {
     val files=linkedMapOf(
         "Noto Sans KR" to "NotoSansKR.ttf",
-        "Nanum Gothic" to "NanumGothic-Regular.ttf",
-        "Nanum Myeongjo" to "NanumMyeongjo-Regular.ttf",
+        "NanumGothic" to "NanumGothic-Regular.ttf",
+        "NanumMyeongjo" to "NanumMyeongjo-Regular.ttf",
         "Gowun Dodum" to "GowunDodum-Regular.ttf",
         "Gowun Batang" to "GowunBatang-Regular.ttf",
         "Lato" to "Lato-Regular.ttf",

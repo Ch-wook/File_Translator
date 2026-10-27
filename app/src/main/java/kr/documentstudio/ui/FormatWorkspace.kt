@@ -40,11 +40,13 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     val preferences=remember {context.getSharedPreferences("editor-display",0)}
     var displayFont by rememberSaveable {mutableStateOf(preferences.getString("font","고정폭") ?: "고정폭")}
     var displaySize by rememberSaveable {mutableFloatStateOf(preferences.getFloat("size",settings.fontSize))}
+    var lineNumbers by rememberSaveable {mutableStateOf(preferences.getBoolean("lineNumbers",true))}
+    val textStats=remember(s.edits.text){s.edits.text.codePointCount(0,s.edits.text.length) to (1+s.edits.text.count {it=='\n'})}
     var fontList by rememberSaveable {mutableStateOf(false)}
     var fontQuery by rememberSaveable {mutableStateOf("")}
     var favorites by remember {mutableStateOf(preferences.getStringSet("favorites",emptySet())!!.toSet())}
     var fontCategory by rememberSaveable {mutableStateOf("전체")}
-    var wrap by rememberSaveable {mutableStateOf(settings.wrapLines)}
+    var wrap by rememberSaveable {mutableStateOf(preferences.getBoolean("wrap",settings.wrapLines))}
     val navigate: (Int)->Unit={page=it.coerceIn(0,((s.pdf?.pages ?: 1)-1).coerceAtLeast(0))}
     LaunchedEffect(s.base) {navigate(page)}
     LaunchedEffect(editing) {panel=null;if(!editing)ink=false}
@@ -66,7 +68,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                 editing && ink->DrawingPage(s,null,page,settings,vm,busy)
                 s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController)
                 preview && s.format==Format.MD->MarkdownPreview(s.edits.text,busy || !editing,vm::text)
-                else->NativeTextEditor(s.edits.text,displaySize,busy,wrap,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont)
+                else->NativeTextEditor(s.edits.text,displaySize,busy,wrap,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont,showLineNumbers=lineNumbers)
             }
             if(!editing) FilledTonalButton({vm.beginEditing()},enabled=!busy && presentation!=PresentationState.READ_ONLY && presentation!=PresentationState.ERROR,
                 modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).testTag("edit-document")) {Icon(Icons.Default.Edit,null);Text("편집하기")}
@@ -85,7 +87,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                 val actualFonts=EditorFonts.names
                 Row(Modifier.horizontalScroll(rememberScrollState())) {listOf("전체","한국어","영문·기타","즐겨찾기").forEach {category->Tool((if(fontCategory==category)"✓ " else "")+category){fontCategory=category}}}
                 val recent=preferences.getString("recent","")
-                actualFonts.sortedBy {if(it==recent)0 else 1}.filter {it.contains(fontQuery,true) && when(fontCategory) {"즐겨찾기"->it in favorites;"한국어"->it in listOf("Noto Sans KR","Nanum Gothic","Nanum Myeongjo","Gowun Dodum","Gowun Batang");"영문·기타"->it !in listOf("Noto Sans KR","Nanum Gothic","Nanum Myeongjo","Gowun Dodum","Gowun Batang");else->true}}.forEach {name->
+                actualFonts.sortedBy {if(it==recent)0 else 1}.filter {it.contains(fontQuery,true) && when(fontCategory) {"즐겨찾기"->it in favorites;"한국어"->it in listOf("Noto Sans KR","NanumGothic","NanumMyeongjo","Gowun Dodum","Gowun Batang");"영문·기타"->it !in listOf("Noto Sans KR","NanumGothic","NanumMyeongjo","Gowun Dodum","Gowun Batang");else->true}}.forEach {name->
                     val face=remember(name) {EditorFonts.face(context,name)}
                     Row(verticalAlignment=Alignment.CenterVertically) {
                         TextButton({displayFont=name;preferences.edit().putString("font",name).putString("recent",name).apply();fontList=false;textController.restore()},modifier=Modifier.weight(1f)) {
@@ -125,7 +127,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
             "편집","찾기"->{
                 Row(Modifier.horizontalScroll(rememberScrollState())) {Tool("복사"){textController.clipboard(android.R.id.copy)};Tool("잘라내기"){textController.clipboard(android.R.id.cut)};Tool("붙여넣기"){textController.clipboard(android.R.id.paste)};Tool("전체 선택"){textController.clipboard(android.R.id.selectAll)}}
                 Tool("검색·바꾸기"){search=true}
-                Text("${s.edits.text.codePointCount(0,s.edits.text.length)}자 · ${1+s.edits.text.count {it=='\n'}}줄",style=MaterialTheme.typography.bodySmall)
+                Text("${textStats.first}자 · ${textStats.second}줄",style=MaterialTheme.typography.bodySmall)
             }
             else->{
                 if(editing) Tool("보기") {vm.readDocument();panel=null}
@@ -137,8 +139,9 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                     if(s.format==Format.MD) Tool(if(preview)"원문 편집" else "미리보기"){preview=!preview;panel=null}
                     if(editing)Tool("저장 인코딩"){encoding=true}
                     Tool("보기 글꼴·크기"){panel="글자"}
-                    Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(wrap,{wrap=it});Text("자동 줄바꿈")}
-                    Text("${s.edits.text.codePointCount(0,s.edits.text.length)}자 · ${1+s.edits.text.count {it=='\n'}}줄",style=MaterialTheme.typography.bodySmall)
+                    Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(wrap,{wrap=it;preferences.edit().putBoolean("wrap",it).apply()});Text("자동 줄바꿈")}
+                    Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(lineNumbers,{lineNumbers=it;preferences.edit().putBoolean("lineNumbers",it).apply()});Text("줄 번호")}
+                    Text("${textStats.first}자 · ${textStats.second}줄",style=MaterialTheme.typography.bodySmall)
                 } else {
                     Row(verticalAlignment=Alignment.CenterVertically) {Tool("이전 페이지"){navigate(page-1)};Text("${page+1} / ${s.pdf!!.pages}");Tool("다음 페이지"){navigate(page+1)}}
                     Row(verticalAlignment=Alignment.CenterVertically) {Tool("축소"){pdfController.setZoom(pdfController.zoom-.25f)};Text("${(pdfController.zoom*100).toInt()}%");Tool("확대"){pdfController.setZoom(pdfController.zoom+.25f)};Tool("너비 맞춤"){pdfController.setZoom(1f)}}

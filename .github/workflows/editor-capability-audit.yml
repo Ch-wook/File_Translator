@@ -28,6 +28,9 @@ jobs:
               font=TTFont(path)
               names=font['name']
               family=names.getBestFamilyName()
+              manifest=json.loads(Path('config/studio-fonts.json').read_text())
+              expected=next(f['family'] for f in manifest['families'] if any(i['filename']==path.name for i in f['files']))
+              assert family==expected,(path,family,expected)
               cmap=font.getBestCmap()
               sample='가나다한글' if path.name.startswith(('Nanum','Gowun')) else 'ABxy0123'
               assert all(ord(c) in cmap for c in sample),path
@@ -47,7 +50,7 @@ jobs:
           with apk.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()=='cad44eedc7d433f7a902b875a442f925d02c20686ed81a15da5d6bfaab806d62'
           with zipfile.ZipFile(apk) as z:
               source=z.read('assets/dist/bundle.js').decode();html=z.read('assets/dist/cool.html').decode()
-              needles=['.uno:EnterString','.uno:InputLine','InputLine','StringName','GoToCell','NameBox','RenameTable','InsertTable','RemoveTable','MoveTable','getPartName','getNumberOfParts','formulaInputBar','formulabar','formula-bar','AutoFill','FreezePanes','InsertSheet','DuplicatePage','Duplicate']
+              needles=['insertPage:function','renamePage:function','deletePage:function','duplicatePage:function','_renameSheet:function','_insertSheetBefore:function','_partNames','partNames','sendTextInput','textinput id=','_onCellFormulaMsg:function','sc_input_window','onFormulaBarFocus:function','formulaBarToggle','partname','sheetname','.uno:EnterString','.uno:InputLine','InputLine','StringName','GoToCell','NameBox','RenameTable','InsertTable','RemoveTable','MoveTable','getPartName','getNumberOfParts','formulaInputBar','formulabar','formula-bar','AutoFill','FreezePanes','InsertSheet','DuplicatePage','Duplicate']
               report={}
               for needle in needles:
                   hits=list(re.finditer(re.escape(needle),source))

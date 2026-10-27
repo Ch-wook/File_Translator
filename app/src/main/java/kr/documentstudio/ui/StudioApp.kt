@@ -289,7 +289,7 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
 }
 
 @Composable
-internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false,readOnly: Boolean=true,controller: NativeEditorController?=null,showToolbar: Boolean=true,fontFamily: String="고정폭") {
+internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false,readOnly: Boolean=true,controller: NativeEditorController?=null,showToolbar: Boolean=true,fontFamily: String="고정폭",showLineNumbers: Boolean=true) {
     val fontContext=LocalContext.current
     val desiredFace=remember(fontFamily,fontContext) {EditorFonts.face(fontContext,fontFamily)}
     val onChange by rememberUpdatedState(change)
@@ -313,6 +313,7 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
         setOnFocusChangeListener {_,hasFocus -> if(hasFocus) onFocused()}
     }.also {editor=it;controller?.editor=it;it.onSelectionUpdate={a,b->controller?.selectionChanged(a,b)};inputKeyListener=it.keyListener} },update={view ->
         controller?.editor=view
+        if(view.showLineNumbers!=showLineNumbers){val x=view.scrollX;val y=view.scrollY;view.showLineNumbers=showLineNumbers;view.setPadding(if(showLineNumbers)92 else 24,24,28,24);view.scrollTo(x,y);view.invalidate()}
         if(view.typeface!=desiredFace) {val a=view.selectionStart.coerceIn(0,view.length());val b=view.selectionEnd.coerceIn(0,view.length());val x=view.scrollX;val y=view.scrollY;view.typeface=desiredFace;view.setSelection(a,b);view.scrollTo(x,y)}
         view.textSize=fontSize;view.isEnabled=!busy;view.setHorizontallyScrolling(!wrap)
         val desiredKeyListener=if(readOnly) null else inputKeyListener

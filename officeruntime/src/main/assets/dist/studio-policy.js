@@ -223,7 +223,7 @@
     return { label, name, needsObject, run: () => uno(name) };
   }
   const bundledFonts={
-    'Nanum Gothic':'NanumGothic-Regular.ttf','Nanum Myeongjo':'NanumMyeongjo-Regular.ttf','Gowun Dodum':'GowunDodum-Regular.ttf','Gowun Batang':'GowunBatang-Regular.ttf','Lato':'Lato-Regular.ttf','Cousine':'Cousine-Regular.ttf',
+    'NanumGothic':'NanumGothic-Regular.ttf','NanumMyeongjo':'NanumMyeongjo-Regular.ttf','Gowun Dodum':'GowunDodum-Regular.ttf','Gowun Batang':'GowunBatang-Regular.ttf','Lato':'Lato-Regular.ttf','Cousine':'Cousine-Regular.ttf',
     'Noto Sans KR':'NotoSansKR.ttf','Noto Sans KR Thin':'NotoSansKR.ttf','Caladea':'Caladea-Regular.ttf','Carlito':'Carlito-Regular.ttf',
     'Gentium Basic':'GenBasR.ttf','Gentium Book Basic':'GenBkBasR.ttf',
     'Liberation Mono':'LiberationMono-Regular.ttf','Liberation Sans':'LiberationSans-Regular.ttf',
