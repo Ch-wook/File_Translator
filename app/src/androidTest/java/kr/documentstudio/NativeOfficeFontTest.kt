@@ -51,6 +51,8 @@ class NativeOfficeFontTest {
         val file=File(context.cacheDir,"tests/ui-font-${UUID.randomUUID()}.docx").apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}
         val uri=FileProvider.getUriForFile(context,context.packageName+".testfiles",file)
         val session=repo.save(seed,uri);val before=DocumentRepository.digest(file);var working=repo.prepareOffice(session)
+        val originalDocumentText=ZipFile(file).use {z->Xml.elements(Xml.parse(z.getInputStream(z.getEntry("word/document.xml")).use {it.readBytes()}),"t").joinToString(""){it.textContent}}
+        assertTrue("Fixture must contain the selected and surrounding text",originalDocumentText.contains(text))
         val out=File(context.getExternalFilesDir(null),"native-office-font").apply {mkdirs()}
         var closed=false
         fun launch(id: String,name: String){context.startActivity(Intent().setClassName(context.packageName,"org.libreoffice.androidlib.StudioOfficeActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("sessionId",id).putExtra("workingPath",working.absolutePath).putExtra("displayName",name))}
@@ -101,7 +103,7 @@ class NativeOfficeFontTest {
                 })
                 val unchanged=runs.filter {r->Xml.elements(r,"t").joinToString(""){it.textContent}.contains("KEEP_")}
                 assertTrue(unchanged.isNotEmpty());assertFalse("Unselected text cannot inherit the selected size",unchanged.any {r->Xml.elements(r,"sz").any {it.getAttributeNS(PackageDocument.W,"val")=="36"}})
-                assertEquals(text,Xml.elements(doc,"t").joinToString(""){it.textContent})
+                assertEquals("Every original paragraph must survive formatting",originalDocumentText,Xml.elements(doc,"t").joinToString(""){it.textContent})
             }
             val accepted=repo.acceptOffice(session);val saved=repo.save(accepted,uri);assertFalse(saved.dirty)
             val reopened=repo.open(uri);working=repo.prepareOffice(reopened);closed=false
