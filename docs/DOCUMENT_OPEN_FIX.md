@@ -19,6 +19,8 @@
 
 외부 파일로 앱을 처음 시작할 때 가져오기가 화면 재개보다 먼저 끝날 수 있으므로, 네이티브 문서 열기 요청은 MainActivity가 RESUMED가 된 뒤 처리합니다. 대기 중인 요청을 먼저 소비하지 않습니다.
 
+Android 검사용 브리지는 종료 가능한 별도 엔진 프로세스에 불안정(unstable) 제공자 연결을 사용합니다. 안정 연결을 유지한 채 엔진이 정상 종료되면 Android가 의존 중인 검사/호스트 프로세스까지 종료할 수 있으므로, 닫힘은 새 브리지 요청 없이 화면의 WebView 소멸로 확인합니다.
+
 ## 검증 방법
 
 `python3 scripts/prepare-open-fixtures.py`가 공개 hwplib의 배포용 샘플 한 개를 원본 Git blob/크기로 대조해 테스트 자산을 준비한다. 출처: [neolord0/hwplib](https://github.com/neolord0/hwplib), commit `6746c27f17ebf5277493206284aa32044a1839c4`, Apache-2.0. 입력은 변경하지 않는다.

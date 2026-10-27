@@ -8,6 +8,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
+import androidx.test.uiautomator.Until
 import kotlinx.coroutines.runBlocking
 import kr.documentstudio.core.Format
 import kr.documentstudio.data.DocumentRepository
@@ -37,8 +38,12 @@ class DocumentOpenRegressionTest {
         device.takeScreenshot(File(output,"failure.png"))
         fail(label)
     }
+    // The private engine intentionally exits on close. A stable provider reference
+    // makes Android kill its dependent test/host process too when that happens.
+    private fun probeCall(method: String,argument: String?=null) =
+        context.contentResolver.acquireUnstableContentProviderClient(probe)?.use {client->client.call(method,argument,null)}
     private fun eval(script: String): String {
-        val result=requireNotNull(context.contentResolver.call(probe,"eval",script,null))
+        val result=requireNotNull(probeCall("eval",script))
         require(result.getBoolean("ready")) {"Native Hangul Activity is not ready"}
         return requireNotNull(result.getString("result"))
     }
@@ -67,7 +72,8 @@ class DocumentOpenRegressionTest {
     }
     private fun close() {
         assertEquals("true",eval("setTimeout(()=>window.documentStudioHost.returnToWorkspace(),100);true"))
-        await("Native editor must close") {context.contentResolver.call(probe,"eval","true",null)?.getBoolean("ready")!=true}
+        assertTrue("Native WebView must close",device.wait(Until.gone(By.clazz("android.webkit.WebView").pkg(context.packageName)),20_000))
+        device.waitForIdle(1_000)
     }
     @Test fun contentUrisWithoutNameOrMimeReachActualHwpAndHwpxOriginalView()=runBlocking {
         val repo=DocumentRepository(context)
@@ -92,7 +98,7 @@ class DocumentOpenRegressionTest {
                 .put("nativeOriginalView",true).put("externalIntent",true).put("metadataUnavailable",true).put("reopened",true)
                 .put("originalSha256",hash).put("readOnlyCloseUnchanged",true).toString())
             } catch(error: Throwable) {diagnostics(format.extension,error);throw error}
-            finally {if(!closed) runCatching {context.contentResolver.call(probe,"close",null,null)}}
+            finally {if(!closed) runCatching {probeCall("close")}}
         }
     }
     @Test fun distributionHwpAllowsViewingWhileEditIntentAndNativeWritesRemainDenied()=runBlocking {
@@ -120,6 +126,6 @@ class DocumentOpenRegressionTest {
         File(output,"distribution-read-only.json").writeText(JSONObject().put("nativeReadOnlyView",true).put("editIntentDenied",true)
             .put("nativeWriteDenied",true).put("originalSha256",hash).put("reopenedUnchanged",true).toString())
         } catch(error: Throwable) {diagnostics("distribution",error);throw error}
-        finally {if(!closed) runCatching {context.contentResolver.call(probe,"close",null,null)}}
+        finally {if(!closed) runCatching {probeCall("close")}}
     }
 }
