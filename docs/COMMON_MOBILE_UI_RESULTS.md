@@ -5,8 +5,9 @@
 ## 결과와 배포
 
 - APK 빌드: [10ab10e01e027c35af3083e5d22a9e14b02c4f50](https://github.com/Ch-wook/File_Translator/commit/10ab10e01e027c35af3083e5d22a9e14b02c4f50). [전체 빌드·검증 실행](https://github.com/Ch-wook/File_Translator/actions/runs/40494582093): 성공.
-- 배포 경로: [0.8.5-preview Release](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.5-preview). 공개 업로드·다운로드 검증 결과는 Release 및 후속 확인서를 기준으로 확인한다.
-- APK는 통과한 빌드의 파일을 그대로 사용한다. 소스 ZIP·패치·Git 이력은 문서·CI만 갱신한 배포 태그에서 구성하며, 앱·엔진 소스가 검증 빌드와 같은지와 Git 추적 파일 바이트를 별도로 대조한다.
+- 소스 아카이브·배포 태그: [8c1ddc7156136d191a94323c49b51847c554da6e](https://github.com/Ch-wook/File_Translator/commit/8c1ddc7156136d191a94323c49b51847c554da6e). 태그의 추적 파일 **500개**를 ZIP과 바이트 단위로 대조했다. 앱·엔진 소스는 APK 빌드와 동일하며 문서·CI만 갱신했다.
+- [실제 Release](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.5-preview): APK·소스·패치·Git 이력·검증 자료·해시 등 **9개 파일 게시 완료**. [게시·읽기 확인 실행](https://github.com/Ch-wook/File_Translator/actions/runs/40496987073)에서 인증 없는 공개 다운로드 9개의 크기·SHA-256을 모두 검사했다. [확인서](releases/0.8.5-preview-download-verification.json).
+- [ARM64 휴대폰 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-arm64-v8a.apk) · [x86_64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-x86_64.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-source.zip) · [검증 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-verification.zip) · [SHA256SUMS](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/SHA256SUMS).
 
 기존 앱을 보존하는 별도 프리뷰 **문서 스튜디오 모바일 UI**(`kr.documentstudio.compactpreview`, versionCode 15)이다. 이전 개인 서명키를 복구한 업데이트가 아니다. Android 10 이상 64비트 ARM64 / x86_64를 지원하며 Office 엔진은 Android 11 이상이다. 실제 ARM64 휴대폰, 삼성 키보드 및 Gboard 검증은 미완료다.
 
