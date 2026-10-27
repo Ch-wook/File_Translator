@@ -70,7 +70,7 @@ Object.assign((window as any).rhwpStudio, {
       const view=studioCaptureView();
       document.documentElement.dataset.studioRulers=String(value);
       window.dispatchEvent(new Event('resize'));
-      requestAnimationFrame(()=>{inputHandler?.updateCaret();void studioRestoreView(view);});
+      requestAnimationFrame(()=>{(inputHandler as any)?.updateCaret?.();void studioRestoreView(view);});
     },
   },
 });

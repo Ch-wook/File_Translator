@@ -159,15 +159,18 @@ fun StudioApp(vm: EditorViewModel) {
                 IconButton(onClick={settingsDialog=true}) { Icon(Icons.Default.Settings,"설정") }
             }) else {
                 val s=state.session!!
-                TopAppBar(title={ Column { Text(s.name,maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleMedium)
-                    Text(when(state.presentation(s.id)) {PresentationState.LOADING->"원본 문서 여는 중";PresentationState.EDITING->if(s.dirty) "편집 중 · 수정됨" else "편집 중";PresentationState.READ_ONLY->"읽기 전용";PresentationState.ERROR->"오류 · 작업 복구본 보존";else->if(s.dirty) "원본 보기 · 미저장 작업" else "원본 보기"},style=MaterialTheme.typography.labelSmall,color=accent) } },
-                    navigationIcon={ IconButton(onClick=vm::home,enabled=!state.busy) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"홈") } },actions={
+                TopAppBar(modifier=Modifier.statusBarsPadding().height(48.dp),windowInsets=WindowInsets(0,0,0,0),expandedHeight=48.dp,
+                    title={Text(s.name,maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleSmall)},
+                    navigationIcon={ IconButton(onClick={if(state.presentation(s.id).allowsMutation) vm.readDocument() else vm.home()},enabled=!state.busy) { Icon(Icons.AutoMirrored.Filled.ArrowBack,if(state.presentation(s.id).allowsMutation) "보기로" else "홈") } },actions={
                         IconButton(onClick={vm.undo()},enabled=!state.busy && vm.canUndo(s.id)) { Icon(Icons.AutoMirrored.Filled.Undo,"실행 취소") }
                         IconButton(onClick={vm.redo()},enabled=!state.busy && vm.canRedo(s.id)) { Icon(Icons.AutoMirrored.Filled.Redo,"다시 실행") }
                         IconButton(onClick=save,enabled=!state.busy && s.dirty) { Icon(Icons.Default.Save,"저장") }
                         var menu by remember { mutableStateOf(false) }
                         IconButton(onClick={menu=true},enabled=!state.busy) { Icon(Icons.Default.MoreVert,"문서 메뉴") }
                         DropdownMenu(expanded=menu,onDismissRequest={menu=false}) {
+                            DropdownMenuItem(text={Text(if(state.presentation(s.id).allowsMutation) "읽기 모드로 전환" else "편집하기")},enabled=state.presentation(s.id)!=PresentationState.READ_ONLY,onClick={menu=false;if(state.presentation(s.id).allowsMutation) vm.readDocument() else vm.beginEditing()})
+                            DropdownMenuItem(text={Text(if(s.dirty) "미저장 변경 · 작업 복사본 보호 중" else "저장됨")},enabled=false,onClick={})
+                            state.tabs.filter {it.id!=s.id}.forEach {other->DropdownMenuItem(text={Text(other.name,maxLines=1,overflow=TextOverflow.Ellipsis)},onClick={menu=false;selectTab(other.id)})}
                             DropdownMenuItem(text={Text("새 문서")},onClick={menu=false;newDialog=true})
                             DropdownMenuItem(text={Text("파일 열기")},onClick={menu=false;open.launch(arrayOf("*/*"))})
                             if(s.format in DocumentRepository.visualFormats) DropdownMenuItem(text={Text("원본 문서 보기")},onClick={menu=false;openOffice(s.id)})
@@ -190,7 +193,7 @@ fun StudioApp(vm: EditorViewModel) {
         }) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
                 if(state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                if(state.tabs.size>1 || (state.session==null && state.tabs.isNotEmpty())) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                if(state.session==null && state.tabs.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     state.tabs.forEach { s -> FilterChip(selected=state.active==s.id,onClick={if(!state.busy) selectTab(s.id)},label={Text((if(s.dirty) "• " else "")+s.name,maxLines=1)},enabled=!state.busy) }
                     AssistChip(onClick={newDialog=true},label={Text("새 문서")},enabled=!state.busy)
                 }
@@ -283,14 +286,16 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
 }
 
 @Composable
-internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false,readOnly: Boolean=true) {
+internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false,readOnly: Boolean=true,controller: NativeEditorController?=null,showToolbar: Boolean=true,fontFamily: String="고정폭") {
+    val fontContext=LocalContext.current
+    val desiredFace=remember(fontFamily,fontContext) {when(fontFamily) {"Noto Sans KR"->android.graphics.Typeface.createFromAsset(fontContext.assets,"fonts/NotoSansKR.ttf");"시스템 고딕"->android.graphics.Typeface.SANS_SERIF;"시스템 바탕"->android.graphics.Typeface.SERIF;else->android.graphics.Typeface.MONOSPACE}}
     val onChange by rememberUpdatedState(change)
     val onFocused by rememberUpdatedState(focused)
     var editor by remember {mutableStateOf<LineNumberEditText?>(null)}
     var inputKeyListener by remember {mutableStateOf<android.text.method.KeyListener?>(null)}
     val acceptsInput by rememberUpdatedState(!busy && !readOnly)
     Column(Modifier.fillMaxSize()) {
-    if(markdown && !readOnly) MarkdownToolbar({editor},!busy)
+    if(markdown && !readOnly && showToolbar) MarkdownToolbar({editor},!busy)
     AndroidView(factory={context -> LineNumberEditText(context).apply {
         gravity=android.view.Gravity.TOP or android.view.Gravity.START
         setBackgroundColor(AndroidColor.WHITE);setPadding(92,24,28,24)
@@ -303,7 +308,9 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
         })
         contentDescription="문서 본문"
         setOnFocusChangeListener {_,hasFocus -> if(hasFocus) onFocused()}
-    }.also {editor=it;inputKeyListener=it.keyListener} },update={view ->
+    }.also {editor=it;controller?.editor=it;inputKeyListener=it.keyListener} },update={view ->
+        controller?.editor=view
+        if(view.typeface!=desiredFace) {val a=view.selectionStart.coerceIn(0,view.length());val b=view.selectionEnd.coerceIn(0,view.length());val x=view.scrollX;val y=view.scrollY;view.typeface=desiredFace;view.setSelection(a,b);view.scrollTo(x,y)}
         view.textSize=fontSize;view.isEnabled=!busy;view.setHorizontallyScrolling(!wrap)
         val desiredKeyListener=if(readOnly) null else inputKeyListener
         if(view.keyListener !== desiredKeyListener) {

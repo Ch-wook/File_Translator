@@ -3,7 +3,7 @@
 import hashlib,json,pathlib,re,urllib.request,zipfile
 out=pathlib.Path('artifacts/office-ui-audit');out.mkdir(parents=True,exist_ok=True)
 apk=out/'baseline.apk'
-with urllib.request.urlopen('https://github.com/Ch-wook/File_Translator/releases/download/v0.8.4-preview/document-studio-0.8.4-preview-x86_64-debug.apk',timeout=120) as src,apk.open('wb') as dst:
+with urllib.request.urlopen('https://github.com/Ch-wook/File_Translator/releases/download/v0.8.4-preview/document-studio-0.8.4-preview-x86_64.apk',timeout=120) as src,apk.open('wb') as dst:
     while block:=src.read(1024*1024):dst.write(block)
 with apk.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()=='cad44eedc7d433f7a902b875a442f925d02c20686ed81a15da5d6bfaab806d62'
 with zipfile.ZipFile(apk) as z:

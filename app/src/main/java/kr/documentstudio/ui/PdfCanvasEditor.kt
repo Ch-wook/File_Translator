@@ -26,6 +26,15 @@ import kr.documentstudio.core.DocumentChange
 import kr.documentstudio.data.*
 import java.io.File
 
+class PdfEditorController {
+    var selected by mutableStateOf<Any?>(null)
+    var zoom by mutableFloatStateOf(1f)
+    var setZoom: (Float)->Unit={}
+    var apply: ()->Unit={}
+    var cancel: ()->Unit={}
+    var deleteImage: ()->Unit={}
+}
+
 /** Interactive PDF scene: hit regions reference exact content-stream strings and image occurrences. */
 class PdfObjectCanvas(context: Context): FrameLayout(context) {
     var bitmap: Bitmap?=null
@@ -143,7 +152,7 @@ class PdfObjectCanvas(context: Context): FrameLayout(context) {
 }
 
 @Composable
-fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readOnly: Boolean=true) {
+fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readOnly: Boolean=true,controller: PdfEditorController?=null) {
     val scope=rememberCoroutineScope()
     val verticalPosition=rememberScrollState()
     val horizontalPosition=rememberScrollState()
@@ -209,17 +218,15 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
     }
     LaunchedEffect(readOnly) {if(readOnly) {canvas?.clearSelection(false);resetPreview()}}
     Column(Modifier.fillMaxSize().testTag("pdf-direct-editor")) {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text(if(readOnly) "원본 페이지 보기" else if(selected is PdfBodyRun) "본문 선택" else if(selected is PdfImagePlacement) "이미지 선택" else "글자·이미지를 클릭하세요",style=MaterialTheme.typography.labelMedium)
-            if(!readOnly) TextButton({canvas?.clearSelection()},enabled=!busy && selected!=null) {Text("적용")}
-            if(!readOnly) TextButton({
+        SideEffect {
+            controller?.selected=selected;controller?.zoom=zoom;controller?.setZoom={zoom=it.coerceIn(1f,3f)}
+            controller?.apply={canvas?.clearSelection()}
+            controller?.cancel={
                 val text=selected as? PdfBodyRun
-                if(text!=null) {val key=PdfTextEdits.key(page,text.id);vm.field(key,PdfTextEdits.value(s.edits.values[key],text.text,text.text))}
+                if(text!=null){val key=PdfTextEdits.key(page,text.id);vm.field(key,PdfTextEdits.value(s.edits.values[key],text.text,text.text))}
                 canvas?.clearSelection(false);resetPreview()
-            },enabled=!busy && selected!=null) {Text("취소")}
-            if(!readOnly && selected is PdfImagePlacement) TextButton({val image=selected as PdfImagePlacement;canvas?.clearSelection(false);vm.change(DocumentChange("pdf.deleteImage",page.toString(),mapOf("id" to image.id.toString(),"expected" to image.token)))},enabled=!busy) {Text("이미지 삭제")}
-            TextButton({zoom=(zoom-0.25f).coerceAtLeast(1f)}) {Text("−")};Text("${(zoom*100).toInt()}%")
-            TextButton({zoom=(zoom+0.25f).coerceAtMost(3f)}) {Text("+")}
+            }
+            controller?.deleteImage={if(!readOnly&&!busy)(selected as? PdfImagePlacement)?.let {image->canvas?.clearSelection(false);vm.change(DocumentChange("pdf.deleteImage",page.toString(),mapOf("id" to image.id.toString(),"expected" to image.token)))}}
         }
         failure?.let {Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall,modifier=Modifier.padding(8.dp))}
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
@@ -238,6 +245,5 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
                 },modifier=Modifier.width(pageWidth*zoom).aspectRatio(image.width.toFloat()/image.height))
             }
         }
-        Text(if(readOnly) "원본 페이지 · 편집하기를 선택하면 지원되는 글자와 이미지를 수정할 수 있습니다." else "원본 폰트의 가로 본문·페이지 직접 이미지를 편집합니다. 스캔·중첩/태그/회전 본문은 보호합니다.",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(8.dp))
     }
 }
