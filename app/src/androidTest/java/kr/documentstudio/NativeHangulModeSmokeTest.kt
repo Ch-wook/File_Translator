@@ -73,7 +73,7 @@ class NativeHangulModeSmokeTest {
             screenshot(format,"edit-requested")
             button("보기로")
             pinchDocument(format,"edit")
-            val lowerZoom=readView(viewFile)
+            val lowerZoom=JSONObject(eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.captureView()"))
             assertValidView(lowerZoom)
             assertUnchanged(working,workingHash,session.base,originalHash,edited)
             button("보기로").click()
@@ -83,7 +83,7 @@ class NativeHangulModeSmokeTest {
             zoom(true);zoom(true)
             button("편집하기").click()
             button("보기로")
-            val higherZoom=readView(viewFile)
+            val higherZoom=JSONObject(eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.captureView()"))
             assertValidView(higherZoom)
             assertTrue("The real WebView zoom command must update engine view metadata",
                 higherZoom.getDouble("zoom")>lowerZoom.getDouble("zoom")+0.0001)

@@ -346,7 +346,7 @@
       {label:'작업 화면으로 돌아가기',action:()=>{persistViewport();window.postMobileMessage('BYE');}}
     ]);
     const family=map().getDocType();
-    map().uiManager?.hideRuler?.();
+    if(family==='text'&&map().uiManager?.isRulerVisible?.())map().uiManager.hideRuler();
     for(const element of [bar,bottom]){
       if(window.L?.DomEvent?.disableClickPropagation)L.DomEvent.disableClickPropagation(element);
       else for(const name of ['mousedown','touchstart','pointerdown','dblclick','contextmenu'])element.addEventListener(name,event=>event.stopPropagation());

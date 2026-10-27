@@ -6,8 +6,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: mobile-release-085-${{ contains(github.event.head_commit.message, '[release-build]') }}
-  cancel-in-progress: true
+  group: mobile-release-085-${{ github.sha }}
+  cancel-in-progress: false
 jobs:
   verify:
     if: contains(github.event.head_commit.message, '[release-build]')
