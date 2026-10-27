@@ -44,7 +44,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     var fontQuery by rememberSaveable {mutableStateOf("")}
     val navigate: (Int)->Unit={page=it.coerceIn(0,((s.pdf?.pages ?: 1)-1).coerceAtLeast(0))}
     LaunchedEffect(s.base) {navigate(page)}
-    LaunchedEffect(editing) {panel=null;ink=false}
+    LaunchedEffect(editing) {panel=null;if(!editing)ink=false}
     val imageSelected=pdfController.selected is PdfImagePlacement
     LaunchedEffect(imageSelected) {if(panel!=null)panel=if(imageSelected) "그림" else "글자"}
     fun choose(value: String){textController.capture();fontList=false;panel=if(panel==value)null else value}

@@ -285,7 +285,7 @@
       add(command('자간·장평·글자 위치','FontDialog'));add(command('선택 글자 서식 초기화','ResetAttributes'));
     }else if(activeTab==='문단'){
       for(const [label,name]of [['왼쪽 정렬','LeftPara'],['가운데 정렬','CenterPara'],['오른쪽 정렬','RightPara'],['양쪽 정렬','JustifyPara'],['글머리표','DefaultBullet'],['번호 매기기','DefaultNumbering'],['들여쓰기 증가','IncrementIndent'],['들여쓰기 감소','DecrementIndent'],['줄 간격·문단 간격·테두리','ParagraphDialog']])add(command(label,name));
-      if(family==='text')add(command('쪽 설정','PageDialog'));
+      if(family==='text'){add(command('쪽 설정','PageDialog'));add(command('쪽 나누기','InsertPagebreak'));}
     }else if(activeTab==='표'){
       for(const [label,name]of [['표 삽입','InsertTable'],['위에 행','InsertRowsBefore'],['아래에 행','InsertRowsAfter'],['왼쪽 열','InsertColumnsBefore'],['오른쪽 열','InsertColumnsAfter'],['행 삭제','DeleteRows'],['열 삭제','DeleteColumns'],['셀 병합','MergeCells'],['셀 나누기','SplitCell'],['표·셀 서식','TableDialog'],['행 높이','SetRowHeight'],['열 너비','SetColumnWidth'],['표 삭제','DeleteTable']])add(command(label,name));
     }else if(activeTab==='셀'){
@@ -321,7 +321,7 @@
     redoButton=UI.iconButton('studio-office-redo','다시 실행','redo',()=>{releaseViewportPin();uno('Redo');});
     modeButton=document.createElement('button');modeButton.id='studio-office-edit';modeButton.className='studio-office-action';modeButton.textContent='편집하기';modeButton.onclick=()=>{map()._switchToEditMode();update();};UI.retain(modeButton);
     saveButton=UI.iconButton('studio-office-save','저장 후 닫기','done',()=>{persistViewport();window.postMobileMessage('DOCUMENT_STUDIO_SAVE_AND_CLOSE');});
-    const more=UI.iconButton('studio-office-more','더보기','more');header.append(back,title,undoButton,redoButton,modeButton,saveButton,more);bar.append(header);
+    const more=UI.iconButton('studio-office-more','문서 메뉴','more');header.append(back,title,undoButton,redoButton,modeButton,saveButton,more);bar.append(header);
     modeLabel=document.createElement('span');modeLabel.id='studio-office-mode-label';hint=document.createElement('div');hint.id='studio-office-hint';hint.setAttribute('aria-live','polite');bar.append(modeLabel,hint);
     bottom=document.createElement('section');bottom.id='studio-office-bottom';bottom.setAttribute('aria-label','모바일 편집 도구');
     sheet=document.createElement('section');sheet.id='studio-office-sheet';sheet.hidden=true;UI.sheet(sheet,'글자',closeSheet);

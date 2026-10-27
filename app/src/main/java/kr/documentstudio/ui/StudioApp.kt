@@ -159,7 +159,7 @@ fun StudioApp(vm: EditorViewModel) {
                 IconButton(onClick={settingsDialog=true}) { Icon(Icons.Default.Settings,"설정") }
             }) else {
                 val s=state.session!!
-                TopAppBar(modifier=Modifier.statusBarsPadding().height(48.dp),windowInsets=WindowInsets(0,0,0,0),expandedHeight=48.dp,
+                TopAppBar(modifier=Modifier.statusBarsPadding().height(48.dp).testTag("mobile-editor-header"),windowInsets=WindowInsets(0,0,0,0),expandedHeight=48.dp,
                     title={Text(s.name,maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleSmall)},
                     navigationIcon={ IconButton(onClick={if(state.presentation(s.id).allowsMutation) vm.readDocument() else vm.home()},enabled=!state.busy) { Icon(Icons.AutoMirrored.Filled.ArrowBack,if(state.presentation(s.id).allowsMutation) "보기로" else "홈") } },actions={
                         IconButton(onClick={vm.undo()},enabled=!state.busy && vm.canUndo(s.id)) { Icon(Icons.AutoMirrored.Filled.Undo,"실행 취소") }

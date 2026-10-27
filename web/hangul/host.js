@@ -15,6 +15,7 @@ function message(text,error=false){status.textContent=text;status.dataset.error=
 function update(){
  document.body.dataset.state=!ready?'LOADING':readOnlyReason?'READ_ONLY':editing?'EDITING':'READING';
  mode.hidden=Boolean(readOnlyReason)||editing;
+ document.getElementById('readonly-badge').hidden=!readOnlyReason;
  mode.textContent=editing?'보기로':'편집하기';mode.disabled=!ready||pending||switching;
  mode.setAttribute('aria-pressed',String(editing));save.hidden=!editing;save.disabled=!ready||pending||switching;
  groups.hidden=!editing;
@@ -96,7 +97,7 @@ UI.iconButton(document.getElementById('back'),'작업 화면','back',()=>window.
 UI.iconButton(undo,'실행 취소','undo',()=>editor?.mobile.dispatch('edit:undo'));
 UI.iconButton(redo,'다시 실행','redo',()=>editor?.mobile.dispatch('edit:redo'));
 UI.iconButton(save,'저장 후 닫기','done',()=>close(true));
-const more=UI.iconButton(document.getElementById('more'),'더보기','more');
+const more=UI.iconButton(document.getElementById('more'),'문서 메뉴','more');
 UI.popup(more,()=>[
  {label:editing?'읽기 모드로 전환':'편집하기',hidden:Boolean(readOnlyReason),disabled:!ready||pending||switching,action:()=>setEditing(!editing)},
  {label:'찾기'+(editing?'·바꾸기':''),disabled:!ready,action:()=>editing?mobileUI.showSearch():editor.command('edit:find')},

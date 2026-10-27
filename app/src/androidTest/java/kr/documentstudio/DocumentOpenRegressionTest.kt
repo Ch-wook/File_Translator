@@ -109,7 +109,7 @@ class DocumentOpenRegressionTest {
         try {
         await("Distributable HWP must open in its own enforced read-only mode") {hostState(source.name,"READ_ONLY")}
         await("Read-only original pages must also be visible on the Android screen") {
-            val status=Pattern.compile("^[0-9]+쪽 · 읽기 전용.*")
+            val status=Pattern.compile("^읽기 전용$")
             device.hasObject(By.pkg(context.packageName).text(status)) || device.hasObject(By.pkg(context.packageName).desc(status))
         }
         assertEquals("false",eval("window.DocumentStudio.setEditing(true)"))

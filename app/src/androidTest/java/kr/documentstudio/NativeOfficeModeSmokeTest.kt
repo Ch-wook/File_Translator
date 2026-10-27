@@ -134,7 +134,7 @@ class NativeOfficeModeSmokeTest {
         try {
             session.base.copyTo(File(evidence, "$label-input.${format.extension}"), overwrite = true)
             launch(working, session.id, session.name)
-            visible("원본 보기", 150_000); visible("편집하기").click(); visible("편집 중", 20_000)
+            visible("편집하기", 150_000); visible("편집하기").click(); visible("보기로 전환", 20_000)
             when (format) {
                 Format.DOCX -> { visible("문단").click(); visible("쪽 나누기").click() }
                 Format.XLSX -> { visible("셀").click(); visible("열 삽입").click() }
@@ -162,7 +162,7 @@ class NativeOfficeModeSmokeTest {
             working = repo.prepareOffice(reopened)
             val reopenedHash = DocumentRepository.digest(working)
             launch(working, reopened.id, reopened.name)
-            visible("원본 보기", 150_000); visible("돌아가기").click(); assertFalse(awaitClosed(working,reopened))
+            visible("편집하기", 150_000); visible("돌아가기").click(); assertFalse(awaitClosed(working,reopened))
             assertFalse("Reopening edited content in VIEW cannot save again", File(working.path + ".edited").exists())
             assertEquals(reopenedHash, DocumentRepository.digest(working))
             assertEquals(reopened.revision, repo.acceptOffice(reopened).revision)
@@ -231,7 +231,7 @@ class NativeOfficeModeSmokeTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra("sessionId", session.id).putExtra("workingPath", working.absolutePath)
                 .putExtra("displayName", session.name))
-            visible("원본 보기", 150_000)
+            visible("편집하기", 150_000)
             visible("편집하기")
             await("Actual native layout must publish a valid viewport", 30_000) { viewport(viewportFile) != null }
             assertFalse("VIEW cannot approve a working copy", edited.exists())
@@ -251,7 +251,7 @@ class NativeOfficeModeSmokeTest {
                 device.takeScreenshot(File(evidence,"$label-before-edit.png"))
                 record.put("viewportBeforeToggle", scrolled)
                 visible("편집하기").click()
-                visible("편집 중", 20_000)
+                visible("보기로 전환", 20_000)
                 visible("보기로 전환")
                 val afterEdit=stableViewport(viewportFile)
                 record.put("viewportAfterEnteringEdit",afterEdit)
@@ -260,7 +260,7 @@ class NativeOfficeModeSmokeTest {
                 assertEquals("Entering edit retains horizontal position",scrolled.getDouble("x"),afterEdit.getDouble("x"),40.0)
                 assertEquals("Entering edit retains vertical position",scrolled.getDouble("y"),afterEdit.getDouble("y"),40.0)
                 visible("보기로 전환").click()
-                visible("원본 보기", 20_000)
+                visible("편집하기", 20_000)
                 // Compare actual settled native positions after both toolbar/layout changes.
                 val after = stableViewport(viewportFile)
                 record.put("viewportAfterToggle", after)
@@ -280,7 +280,7 @@ class NativeOfficeModeSmokeTest {
                 device.swipe(bounds.centerX(), bounds.top + bounds.height() * 2 / 3,
                     bounds.centerX() + bounds.width() / 8, bounds.top + bounds.height() / 2, 15)
                 SystemClock.sleep(1_000)
-                visible("원본 보기")
+                visible("편집하기")
                 assertFalse("Attempted input in VIEW must not create approved output", edited.exists())
             }
 
@@ -347,9 +347,16 @@ class NativeOfficeModeSmokeTest {
         }
     }
 
-    private fun visible(text: String, timeout: Long = 15_000): UiObject2 =
-        device.wait(Until.findObject(By.pkg(context.packageName).text(text).enabled(true)), timeout)
-            ?: throw AssertionError("Native Office UI missing: $text")
+    private fun visible(text: String,timeout: Long=15_000): UiObject2 {
+        val deadline=SystemClock.uptimeMillis()+timeout
+        while(SystemClock.uptimeMillis()<deadline) {
+            val control=device.findObject(By.pkg(context.packageName).text(text).enabled(true))
+                ?: device.findObject(By.pkg(context.packageName).desc(text).enabled(true))
+            if(control!=null)return control
+            SystemClock.sleep(100)
+        }
+        throw AssertionError("Native Office UI missing: $text")
+    }
 
     private fun documentBounds(): Rect {
         val web = device.wait(Until.findObject(By.pkg(context.packageName).clazz("android.webkit.WebView")), 10_000)

@@ -11,3 +11,5 @@ body[data-state=LOADING] #status-row,body[data-state=ERROR] #status-row,#status-
 #mobile-panel input[aria-invalid=true]{border:2px solid #a23025}
 .font-current{display:flex;width:100%;align-items:center;justify-content:space-between;text-align:left}
 @media(max-height:520px){#detail-sheet{max-height:min(32dvh,180px)}}
+
+#readonly-badge{font-size:11px;color:#52677d;white-space:nowrap;padding:0 5px}

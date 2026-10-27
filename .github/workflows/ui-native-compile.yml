@@ -40,6 +40,7 @@ jobs:
       - run: |
           sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
           chmod +x gradlew
+          python3 scripts/prepare-open-fixtures.py
           ./gradlew :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin :app:testDebugUnitTest --max-workers=2 --console=plain
       - uses: actions/upload-artifact@v4
         if: always()

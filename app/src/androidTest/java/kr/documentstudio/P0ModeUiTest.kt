@@ -45,7 +45,7 @@ class P0ModeUiTest {
         val uri=FileProvider.getUriForFile(compose.activity,compose.activity.packageName+".testfiles",file)
         compose.runOnUiThread {vm.save(uri)};ready()
         assertEquals("한국어 본문\n두 번째 줄",file.readText())
-        compose.onNodeWithTag("read-document").performClick();compose.waitForIdle()
+        compose.onNodeWithContentDescription("보기로").performClick();compose.waitForIdle()
         compose.runOnUiThread {vm.text("blocked again");assertEquals(PresentationState.READING,vm.state.value.presentation(id))}
         assertEquals("한국어 본문\n두 번째 줄",runBlocking {vm.repository.open(uri).edits.text})
     }
@@ -56,7 +56,7 @@ class P0ModeUiTest {
         compose.runOnUiThread {canvas=find(compose.activity.window.decorView,PdfObjectCanvas::class.java)!!;assertFalse(canvas.editable)}
         compose.onNodeWithTag("edit-document").performClick();compose.waitForIdle()
         compose.runOnUiThread {assertSame(canvas,find(compose.activity.window.decorView,PdfObjectCanvas::class.java));assertTrue(canvas.editable)}
-        compose.onNodeWithTag("read-document").performClick();compose.waitForIdle()
+        compose.onNodeWithContentDescription("보기로").performClick();compose.waitForIdle()
         compose.runOnUiThread {assertSame(canvas,find(compose.activity.window.decorView,PdfObjectCanvas::class.java));assertFalse(canvas.editable)}
     }
 }

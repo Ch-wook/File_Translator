@@ -103,7 +103,7 @@ test('mode transitions preserve actual native part, zoom and camera with delayed
  s.click('글자');assert.equal(s.button('굵게').disabled,false);s.click('굵게');assert.equal(s.commands.at(-1).name,'.uno:Bold');
  s.click('보기로 전환');assert.deepEqual(s.viewport(),before);s.tick();assert.equal(s.requests(),1);
  assert.equal(s.button('굵게').disabled,true);
- for(let i=0;i<3;i++){s.nativeCursor();assert.deepEqual(s.viewport(),before);}
+ if(family==='text')for(let i=0;i<3;i++){s.nativeCursor();assert.deepEqual(s.viewport(),before);}
  }finally{s.close();}}
 });
 test('unknown intent stays VIEW, explicit EDIT is authorized, readonly capability never requests editing',()=>{

@@ -53,6 +53,24 @@ class PdfObjectCanvas(context: Context): FrameLayout(context) {
         }
     var selection: Any?=null;private set
     var onSelection: (Any?)->Unit={}
+    var onScale: (Float)->Unit={}
+    private var scaling=false
+    private val scaleDetector=android.view.ScaleGestureDetector(context,object: android.view.ScaleGestureDetector.SimpleOnScaleGestureListener(){
+        override fun onScaleBegin(detector: android.view.ScaleGestureDetector): Boolean {scaling=true;return true}
+        override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {onScale(detector.scaleFactor);return true}
+    })
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        scaleDetector.onTouchEvent(event)
+        if(event.pointerCount>1 || scaling) {parent?.requestDisallowInterceptTouchEvent(true);if(event.actionMasked==MotionEvent.ACTION_UP || event.actionMasked==MotionEvent.ACTION_CANCEL){scaling=false;parent?.requestDisallowInterceptTouchEvent(false)};return true}
+        return super.dispatchTouchEvent(event)
+    }
+    override fun onSizeChanged(w: Int,h: Int,oldw: Int,oldh: Int) {
+        super.onSizeChanged(w,h,oldw,oldh)
+        val run=selection as? PdfBodyRun ?: return;val bounds=run.bounds ?: return;val editor=input ?: return
+        val rect=rectangle(bounds.x,bounds.y,bounds.width,bounds.height)
+        editor.textSize=(rect.height()/resources.displayMetrics.scaledDensity/1.1f).coerceAtLeast(6f)
+        editor.layoutParams=LayoutParams((width-rect.left).toInt().coerceAtLeast(1),rect.height().toInt().coerceAtLeast(32)).apply {leftMargin=rect.left.toInt();topMargin=rect.top.toInt()}
+    }
     var onPreview: (DocumentChange)->Unit={}
     var onCommit: (DocumentChange)->Unit={}
     var onCancelPreview: ()->Unit={}
@@ -235,7 +253,7 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
             if(image==null) Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {if(failure==null) CircularProgressIndicator() else Text("페이지를 편집 가능한 상태로 표시하지 못했습니다.")}
             else Box(Modifier.fillMaxSize().verticalScroll(verticalPosition).horizontalScroll(horizontalPosition).padding(12.dp)) {
                 AndroidView(factory={context->PdfObjectCanvas(context).also {canvas=it}},update={view->
-                    view.bitmap=image;view.page=page;view.editable=!busy && !readOnly;view.textRuns=runs;view.images=images;view.onSelection={selected=it}
+                    view.bitmap=image;view.page=page;view.onScale={factor->zoom=(zoom*factor).coerceIn(1f,3f)};view.editable=!busy && !readOnly;view.textRuns=runs;view.images=images;view.onSelection={selected=it}
                     (view.selection as? PdfBodyRun)?.let {run->
                         val pending=s.edits.values[PdfTextEdits.key(page,run.id)]
                         val value=pending?.let {org.json.JSONObject(it).getString("text")} ?: runs.firstOrNull {it.id==run.id}?.text
