@@ -70,7 +70,7 @@ class NativeOfficeFontTest {
             assertEquals("48",eval("document.getElementById('studio-office-header').getBoundingClientRect().height"))
             assertEquals("true",eval("document.getElementById('studio-office-bottom').hidden"))
             tap("편집하기");waitFor("Explicit edit mode settles"){eval("app.map.isEditMode() && !document.getElementById('studio-office-back').disabled")=="true"}
-            eval("(function(){window.__fontCommands=[];const send=app.socket.sendMessage.bind(app.socket);app.socket.sendMessage=function(message,...args){if(typeof message==='string'&&/^uno \\.uno:(FontHeight|CharFontName|Color|ExecuteSearch)/.test(message))window.__fontCommands.push(message);return send(message,...args);};})()")
+            eval("(function(){window.__fontCommands=[];const send=app.socket.sendMessage.bind(app.socket);app.socket.sendMessage=function(message,...args){if(typeof message==='string'&&/^uno \\.uno:(FontHeight|CharFontName|Color|Bold|Italic|Underline|ExecuteSearch)/.test(message))window.__fontCommands.push(message);return send(message,...args);};})()")
             selectText("KEEP_LEFT")
             val originalFont=eval("app.map.stateChangeHandler.getItemValue('.uno:CharFontName')")
             val originalSize=eval("app.map.stateChangeHandler.getItemValue('.uno:FontHeight')")
@@ -80,12 +80,16 @@ class NativeOfficeFontTest {
             tap(label)
             val catalog=eval("JSON.stringify(Object.keys(app.map.getToolbarCommandValues('.uno:CharFontName')||{}))")
             File(out,"available-fonts.json").writeText(catalog)
-            val selectedFont=eval("Object.keys(app.map.getToolbarCommandValues('.uno:CharFontName')||{}).find(n=>/^Noto Sans KR(?: Thin)?$/.test(n)) || Object.keys(app.map.getToolbarCommandValues('.uno:CharFontName')||{}).find(n=>/Noto.*(?:CJK|KR|Korean)/.test(n)) || ''")
-            assertTrue("Native font catalogue must include a real Korean font: $catalog",selectedFont.isNotBlank())
+            for(name in listOf("Nanum Gothic","Nanum Myeongjo","Gowun Dodum","Gowun Batang","Lato","Cousine"))
+                assertTrue("Bundled family must be registered in native Office: $name",eval("Object.keys(app.map.getToolbarCommandValues('.uno:CharFontName')||{}).includes("+JSONObject.quote(name)+")")=="true")
+            val selectedFont="Nanum Gothic"
             waitFor("Actual Korean font exists in shared picker"){eval("Array.from(document.querySelectorAll('[role=option]')).some(e=>e.getAttribute('aria-label')==="+JSONObject.quote(selectedFont)+")")=="true"}
             tap(selectedFont);SystemClock.sleep(500)
             tap("18");waitFor("Selected text changes size"){eval("Number(app.map.stateChangeHandler.getItemValue('.uno:FontHeight'))")=="18"}
-            tap("굵게");tap("글자색 #e53935")
+            tap("굵게");waitFor("Bold activates for selection"){eval("app.map.stateChangeHandler.getItemValue('.uno:Bold')")=="true"}
+            tap("굵게");waitFor("Bold toggles off"){eval("app.map.stateChangeHandler.getItemValue('.uno:Bold')")=="false"}
+            tap("굵게");tap("기울임");tap("밑줄");tap("글자색 #e53935")
+            waitFor("Independent toggles remain active"){eval("['Bold','Italic','Underline'].every(n=>app.map.stateChangeHandler.getItemValue('.uno:'+n)==='true')")=="true"}
             tap("설정 닫기")
             device.takeScreenshot(File(out,"formatted-target.png"))
             selectText("KEEP_LEFT")
@@ -110,8 +114,9 @@ class NativeOfficeFontTest {
                     Xml.elements(r,"rFonts").any {it.getAttributeNS(PackageDocument.W,"ascii")==selectedFont||it.getAttributeNS(PackageDocument.W,"eastAsia")==selectedFont}&&
                     Xml.elements(r,"color").any {it.getAttributeNS(PackageDocument.W,"val").equals("E53935",true)}
                 })
+                assertTrue("Selected run stores bold, italic and underline together",matching.any {r->listOf("b","i","u").all {name->Xml.elements(r,name).isNotEmpty()}})
                 val unchanged=runs.filter {r->Xml.elements(r,"t").joinToString(""){it.textContent}.contains("KEEP_")}
-                assertTrue(unchanged.isNotEmpty());assertFalse("Unselected text cannot inherit the selected size",unchanged.any {r->Xml.elements(r,"sz").any {it.getAttributeNS(PackageDocument.W,"val")=="36"}})
+                assertTrue(unchanged.isNotEmpty());assertFalse("Neighbors cannot inherit bold",unchanged.any {Xml.elements(it,"b").isNotEmpty()});assertFalse("Unselected text cannot inherit the selected size",unchanged.any {r->Xml.elements(r,"sz").any {it.getAttributeNS(PackageDocument.W,"val")=="36"}})
                 assertEquals("Every original paragraph must survive formatting",originalDocumentText,Xml.elements(doc,"t").joinToString(""){it.textContent})
             }
             val accepted=repo.acceptOffice(session);val saved=repo.save(accepted,uri);assertFalse(saved.dirty)
@@ -120,7 +125,7 @@ class NativeOfficeFontTest {
             tap("돌아가기");waitFor("Reading close request"){File(working.path+".close-request").isFile}
             waitFor("Reopened Office releases writer"){device.executeShellCommand("pidof ${context.packageName}:office").trim().isEmpty()}
             assertFalse(repo.completeOfficeClose(reopened));closed=true
-            File(out,"summary.json").writeText(JSONObject().put("selectedNativeFont",true).put("font",selectedFont).put("independentSizeAndColor",true).put("unselectedPreserved",true).put("nativeSaved",true).put("parserReopened",true).put("engineReopened",true).put("originalProtected",true).put("physicalDeviceTested",false).toString(2))
+            File(out,"summary.json").writeText(JSONObject().put("selectedNativeFont",true).put("font",selectedFont).put("independentSizeAndColor",true).put("independentBoldItalicUnderline",true).put("bundledFamilies",6).put("unselectedPreserved",true).put("nativeSaved",true).put("parserReopened",true).put("engineReopened",true).put("originalProtected",true).put("physicalDeviceTested",false).toString(2))
         } catch(error: Throwable){
             runCatching {File(out,"ui-state.json").writeText(eval("JSON.stringify({font:app.map.stateChangeHandler.getItemValue('.uno:CharFontName'),height:app.map.stateChangeHandler.getItemValue('.uno:FontHeight'),editing:app.map.isEditMode(),authorized:window.studioOffice.authorized,commands:window.__fontCommands||[],search:window.__nativeSearch,searchTerm:app.map._docLayer._searchTerm,searchFunction:String(app.map.search),buttons:Array.from(document.querySelectorAll('#studio-office-actions button')).map(b=>({label:b.getAttribute('aria-label'),disabled:b.disabled,rect:b.getBoundingClientRect().toJSON()}))})"))}
             runCatching {device.takeScreenshot(File(out,"failure.png"));device.dumpWindowHierarchy(File(out,"failure.xml"));File(out,"failure.txt").writeText(error.stackTraceToString())};throw error

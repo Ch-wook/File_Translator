@@ -57,9 +57,16 @@ class NativeEditorController {
     fun restore(){editor?.let {v->range?.let {(a,b)->v.setSelection(a.coerceIn(0,v.length()),b.coerceIn(0,v.length()))}}}
     fun focus(){restore();editor?.let {v->if(v.keyListener!=null){v.requestFocus();(v.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showSoftInput(v,android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)}}}
     fun clipboard(id: Int){restore();editor?.let {it.onTextContextMenuItem(id);capture()}}
+    fun select(start: Int,end: Int){editor?.let {v->v.setSelection(start.coerceIn(0,v.length()),end.coerceIn(0,v.length()));v.bringPointIntoView(v.selectionStart);capture()}}
+    fun replace(value: String,start: Int,end: Int){editor?.let {v->
+        val old=v.text.toString();var first=0
+        while(first<old.length && first<value.length && old[first]==value[first])first++
+        var tail=0;while(tail<old.length-first && tail<value.length-first && old[old.length-tail-1]==value[value.length-tail-1])tail++
+        v.beginBatchEdit();try {v.text.replace(first,old.length-tail,value.substring(first,value.length-tail));select(start,end)} finally {v.endBatchEdit()}
+    }}
     fun markdown(command: String){restore();editor?.let {v->
         val edit=MarkdownEditing.apply(v.text.toString(),v.selectionStart,v.selectionEnd,command)
-        v.text.replace(0,v.length(),edit.text);v.setSelection(edit.first,edit.last);capture();v.requestFocus()
+        replace(edit.text,edit.first,edit.last);v.requestFocus()
     }}
     fun navigate(end: Boolean){editor?.let {v->v.setSelection(if(end)v.length() else 0);v.requestFocus();v.bringPointIntoView(v.selectionStart);capture()}}
 }

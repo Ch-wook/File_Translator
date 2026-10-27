@@ -42,12 +42,20 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     var displaySize by rememberSaveable {mutableFloatStateOf(preferences.getFloat("size",settings.fontSize))}
     var fontList by rememberSaveable {mutableStateOf(false)}
     var fontQuery by rememberSaveable {mutableStateOf("")}
+    var favorites by remember {mutableStateOf(preferences.getStringSet("favorites",emptySet())!!.toSet())}
+    var fontCategory by rememberSaveable {mutableStateOf("전체")}
+    var wrap by rememberSaveable {mutableStateOf(settings.wrapLines)}
     val navigate: (Int)->Unit={page=it.coerceIn(0,((s.pdf?.pages ?: 1)-1).coerceAtLeast(0))}
     LaunchedEffect(s.base) {navigate(page)}
     LaunchedEffect(editing) {panel=null;if(!editing)ink=false}
     val imageSelected=pdfController.selected is PdfImagePlacement
     LaunchedEffect(imageSelected) {if(panel!=null)panel=if(imageSelected) "그림" else "글자"}
-    fun choose(value: String){textController.capture();fontList=false;panel=if(panel==value)null else value}
+    fun choose(value: String){
+        textController.capture();fontList=false
+        if(value=="미리보기"){preview=!preview;panel=null;return}
+        val target=when(value){"목록"->"문단";"보기","텍스트"->"글자";"이미지"->"그림";else->value}
+        panel=if(panel==target)null else target
+    }
     @Composable fun Tool(label: String,action: ()->Unit){TextButton(action,enabled=!busy,modifier=Modifier.focusProperties {canFocus=false}) {Text(label)}}
     androidx.activity.compose.BackHandler(panel!=null) {panel=null;fontList=false}
     BoxWithConstraints(Modifier.fillMaxSize().testTag("workspace-${family.name.lowercase()}")) {
@@ -58,7 +66,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                 editing && ink->DrawingPage(s,null,page,settings,vm,busy)
                 s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController)
                 preview && s.format==Format.MD->MarkdownPreview(s.edits.text,busy || !editing,vm::text)
-                else->NativeTextEditor(s.edits.text,displaySize,busy,settings.wrapLines,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont)
+                else->NativeTextEditor(s.edits.text,displaySize,busy,wrap,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont)
             }
             if(!editing) FilledTonalButton({vm.beginEditing()},enabled=!busy && presentation!=PresentationState.READ_ONLY && presentation!=PresentationState.ERROR,
                 modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).testTag("edit-document")) {Icon(Icons.Default.Edit,null);Text("편집하기")}
@@ -74,12 +82,16 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
               Text("보기 설정 · TXT·Markdown 파일에는 글꼴·크기·색상 서식이 저장되지 않습니다.",style=MaterialTheme.typography.bodySmall)
               if(fontList) {
                 OutlinedTextField(fontQuery,{fontQuery=it},label={Text("글꼴 검색")},singleLine=true,modifier=Modifier.fillMaxWidth())
-                val actualFonts=listOf("Noto Sans KR","시스템 고딕","시스템 바탕","고정폭")
+                val actualFonts=EditorFonts.names
+                Row(Modifier.horizontalScroll(rememberScrollState())) {listOf("전체","한국어","영문·기타","즐겨찾기").forEach {category->Tool((if(fontCategory==category)"✓ " else "")+category){fontCategory=category}}}
                 val recent=preferences.getString("recent","")
-                actualFonts.sortedBy {if(it==recent)0 else 1}.filter {it.contains(fontQuery,true)}.forEach {name->
-                    val face=remember(name) {when(name) {"Noto Sans KR"->android.graphics.Typeface.createFromAsset(context.assets,"fonts/NotoSansKR.ttf");"시스템 바탕"->android.graphics.Typeface.SERIF;"고정폭"->android.graphics.Typeface.MONOSPACE;else->android.graphics.Typeface.SANS_SERIF}}
-                    TextButton({displayFont=name;preferences.edit().putString("font",name).putString("recent",name).apply();fontList=false;textController.restore()},modifier=Modifier.fillMaxWidth()) {
-                        Column(Modifier.weight(1f)) {Text((if(name==displayFont)"✓ " else "")+name);Text("가나다 Aa 123",fontFamily=androidx.compose.ui.text.font.FontFamily(face))}
+                actualFonts.sortedBy {if(it==recent)0 else 1}.filter {it.contains(fontQuery,true) && when(fontCategory) {"즐겨찾기"->it in favorites;"한국어"->it in listOf("Noto Sans KR","Nanum Gothic","Nanum Myeongjo","Gowun Dodum","Gowun Batang");"영문·기타"->it !in listOf("Noto Sans KR","Nanum Gothic","Nanum Myeongjo","Gowun Dodum","Gowun Batang");else->true}}.forEach {name->
+                    val face=remember(name) {EditorFonts.face(context,name)}
+                    Row(verticalAlignment=Alignment.CenterVertically) {
+                        TextButton({displayFont=name;preferences.edit().putString("font",name).putString("recent",name).apply();fontList=false;textController.restore()},modifier=Modifier.weight(1f)) {
+                            Column(Modifier.weight(1f)) {Text((if(name==displayFont)"✓ " else "")+name);Text("가나다 Aa 123",fontFamily=androidx.compose.ui.text.font.FontFamily(face))}
+                        }
+                        IconToggleButton(name in favorites,{checked->favorites=if(checked)favorites+name else favorites-name;preferences.edit().putStringSet("favorites",favorites).apply()}) {Icon(if(name in favorites)Icons.Default.Star else Icons.Default.StarBorder,name+" 즐겨찾기")}
                     }
                 }
                 Tool("기본 보기 글꼴") {displayFont="고정폭";preferences.edit().putString("font",displayFont).apply();fontList=false;textController.restore()}
@@ -92,23 +104,29 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                     Tool("＋") {displaySize=(displaySize+1).coerceAtMost(72f);preferences.edit().putFloat("size",displaySize).apply()}
                 }
                 Row(Modifier.horizontalScroll(rememberScrollState())) {listOf(10,12,14,16,18,20,24,28,32).forEach {n->Tool("$n"){displaySize=n.toFloat();preferences.edit().putFloat("size",displaySize).apply()}}}
-                if(s.format==Format.MD) Row {Tool("굵게"){textController.markdown("bold")};Tool("기울임"){textController.markdown("italic")};Tool("인라인 코드"){textController.markdown("code")}}
+                if(s.format==Format.MD) Row(Modifier.horizontalScroll(rememberScrollState())) {Tool("굵게"){textController.markdown("bold")};Tool("기울임"){textController.markdown("italic")};Tool("인라인 코드"){textController.markdown("code")};Tool("취소선"){textController.markdown("strike")}}
               }
             }
             "문단"->if(s.format==Format.MD) {
+                Row(Modifier.horizontalScroll(rememberScrollState())) {(1..6).forEach {level->Tool("제목 $level"){textController.markdown("heading$level")}}}
                 Row(Modifier.horizontalScroll(rememberScrollState())) {listOf("heading" to "제목","list" to "글머리표","number" to "번호","task" to "체크리스트","quote" to "인용").forEach {(id,label)->Tool(label){textController.markdown(id)}}}
                 Text("Markdown 구문으로 저장합니다. 글자색·장평·문단 정렬은 이 형식에 저장할 수 없습니다.",style=MaterialTheme.typography.bodySmall)
             } else Text(if(s.format==Format.TXT)"TXT는 원문 텍스트와 줄바꿈을 보존합니다. 문단 서식은 지원하지 않습니다." else "PDF 문단 재배치와 줄 간격 변경은 지원하지 않습니다.",style=MaterialTheme.typography.bodySmall)
             "표"->if(s.format==Format.MD) {Tool("표 삽입"){textController.markdown("table")};Text("Markdown 표 구문을 삽입합니다. 셀 병합은 지원하지 않습니다.",style=MaterialTheme.typography.bodySmall)}
                 else Text("이 파일 형식은 표 구조 편집을 지원하지 않습니다.",style=MaterialTheme.typography.bodySmall)
             "그림"->if(s.format==Format.PDF) {Text("페이지에서 그림을 드래그해 이동하고 오른쪽 아래 핸들로 크기를 바꿉니다.",style=MaterialTheme.typography.bodySmall);Row {Tool("적용",pdfController.apply);Tool("취소",pdfController.cancel);Tool("이미지 삭제",pdfController.deleteImage)};DocumentTools(s,null,vm,busy,page,navigate,"삽입"){ocr=true}}
-            "페이지","주석","PDF 검색"->DocumentTools(s,null,vm,busy,page,navigate,if(panel=="PDF 검색")"보기" else panel!!){ocr=true}
+            "선택","페이지","주석","PDF 검색"->DocumentTools(s,null,vm,busy,page,navigate,if(panel=="PDF 검색")"보기" else if(panel=="선택")"주석" else panel!!){ocr=true}
             "삽입"->if(s.format==Format.PDF) DocumentTools(s,null,vm,busy,page,navigate,"삽입"){ocr=true}
                 else Row(Modifier.horizontalScroll(rememberScrollState())) {
-                    if(s.format==Format.MD) {Tool("링크"){textController.markdown("link")};Tool("코드 블록"){textController.markdown("block")}}
+                    if(s.format==Format.MD) {Tool("링크"){textController.markdown("link")};Tool("코드 블록"){textController.markdown("block")};Tool("이미지 링크"){textController.markdown("image")};Tool("표 삽입"){textController.markdown("table")};Tool("구분선"){textController.markdown("rule")}}
                     Tool("붙여넣기"){textController.clipboard(android.R.id.paste)}
                     Tool("서식 없이 붙여넣기"){textController.clipboard(android.R.id.pasteAsPlainText)}
                 }
+            "편집","찾기"->{
+                Row(Modifier.horizontalScroll(rememberScrollState())) {Tool("복사"){textController.clipboard(android.R.id.copy)};Tool("잘라내기"){textController.clipboard(android.R.id.cut)};Tool("붙여넣기"){textController.clipboard(android.R.id.paste)};Tool("전체 선택"){textController.clipboard(android.R.id.selectAll)}}
+                Tool("검색·바꾸기"){search=true}
+                Text("${s.edits.text.codePointCount(0,s.edits.text.length)}자 · ${1+s.edits.text.count {it=='\n'}}줄",style=MaterialTheme.typography.bodySmall)
+            }
             else->{
                 if(editing) Tool("보기") {vm.readDocument();panel=null}
                 Tool("별도 필기"){if(!editing)vm.beginInk();ink=!ink;panel=null}
@@ -119,6 +137,8 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                     if(s.format==Format.MD) Tool(if(preview)"원문 편집" else "미리보기"){preview=!preview;panel=null}
                     if(editing)Tool("저장 인코딩"){encoding=true}
                     Tool("보기 글꼴·크기"){panel="글자"}
+                    Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(wrap,{wrap=it});Text("자동 줄바꿈")}
+                    Text("${s.edits.text.codePointCount(0,s.edits.text.length)}자 · ${1+s.edits.text.count {it=='\n'}}줄",style=MaterialTheme.typography.bodySmall)
                 } else {
                     Row(verticalAlignment=Alignment.CenterVertically) {Tool("이전 페이지"){navigate(page-1)};Text("${page+1} / ${s.pdf!!.pages}");Tool("다음 페이지"){navigate(page+1)}}
                     Row(verticalAlignment=Alignment.CenterVertically) {Tool("축소"){pdfController.setZoom(pdfController.zoom-.25f)};Text("${(pdfController.zoom*100).toInt()}%");Tool("확대"){pdfController.setZoom(pdfController.zoom+.25f)};Tool("너비 맞춤"){pdfController.setZoom(1f)}}
@@ -126,19 +146,22 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                     if(editing){Row{Tool("페이지 도구"){panel="페이지"};Tool("주석"){panel="주석"}};DocumentTools(s,null,vm,busy,page,navigate,"편집"){ocr=true}}
                 }
                 if(editing)Tool("문자 인식"){ocr=true}
-                Text(if(s.dirty)"수정됨 · 원본과 분리된 작업 복사본에 자동 저장" else "저장됨",style=MaterialTheme.typography.bodySmall)
+                Text(if(s.dirty)"수정됨 · 원본과 분리된 작업 복사본에 자동 저장" else "변경 사항 없음",style=MaterialTheme.typography.bodySmall)
             }
           }
         }
         if(editing) {
-            val items=listOf(MobileDockItem("글자",Icons.Default.TextFields),MobileDockItem("문단",Icons.Default.FormatAlignLeft))+
-                (if(imageSelected)listOf(MobileDockItem("그림",Icons.Default.Image)) else if(s.format==Format.MD)listOf(MobileDockItem("표",Icons.Default.TableChart)) else emptyList())+
-                listOf(MobileDockItem("삽입",Icons.Default.Add),MobileDockItem("더보기",Icons.Default.MoreHoriz))
-            MobileEditorDock(items,panel,!busy,::choose)
+            val items=when(s.format) {
+                Format.TXT->listOf(MobileDockItem("편집",Icons.Default.Edit),MobileDockItem("찾기",Icons.Default.Search),MobileDockItem("보기",Icons.Default.Tune),MobileDockItem("더보기",Icons.Default.MoreHoriz))
+                Format.MD->listOf(MobileDockItem("글자",Icons.Default.TextFields),MobileDockItem("목록",Icons.Default.FormatListBulleted),MobileDockItem("삽입",Icons.Default.Add),MobileDockItem("미리보기",Icons.Default.Visibility),MobileDockItem("더보기",Icons.Default.MoreHoriz))
+                else->listOf(MobileDockItem("선택",Icons.Default.SelectAll),MobileDockItem("주석",Icons.Default.Draw),MobileDockItem(if(imageSelected)"이미지" else "텍스트",if(imageSelected)Icons.Default.Image else Icons.Default.TextFields),MobileDockItem("페이지",Icons.Default.Description),MobileDockItem("더보기",Icons.Default.MoreHoriz))
+            }
+            val selected=when(panel) {"글자"->if(s.format==Format.TXT)"보기" else if(s.format==Format.PDF)"텍스트" else "글자";"문단"->"목록";"그림"->"이미지";else->panel}
+            MobileEditorDock(items,selected,!busy,::choose)
         } else MobileEditorDock(listOf(MobileDockItem("보기 설정",Icons.Default.Tune)),panel,!busy,::choose)
       }
     }
-    if(search) SearchDialog(s,vm){search=false}
+    if(search) SearchDialog(s,vm,textController){search=false}
     if(ocr) OcrDialog(s,null,page,vm){ocr=false}
     if(encoding && s.textContent!=null)EncodingDialog(s,vm){encoding=false}
 }

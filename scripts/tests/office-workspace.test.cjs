@@ -100,7 +100,7 @@ test('mode transitions preserve actual native part, zoom and camera with delayed
  for(const family of ['text','spreadsheet','presentation']){const s=workspace(family);try{
  const before=s.viewport();s.click('편집하기');assert.equal(s.requests(),1);assert.equal(s.grants(),1);assert.deepEqual(s.viewport(),before);
  assert.equal(s.w.document.querySelector('#studio-office-sheet').hidden,true);
- s.click('글자');assert.equal(s.button('굵게').disabled,false);s.click('굵게');assert.equal(s.commands.at(-1).name,'.uno:Bold');
+ s.click(family==='spreadsheet'?'서식':'글자');assert.equal(s.button('굵게').disabled,false);s.click('굵게');assert.equal(s.commands.at(-1).name,'.uno:Bold');
  s.click('보기로 전환');assert.deepEqual(s.viewport(),before);s.tick();assert.equal(s.requests(),1);
  assert.equal(s.button('굵게').disabled,true);
  if(family==='text')for(let i=0;i<3;i++){s.nativeCursor();assert.deepEqual(s.viewport(),before);}
@@ -166,7 +166,7 @@ test('shared font picker uses native available faces and sends font-only UNO pro
 test('clipboard is dispatched once after approval and blocked in VIEW',()=>{
  const s=workspace('spreadsheet');try{
  const clipboard=[];s.w.app.map._clip={filterExecCopyPaste:name=>{if(['.uno:Cut','.uno:Paste'].includes(name)){clipboard.push(name);return true;}return false;}};
- s.click('편집하기');s.click('더보기');s.click('잘라내기');s.click('붙여넣기');assert.deepEqual(clipboard,['.uno:Cut','.uno:Paste']);
+ s.click('편집하기');s.click('시트');s.click('더보기');s.click('잘라내기');s.click('붙여넣기');assert.deepEqual(clipboard,['.uno:Cut','.uno:Paste']);
  s.click('보기로 전환');s.button('붙여넣기').click();assert.equal(clipboard.length,2);s.w.eval(source);assert.equal(s.w.document.querySelectorAll('#studio-office-tools').length,1);
  }finally{s.close();}
 });
@@ -195,4 +195,13 @@ test('native caret restoration remains pinned until actual document input releas
  for(let i=0;i<3;i++){s.nativeCursor();assert.deepEqual(s.viewport(),before);}
  s.userEvent('compositionstart');s.nativeCursor();assert.equal(s.viewport().y,0);
  }finally{s.close();}
+});
+
+test('Calc and Impress docks expose format-specific tools without Writer paragraphs',()=>{
+ for(const [family,expected]of [['spreadsheet',['셀','서식','수식','삽입','시트']],['presentation',['슬라이드','글자','도형','이미지','더보기']]]){
+  const s=workspace(family);try{s.click('편집하기');assert.deepEqual([...s.w.document.querySelectorAll('#studio-office-tabs button')].map(b=>b.textContent),expected);
+   if(family==='spreadsheet'){s.click('수식');s.click('함수 마법사');assert.equal(s.commands.at(-1).name,'.uno:FunctionDialog');}
+   else{s.click('도형');s.click('사각형');assert.equal(s.commands.at(-1).name,'.uno:BasicShapes.rectangle');s.click('이미지');assert.equal(s.button('위치·크기').disabled,true);}
+  }finally{s.close();}
+ }
 });

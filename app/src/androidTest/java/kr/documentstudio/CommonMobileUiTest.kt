@@ -46,7 +46,7 @@ class CommonMobileUiTest {
         compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.setSelection(3,5)}
         compose.onNodeWithTag("mobile-editor-header").assertHeightIsEqualTo(48.dp)
         compose.onNodeWithTag("mobile-editor-dock").assertHeightIsEqualTo(48.dp)
-        compose.onNodeWithText("글자").performClick();compose.waitForIdle();recordUi("text-character-panel")
+        compose.onNodeWithText("보기").performClick();compose.waitForIdle();recordUi("text-character-panel")
         compose.onNode(hasText("글꼴 ·",substring=true)).performScrollTo().performClick()
         compose.onNode(hasText("Noto Sans KR",substring=true) and hasClickAction()).performScrollTo().performClick();compose.waitForIdle()
         compose.onNode(hasText("글꼴 ·",substring=true)).performScrollTo().performClick()

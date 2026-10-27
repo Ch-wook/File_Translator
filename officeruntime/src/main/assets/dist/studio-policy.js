@@ -223,6 +223,7 @@
     return { label, name, needsObject, run: () => uno(name) };
   }
   const bundledFonts={
+    'Nanum Gothic':'NanumGothic-Regular.ttf','Nanum Myeongjo':'NanumMyeongjo-Regular.ttf','Gowun Dodum':'GowunDodum-Regular.ttf','Gowun Batang':'GowunBatang-Regular.ttf','Lato':'Lato-Regular.ttf','Cousine':'Cousine-Regular.ttf',
     'Noto Sans KR':'NotoSansKR.ttf','Noto Sans KR Thin':'NotoSansKR.ttf','Caladea':'Caladea-Regular.ttf','Carlito':'Carlito-Regular.ttf',
     'Gentium Basic':'GenBasR.ttf','Gentium Book Basic':'GenBkBasR.ttf',
     'Liberation Mono':'LiberationMono-Regular.ttf','Liberation Sans':'LiberationSans-Regular.ttf',
@@ -241,7 +242,11 @@
   function currentContext(){if(objectSelected())return '그림';if(map()?.getDocType()==='spreadsheet')return '셀';if(/table|cell/i.test(contextName))return '표';if(map()?.getDocType()==='presentation')return '슬라이드';return '표';}
   function renderDock(){
     tabs.replaceChildren();const context=currentContext();
-    for(const [label,icon] of [['글자','char'],['문단','para'],[context,context==='그림'?'image':'table'],['삽입','insert'],['더보기','more']]){
+    const family=map().getDocType();
+    const dock=family==='spreadsheet'?[['셀','table'],['서식','char'],['수식','insert'],['삽입','insert'],['시트','table']]:
+      family==='presentation'?[['슬라이드','table'],['글자','char'],['도형','insert'],['이미지','image'],['더보기','more']]:
+      [['글자','char'],['문단','para'],[context,context==='그림'?'image':'table'],['삽입','insert'],['더보기','more']];
+    for(const [label,icon] of dock){
       const b=UI.dockButton(label,icon,()=>{if(groupOpen&&activeTab===label)closeSheet();else openSheet(label);});b.setAttribute('aria-selected',String(groupOpen&&activeTab===label));tabs.append(b);
     }
   }
@@ -291,13 +296,14 @@
       button('이전 결과',()=>find(true));button('다음 결과',()=>find(false));
       q.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();find(false);}};
       update();refreshLayout();return;
-    }else if(activeTab==='글자'){
+    }else if(activeTab==='글자'||activeTab==='서식'){
       const font=button((state('CharFontName')||'문서 글꼴')+' ▾',()=>{fontList=true;render();});font.dataset.currentFont='true';font.setAttribute('aria-label','글꼴 선택 · '+(state('CharFontName')||'문서 글꼴'));
       numeric('크기(pt)',Number(state('FontHeight'))||12,v=>uno('FontHeight',{'FontHeight.Height':{type:'float',value:v}}),{step:.5});
       const sizes=row();for(const size of [8,9,10,11,12,14,16,18,20,24,28,32])button(String(size),()=>uno('FontHeight',{'FontHeight.Height':{type:'float',value:size}}),sizes);
       for(const [label,name]of [['굵게','Bold'],['기울임','Italic'],['밑줄','Underline'],['취소선','Strikeout'],['위 첨자','SuperScript'],['아래 첨자','SubScript']])items.push(command(label,name));
       items.forEach(item=>add(item));palette('글자색',family==='text'?'Color':'FontColor');
       if(family==='text')palette('형광펜·글자 배경색','CharBackColor');
+      if(family==='spreadsheet'){palette('셀 배경색','BackgroundColor');add(command('셀 정렬·숫자·테두리','FormatCellDialog'));}
       add(command('자간·장평·글자 위치','FontDialog'));add(command('선택 글자 서식 초기화','ResetAttributes'));
     }else if(activeTab==='문단'){
       if(family==='spreadsheet'){add(command('셀 정렬·줄바꿈','FormatCellDialog'));update();refreshLayout();return;}
@@ -305,10 +311,22 @@
       if(family==='text'){add(command('쪽 설정','PageDialog'));add(command('쪽 나누기','InsertPagebreak'));}
     }else if(activeTab==='표'){
       for(const [label,name]of [['표 삽입','InsertTable'],['위에 행','InsertRowsBefore'],['아래에 행','InsertRowsAfter'],['왼쪽 열','InsertColumnsBefore'],['오른쪽 열','InsertColumnsAfter'],['행 삭제','DeleteRows'],['열 삭제','DeleteColumns'],['셀 병합','MergeCells'],['셀 나누기','SplitCell'],['표·셀 서식','TableDialog'],['행 높이','SetRowHeight'],['열 너비','SetColumnWidth'],['표 삭제','DeleteTable']])add(command(label,name));
+    }else if(activeTab==='수식'){
+      add(command('함수 마법사','FunctionDialog'));
+      const help=document.createElement('p');help.textContent='선택한 셀의 수식은 엔진 수식 입력줄 또는 함수 마법사에서 편집합니다. 계산은 LibreOffice가 수행합니다.';actions.append(help);
+      button('더보기',()=>openSheet('더보기'));
+    }else if(activeTab==='시트'){
+      const count=map().getNumberOfParts?.()||0,current=map().getCurrentPartNumber?.()||0;
+      for(let part=0;part<count;part++){const b=button(map().getPartName?.(part)||('시트 '+(part+1)),()=>{map().setPart(part);render();});b.setAttribute('aria-pressed',String(part===current));}
+      button('더보기',()=>openSheet('더보기'));
+    }else if(activeTab==='도형'){
+      for(const [label,name]of [['텍스트 상자','Text'],['사각형','BasicShapes.rectangle'],['타원','BasicShapes.ellipse']])add(command(label,name));
+      button('선택 개체 도구',()=>openSheet('개체'));button('문단',()=>openSheet('문단'));
     }else if(activeTab==='셀'){
       for(const [label,name]of [['행 삽입','InsertRowsBefore'],['열 삽입','InsertColumnsBefore'],['행 삭제','DeleteRows'],['열 삭제','DeleteColumns'],['셀 병합','MergeCells'],['행 높이','RowHeight'],['열 너비','ColumnWidth'],['셀 서식','FormatCellDialog'],['함수 마법사','FunctionDialog'],['오름차순','SortAscending'],['내림차순','SortDescending']])add(command(label,name));
       palette('셀 배경색','BackgroundColor');
-    }else if(activeTab==='그림'||activeTab==='개체'){
+    }else if(activeTab==='그림'||activeTab==='이미지'||activeTab==='개체'){
+      add({label:'그림 삽입',run:()=>document.getElementById('insertgraphic')?.click()});
       add({label:'선택·이동',run:()=>{map()._docLayer.postKeyboardEvent('input',0,1280);map().focus(false);}});
       if(family==='text')add({label:'자유 배치',needsObject:true,run:()=>{uno('SetAnchorToPara');uno('WrapThrough');}});
       for(const [label,name]of [['위치·크기','TransformDialog'],['맨 앞으로','BringToFront'],['맨 뒤로','SendToBack'],['왼쪽 맞춤','ObjectAlignLeft'],['가운데 맞춤','AlignCenter'],['오른쪽 맞춤','ObjectAlignRight'],['좌우 뒤집기','FlipHorizontal'],['상하 뒤집기','FlipVertical']])add(command(label,name,true));

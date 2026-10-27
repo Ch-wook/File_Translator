@@ -14,6 +14,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     sourceSets.getByName("main").assets.srcDir(rootProject.file(".engine-cache/hangul/runtime"))
+    sourceSets.getByName("main").assets.srcDir(rootProject.file(".engine-cache/studio-fonts/assets"))
     sourceSets.getByName("androidTest").assets.srcDir(rootProject.file("artifacts/open-fixtures/android-assets"))
     testOptions {unitTests.isIncludeAndroidResources=true}
     buildFeatures { compose = true }
@@ -53,6 +54,7 @@ dependencies {
     implementation("commons-io:commons-io:2.20.0")
     implementation("org.commonmark:commonmark:0.25.0")
     implementation("org.commonmark:commonmark-ext-gfm-tables:0.25.0")
+    implementation("org.commonmark:commonmark-ext-gfm-strikethrough:0.25.0")
     implementation("com.google.mlkit:text-recognition-korean:16.0.1")
     implementation("com.google.mlkit:text-recognition:16.0.1")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
@@ -72,3 +74,5 @@ val prepareHangulEngine by tasks.registering(Exec::class) {
     outputs.dir(rootProject.file(".engine-cache/hangul/runtime"))
 }
 tasks.named("preBuild") {dependsOn(prepareHangulEngine)}
+
+tasks.named("preBuild") {dependsOn(rootProject.tasks.named("prepareStudioFonts"))}

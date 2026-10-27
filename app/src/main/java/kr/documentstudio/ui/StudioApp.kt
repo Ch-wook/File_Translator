@@ -291,7 +291,7 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
 @Composable
 internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false,readOnly: Boolean=true,controller: NativeEditorController?=null,showToolbar: Boolean=true,fontFamily: String="고정폭") {
     val fontContext=LocalContext.current
-    val desiredFace=remember(fontFamily,fontContext) {when(fontFamily) {"Noto Sans KR"->android.graphics.Typeface.createFromAsset(fontContext.assets,"fonts/NotoSansKR.ttf");"시스템 고딕"->android.graphics.Typeface.SANS_SERIF;"시스템 바탕"->android.graphics.Typeface.SERIF;else->android.graphics.Typeface.MONOSPACE}}
+    val desiredFace=remember(fontFamily,fontContext) {EditorFonts.face(fontContext,fontFamily)}
     val onChange by rememberUpdatedState(change)
     val onFocused by rememberUpdatedState(focused)
     var editor by remember {mutableStateOf<LineNumberEditText?>(null)}
@@ -336,12 +336,19 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
 }
 
 @Composable
-internal fun SearchDialog(s: Session,vm: DocumentActions,close: ()->Unit) {
+internal fun SearchDialog(s: Session,vm: DocumentActions,controller: NativeEditorController?=null,close: ()->Unit) {
     var find by remember {mutableStateOf("")};var replacement by remember {mutableStateOf("")}
-    val count=remember(s.edits.text,find) {var count=0;var from=0;if(find.isNotEmpty()) while(true) {val next=s.edits.text.indexOf(find,from);if(next<0) break;count++;from=next+find.length};count}
+    var current by remember {mutableIntStateOf(-1)}
+    val matches=remember(s.edits.text,find) {buildList {var from=0;if(find.isNotEmpty())while(true) {val next=s.edits.text.indexOf(find,from);if(next<0)break;add(next);from=next+find.length}}}
+    fun move(backwards: Boolean) {if(matches.isNotEmpty()) {current=if(backwards)(if(current<=0)matches.lastIndex else current-1) else (current+1)%matches.size;controller?.select(matches[current],matches[current]+find.length)}}
     AlertDialog(onDismissRequest=close,title={Text("검색·바꾸기")},text={Column {
-        OutlinedTextField(find,{find=it},label={Text("찾을 문자열")},singleLine=true)
-        Text("일치 ${count}개",modifier=Modifier.padding(vertical=8.dp))
+        OutlinedTextField(find,{find=it;current=-1},label={Text("찾을 문자열")},singleLine=true)
+        Text("일치 ${matches.size}개"+if(current in matches.indices)" · ${current+1} / ${matches.size}" else "",modifier=Modifier.padding(vertical=8.dp))
+        Row {TextButton({move(true)},enabled=matches.isNotEmpty()){Text("이전 결과")};TextButton({move(false)},enabled=matches.isNotEmpty()){Text("다음 결과")}}
         OutlinedTextField(replacement,{replacement=it},label={Text("바꿀 문자열")},singleLine=true)
-    }},confirmButton={TextButton(onClick={vm.text(s.edits.text.replace(find,replacement));close()},enabled=find.isNotEmpty() && count>0){Text("모두 바꾸기")}},dismissButton={TextButton(onClick=close){Text("닫기")}})
+        TextButton({
+            if(current !in matches.indices)move(false)
+            if(current in matches.indices){val a=matches[current];val value=s.edits.text.replaceRange(a,a+find.length,replacement);if(controller!=null)controller.replace(value,a,a+replacement.length) else vm.text(value);current=-1}
+        },enabled=find.isNotEmpty() && matches.isNotEmpty()){Text("바꾸기")}
+    }},confirmButton={TextButton(onClick={val value=s.edits.text.replace(find,replacement);if(controller!=null)controller.replace(value,0,0) else vm.text(value);current=-1},enabled=find.isNotEmpty() && matches.isNotEmpty()){Text("모두 바꾸기")}},dismissButton={TextButton(onClick=close){Text("닫기")}})
 }
