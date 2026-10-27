@@ -45,7 +45,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
       _docLoaded: true, wopi: {}, isEditMode: () => editing,
       _switchToEditMode: () => {requested++;editing=true;zoom=10;w.app.activeDocument.activeLayout.scrollTo(0,0);listeners.updatepermission?.();w.setTimeout(()=>w.app.activeDocument.activeLayout.scrollTo(0,0),50);},
       setPermission: value => {editing=value==='edit';w.app.activeDocument.activeLayout.scrollTo(0,0);listeners.updatepermission?.();},
-      getToolbarCommandValues:()=>({'Noto Sans KR':[12,14],'Liberation Sans':[12,14],'Missing Font':[]}),
+      getToolbarCommandValues:()=>({'Noto Sans KR':[12,14],'Liberation Sans':[12,14],'Android Available Font':[]}),
       getDocType: () => family, getZoom:()=>zoom, getCurrentPartNumber:()=>part, setPart:value=>{part=value;},
       sendUnoCommand: (name,args) => commands.push({name,args}), focus: () => {},
       stateChangeHandler: { getItemValue: name => states[name] },
@@ -150,10 +150,10 @@ test('Writer paragraph, Calc cells/formulas and Impress slides retain format-spe
  p.click('더보기');p.click('개체');assert.equal(p.button('자유 배치'),undefined);
  }finally{w.close();c.close();p.close();}
 });
-test('shared font picker filters missing faces and sends font-only UNO properties',async()=>{
+test('shared font picker uses native available faces and sends font-only UNO properties',async()=>{
  const s=workspace();try{
  s.click('편집하기');s.click('글자');s.click('글꼴 선택 · 문서 글꼴');
- const options=[...s.w.document.querySelectorAll('[role=option]')];assert.deepEqual(options.map(b=>b.getAttribute('aria-label')),['Noto Sans KR','Liberation Sans']);
+ const options=[...s.w.document.querySelectorAll('[role=option]')];assert.deepEqual(options.map(b=>b.getAttribute('aria-label')),['Android Available Font','Liberation Sans','Noto Sans KR']);
  const search=s.w.document.querySelector('[aria-label="글꼴 검색"]');search.value='Noto';search.dispatchEvent(new s.w.Event('input'));
  assert.equal(s.w.document.querySelectorAll('[role=option]').length,1);
  s.button('Noto Sans KR').click();await Promise.resolve();

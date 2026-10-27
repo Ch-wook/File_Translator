@@ -215,14 +215,14 @@
     return { label, name, needsObject, run: () => uno(name) };
   }
   const bundledFonts={
-    'Noto Sans KR':'NotoSansKR.ttf','Caladea':'Caladea-Regular.ttf','Carlito':'Carlito-Regular.ttf',
+    'Noto Sans KR':'NotoSansKR.ttf','Noto Sans KR Thin':'NotoSansKR.ttf','Caladea':'Caladea-Regular.ttf','Carlito':'Carlito-Regular.ttf',
     'Gentium Basic':'GenBasR.ttf','Gentium Book Basic':'GenBkBasR.ttf',
     'Liberation Mono':'LiberationMono-Regular.ttf','Liberation Sans':'LiberationSans-Regular.ttf',
     'Liberation Sans Narrow':'LiberationSansNarrow-Regular.ttf','Liberation Serif':'LiberationSerif-Regular.ttf'
   };
   const fontFaces=new Map();
   const state=name=>map()?.stateChangeHandler?.getItemValue('.uno:'+name);
-  const fonts=()=>Object.keys(map()?.getToolbarCommandValues?.('.uno:CharFontName')||{}).filter(name=>bundledFonts[name]);
+  const fonts=()=>Object.keys(map()?.getToolbarCommandValues?.('.uno:CharFontName')||{}).filter(name=>name.trim()).sort();
   function button(label,run,parent=actions){
     const b=document.createElement('button');b.type='button';b.className='studio-office-action';b.textContent=label;b.setAttribute('aria-label',label);UI.retain(b);b.onclick=()=>{if(!b.disabled){releaseViewportPin();run();update();}};parent.append(b);return b;
   }
@@ -274,7 +274,7 @@
     if(!groupOpen){update();refreshLayout();return;}
     if(fontList){
       const available=fonts();
-      picker=UI.fontPicker(actions,{fonts:available,current:state('CharFontName'),onPick:name=>{if(!editable()||modeTransition)return;uno('CharFontName',{'CharFontName.FamilyName':{type:'string',value:name}});fontList=false;render();},preview:previewFont,key:'studio-office-fonts',note:'실제 번들 글꼴 · 원래 글꼴이 없으면 대체 표시됩니다. 글꼴 변경은 선택 영역 또는 이후 입력에 적용됩니다.'});
+      picker=UI.fontPicker(actions,{fonts:available,current:state('CharFontName'),onPick:name=>{if(!editable()||modeTransition)return;uno('CharFontName',{'CharFontName.FamilyName':{type:'string',value:name}});fontList=false;render();},preview:previewFont,key:'studio-office-fonts',note:'엔진이 실제 제공하는 글꼴 · 번들 파일이 없는 글꼴은 미리보기 제한을 표시합니다. 선택 영역 또는 이후 입력에 적용됩니다.'});
       update();refreshLayout();return;
     }
     if(activeTab==='찾기'){

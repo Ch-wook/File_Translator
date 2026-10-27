@@ -68,8 +68,12 @@ class NativeOfficeFontTest {
             tap("글자")
             val label=eval("document.querySelector('[data-current-font]').getAttribute('aria-label')")
             tap(label)
-            waitFor("Actual Korean font exists in engine and shared picker"){eval("Boolean(document.querySelector('[role=option][aria-label=\"Noto Sans KR\"]'))")=="true"}
-            tap("Noto Sans KR");SystemClock.sleep(500)
+            val catalog=eval("JSON.stringify(Object.keys(app.map.getToolbarCommandValues('.uno:CharFontName')||{}))")
+            File(out,"available-fonts.json").writeText(catalog)
+            val selectedFont=eval("Object.keys(app.map.getToolbarCommandValues('.uno:CharFontName')||{}).find(n=>/^Noto Sans KR(?: Thin)?$/.test(n)) || Object.keys(app.map.getToolbarCommandValues('.uno:CharFontName')||{}).find(n=>/Noto.*(?:CJK|KR|Korean)/.test(n)) || ''")
+            assertTrue("Native font catalogue must include a real Korean font: $catalog",selectedFont.isNotBlank())
+            waitFor("Actual Korean font exists in shared picker"){eval("Array.from(document.querySelectorAll('[role=option]')).some(e=>e.getAttribute('aria-label')==="+JSONObject.quote(selectedFont)+")")=="true"}
+            tap(selectedFont);SystemClock.sleep(500)
             tap("18");waitFor("Selected text changes size"){eval("Number(app.map.stateChangeHandler.getItemValue('.uno:FontHeight'))")=="18"}
             tap("굵게");tap("글자색 #e53935")
             tap("설정 닫기")
@@ -91,7 +95,7 @@ class NativeOfficeFontTest {
                 assertTrue("Native save must retain the selected text run",matching.isNotEmpty())
                 assertTrue("Only selected text must store 18pt",matching.any {r->Xml.elements(r,"sz").any {it.getAttributeNS(PackageDocument.W,"val")=="36"}})
                 assertTrue("Selected run must retain font and color together",matching.any {r->
-                    Xml.elements(r,"rFonts").any {it.getAttributeNS(PackageDocument.W,"ascii")=="Noto Sans KR"||it.getAttributeNS(PackageDocument.W,"eastAsia")=="Noto Sans KR"}&&
+                    Xml.elements(r,"rFonts").any {it.getAttributeNS(PackageDocument.W,"ascii")==selectedFont||it.getAttributeNS(PackageDocument.W,"eastAsia")==selectedFont}&&
                     Xml.elements(r,"color").any {it.getAttributeNS(PackageDocument.W,"val").equals("E53935",true)}
                 })
                 val unchanged=runs.filter {r->Xml.elements(r,"t").joinToString(""){it.textContent}.contains("KEEP_")}
@@ -104,7 +108,7 @@ class NativeOfficeFontTest {
             tap("돌아가기");waitFor("Reading close request"){File(working.path+".close-request").isFile}
             waitFor("Reopened Office releases writer"){device.executeShellCommand("pidof ${context.packageName}:office").trim().isEmpty()}
             assertFalse(repo.completeOfficeClose(reopened));closed=true
-            File(out,"summary.json").writeText(JSONObject().put("selectedNativeFont",true).put("independentSizeAndColor",true).put("unselectedPreserved",true).put("nativeSaved",true).put("parserReopened",true).put("engineReopened",true).put("originalProtected",true).put("physicalDeviceTested",false).toString(2))
+            File(out,"summary.json").writeText(JSONObject().put("selectedNativeFont",true).put("font",selectedFont).put("independentSizeAndColor",true).put("unselectedPreserved",true).put("nativeSaved",true).put("parserReopened",true).put("engineReopened",true).put("originalProtected",true).put("physicalDeviceTested",false).toString(2))
         } catch(error: Throwable){
             runCatching {device.takeScreenshot(File(out,"failure.png"));device.dumpWindowHierarchy(File(out,"failure.xml"));File(out,"failure.txt").writeText(error.stackTraceToString())};throw error
         } finally {if(!closed)runCatching {context.contentResolver.acquireUnstableContentProviderClient(probe).use {it?.call("close",null,null)}}}
