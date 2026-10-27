@@ -58,6 +58,13 @@ class CommonMobileUiTest {
         }
         assertFalse(vm.state.value.session!!.dirty);assertArrayEquals(before,file.readBytes())
         assertEquals("선택 AB 유지",runBlocking {vm.repository.open(uri).edits.text})
+        compose.onNodeWithText("찾기").performClick();compose.onNodeWithText("검색·바꾸기").performScrollTo().performClick()
+        compose.onNodeWithText("찾을 문자열").performTextInput("AB");compose.onNodeWithText("다음 결과").performClick()
+        compose.onNodeWithText("바꿀 문자열").performTextInput("교체");compose.onNodeWithText("바꾸기").performClick();compose.waitForIdle()
+        assertEquals("선택 교체 유지",vm.state.value.session!!.edits.text)
+        compose.onNodeWithText("닫기").performClick();compose.onNodeWithContentDescription("설정 닫기").performClick()
+        compose.runOnUiThread {vm.save(uri)};ready()
+        assertEquals("선택 교체 유지",runBlocking {vm.repository.open(uri).edits.text})
     }
     @Test fun markdownToolsKeepScopeAndReopenAsMarkdownSyntax(){
         compose.runOnUiThread {vm.create(Format.MD)};ready();compose.onNodeWithTag("edit-document").performClick();compose.waitForIdle()
@@ -66,10 +73,13 @@ class CommonMobileUiTest {
         compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.setSelection(3,5)}
         compose.onNodeWithText("굵게").performScrollTo().performClick();compose.waitForIdle()
         assertEquals("선택 **AB** 유지",vm.state.value.session!!.edits.text)
+        compose.onNodeWithText("굵게").performScrollTo().performClick();compose.waitForIdle();assertEquals("선택 AB 유지",vm.state.value.session!!.edits.text)
+        compose.onNodeWithText("굵게").performScrollTo().performClick();compose.onNodeWithText("기울임").performScrollTo().performClick();compose.onNodeWithText("취소선").performScrollTo().performClick();compose.waitForIdle()
+        assertEquals("선택 ***~~AB~~*** 유지",vm.state.value.session!!.edits.text)
         val file=File(compose.activity.cacheDir,"tests/ui-${UUID.randomUUID()}.md").apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}
         val uri=FileProvider.getUriForFile(compose.activity,compose.activity.packageName+".testfiles",file)
         compose.runOnUiThread {vm.save(uri)};ready()
-        assertEquals("선택 **AB** 유지",runBlocking {vm.repository.open(uri).edits.text})
+        assertEquals("선택 ***~~AB~~*** 유지",runBlocking {vm.repository.open(uri).edits.text})
         compose.onNodeWithContentDescription("설정 닫기").performClick()
         compose.onNodeWithTag("mobile-editor-sheet").assertDoesNotExist()
     }

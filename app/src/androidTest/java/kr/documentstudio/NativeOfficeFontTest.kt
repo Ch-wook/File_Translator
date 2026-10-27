@@ -86,9 +86,13 @@ class NativeOfficeFontTest {
             waitFor("Actual Korean font exists in shared picker"){eval("Array.from(document.querySelectorAll('[role=option]')).some(e=>e.getAttribute('aria-label')==="+JSONObject.quote(selectedFont)+")")=="true"}
             tap(selectedFont);SystemClock.sleep(500)
             tap("18");waitFor("Selected text changes size"){eval("Number(app.map.stateChangeHandler.getItemValue('.uno:FontHeight'))")=="18"}
-            tap("굵게");waitFor("Bold activates for selection"){eval("app.map.stateChangeHandler.getItemValue('.uno:Bold')")=="true"}
-            tap("굵게");waitFor("Bold toggles off"){eval("app.map.stateChangeHandler.getItemValue('.uno:Bold')")=="false"}
-            tap("굵게");tap("기울임");tap("밑줄");tap("글자색 #e53935")
+            val boldBefore=eval("app.map.stateChangeHandler.getItemValue('.uno:Bold')")=="true"
+            tap("굵게");waitFor("Bold toggles the selected range"){eval("app.map.stateChangeHandler.getItemValue('.uno:Bold')")==(!boldBefore).toString()}
+            tap("굵게");waitFor("Bold toggles back independently"){eval("app.map.stateChangeHandler.getItemValue('.uno:Bold')")==boldBefore.toString()}
+            if(!boldBefore)tap("굵게")
+            if(eval("app.map.stateChangeHandler.getItemValue('.uno:Italic')")!="true")tap("기울임")
+            if(eval("app.map.stateChangeHandler.getItemValue('.uno:Underline')")!="true")tap("밑줄")
+            tap("글자색 #e53935")
             waitFor("Independent toggles remain active"){eval("['Bold','Italic','Underline'].every(n=>app.map.stateChangeHandler.getItemValue('.uno:'+n)==='true')")=="true"}
             tap("설정 닫기")
             device.takeScreenshot(File(out,"formatted-target.png"))
@@ -131,4 +135,95 @@ class NativeOfficeFontTest {
             runCatching {device.takeScreenshot(File(out,"failure.png"));device.dumpWindowHierarchy(File(out,"failure.xml"));File(out,"failure.txt").writeText(error.stackTraceToString())};throw error
         } finally {if(!closed)runCatching {context.contentResolver.acquireUnstableContentProviderClient(probe).use {it?.call("close",null,null)}}}
     }
+    /** Native Calc, not the app's legacy structural XML editor or a mocked formula calculator. */
+    @Test fun calcPasteCellFormattingFormulasAndNewSheetSurviveSaveAndReopen()=runBlocking {
+        val repo=DocumentRepository(context);var seed=repo.create(Format.XLSX)
+        val sheet=seed.sections.first().id
+        val formulas=linkedMapOf(
+            "C1" to ("A1+B1" to "10"),
+            "C2" to ("SUM(A1:B1)" to "10"),
+            "C3" to ("AVERAGE(A1:B1)" to "5"),
+            "C4" to ("MIN(A1:B1)" to "3"),
+            "C5" to ("MAX(A1:B1)" to "7"),
+            "C6" to ("COUNT(A1:B1)" to "2"),
+            "C7" to ("COUNTA(A1:B1)" to "2"),
+            "C8" to ("IF(A1>B1,1,0)" to "1"),
+            "C9" to ("AND(A1>0,B1>0)" to "1"),
+            "C10" to ("OR(A1<0,B1>0)" to "1"),
+            "C11" to ("ROUND(A1/3,2)" to "2.33"),
+            "C12" to ("COUNTIF(A1:B1,\">2\")" to "2"),
+            "C13" to ("SUMIF(A1:B1,\">2\")" to "10"),
+            "C14" to ("VLOOKUP(A1,A1:B1,2,FALSE)" to "3"),
+            "C15" to ("_xlfn.XLOOKUP(A1,A1:B1,A1:B1)" to "7")
+        )
+        val values=mutableMapOf("$sheet#A1" to "2","$sheet#B1" to "3","$sheet#D1" to "KEEP_CALC")
+        formulas.forEach {(cell,pair)->values["$sheet#$cell"]="="+pair.first}
+        seed=seed.copy(edits=seed.edits.copy(values=values))
+        val original=File(context.cacheDir,"tests/calc-${UUID.randomUUID()}.xlsx").apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}
+        val uri=FileProvider.getUriForFile(context,context.packageName+".testfiles",original)
+        val session=repo.save(seed,uri);val before=DocumentRepository.digest(original)
+        var working=repo.prepareOffice(session);var closed=false
+        val out=File(context.getExternalFilesDir(null),"native-office-font").apply {mkdirs()}
+        fun launch(id: String,name: String) {context.startActivity(Intent().setClassName(context.packageName,"org.libreoffice.androidlib.StudioOfficeActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("sessionId",id).putExtra("workingPath",working.absolutePath).putExtra("displayName",name))}
+        fun go(cell: String) {eval("app.map.sendUnoCommand('.uno:GoToCell',{ToPoint:{type:'string',value:"+JSONObject.quote(cell)+"}})")}
+        fun verify(file: File) {
+            ZipFile(file).use {z->
+                fun xml(path: String)=Xml.parse(z.getInputStream(z.getEntry(path)).use {it.readBytes()})
+                val book=xml("xl/workbook.xml");assertEquals(2,Xml.elements(book,"sheet").size)
+                val doc=xml("xl/worksheets/sheet1.xml")
+                val cells=Xml.elements(doc,"c").associateBy {it.getAttribute("r")}
+                assertEquals("7",Xml.elements(cells.getValue("A1"),"v").single().textContent)
+                assertEquals("3",Xml.elements(cells.getValue("B1"),"v").single().textContent)
+                formulas.forEach {(cell,pair)->
+                    val node=cells.getValue(cell)
+                    val formula=Xml.elements(node,"f").single().textContent
+                    assertTrue("Original formula must remain a formula: $cell $formula",formula.contains(pair.first.substringBefore('(').removePrefix("_xlfn.")))
+                    assertEquals("Native result after A1 changes: $cell",pair.second,Xml.elements(node,"v").single().textContent)
+                }
+                val styles=xml("xl/styles.xml")
+                val cellFormats=Xml.elements(styles,"cellXfs").single()
+                val formats=(0 until cellFormats.childNodes.length).map {cellFormats.childNodes.item(it)}.filterIsInstance<org.w3c.dom.Element>()
+                val style=formats[cells.getValue("A1").getAttribute("s").toInt()]
+                val font=Xml.elements(styles,"fonts").single().let {parent->(0 until parent.childNodes.length).map {parent.childNodes.item(it)}.filterIsInstance<org.w3c.dom.Element>()}[style.getAttribute("fontId").toInt()]
+                assertEquals("NanumGothic",Xml.elements(font,"name").single().getAttribute("val"))
+                assertTrue(Xml.elements(font,"b").isNotEmpty())
+                assertEquals("18",Xml.elements(font,"sz").single().getAttribute("val"))
+                assertTrue("Untouched cell cannot inherit A1 formatting",cells.getValue("B1").getAttribute("s")!=cells.getValue("A1").getAttribute("s"))
+            }
+            assertTrue(PackageDocument.open(file).sections.first().cells.values.contains("KEEP_CALC"))
+        }
+        try {
+            device.wakeUp();device.executeShellCommand("am force-stop com.android.launcher3");launch(session.id,session.name)
+            waitFor("Real Calc loads",150000){eval("window.studioOffice?.ready===true")=="true"}
+            tap("편집하기");waitFor("Calc editing settles"){eval("app.map.isEditMode() && !document.getElementById('studio-office-back').disabled")=="true"}
+            go("A1");waitFor("Native active cell starts with 2"){eval("app.map._docLayer._lastFormula")=="2"}
+            (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Calc replacement","7"))
+            tap("시트");tap("더보기");tap("붙여넣기");SystemClock.sleep(400)
+            tap("설정 닫기");go("A1");waitFor("Real paste changes the native cell"){eval("app.map._docLayer._lastFormula")=="7"}
+            tap("서식");tap(eval("document.querySelector('[data-current-font]').getAttribute('aria-label')"));tap("NanumGothic");tap("18");tap("굵게")
+            tap("수식");tap("전체 다시 계산")
+            tap("시트");tap("새 시트")
+            waitFor("Native sheet insertion is acknowledged"){eval("app.map._docLayer._partNames?.length===2")=="true"}
+            tap("설정 닫기");tap("저장 후 닫기")
+            waitFor("Calc save is acknowledged",45000){File(working.path+".close-request").isFile}
+            waitFor("Calc releases its writer"){device.executeShellCommand("pidof ${context.packageName}:office").trim().isEmpty()}
+            assertTrue(repo.completeOfficeClose(session));closed=true
+            assertEquals(before,DocumentRepository.digest(original));verify(working)
+            working.copyTo(File(out,"native-calc-output.xlsx"),true)
+            val saved=repo.save(repo.acceptOffice(session),uri);assertFalse(saved.dirty);verify(original)
+            val reopened=repo.open(uri);verify(reopened.base);working=repo.prepareOffice(reopened);closed=false
+            launch(reopened.id,reopened.name);waitFor("Saved Calc reopens in VIEW",150000){eval("window.studioOffice?.ready===true && !app.map.isEditMode()")=="true"}
+            tap("돌아가기");waitFor("Calc reading close"){File(working.path+".close-request").isFile}
+            waitFor("Calc reopened writer exits"){device.executeShellCommand("pidof ${context.packageName}:office").trim().isEmpty()}
+            assertFalse(repo.completeOfficeClose(reopened));closed=true
+            File(out,"calc-summary.json").writeText(JSONObject().put("nativePaste",true).put("nativeCellFontBoldSize",true).put("nativeFormulaResults",formulas.size).put("nativeNewSheet",true).put("providerSaved",true).put("parserReopened",true).put("engineReopened",true).put("originalProtected",true).put("physicalDeviceTested",false).toString(2))
+        } catch(error: Throwable) {
+            runCatching {File(out,"calc-ui-failure.json").writeText(eval("JSON.stringify({ready:window.studioOffice?.ready,parts:app.map._docLayer._partNames,formula:app.map._docLayer._lastFormula,fonts:Object.keys(app.map.getToolbarCommandValues('.uno:CharFontName')||{}),body:document.body.innerText.slice(-4000)})"))}
+            if(working.isFile)working.copyTo(File(out,"calc-failure.xlsx"),true)
+            throw error
+        } finally {
+            if(!closed)device.executeShellCommand("am force-stop ${context.packageName}")
+        }
+    }
+
 }

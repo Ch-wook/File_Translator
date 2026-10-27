@@ -61,7 +61,11 @@ object MarkdownEditing {
             "link"->insert("[","](https://example.com)","링크 이름")
             "image"->insert("![","](https://example.com/image.png)","이미지 설명")
             "code"->{
-                if(a>0 && b<source.length && source[a-1]=='\u0060' && source[b]=='\u0060')toggle("\u0060","코드")
+                if(a>0 && b<source.length && source[a-1]=='\u0060' && source[b]=='\u0060') {
+                    val n=source.substring(0,a).takeLastWhile {it=='\u0060'}.length
+                    val after=source.substring(b).takeWhile {it=='\u0060'}.length
+                    if(after==n)toggle("\u0060".repeat(n),"코드") else insert("\u0060","\u0060","코드")
+                }
                 else {
                     val ticks=Regex("\u0060+").findAll(selected).maxOfOrNull {it.value.length} ?: 0
                     val fence="\u0060".repeat(ticks+1)

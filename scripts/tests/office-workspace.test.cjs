@@ -47,6 +47,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
       setPermission: value => {editing=value==='edit';w.app.activeDocument.activeLayout.scrollTo(0,0);listeners.updatepermission?.();},
       getToolbarCommandValues:()=>({'Noto Sans KR':[12,14],'Liberation Sans':[12,14],'Android Available Font':[]}),
       getDocType: () => family, getZoom:()=>zoom, getCurrentPartNumber:()=>part, setPart:value=>{part=value;},
+      getNumberOfParts:()=>3,insertPage:index=>commands.push({name:'insertSheet',index}),renamePage:(name,index)=>commands.push({name:'renameSheet',nameValue:name,index}),deletePage:index=>commands.push({name:'deleteSheet',index}),
       sendUnoCommand: (name,args) => commands.push({name,args}), focus: () => {},
       stateChangeHandler: { getItemValue: name => states[name] },
       _docLayer: { postKeyboardEvent: (...args) => keys.push(args) },
@@ -204,4 +205,11 @@ test('Calc and Impress docks expose format-specific tools without Writer paragra
    else{s.click('도형');s.click('사각형');assert.equal(s.commands.at(-1).name,'.uno:BasicShapes.rectangle');s.click('이미지');assert.equal(s.button('위치·크기').disabled,true);}
   }finally{s.close();}
  }
+});
+
+test('Calc sheets use the actual native part API and require explicit deletion confirmation',()=>{
+ const s=workspace('spreadsheet');try{s.click('편집하기');s.click('시트');s.click('새 시트');assert.deepEqual(s.commands.at(-1),{name:'insertSheet',index:3});
+  const input=s.w.document.querySelector('[aria-label="시트 이름"]');input.value='월간';s.click('시트 이름 적용');assert.deepEqual(s.commands.at(-1),{name:'renameSheet',nameValue:'월간',index:2});
+  const count=s.commands.length;s.click('현재 시트 삭제');assert.equal(s.commands.length,count);s.click('시트 삭제 확인');assert.deepEqual(s.commands.at(-1),{name:'deleteSheet',index:2});
+ }finally{s.close();}
 });

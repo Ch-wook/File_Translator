@@ -25,7 +25,7 @@
   document.head.appendChild(style);
   let attempts = 0;
   const UI=window.StudioEditorUI;
-  let bar,actions,hint,tabs,modeButton,modeLabel,saveButton,header,bottom,sheet,undoButton,redoButton,picker,groupOpen=false,fontList=false,contextName='',previousContext='';
+  let bar,actions,hint,tabs,modeButton,modeLabel,saveButton,header,bottom,sheet,undoButton,redoButton,picker,groupOpen=false,fontList=false,contextName='',previousContext='',partsSignature='';
   let transitionViewport, persistTimer, lastViewport='';
   let activeTab = '글자';
   let modeTransition=false, transitionGeneration=0, ownedNativeRestore=null;
@@ -265,6 +265,8 @@
     const input=actions.querySelector('[aria-label="크기(pt)"]');if(input&&document.activeElement!==input){const value=state('FontHeight');if(value&&Number.isFinite(Number(value)))input.value=value;}
     const font=actions.querySelector('[data-current-font]');if(font){const name=state('CharFontName')||'문서 글꼴';font.textContent=name+(fonts().includes(name)?'':' · 대체 표시')+' ▾';font.setAttribute('aria-label','글꼴 선택 · '+name);}
     hint.textContent=editing?'편집 중':'원본 보기';
+    const signature=JSON.stringify([map().getNumberOfParts?.(),map().getCurrentPartNumber?.(),map()._docLayer?._partNames]);
+    if(signature!==partsSignature){partsSignature=signature;if(groupOpen&&activeTab==='시트'){render();return;}}
     const context=currentContext();if(context!==previousContext){previousContext=context;if(groupOpen&&['그림','표','셀','슬라이드'].includes(activeTab))closeSheet();renderDock();}
   }
   function row(){const r=document.createElement('div');r.className='studio-ui-fields';actions.append(r);return r;}
@@ -312,12 +314,18 @@
     }else if(activeTab==='표'){
       for(const [label,name]of [['표 삽입','InsertTable'],['위에 행','InsertRowsBefore'],['아래에 행','InsertRowsAfter'],['왼쪽 열','InsertColumnsBefore'],['오른쪽 열','InsertColumnsAfter'],['행 삭제','DeleteRows'],['열 삭제','DeleteColumns'],['셀 병합','MergeCells'],['셀 나누기','SplitCell'],['표·셀 서식','TableDialog'],['행 높이','SetRowHeight'],['열 너비','SetColumnWidth'],['표 삭제','DeleteTable']])add(command(label,name));
     }else if(activeTab==='수식'){
-      add(command('함수 마법사','FunctionDialog'));
+      add(command('함수 마법사','FunctionDialog'));add(command('전체 다시 계산','CalculateHard'));
+      button('수식 입력줄',()=>{closeSheet();map().formulabar?.focus();});
       const help=document.createElement('p');help.textContent='선택한 셀의 수식은 엔진 수식 입력줄 또는 함수 마법사에서 편집합니다. 계산은 LibreOffice가 수행합니다.';actions.append(help);
       button('더보기',()=>openSheet('더보기'));
     }else if(activeTab==='시트'){
       const count=map().getNumberOfParts?.()||0,current=map().getCurrentPartNumber?.()||0;
-      for(let part=0;part<count;part++){const b=button(map().getPartName?.(part)||('시트 '+(part+1)),()=>{map().setPart(part);render();});b.setAttribute('aria-pressed',String(part===current));}
+      for(let part=0;part<count;part++){const b=button(map()._docLayer?._partNames?.[part]||('시트 '+(part+1)),()=>{map().setPart(part);render();});b.setAttribute('aria-pressed',String(part===current));}
+      add({label:'새 시트',run:()=>{if(editable()&&typeof map().insertPage==='function')map().insertPage(count);}});
+      add(command('시트 복제','DuplicateSheet'));add(command('행·열 고정','FreezePanes'));
+      const rename=row(),input=document.createElement('input');input.type='text';input.value=map()._docLayer?._partNames?.[current]||'';input.setAttribute('aria-label','시트 이름');input.maxLength=31;rename.append(input);
+      button('시트 이름 적용',()=>{if(!editable())return;const name=input.value.trim(),existing=map()._docLayer?._partNames||[];if(!name||/[\\/:*?\[\]]/.test(name)||existing.some((n,i)=>i!==current&&n.toLocaleLowerCase()===name.toLocaleLowerCase())){UI.toast('중복되거나 사용할 수 없는 시트 이름입니다.',true);return;}map().renamePage(name,current);},rename);
+      const del=button('현재 시트 삭제',()=>{if(!editable())return;const confirm=row(),note=document.createElement('span');note.textContent='선택한 시트와 내용을 삭제할까요?';confirm.append(note);button('시트 삭제 확인',()=>{if(!editable()||map().getCurrentPartNumber()!==current||map().getNumberOfParts()<=1){UI.toast('삭제할 시트를 다시 선택하세요.',true);return;}map().deletePage(current);render();},confirm);});del.disabled=count<=1;
       button('더보기',()=>openSheet('더보기'));
     }else if(activeTab==='도형'){
       for(const [label,name]of [['텍스트 상자','Text'],['사각형','BasicShapes.rectangle'],['타원','BasicShapes.ellipse']])add(command(label,name));
