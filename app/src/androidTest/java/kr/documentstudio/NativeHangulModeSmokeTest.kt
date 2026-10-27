@@ -2,6 +2,10 @@ package kr.documentstudio
 
 import android.content.Intent
 import android.os.SystemClock
+import android.net.Uri
+import android.view.MotionEvent
+import android.view.InputDevice
+import org.json.JSONTokener
 import android.util.AtomicFile
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -56,20 +60,19 @@ class NativeHangulModeSmokeTest {
         device.executeShellCommand("am force-stop com.android.launcher3")
         context.startActivity(launch)
         try {
-            await("The real engine must report loaded original view",120_000) {
-                device.hasObject(By.pkg(context.packageName).text(Pattern.compile("^[0-9]+쪽 · 원본 보기.*")))
-                    || device.hasObject(By.pkg(context.packageName).desc(Pattern.compile("^[0-9]+쪽 · 원본 보기.*")))
-            }
+            await("The real engine must enable explicit editing after loading VIEW",120_000) {findButton("편집하기")?.isEnabled==true}
             button("편집하기")
             assertNull("A save control is hidden in VIEW",findButton("저장 후 닫기"))
             assertUnchanged(working,workingHash,session.base,originalHash,edited)
 
-            // Normalize away from the upper zoom bound using visible VIEW tools.
+            pinchDocument(format,"view")
+            // Normalize away from the upper zoom bound using the document menu.
             zoom(false);zoom(false)
             screenshot(format,"before-edit")
             button("편집하기").click()
             screenshot(format,"edit-requested")
             button("보기로")
+            pinchDocument(format,"edit")
             val lowerZoom=readView(viewFile)
             assertValidView(lowerZoom)
             assertUnchanged(working,workingHash,session.base,originalHash,edited)
@@ -113,17 +116,40 @@ class NativeHangulModeSmokeTest {
     }
 
     private fun zoom(increase: Boolean) {
-        val text=if(increase) "＋" else "−"
-        val description=if(increase) "확대" else "축소"
-        var control: UiObject2?=null
-        await("Visible enabled zoom control: $description",10_000) {
-            control=device.findObject(By.text(text))
-                ?: device.findObject(By.desc(description))
-                ?: device.findObject(By.text(description))
-            runCatching {control?.isEnabled==true}.getOrDefault(false)
+        button("문서 메뉴").click()
+        val selector=if(increase)By.textStartsWith("확대 ") else By.text("축소")
+        val control=device.wait(Until.findObject(selector.enabled(true)),10000)
+            ?:throw AssertionError("Visible zoom option missing")
+        control.click();device.waitForIdle(1000)
+    }
+    private fun eval(script: String): String {
+        val uri=Uri.parse("content://"+context.packageName+".hangulprobe")
+        val raw=context.contentResolver.acquireUnstableContentProviderClient(uri).use {client->checkNotNull(client).call("eval",script,null)!!.getString("result")!!}
+        return JSONTokener(raw).nextValue().toString()
+    }
+    private fun pinchDocument(format: Format,mode: String) {
+        val expression="document.getElementById('engine').contentWindow.rhwpStudio.documentStudio"
+        await("Mode transition settles before pinching",10000){eval("!document.getElementById('mode').disabled")=="true"}
+        val before=eval(expression+".captureView().zoom").toDouble()
+        val rect=device.findObject(By.pkg(context.packageName).clazz("android.webkit.WebView"))!!.visibleBounds
+        val cx=rect.exactCenterX();val cy=rect.top+rect.height()*.4f
+        val down=SystemClock.uptimeMillis()
+        fun inject(action: Int,count: Int,spread: Float) {
+            val properties=Array(count){index->MotionEvent.PointerProperties().apply {id=index;toolType=MotionEvent.TOOL_TYPE_FINGER}}
+            val coords=Array(count){index->MotionEvent.PointerCoords().apply {x=cx+(if(index==0)-spread else spread);y=cy;pressure=1f;size=.1f}}
+            val event=MotionEvent.obtain(down,SystemClock.uptimeMillis(),action,count,properties,coords,0,0,1f,1f,0,0,InputDevice.SOURCE_TOUCHSCREEN,0)
+            try{assertTrue(instrumentation.uiAutomation.injectInputEvent(event,true))}finally{event.recycle()}
+            SystemClock.sleep(30)
         }
-        requireNotNull(control).click()
-        device.waitForIdle(1_000)
+        inject(MotionEvent.ACTION_DOWN,1,50f)
+        inject(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),2,50f)
+        for(spread in listOf(60f,70f,85f,100f))inject(MotionEvent.ACTION_MOVE,2,spread)
+        inject(MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),2,100f)
+        inject(MotionEvent.ACTION_UP,1,100f)
+        await("Two Android touch pointers must zoom the document without editing it",10000){eval(expression+".captureView().zoom").toDouble()>before*1.5}
+        assertEquals("Pinch must not dirty document bytes","false",eval(expression+".dirty()"))
+        val out=File(context.getExternalFilesDir(null),"native-hangul-smoke").apply {mkdirs()}
+        File(out,format.extension+"-"+mode+"-pinch.json").writeText(JSONObject().put("actualAndroidTwoPointerInput",true).put("viewOnlyZoom",true).put("unchangedDocument",true).put("zoomBefore",before).put("zoomAfter",eval(expression+".captureView().zoom").toDouble()).toString(2))
     }
 
     private fun findButton(text: String): UiObject2? =

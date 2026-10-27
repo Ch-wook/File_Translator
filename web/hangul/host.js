@@ -23,7 +23,7 @@ function update(){
  undo.hidden=redo.hidden=!editing;
  undo.disabled=!ready||pending||switching||!editor?.enabled('edit:undo');
  redo.disabled=!ready||pending||switching||!editor?.enabled('edit:redo');
- const back=document.getElementById('back');back.setAttribute('aria-label',editing?'보기로':'작업 화면');back.title=back.getAttribute('aria-label');
+ const back=document.getElementById('back');back.disabled=pending||switching;back.setAttribute('aria-label',editing?'보기로':'작업 화면');back.title=back.getAttribute('aria-label');
  mobileUI.update();
 }
 function renderTools(){mobileUI.render();update();}
