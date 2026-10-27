@@ -90,6 +90,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   await call('find','나다');await call('char',{spacings:Array(7).fill(11)});
   const openPanel=page.getByRole('button',{name:'설정 닫기',exact:true});if(await openPanel.isVisible())await openPanel.click();
   await page.locator('#groups').getByRole('button',{name:'글자',exact:true}).click();
+  await page.waitForFunction(()=>!document.getElementById('save').disabled);
   await page.evaluate(()=>{const input=document.querySelector('[aria-label="자간(%)"]');input.value='12';input.dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('save').click();});
   await page.waitForFunction(()=>window.__closed,null,{timeout:60000});
   const exported=await page.evaluate(()=>({data:window.__saved,report:window.__report,saveOriginal:window.__saveOriginal}));

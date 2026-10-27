@@ -57,6 +57,7 @@ class NativeOfficeFontTest {
         try {
             device.wakeUp();device.executeShellCommand("am force-stop com.android.launcher3");launch(session.id,session.name)
             waitFor("Real Office host loads",150000){eval("window.studioOffice?.ready===true")=="true"}
+            assertEquals(session.name,eval("document.querySelector('#studio-office-header strong').textContent"))
             assertEquals("48",eval("document.getElementById('studio-office-header').getBoundingClientRect().height"))
             assertEquals("true",eval("document.getElementById('studio-office-bottom').hidden"))
             tap("편집하기");waitFor("Explicit edit mode settles"){eval("app.map.isEditMode() && !document.getElementById('studio-office-back').disabled")=="true"}

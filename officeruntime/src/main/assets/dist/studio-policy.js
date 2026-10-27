@@ -333,7 +333,7 @@
     bar=document.createElement('section');bar.id='studio-office-tools';bar.dataset.family=map().getDocType();wrapper.append(bar);
     header=document.createElement('header');header.className='studio-ui-header';header.id='studio-office-header';header.setAttribute('aria-label','문서');
     const back=UI.iconButton('studio-office-back','돌아가기','back',()=>{if(editable())map().setPermission('readonly');else{persistViewport();window.postMobileMessage('BYE');}});
-    const title=document.createElement('strong');title.textContent=document.getElementById('document-name-input')?.value||'Office 문서';
+    const title=document.createElement('strong');title.textContent=bridge()?.getStudioDocumentName?.()||'Office 문서';
     undoButton=UI.iconButton('studio-office-undo','실행 취소','undo',()=>{releaseViewportPin();uno('Undo');});
     redoButton=UI.iconButton('studio-office-redo','다시 실행','redo',()=>{releaseViewportPin();uno('Redo');});
     modeButton=document.createElement('button');modeButton.id='studio-office-edit';modeButton.className='studio-office-action';modeButton.textContent='편집하기';modeButton.onclick=()=>{map()._switchToEditMode();update();};UI.retain(modeButton);

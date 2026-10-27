@@ -1269,6 +1269,12 @@ public class LOActivity extends AppCompatActivity {
     public String getStudioViewState() { return readOfficeViewState(); }
 
     @JavascriptInterface
+    public String getStudioDocumentName() {
+        String name = getIntent().getStringExtra("displayName");
+        return name == null || name.isBlank() ? "Office 문서" : name;
+    }
+
+    @JavascriptInterface
     public void saveStudioViewState(String state) {
         if (state != null && state.length() <= 4096) writeOfficeViewState(state);
     }
