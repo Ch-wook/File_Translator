@@ -31,7 +31,6 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
   };
   w.GraphicSelection = { hasActiveSelection: () => selected };
   w.app = {
-    socket: {sendMessage:message=>{assert.ok(message.startsWith('uno '));commands.push({name:message.slice(4),native:true});}},
     LOUtil: {}, events: { on: (name, fn) => { listeners[name]=fn; } }, twipsToPixels: 0.1,
     activeDocument: { activeLayout: {
       type: family === 'text' ? 'ViewLayoutWriter' : 'ViewLayoutCalc',
@@ -144,7 +143,6 @@ test('disabled state and independent toggle state reach compact controls',()=>{
 });
 test('Writer paragraph, Calc cells/formulas and Impress slides retain format-specific commands',()=>{
  const w=workspace(),c=workspace('spreadsheet'),p=workspace('presentation');try{
- w.w.app.map.sendUnoCommand=()=>{throw new Error('Native argument-free commands must bypass desktop command interception');};
  w.click('편집하기');w.click('문단');w.click('쪽 설정');assert.equal(w.commands.at(-1).name,'.uno:PageDialog');
  c.click('편집하기');c.click('셀');c.click('열 삽입');assert.equal(c.commands.at(-1).name,'.uno:InsertColumnsBefore');
  c.click('셀 서식');assert.equal(c.commands.at(-1).name,'.uno:FormatCellDialog');c.click('함수 마법사');assert.equal(c.commands.at(-1).name,'.uno:FunctionDialog');

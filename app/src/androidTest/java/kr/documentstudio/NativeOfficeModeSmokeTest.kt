@@ -136,16 +136,20 @@ class NativeOfficeModeSmokeTest {
         try {
             session.base.copyTo(File(evidence, "$label-input.${format.extension}"), overwrite = true)
             launch(working, session.id, session.name)
-            visible("편집하기", 150_000); NativeUiActions.tap(device,context.packageName,"편집하기"); visible("보기로 전환", 20_000)
+            visible("편집하기", 150_000); tap("편집하기"); visible("보기로 전환", 20_000)
             eval("(function(){window.__modeCommands=[];window.__modeResults=[];const send=app.socket.sendMessage.bind(app.socket);app.socket.sendMessage=function(message,...args){if(typeof message==='string'&&message.startsWith('uno '))window.__modeCommands.push(message);return send(message,...args);};app.map.on('commandresult',e=>window.__modeResults.push({command:e.commandName,success:e.success}));})()")
             when (format) {
-                Format.DOCX -> { NativeUiActions.tap(device,context.packageName,"문단"); NativeUiActions.tap(device,context.packageName,"쪽 나누기") }
-                Format.XLSX -> { NativeUiActions.tap(device,context.packageName,"셀"); NativeUiActions.tap(device,context.packageName,"열 삽입") }
-                Format.PPTX -> { NativeUiActions.tap(device,context.packageName,"더보기"); NativeUiActions.tap(device,context.packageName,"슬라이드 도구"); NativeUiActions.tap(device,context.packageName,"새 슬라이드") }
+                Format.DOCX -> { tap("문단"); tap("쪽 나누기") }
+                Format.XLSX -> { tap("셀"); tap("열 삽입") }
+                Format.PPTX -> { tap("더보기"); tap("슬라이드 도구"); tap("새 슬라이드") }
                 else -> error("Unexpected roundtrip format")
             }
+            val expectedCommand=when(format){Format.DOCX->"InsertPagebreak";Format.XLSX->"InsertColumnsBefore";Format.PPTX->"InsertPage";else->error("Unexpected native format")}
+            await("The real visible button must send its native command: $expectedCommand",5000){
+                eval("(window.__modeCommands||[]).some(message=>message.startsWith("+JSONObject.quote("uno .uno:"+expectedCommand)+"))")=="true"
+            }
             visible("저장 후 닫기",20_000);commandEvidence(label)
-            NativeUiActions.tap(device,context.packageName,"저장 후 닫기",20_000)
+            tap("저장 후 닫기",20_000)
             assertTrue("Explicit save intent must survive native process exit",awaitClosed(working,session))
             assertTrue("Only successful native save may approve output", File(working.path + ".edited").isFile)
             assertEquals("Engine save must not write the provider original", originalBefore, DocumentRepository.digest(original))
@@ -166,7 +170,7 @@ class NativeOfficeModeSmokeTest {
             working = repo.prepareOffice(reopened)
             val reopenedHash = DocumentRepository.digest(working)
             launch(working, reopened.id, reopened.name)
-            visible("편집하기", 150_000); NativeUiActions.tap(device,context.packageName,"돌아가기"); assertFalse(awaitClosed(working,reopened))
+            visible("편집하기", 150_000); tap("돌아가기"); assertFalse(awaitClosed(working,reopened))
             assertFalse("Reopening edited content in VIEW cannot save again", File(working.path + ".edited").exists())
             assertEquals(reopenedHash, DocumentRepository.digest(working))
             assertEquals(reopened.revision, repo.acceptOffice(reopened).revision)
@@ -255,7 +259,7 @@ class NativeOfficeModeSmokeTest {
                 device.dumpWindowHierarchy(File(evidence,"$label-before-edit.xml"))
                 device.takeScreenshot(File(evidence,"$label-before-edit.png"))
                 record.put("viewportBeforeToggle", scrolled)
-                NativeUiActions.tap(device,context.packageName,"편집하기")
+                tap("편집하기")
                 visible("보기로 전환", 20_000)
                 visible("보기로 전환")
                 val afterEdit=stableViewport(viewportFile)
@@ -264,7 +268,7 @@ class NativeOfficeModeSmokeTest {
                 assertEquals("Entering edit retains zoom",scrolled.getDouble("zoom"),afterEdit.getDouble("zoom"),0.001)
                 assertEquals("Entering edit retains horizontal position",scrolled.getDouble("x"),afterEdit.getDouble("x"),40.0)
                 assertEquals("Entering edit retains vertical position",scrolled.getDouble("y"),afterEdit.getDouble("y"),40.0)
-                NativeUiActions.tap(device,context.packageName,"보기로 전환")
+                tap("보기로 전환")
                 visible("편집하기", 20_000)
                 // Compare actual settled native positions after both toolbar/layout changes.
                 val after = stableViewport(viewportFile)
@@ -291,7 +295,7 @@ class NativeOfficeModeSmokeTest {
 
             device.dumpWindowHierarchy(File(evidence, "$label.xml"))
             device.takeScreenshot(File(evidence, "$label.png"))
-            NativeUiActions.tap(device,context.packageName,"돌아가기")
+            tap("돌아가기")
             await("Native close must persist its request before BYE", 30_000) { File(working.path+".close-request").isFile }
             await("The isolated Office process must finish before another document", 15_000) {
                 device.executeShellCommand("pidof ${context.packageName}:office").trim().isEmpty()
@@ -356,6 +360,11 @@ class NativeOfficeModeSmokeTest {
         val uri=Uri.parse("content://${context.packageName}.officeprobe")
         val raw=context.contentResolver.acquireUnstableContentProviderClient(uri).use {client->checkNotNull(client).call("eval",script,null)!!.getString("result")!!}
         return JSONTokener(raw).nextValue().toString()
+    }
+    private fun tap(label: String,timeout: Long=20000) {
+        val quoted=JSONObject.quote(label)
+        eval("(function(){const e=Array.from(document.querySelectorAll('button')).find(e=>!e.disabled && e.getClientRects().length && (e.getAttribute('aria-label')==="+quoted+"||e.textContent==="+quoted+"));if(!e)throw new Error('Missing visible native control');e.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});})()")
+        NativeUiActions.tap(device,context.packageName,label,timeout)
     }
     private fun commandEvidence(label: String) {
         runCatching {File(evidence,"$label-command-state.json").writeText(eval("JSON.stringify({editing:app.map.isEditMode(),changed:window.studioOffice.changed,blocked:app.map.uiManager.isUIBlocked(),dialog:app.map.dialog.hasOpenedDialog(),jsDialog:app.map.jsdialog?.hasDialogOpened(),commands:window.__modeCommands||[],results:window.__modeResults||[],buttons:Array.from(document.querySelectorAll('#studio-office-actions button')).map(b=>({label:b.getAttribute('aria-label'),disabled:b.disabled,rect:b.getBoundingClientRect().toJSON()}))})"))}
