@@ -16,6 +16,8 @@ import org.junit.Rule
 import org.junit.Test
 import java.io.File
 import java.util.UUID
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
 
 /** Native mobile chrome must preserve the underlying platform editor and saved text. */
 class CommonMobileUiTest {
@@ -26,6 +28,11 @@ class CommonMobileUiTest {
         if(type.isInstance(root))return type.cast(root)
         if(root is ViewGroup)for(i in 0 until root.childCount)find(root.getChildAt(i),type)?.let {return it}
         return null
+    }
+    private fun recordUi(label: String) {
+        val out=File(compose.activity.getExternalFilesDir(null),"native-common-ui").apply {mkdirs()}
+        File(out,label+".txt").writeText(compose.onRoot(useUnmergedTree=true).printToString())
+        UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).takeScreenshot(File(out,label+".png"))
     }
     @Test fun textViewFontsKeepSelectionAndSavedBytes(){
         compose.runOnUiThread {compose.activity.getSharedPreferences("editor-display",0).edit().clear().commit();vm.create(Format.TXT)}
@@ -39,7 +46,7 @@ class CommonMobileUiTest {
         compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.setSelection(3,5)}
         compose.onNodeWithTag("mobile-editor-header").assertHeightIsEqualTo(48.dp)
         compose.onNodeWithTag("mobile-editor-dock").assertHeightIsEqualTo(48.dp)
-        compose.onNodeWithText("글자").performClick()
+        compose.onNodeWithText("글자").performClick();compose.waitForIdle();recordUi("text-character-panel")
         compose.onNode(hasText("글꼴 ·",substring=true)).performScrollTo().performClick()
         compose.onNode(hasText("Noto Sans KR",substring=true) and hasClickAction()).performScrollTo().performClick();compose.waitForIdle()
         compose.onNode(hasText("글꼴 ·",substring=true)).performScrollTo().performClick()

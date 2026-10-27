@@ -209,7 +209,13 @@
   function uno(name, args) {
     if (!editable()) return;
     if(!['Copy','SelectAll'].includes(name))policy.lastEditCommand=Date.now();
-    if (!map()._clip || !map()._clip.filterExecCopyPaste('.uno:' + name, args)) map().sendUnoCommand('.uno:' + name, args);
+    // Android's clipboard helper consumes EVERY command and drops its args.
+    // It is only valid for argument-free clipboard operations.
+    const clipboard=['Copy','Cut','Paste','PasteSpecial','PasteUnformatted'].includes(name);
+    if(clipboard&&!args&&map()._clip?.filterExecCopyPaste('.uno:'+name)) {map().focus(false);return;}
+    if(name==='FontHeight'&&args?.['FontHeight.Height']&&typeof map().applyFontSize==='function')
+      map().applyFontSize(String(args['FontHeight.Height'].value));
+    else map().sendUnoCommand('.uno:'+name,args);
     map().focus(false);
   }
   function command(label, name, needsObject = false) {

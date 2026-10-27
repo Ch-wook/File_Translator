@@ -61,6 +61,7 @@ class NativeOfficeFontTest {
             assertEquals("48",eval("document.getElementById('studio-office-header').getBoundingClientRect().height"))
             assertEquals("true",eval("document.getElementById('studio-office-bottom').hidden"))
             tap("편집하기");waitFor("Explicit edit mode settles"){eval("app.map.isEditMode() && !document.getElementById('studio-office-back').disabled")=="true"}
+            eval("(function(){window.__fontCommands=[];const send=app.socket.sendMessage.bind(app.socket);app.socket.sendMessage=function(message,...args){if(typeof message==='string'&&/^uno \\.uno:(FontHeight|CharFontName|Color)/.test(message))window.__fontCommands.push(message);return send(message,...args);};})()")
             eval("app.map.search('KEEP_LEFT',false)");SystemClock.sleep(800)
             val originalFont=eval("app.map.stateChangeHandler.getItemValue('.uno:CharFontName')")
             val originalSize=eval("app.map.stateChangeHandler.getItemValue('.uno:FontHeight')")
@@ -110,6 +111,7 @@ class NativeOfficeFontTest {
             assertFalse(repo.completeOfficeClose(reopened));closed=true
             File(out,"summary.json").writeText(JSONObject().put("selectedNativeFont",true).put("font",selectedFont).put("independentSizeAndColor",true).put("unselectedPreserved",true).put("nativeSaved",true).put("parserReopened",true).put("engineReopened",true).put("originalProtected",true).put("physicalDeviceTested",false).toString(2))
         } catch(error: Throwable){
+            runCatching {File(out,"ui-state.json").writeText(eval("JSON.stringify({font:app.map.stateChangeHandler.getItemValue('.uno:CharFontName'),height:app.map.stateChangeHandler.getItemValue('.uno:FontHeight'),editing:app.map.isEditMode(),authorized:window.studioOffice.authorized,commands:window.__fontCommands||[],buttons:Array.from(document.querySelectorAll('#studio-office-actions button')).map(b=>({label:b.getAttribute('aria-label'),disabled:b.disabled,rect:b.getBoundingClientRect().toJSON()}))})"))}
             runCatching {device.takeScreenshot(File(out,"failure.png"));device.dumpWindowHierarchy(File(out,"failure.xml"));File(out,"failure.txt").writeText(error.stackTraceToString())};throw error
         } finally {if(!closed)runCatching {context.contentResolver.acquireUnstableContentProviderClient(probe).use {it?.call("close",null,null)}}}
     }

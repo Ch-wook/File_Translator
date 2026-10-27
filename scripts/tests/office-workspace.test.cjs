@@ -152,12 +152,15 @@ test('Writer paragraph, Calc cells/formulas and Impress slides retain format-spe
 });
 test('shared font picker uses native available faces and sends font-only UNO properties',async()=>{
  const s=workspace();try{
+ const filtered=[];s.w.app.map._clip={filterExecCopyPaste:command=>{filtered.push(command);return true;}};
+ const sizes=[];s.w.app.map.applyFontSize=value=>sizes.push(value);
  s.click('편집하기');s.click('글자');s.click('글꼴 선택 · 문서 글꼴');
  const options=[...s.w.document.querySelectorAll('[role=option]')];assert.deepEqual(options.map(b=>b.getAttribute('aria-label')),['Android Available Font','Liberation Sans','Noto Sans KR']);
  const search=s.w.document.querySelector('[aria-label="글꼴 검색"]');search.value='Noto';search.dispatchEvent(new s.w.Event('input'));
  assert.equal(s.w.document.querySelectorAll('[role=option]').length,1);
  s.button('Noto Sans KR').click();await Promise.resolve();
  const c=s.commands.at(-1);assert.equal(c.name,'.uno:CharFontName');assert.deepEqual(JSON.parse(JSON.stringify(c.args)),{'CharFontName.FamilyName':{type:'string',value:'Noto Sans KR'}});
+ s.click('18');assert.deepEqual(sizes,['18']);assert.deepEqual(filtered,[],'Formatting must bypass Android clipboard filtering so parameters reach the engine');
  }finally{s.close();}
 });
 test('clipboard is dispatched once after approval and blocked in VIEW',()=>{

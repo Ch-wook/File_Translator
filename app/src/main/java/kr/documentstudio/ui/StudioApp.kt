@@ -154,7 +154,7 @@ fun StudioApp(vm: EditorViewModel) {
     BackHandler(state.session!=null && !state.busy) { if(state.active?.let {state.presentation(it).allowsMutation}==true) vm.readDocument() else vm.home() }
     val accent=state.session?.let {WorkspaceFamily.of(it.format).accent} ?: Green
     MaterialTheme(colorScheme=lightColorScheme(primary=accent,secondary=Color(0xFF596A82),background=Cream,surface=Color.White,surfaceContainer=Color(0xFFEEF1F7))) {
-        Scaffold(snackbarHost={ SnackbarHost(snackbar) },topBar={
+        Scaffold(topBar={
             if(state.session==null) TopAppBar(title={ Text("문서 스튜디오",fontWeight=FontWeight.Bold) },actions={
                 IconButton(onClick={settingsDialog=true}) { Icon(Icons.Default.Settings,"설정") }
             }) else {
@@ -191,7 +191,8 @@ fun StudioApp(vm: EditorViewModel) {
                     })
             }
         }) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
+            Box(Modifier.fillMaxSize().padding(padding)) {
+            Column(Modifier.fillMaxSize().imePadding()) {
                 if(state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 if(state.session==null && state.tabs.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     state.tabs.forEach { s -> FilterChip(selected=state.active==s.id,onClick={if(!state.busy) selectTab(s.id)},label={Text((if(s.dirty) "• " else "")+s.name,maxLines=1)},enabled=!state.busy) }
@@ -215,6 +216,8 @@ fun StudioApp(vm: EditorViewModel) {
                         }
                     } else EditorPane(state.session!!,state,vm,openOffice,false,Modifier.weight(1f).fillMaxWidth())
                 }
+            }
+            SnackbarHost(snackbar,Modifier.align(Alignment.TopCenter).padding(horizontal=8.dp,vertical=6.dp))
             }
         }
         if(newDialog) NewDocumentDialog(state.busy,{newDialog=false;vm.create(it,visual=true)}) {newDialog=false}

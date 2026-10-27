@@ -24,3 +24,7 @@
 .studio-ui-toast[data-error=true]{background:#8d302d;pointer-events:auto}.studio-ui-toast[hidden]{display:none!important}
 @media(max-width:360px){.studio-ui-header{padding:0 1px}.studio-ui-title,.studio-ui-header strong{font-size:12px}.studio-ui-dock button{gap:2px;padding:0 3px;min-width:52px;font-size:10px}}
 @media(max-height:520px){.studio-ui-sheet{max-height:min(32vh,190px)}}
+
+/* Keep native Office button chrome from covering the shared mobile controls. */
+.studio-ui-icon,.studio-ui-dock button{appearance:none!important;-webkit-appearance:none!important;border:0!important;box-shadow:none!important;background:transparent!important}
+.studio-ui-dock button[aria-selected=true]{background:#eaf0fa!important}
