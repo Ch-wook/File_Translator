@@ -113,3 +113,8 @@ TXT 보기 글꼴·크기 패널(원문 서식이 아닌 보기 설정):
 <img src="screenshots/0.8.5-txt-android.png" width="300" alt="Android TXT 공통 도구와 보기 글꼴 패널"/>
 
 </details>
+
+
+## 추가 작업 보고서·인수인계
+
+[통합 작업 보고서](WORK_REPORT_0.8.5-preview.md)에 구현·수정 파일·실패 원인·검증/미검증·후속 작업을 정리했다. [Release 문서 묶음](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-work-docs-20261027-r1.zip)에는 관련 보고서·사용 안내·실제 Android 화면과 파일별 해시를 포함했다. [문서 전용 배포 확인서](releases/0.8.5-preview-work-report-20261027-r1-download-verification.json)는 추가 3개 문서 파일의 공개 다운로드 및 기존 앱 자산 9개·태그 보존을 기록한다. 이번 문서 작업에서 앱 빌드·Android 검사를 새로 실행하지 않았다.

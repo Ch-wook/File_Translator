@@ -16,6 +16,8 @@ Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하
 
 [작업 보고서·인수인계](docs/WORK_REPORT_0.8.5-preview.md)에 수정 파일, 실패 원인, 실제 검증·미검증, 배포 커밋·해시와 후속 작업을 정리했습니다.
 
+[보고서 Markdown 다운로드](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-work-report-20261027-r1.md) · [관련 문서·화면 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-work-docs-20261027-r1.zip) · [문서 배포 확인서](docs/releases/0.8.5-preview-work-report-20261027-r1-download-verification.json). 추가 문서 3개의 공개 다운로드·해시와 기존 앱 배포 자산 9개·태그 보존을 확인했습니다.
+
 ## 다운로드
 
 [휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-source.zip) · [Release·해시·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.5-preview)
