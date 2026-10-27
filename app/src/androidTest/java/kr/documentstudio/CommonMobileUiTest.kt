@@ -52,8 +52,9 @@ class CommonMobileUiTest {
     }
     @Test fun markdownToolsKeepScopeAndReopenAsMarkdownSyntax(){
         compose.runOnUiThread {vm.create(Format.MD)};ready();compose.onNodeWithTag("edit-document").performClick();compose.waitForIdle()
-        compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.apply {setText("선택 AB 유지");setSelection(3,5)}}
+        compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.apply {setText("선택 AB 유지");setSelection(0,2)}}
         compose.onNodeWithText("글자").performClick()
+        compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.setSelection(3,5)}
         compose.onNodeWithText("굵게").performScrollTo().performClick();compose.waitForIdle()
         assertEquals("선택 **AB** 유지",vm.state.value.session!!.edits.text)
         val file=File(compose.activity.cacheDir,"tests/ui-${UUID.randomUUID()}.md").apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}

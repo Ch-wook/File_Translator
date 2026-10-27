@@ -89,6 +89,7 @@ window.documentStudioHost={
  checkpoint,
  mobileAction:name=>mobileUI.action(name),
  selectionContext:name=>mobileUI.context(name),
+ selectionChanged(){if(ready&&editing)mobileUI.selectionChanged();},
  saveAndClose(){return close(true);},
  returnToWorkspace(){return close(false);},
  async back(){if(editing)await setEditing(false);else await close(false);},

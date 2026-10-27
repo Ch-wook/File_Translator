@@ -203,6 +203,6 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
    if(name==='colors'||name==='character'){remember();group='글자';expanded=true;render();}
  }
  async function flush(){for(const value of timers.values()){clearTimeout(value.timer);value.commit();}timers.clear();await queue;if(panel.querySelector('[aria-invalid="true"]'))throw new Error('입력한 서식 값의 범위를 확인하세요.');}
- return {render,update,action,flush,open:choose,context(name){if(state.object||name==='그림'){group='그림';expanded=false;render();}else update();},
+ return {render,update,action,flush,open:choose,selectionChanged(){remember();update();},context(name){remember();if(state.object||name==='그림'){group='그림';expanded=false;render();}else update();},
    showSearch(){choose('찾기');},closePanel};
 }

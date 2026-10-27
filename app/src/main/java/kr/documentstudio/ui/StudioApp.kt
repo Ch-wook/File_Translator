@@ -308,7 +308,7 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
         })
         contentDescription="문서 본문"
         setOnFocusChangeListener {_,hasFocus -> if(hasFocus) onFocused()}
-    }.also {editor=it;controller?.editor=it;inputKeyListener=it.keyListener} },update={view ->
+    }.also {editor=it;controller?.editor=it;it.onSelectionUpdate={a,b->controller?.selectionChanged(a,b)};inputKeyListener=it.keyListener} },update={view ->
         controller?.editor=view
         if(view.typeface!=desiredFace) {val a=view.selectionStart.coerceIn(0,view.length());val b=view.selectionEnd.coerceIn(0,view.length());val x=view.scrollX;val y=view.scrollY;view.typeface=desiredFace;view.setSelection(a,b);view.scrollTo(x,y)}
         view.textSize=fontSize;view.isEnabled=!busy;view.setHorizontallyScrolling(!wrap)

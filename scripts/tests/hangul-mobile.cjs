@@ -65,6 +65,13 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   await frame.waitForFunction(()=>{const p=window.rhwpStudio.documentStudio.mobile.state().char;return p.spacings?.[0]===12&&p.ratios?.[0]===85;});
   const selectedAfter=(await call('capture')).range;assert.deepEqual(selectedAfter,selectedBefore,'Panel focus and combined formatting retain the selected range');
   const combined=(await call('state')).char;assert.equal(combined.bold,true);assert.equal(combined.fontSize,1800);assert.equal(combined.textColor.toLowerCase(),'#e53935');
+  // A new selection made in the document while its panel remains open replaces
+  // the toolbar target; pressing the next style must not reuse the old range.
+  await call('focus');await page.keyboard.press('ArrowRight');await page.keyboard.press('Shift+ArrowRight');await page.waitForTimeout(60);
+  await page.locator('#tools').getByRole('button',{name:'기울임',exact:true}).click();
+  await call('find','라');assert.equal((await call('state')).char.italic,true,'New selection receives the style while the panel stays open');
+  await call('find','나다');assert.equal((await call('state')).char.italic,false,'Previous selection stays unchanged after selection moves');
+  await page.locator('#undo').click();await call('find','나다');
   await page.getByRole('button',{name:'설정 완료',exact:true}).click();
   const measure=()=>frame.locator('.selection-highlight').filter({visible:true}).first().boundingBox().then(v=>v?.width||0);
   await call('char',{ratios:Array(7).fill(100),spacings:Array(7).fill(0)});await page.waitForTimeout(150);const base=await measure();
@@ -103,7 +110,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   await call('find','ABC');for(const key of ['fontSize','bold','textColor','ratios','spacings'])assert.deepEqual((await call('state')).char[key],outsideBefore[key],'Reopened unselected '+key+' remains');
   assert.deepEqual(errors,[]);assert.deepEqual(engineErrors,[]);assert.deepEqual(external,[]);
   await page.screenshot({path:path.join(out,'mobile-format-'+format+'.png'),fullPage:true});
-  results.push({format,phone:true,partialSelection:true,font,structure,combinedCharacterFormatting:true,spacingMetrics:{base,spaced,narrow},unselectedPreserved:true,clipboardRichAndPlain:true,atomicPasteUndoRedo:true,pendingFormatSaved:true,autosave:true,savedAndReopened:true,bytes:bytes.length});
+  results.push({format,phone:true,partialSelection:true,font,structure,combinedCharacterFormatting:true,spacingMetrics:{base,spaced,narrow},unselectedPreserved:true,clipboardRichAndPlain:true,atomicPasteUndoRedo:true,pendingFormatSaved:true,freshSelectionTarget:true,autosave:true,savedAndReopened:true,bytes:bytes.length});
   await context.close();
  }
  fs.writeFileSync(path.join(out,'mobile-engine-results.json'),JSON.stringify(results,null,2));console.log('MOBILE_ENGINE_RESULTS',JSON.stringify(results));

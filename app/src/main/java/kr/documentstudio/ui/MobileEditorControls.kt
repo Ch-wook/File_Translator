@@ -52,6 +52,7 @@ fun MobileEditorSheet(title: String,maxHeight: Dp,onClose: ()->Unit,content: @Co
 class NativeEditorController {
     var editor: EditText?=null
     private var range: Pair<Int,Int>?=null
+    fun selectionChanged(start: Int,end: Int){range=start to end}
     fun capture(){editor?.let {range=it.selectionStart.coerceAtLeast(0) to it.selectionEnd.coerceAtLeast(0)}}
     fun restore(){editor?.let {v->range?.let {(a,b)->v.setSelection(a.coerceIn(0,v.length()),b.coerceIn(0,v.length()))}}}
     fun focus(){restore();editor?.let {v->if(v.keyListener!=null){v.requestFocus();(v.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showSoftInput(v,android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)}}}

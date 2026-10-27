@@ -7,6 +7,11 @@ import android.widget.EditText
 // The Compose host uses a platform theme; AppCompat is used only by the isolated Office activity.
 @android.annotation.SuppressLint("AppCompatCustomView")
 class LineNumberEditText(context: Context): EditText(context) {
+    var onSelectionUpdate: ((Int,Int)->Unit)?=null
+    override fun onSelectionChanged(start: Int,end: Int) {
+        super.onSelectionChanged(start,end)
+        if(start>=0 && end>=0)onSelectionUpdate?.invoke(start,end)
+    }
     private var logicalStarts=intArrayOf(0)
     private val numberPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply {color=android.graphics.Color.GRAY;textAlign=Paint.Align.RIGHT}
     override fun onTextChanged(text: CharSequence?,start: Int,lengthBefore: Int,lengthAfter: Int) {

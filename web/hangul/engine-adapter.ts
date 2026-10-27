@@ -135,3 +135,9 @@ mobileStyle.textContent=`
  }
 `;
 document.head.append(mobileStyle);
+
+for(const name of ['pointerup','keyup','input','compositionend'])document.addEventListener(name,(event:Event)=>{
+  const target=event.target as Element|null;
+  if(!event.isTrusted||!target?.closest?.('#scroll-container,#studio-touch-layer,[aria-label="문서 편집 입력"]'))return;
+  requestAnimationFrame(()=>(window.parent as any).documentStudioHost?.selectionChanged?.());
+},true);
