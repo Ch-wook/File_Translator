@@ -41,8 +41,8 @@ class NativeOfficeFontTest {
     }
     private fun tap(label: String){
         eval("(function(){const e=Array.from(document.querySelectorAll('button')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)throw new Error('Missing control');e.scrollIntoView({block:'center'});})()")
-        waitFor("Visible Office tool: $label"){device.findObject(By.pkg(context.packageName).desc(label).enabled(true))!=null||device.findObject(By.pkg(context.packageName).text(label).enabled(true))!=null}
-        (device.findObject(By.pkg(context.packageName).desc(label).enabled(true))?:device.findObject(By.pkg(context.packageName).text(label).enabled(true)))!!.click()
+        waitFor("Visible Office tool: $label"){NativeUiActions.refresh();device.findObject(By.pkg(context.packageName).desc(label).enabled(true))!=null||device.findObject(By.pkg(context.packageName).text(label).enabled(true))!=null}
+        NativeUiActions.tap(device,context.packageName,label)
     }
     private fun selectText(value: String) {
         eval("(function(){if(!window.__searchProbeInstalled){window.__searchProbeInstalled=true;app.map.on('search',e=>window.__nativeSearch={phrase:e.originalPhrase,count:e.count});}window.__nativeSearch=null;app.searchService.search("+JSONObject.quote(value)+",false);})()")

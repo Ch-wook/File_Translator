@@ -134,14 +134,14 @@ class NativeOfficeModeSmokeTest {
         try {
             session.base.copyTo(File(evidence, "$label-input.${format.extension}"), overwrite = true)
             launch(working, session.id, session.name)
-            visible("편집하기", 150_000); visible("편집하기").click(); visible("보기로 전환", 20_000)
+            visible("편집하기", 150_000); NativeUiActions.tap(device,context.packageName,"편집하기"); visible("보기로 전환", 20_000)
             when (format) {
-                Format.DOCX -> { visible("문단").click(); visible("쪽 나누기").click() }
-                Format.XLSX -> { visible("셀").click(); visible("열 삽입").click() }
-                Format.PPTX -> { visible("더보기").click(); visible("슬라이드 도구").click(); visible("새 슬라이드").click() }
+                Format.DOCX -> { NativeUiActions.tap(device,context.packageName,"문단"); NativeUiActions.tap(device,context.packageName,"쪽 나누기") }
+                Format.XLSX -> { NativeUiActions.tap(device,context.packageName,"셀"); NativeUiActions.tap(device,context.packageName,"열 삽입") }
+                Format.PPTX -> { NativeUiActions.tap(device,context.packageName,"더보기"); NativeUiActions.tap(device,context.packageName,"슬라이드 도구"); NativeUiActions.tap(device,context.packageName,"새 슬라이드") }
                 else -> error("Unexpected roundtrip format")
             }
-            visible("저장 후 닫기", 20_000).click()
+            NativeUiActions.tap(device,context.packageName,"저장 후 닫기",20_000)
             assertTrue("Explicit save intent must survive native process exit",awaitClosed(working,session))
             assertTrue("Only successful native save may approve output", File(working.path + ".edited").isFile)
             assertEquals("Engine save must not write the provider original", originalBefore, DocumentRepository.digest(original))
@@ -162,7 +162,7 @@ class NativeOfficeModeSmokeTest {
             working = repo.prepareOffice(reopened)
             val reopenedHash = DocumentRepository.digest(working)
             launch(working, reopened.id, reopened.name)
-            visible("편집하기", 150_000); visible("돌아가기").click(); assertFalse(awaitClosed(working,reopened))
+            visible("편집하기", 150_000); NativeUiActions.tap(device,context.packageName,"돌아가기"); assertFalse(awaitClosed(working,reopened))
             assertFalse("Reopening edited content in VIEW cannot save again", File(working.path + ".edited").exists())
             assertEquals(reopenedHash, DocumentRepository.digest(working))
             assertEquals(reopened.revision, repo.acceptOffice(reopened).revision)
@@ -250,7 +250,7 @@ class NativeOfficeModeSmokeTest {
                 device.dumpWindowHierarchy(File(evidence,"$label-before-edit.xml"))
                 device.takeScreenshot(File(evidence,"$label-before-edit.png"))
                 record.put("viewportBeforeToggle", scrolled)
-                visible("편집하기").click()
+                NativeUiActions.tap(device,context.packageName,"편집하기")
                 visible("보기로 전환", 20_000)
                 visible("보기로 전환")
                 val afterEdit=stableViewport(viewportFile)
@@ -259,7 +259,7 @@ class NativeOfficeModeSmokeTest {
                 assertEquals("Entering edit retains zoom",scrolled.getDouble("zoom"),afterEdit.getDouble("zoom"),0.001)
                 assertEquals("Entering edit retains horizontal position",scrolled.getDouble("x"),afterEdit.getDouble("x"),40.0)
                 assertEquals("Entering edit retains vertical position",scrolled.getDouble("y"),afterEdit.getDouble("y"),40.0)
-                visible("보기로 전환").click()
+                NativeUiActions.tap(device,context.packageName,"보기로 전환")
                 visible("편집하기", 20_000)
                 // Compare actual settled native positions after both toolbar/layout changes.
                 val after = stableViewport(viewportFile)
@@ -286,7 +286,7 @@ class NativeOfficeModeSmokeTest {
 
             device.dumpWindowHierarchy(File(evidence, "$label.xml"))
             device.takeScreenshot(File(evidence, "$label.png"))
-            visible("돌아가기").click()
+            NativeUiActions.tap(device,context.packageName,"돌아가기")
             await("Native close must persist its request before BYE", 30_000) { File(working.path+".close-request").isFile }
             await("The isolated Office process must finish before another document", 15_000) {
                 device.executeShellCommand("pidof ${context.packageName}:office").trim().isEmpty()
@@ -350,6 +350,7 @@ class NativeOfficeModeSmokeTest {
     private fun visible(text: String,timeout: Long=15_000): UiObject2 {
         val deadline=SystemClock.uptimeMillis()+timeout
         while(SystemClock.uptimeMillis()<deadline) {
+            NativeUiActions.refresh()
             val control=device.findObject(By.pkg(context.packageName).text(text).enabled(true))
                 ?: device.findObject(By.pkg(context.packageName).desc(text).enabled(true))
             if(control!=null)return control

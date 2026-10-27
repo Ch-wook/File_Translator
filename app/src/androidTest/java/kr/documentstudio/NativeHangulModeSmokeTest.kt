@@ -69,25 +69,25 @@ class NativeHangulModeSmokeTest {
             // Normalize away from the upper zoom bound using the document menu.
             zoom(false);zoom(false)
             screenshot(format,"before-edit")
-            button("편집하기").click()
+            NativeUiActions.tap(device,context.packageName,"편집하기")
             screenshot(format,"edit-requested")
             button("보기로")
             pinchDocument(format,"edit")
             val lowerZoom=JSONObject(eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.captureView()"))
             assertValidView(lowerZoom)
             assertUnchanged(working,workingHash,session.base,originalHash,edited)
-            button("보기로").click()
+            NativeUiActions.tap(device,context.packageName,"보기로")
             button("편집하기")
             assertSameView(lowerZoom,readView(viewFile))
 
             zoom(true);zoom(true)
-            button("편집하기").click()
+            NativeUiActions.tap(device,context.packageName,"편집하기")
             button("보기로")
             val higherZoom=JSONObject(eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.captureView()"))
             assertValidView(higherZoom)
             assertTrue("The real WebView zoom command must update engine view metadata",
                 higherZoom.getDouble("zoom")>lowerZoom.getDouble("zoom")+0.0001)
-            button("보기로").click()
+            NativeUiActions.tap(device,context.packageName,"보기로")
             button("편집하기")
             assertSameView(higherZoom,readView(viewFile))
             assertUnchanged(working,workingHash,session.base,originalHash,edited)
@@ -116,11 +116,9 @@ class NativeHangulModeSmokeTest {
     }
 
     private fun zoom(increase: Boolean) {
-        button("문서 메뉴").click()
+        NativeUiActions.tap(device,context.packageName,"문서 메뉴")
         val selector=if(increase)By.textStartsWith("확대 ") else By.text("축소")
-        val control=device.wait(Until.findObject(selector.enabled(true)),10000)
-            ?:throw AssertionError("Visible zoom option missing")
-        control.click();device.waitForIdle(1000)
+        NativeUiActions.tap(device,selector,10000);device.waitForIdle(1000)
     }
     private fun eval(script: String): String {
         val uri=Uri.parse("content://"+context.packageName+".hangulprobe")
@@ -152,9 +150,11 @@ class NativeHangulModeSmokeTest {
         File(out,format.extension+"-"+mode+"-pinch.json").writeText(JSONObject().put("actualAndroidTwoPointerInput",true).put("viewOnlyZoom",true).put("unchangedDocument",true).put("zoomBefore",before).put("zoomAfter",eval(expression+".captureView().zoom").toDouble()).toString(2))
     }
 
-    private fun findButton(text: String): UiObject2? =
-        device.findObject(By.pkg(context.packageName).text(text))
+    private fun findButton(text: String): UiObject2? {
+        NativeUiActions.refresh()
+        return device.findObject(By.pkg(context.packageName).text(text))
             ?: device.findObject(By.pkg(context.packageName).desc(text))
+    }
 
     private fun button(text: String): UiObject2 {
         await("Enabled host button: $text",20_000) {

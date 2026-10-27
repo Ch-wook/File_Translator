@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -uo pipefail
 mkdir -p artifacts/ci artifacts/native-android
+# The AOSP launcher can ANR while initial package installs are still settling.
+# Stop only that unrelated process; document-app ANRs remain test failures.
+adb shell am force-stop com.android.launcher3
 mode_gradle_args=()
 if [ -n "${STUDIO_ABI:-}" ]; then mode_gradle_args+=("-PstudioAbi=$STUDIO_ABI"); fi
 ./gradlew "${mode_gradle_args[@]}" :app:connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true "-Pandroid.testInstrumentationRunnerArguments.class=${MODE_TEST_CLASSES:-kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest}" --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/android-emulator.log
