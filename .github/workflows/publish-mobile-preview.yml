@@ -16,8 +16,8 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_SHA: 2c0bad21b295e61e25a78a2d44aca2f280afebf1
-      VERIFIED_RUN: '40452640049'
+      VERIFIED_SHA: 10ab10e01e027c35af3083e5d22a9e14b02c4f50
+      VERIFIED_RUN: '40494582093'
       PREVIEW_TAG: v0.8.5-preview
     steps:
       - uses: actions/checkout@v4
@@ -86,6 +86,42 @@ jobs:
               assert {p.filename for p in z.infolist() if not p.is_dir()}==set(tracked)
               for path,blob in tracked.items():
                   data=z.read(path);assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==blob,path
+          # Preserve the tested APK bytes, while publishing source from this tag's
+          # metadata-only descendant (the app/engine sources were checked above).
+          archive=delivery/'document-studio-0.8.5-preview-source.zip'
+          subprocess.run(['git','archive','--format=zip','-o',str(archive),'HEAD'],check=True)
+          published_tracked={}
+          for entry in subprocess.check_output(['git','ls-tree','-r','-z','HEAD']).split(b'\0'):
+              if not entry:continue
+              meta,path=entry.split(b'\t',1);mode,kind,blob=meta.split();assert kind==b'blob'
+              published_tracked[path.decode()]=blob.decode()
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None
+              assert {p.filename for p in z.infolist() if not p.is_dir()}==set(published_tracked)
+              for path,blob in published_tracked.items():
+                  data=z.read(path);assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==blob,path
+          patch=delivery/'document-studio-0.8.5-preview-changes.patch'
+          with patch.open('wb') as f:
+              subprocess.run(['git','diff','--binary','244b94507d8bda5dbf248877f17ed88b745035f2','HEAD'],stdout=f,check=True)
+          subprocess.run(['git','apply','--check','--reverse',str(patch)],check=True)
+          bundle=delivery/'document-studio-0.8.5-preview-history.bundle'
+          bundle.unlink()
+          subprocess.run(['git','bundle','create',str(bundle),'--all'],check=True)
+          subprocess.run(['git','bundle','verify',str(bundle)],check=True)
+          provenance={'apkBuildCommit':sha,'sourceArchiveCommit':os.environ['GITHUB_SHA'],'metadataOnlyChanges':changed,'trackedFiles':len(published_tracked),'appSourceUnchanged':True}
+          metadata=delivery/'document-studio-0.8.5-preview-apk-metadata.json'
+          data=json.loads(metadata.read_text());data['sourceArchiveCommit']=os.environ['GITHUB_SHA'];metadata.write_text(json.dumps(data,indent=2))
+          with zipfile.ZipFile(delivery/'document-studio-0.8.5-preview-verification.zip','a',zipfile.ZIP_DEFLATED) as z:
+              entry='artifacts/ci/published-source-provenance.json';assert entry not in z.namelist()
+              z.writestr(entry,json.dumps(provenance,indent=2));assert z.testzip() is None
+          readme=delivery/'README.txt'
+          readme.write_text(readme.read_text()+'\n소스 ZIP·패치·Git 이력은 태그의 최종 문서·CI를 포함합니다. 앱 코드·엔진·APK는 위 빌드 커밋과 동일합니다.\n소스 아카이브 커밋: '+os.environ['GITHUB_SHA']+'\n')
+          def published_digest(path):
+              with path.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+          (delivery/'SHA256SUMS').write_text(''.join(published_digest(p)+'  '+p.name+'\n' for p in sorted(delivery.iterdir()) if p.is_file() and p.name!='SHA256SUMS'))
+          for item in apks:
+              with (delivery/item['file']).open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()==item['sha256'],item['file']
+          print('PUBLISHED_SOURCE_MATCHES_TAG_AND_TESTED_APP',json.dumps(provenance),flush=True)
           units={key:sum(counts[key] for counts in result['unitTests'].values()) for key in ('tests','failures','errors','skipped')}
           notes=(delivery/'README.txt').read_text()
           notes+='\n실행 검증: Android '+str(result['androidTests']['tests'])+'건, 단위 '+str(units['tests'])+'건 — 실패·오류·건너뜀 0건.\n'
