@@ -14,7 +14,8 @@ def digest(path):
     with path.open('rb') as stream: return hashlib.file_digest(stream,'sha256').hexdigest()
 def prepare():
     inputs=[ROOT/'web/hangul'/name for name in ['index.html','host.css','host.js','engine-adapter.ts','host-readonly.ts','patch-engine.py','studio-mobile.ts','studio-touch.ts','studio-ime-history.ts','studio-table-position.ts','mobile-tools.js']]
-    buildInputs=inputs+[ROOT/'web/hangul/engine-lock.json',Path(__file__)]
+    shared=list((ROOT/'shared/editor-ui/dist').glob('*'))
+    buildInputs=inputs+shared+[ROOT/'web/hangul/engine-lock.json',Path(__file__)]
     stamp=hashlib.sha256((COMMIT+''.join(digest(p) for p in buildInputs)).encode()).hexdigest()
     if (OUTPUT/'prepared.txt').is_file() and (OUTPUT/'prepared.txt').read_text()==stamp: return
     CACHE.mkdir(parents=True,exist_ok=True)
@@ -49,7 +50,7 @@ def prepare():
     stage=CACHE/'staged'
     if stage.exists(): shutil.rmtree(stage)
     stage.mkdir();assets=stage/'hangul';assets.mkdir();shutil.copytree(studio/'dist',assets/'engine')
-    for p in inputs:
+    for p in inputs+shared:
         if p.suffix in ['.html','.css','.js']: shutil.copy2(p,assets/p.name)
     shutil.copy2(SOURCE/'LICENSE',assets/'RHWP-LICENSE.txt')
     shutil.copy2(SOURCE/'THIRD_PARTY_LICENSES.md',assets/'THIRD_PARTY_LICENSES.md')

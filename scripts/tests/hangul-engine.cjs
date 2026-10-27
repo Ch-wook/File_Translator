@@ -87,7 +87,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
     await page.keyboard.press('Home');await page.keyboard.press('Shift+End');await page.keyboard.insertText('CELL_CHANGED');
    }
    await page.waitForTimeout(900);
-   await page.locator('#mode').click();await page.waitForFunction(()=>document.body.dataset.state==='READING'&&!document.getElementById('mode').disabled);await frame.waitForFunction(()=>!window.rhwpStudio.documentStudio.isEditing());
+   await page.getByRole('button',{name:'보기로',exact:true}).click();await page.waitForFunction(()=>document.body.dataset.state==='READING'&&!document.getElementById('mode').disabled);await frame.waitForFunction(()=>!window.rhwpStudio.documentStudio.isEditing());
    const savedView=await frame.evaluate(()=>window.rhwpStudio.documentStudio.captureView());
    await page.locator('#mode').click();await page.waitForFunction(()=>document.body.dataset.state==='EDITING'&&!document.getElementById('mode').disabled);await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.isEditing());
    const editingView=await frame.evaluate(()=>window.rhwpStudio.documentStudio.captureView());

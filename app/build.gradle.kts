@@ -67,6 +67,7 @@ dependencies {
 val prepareHangulEngine by tasks.registering(Exec::class) {
     commandLine("python3",rootProject.file("scripts/prepare-hangul-engine.py").absolutePath)
     inputs.dir(rootProject.file("web/hangul"))
+    inputs.dir(rootProject.file("shared/editor-ui"))
     inputs.file(rootProject.file("scripts/prepare-hangul-engine.py"))
     outputs.dir(rootProject.file(".engine-cache/hangul/runtime"))
 }

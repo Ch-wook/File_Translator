@@ -115,6 +115,11 @@ export function createStudioMobile(env:Env) {
  function fonts() {
    return [...new Set(FONT_RULE_WEBFONT_ENTRIES.filter(f=>!/^https?:|^data:/.test(f.file)&&!/(Cafe24|Happiness)/i.test(f.file)).map(f=>f.name))].sort();
  }
+ async function previewFont(name:string) {
+   if(!fonts().includes(name))throw new Error('제공되지 않는 글꼴입니다.');
+   await loadWebFonts([name],undefined,{disableExternalWebFonts:true});
+   return getWebFontSupplySnapshot(name).status==='loaded';
+ }
  async function font(name:string,token:any) {
    writable();restore(token);await loadWebFonts([name],undefined,{disableExternalWebFonts:true});
    if(getWebFontSupplySnapshot(name).status!=='loaded')throw new Error('번들 글꼴을 읽지 못했습니다.');
@@ -299,7 +304,7 @@ export function createStudioMobile(env:Env) {
    }
    search={query:'',hits:[],index:-1,epoch:-1};return {count:hits(query,sensitive).length,...result()};
  }
- return {state,capture,restore,char,para,font,fonts,defaultFont,copyCharFormat,pasteCharFormat,resetChar,resetPara,dispatch,copy,paste,plainText,createTable,moveCell,selectCells,cell,list,find,replace,
+ return {state,capture,restore,char,para,font,fonts,previewFont,defaultFont,copyCharFormat,pasteCharFormat,resetChar,resetPara,dispatch,copy,paste,plainText,createTable,moveCell,selectCells,cell,list,find,replace,
    objects:()=>{const ih=input(),sc=ih.container.querySelector('#scroll-content'),box=sc.getBoundingClientRect(),z=ih.viewportManager.getZoom(),vs=ih.virtualScroll;
      return Array.from({length:wasm.pageCount},(_,page:number)=>wasm.getPageControlLayout(page).controls.map((c:any)=>({...c,page,rect:{x:box.left+vs.getPageLeftResolved(page,sc.clientWidth)+c.x*z,y:box.top+vs.getPageOffset(page)+c.y*z,width:c.w*z,height:c.h*z}}))).flat();},
    cursorText:()=>{const p=input().getCursorPosition();return p.parentParaIndex===undefined?wasm.getTextRange(p.sectionIndex,p.paragraphIndex,0,wasm.getParagraphLength(p.sectionIndex,p.paragraphIndex)):p.cellPath?.length?wasm.getTextInCellByPath(p.sectionIndex,p.parentParaIndex,JSON.stringify(p.cellPath),0,wasm.getCellParagraphLengthByPath(p.sectionIndex,p.parentParaIndex,JSON.stringify(p.cellPath))):wasm.getTextInCell(p.sectionIndex,p.parentParaIndex,p.controlIndex,p.cellIndex,p.cellParaIndex,0,wasm.getCellParagraphLength(p.sectionIndex,p.parentParaIndex,p.controlIndex,p.cellIndex,p.cellParaIndex));},

@@ -26,6 +26,7 @@ android {
     buildFeatures { buildConfig = true }
     sourceSets.getByName("main") {
         assets.srcDir(runtimeDir.dir("assets"))
+        assets.srcDir(rootProject.file("shared/editor-ui"))
         jniLibs.srcDir(runtimeDir.dir("jniLibs"))
     }
     externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.22.1" } }

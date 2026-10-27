@@ -66,6 +66,7 @@ jobs:
           node --test --test-reporter=tap scripts/tests/*.test.cjs 2>&1 | tee artifacts/ci/javascript.log
           cd scripts/tests
           npx playwright install chromium
+          node mobile-ui-layout.cjs 2>&1 | tee ../../artifacts/ci/mobile-ui-layout.log
           npm run test:hangul 2>&1 | tee ../../artifacts/ci/hangul-browser.log
           TABLE_SAVE_DIAGNOSTIC=1 node hangul-mobile.cjs 2>&1 | tee ../../artifacts/ci/table-save-browser.log
           (cd ../.. && ./gradlew :core:inspectTableSave --configure-on-demand --max-workers=2 --console=plain) 2>&1 | tee ../../artifacts/ci/table-save-records.log
@@ -88,6 +89,7 @@ jobs:
           name: hangul-mobile-web-${{ github.sha }}
           path: |
             artifacts/hangul-mobile/
+            artifacts/mobile-ui/
             artifacts/ci/
             artifacts/document-engines/
             core/build/visual-fixtures/

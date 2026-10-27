@@ -1,23 +1,29 @@
 import { createMobileTools } from './mobile-tools.js';
 // Same-origin offline host. Document bytes stay in the application.
-const native=window.DocumentStudio;
+const native=window.DocumentStudio,UI=window.StudioEditorUI;
+let rulers=false,toolsVisible=true;
 const frame=document.getElementById('engine'), status=document.getElementById('status');
 const save=document.getElementById('save'), mode=document.getElementById('mode');
 const tools=document.getElementById('tools'), groups=document.getElementById('groups');
 let readOnlyReason=null;
 let editor,format,ready=false,editing=false,pending=false,switching=false,timer,revision=0,savedRevision=0,edited=false,activeGroup='글자';
 const panel=document.getElementById('mobile-panel'),dock=document.getElementById('edit-dock');
+const undo=document.getElementById('undo'),redo=document.getElementById('redo');
 const mobileUI=createMobileTools({groups,tools,panel,getEditor:()=>editor,isEditable:()=>ready&&editing&&!switching,message,
  layoutChanged:view=>{if(ready) requestAnimationFrame(()=>editor.restoreView(view).catch(error=>message(String(error.message),true)));}});
 function message(text,error=false){status.textContent=text;status.dataset.error=String(error);document.getElementById('discard').hidden=!error;}
 function update(){
  document.body.dataset.state=!ready?'LOADING':readOnlyReason?'READ_ONLY':editing?'EDITING':'READING';
- mode.hidden=Boolean(readOnlyReason);
+ mode.hidden=Boolean(readOnlyReason)||editing;
  mode.textContent=editing?'보기로':'편집하기';mode.disabled=!ready||pending||switching;
  mode.setAttribute('aria-pressed',String(editing));save.hidden=!editing;save.disabled=!ready||pending||switching;
- groups.hidden=!editing;tools.hidden=!editing||document.getElementById('tool-toggle').getAttribute('aria-expanded')==='false';
- document.getElementById('tool-toggle').hidden=!editing;
- dock.hidden=!editing;mobileUI.update();
+ groups.hidden=!editing;
+ dock.hidden=!editing||!toolsVisible;
+ undo.hidden=redo.hidden=!editing;
+ undo.disabled=!ready||pending||switching||!editor?.enabled('edit:undo');
+ redo.disabled=!ready||pending||switching||!editor?.enabled('edit:redo');
+ const back=document.getElementById('back');back.setAttribute('aria-label',editing?'보기로':'작업 화면');back.title=back.getAttribute('aria-label');
+ mobileUI.update();
 }
 function renderTools(){mobileUI.render();update();}
 function toBase64(bytes){let result='';for(let i=0;i<bytes.length;i+=8192)result+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(result);}
@@ -86,16 +92,27 @@ window.documentStudioHost={
  returnToWorkspace(){return close(false);},
  async back(){if(editing)await setEditing(false);else await close(false);},
 };
-document.getElementById('back').onclick=()=>window.documentStudioHost.back();
+UI.iconButton(document.getElementById('back'),'작업 화면','back',()=>window.documentStudioHost.back());
+UI.iconButton(undo,'실행 취소','undo',()=>editor?.mobile.dispatch('edit:undo'));
+UI.iconButton(redo,'다시 실행','redo',()=>editor?.mobile.dispatch('edit:redo'));
+UI.iconButton(save,'저장 후 닫기','done',()=>close(true));
+const more=UI.iconButton(document.getElementById('more'),'더보기','more');
+UI.popup(more,()=>[
+ {label:editing?'읽기 모드로 전환':'편집하기',hidden:Boolean(readOnlyReason),disabled:!ready||pending||switching,action:()=>setEditing(!editing)},
+ {label:'찾기'+(editing?'·바꾸기':''),disabled:!ready,action:()=>editing?mobileUI.showSearch():editor.command('edit:find')},
+ {label:'확대 '+(ready?Math.round(editor.captureView().zoom*100)+'%':''),disabled:!ready,action:()=>editor.command('view:zoom-in')},
+ {label:'축소',disabled:!ready,action:()=>editor.command('view:zoom-out')},
+ {label:'화면 너비에 맞춤',disabled:!ready,action:()=>editor.command('view:zoom-fit-width')},
+ {label:rulers?'눈금자 숨기기':'눈금자 표시',disabled:!ready,action:()=>{rulers=!rulers;editor.setRulers(rulers);}},
+ {label:toolsVisible?'도구 접기':'도구 펼치기',hidden:!editing,action:()=>{toolsVisible=!toolsVisible;update();}},
+ {separator:true},
+ {label:pending?'저장 중…':savedRevision<revision?'자동 저장 대기':'작업 복사본 저장됨',disabled:true},
+ {label:readOnlyReason||'',hidden:!readOnlyReason,disabled:true},
+ {label:'작업 화면으로 돌아가기',disabled:pending,action:()=>close(false)},
+ {label:'저장되지 않은 변경 취소',hidden:!editing,action:()=>native.requestDiscard()},
+]);
 document.getElementById('discard').onclick=()=>native.requestDiscard();
-document.getElementById('tool-toggle').onclick=()=>{
- const button=document.getElementById('tool-toggle'),expanded=button.getAttribute('aria-expanded')!=='true';
- const view=editor.captureView();button.setAttribute('aria-expanded',String(expanded));button.textContent=expanded?'도구 접기':'도구 펼치기';panel.hidden=!expanded;update();editor.restoreView(view);
-};
-document.getElementById('find').onclick=()=>{if(editing)mobileUI.showSearch();else editor?.command('edit:find');};
-document.getElementById('zoom-out').onclick=()=>editor?.command('view:zoom-out');
-document.getElementById('zoom-in').onclick=()=>editor?.command('view:zoom-in');
-mode.onclick=()=>setEditing(!editing);save.onclick=()=>close(true);
+mode.onclick=()=>setEditing(true);
 async function start(){
  if(!native){message('앱의 문서 연결을 찾지 못했습니다.',true);return;}
  const meta=JSON.parse(native.describe());format=meta.format;readOnlyReason=meta.readOnlyReason||null;
@@ -108,12 +125,13 @@ async function start(){
  const response=await fetch('/document');if(!response.ok)throw new Error('작업 복사본을 읽지 못했습니다.');
  const info=await editor.open(new Uint8Array(await response.arrayBuffer()),meta.name);
  if(info.format!==format||info.pages<1)throw new Error('원본 문서의 형식 또는 페이지를 확인할 수 없습니다.');
- await editor.restoreView(meta.viewState);
+ if(meta.viewState&&Number.isFinite(Number(meta.viewState.zoom)))await editor.restoreView(meta.viewState);
+ else await editor.command('view:zoom-fit-width');
  ready=true;renderTools();native.loaded();
  if(readOnlyReason)message(`${info.pages}쪽 · 읽기 전용 · ${readOnlyReason}`);
  else if(meta.openIntent==='EDIT')await setEditing(true);
  else message(`${info.pages}쪽 · 원본 보기 · 편집하기를 선택해 수정하세요.`);
- for(const id of ['find','zoom-out','zoom-in'])document.getElementById(id).disabled=false;
+
 }
 start().catch(error=>{document.body.dataset.state='ERROR';message(String(error.message||error),true);native?.loadFailed(String(error.message||error));});
 

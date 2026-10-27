@@ -143,7 +143,7 @@ class NativeHangulEditingTest {
             await("Repeated composed syllables must not disappear") {mCount("IME_START|한국어가가")==1}
             eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('한국어')")
             val rangeBefore=mJson("capture()").getJSONObject("range").toString()
-            tapVisibleControl("글자 모양")
+            tapVisibleControl("글자")
             tapVisibleControl("크기(pt)")
             awaitConnection(2)
             ime("selectAll");ime("commit","18")

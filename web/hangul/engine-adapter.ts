@@ -66,6 +66,12 @@ Object.assign((window as any).rhwpStudio, {
     tools: () => ({inTable:inputHandler?.isInTable() ?? false, object:inputHandler?.isInPictureObjectSelection() ?? false}),
     enabled: (id: string) => dispatcher.isEnabled(id),
     command: (id: string) => dispatcher.dispatch(id),
+    setRulers(value: boolean) {
+      const view=studioCaptureView();
+      document.documentElement.dataset.studioRulers=String(value);
+      window.dispatchEvent(new Event('resize'));
+      requestAnimationFrame(()=>{inputHandler?.updateCaret();void studioRestoreView(view);});
+    },
   },
 });
 const nativeFileCommands = new Set(['file:open','file:new-doc','file:save-as','file:save-as-hwp','file:save-as-hwpx','file:export-doc','file:export-html','file:print','file:print-to-pdf']);
@@ -100,7 +106,10 @@ eventBus.on('document-mutated',studioNotifyChanged);
 eventBus.on('command-state-changed', () => (window.parent as any).documentStudioHost?.toolsChanged());
 const nativeStyle=document.createElement('style');
 nativeStyle.textContent=`
- #menu-bar,#icon-toolbar,#style-bar {display:none!important}
+ #menu-bar,#icon-toolbar,#style-bar,#status-bar {display:none!important}
+ html:not([data-studio-rulers="true"]) #h-ruler,html:not([data-studio-rulers="true"]) #v-ruler,html:not([data-studio-rulers="true"]) #ruler-corner {display:none!important}
+ html:not([data-studio-rulers="true"]) #scroll-container {grid-column:2;grid-row:2}
+ html:not([data-studio-rulers="true"]) #editor-area {grid-template-columns:0px minmax(0,1fr)!important;grid-template-rows:0px minmax(0,1fr)!important}
  html[data-studio-mode="view"] .caret,html[data-studio-mode="view"] .caret-composition,
  html[data-studio-mode="view"] .table-object-layer,html[data-studio-mode="view"] .table-resize-layer,
  html[data-studio-mode="view"] .hf-edit-surface-layer {display:none!important;pointer-events:none!important}

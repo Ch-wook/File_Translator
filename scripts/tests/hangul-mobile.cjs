@@ -47,15 +47,17 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   await call('find','가나다라');await call('char',{bold:false});
   await call('find','ABC');const outsideBefore=(await call('state')).char;
   await call('find','나다');const selectedBefore=(await call('capture')).range;
+  await page.locator('#groups').getByRole('button',{name:'글자',exact:true}).click();
   await page.locator('#tools').getByRole('button',{name:'굵게',exact:true}).click();
-  await page.locator('#tools').getByRole('button',{name:'글자 모양',exact:true}).click();
   await page.getByLabel('크기(pt)',{exact:true}).fill('18');await page.getByLabel('크기(pt)',{exact:true}).dispatchEvent('change');
   await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.mobile.state().char.fontSize===1800);
   await page.getByRole('button',{name:'글자색 #e53935',exact:true}).click();
   await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.mobile.state().char.textColor?.toLowerCase()==='#e53935');
   const available=await call('fonts');assert.ok(available.length>=2,'At least two bundled fonts are selectable');
   const font=available.find(n=>/나눔고딕|Noto Sans KR|Pretendard/.test(n))||available[0];
-  await page.getByLabel('글꼴',{exact:true}).selectOption(font);
+  await page.getByRole('button',{name:/^글꼴 선택/}).click();
+  await page.getByLabel('글꼴 검색',{exact:true}).fill(font);
+  await page.getByRole('option',{name:font,exact:true}).click();
   await frame.waitForFunction(name=>{const p=window.rhwpStudio.documentStudio.mobile.state().char;return p.fontFamily===name||p.fontFamilies?.includes(name);},font);
   for(const [label,value] of [['자간(%)','12'],['장평(%)','85']]){
    await page.getByLabel(label,{exact:true}).fill(value);await page.getByLabel(label,{exact:true}).dispatchEvent('change');

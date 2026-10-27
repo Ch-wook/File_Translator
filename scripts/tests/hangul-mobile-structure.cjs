@@ -122,7 +122,8 @@ module.exports=async function mobileStructure({page,frame,call,context}){
  // Insert a real image through the existing file picker and touch placement.
  await call('navigate',true);await call('plainText','\nMOBILE_IMAGE_ANCHOR\n');await call('focus');
  const insertionCaret=await frame.locator('.caret').filter({visible:true}).first().boundingBox();assert.ok(insertionCaret);
- await page.locator('#groups').getByRole('tab',{name:'그림',exact:true}).click();
+ await page.locator('#groups').getByRole('button',{name:'더보기',exact:true}).click();
+ await page.locator('#tools').getByRole('button',{name:'그림',exact:true}).click();
  const chooser=page.waitForEvent('filechooser');
  await page.locator('#tools').getByRole('button',{name:'그림 삽입',exact:true}).click();
  await(await chooser).setFiles({name:'mobile-image.png',mimeType:'image/png',buffer:image});

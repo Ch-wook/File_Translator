@@ -1,5 +1,8 @@
 // Compact mobile controls. All changes go through the real engine's history and selection scope.
 export function createMobileTools({groups,tools,panel,getEditor,isEditable,message,layoutChanged}) {
+ const UI=window.StudioEditorUI,sheet=panel.parentElement;
+ let picker=null,fontList=false;
+ const sheetHead=UI.sheet(sheet,'글자',()=>closePanel());
  const names=['글자','문단','목록','표','그림','삽입','찾기','스타일','쪽','클립보드'];
  let group='글자',expanded=false,target=null,state={},queue=Promise.resolve(),rendering=false,lastContext='body';
  const fields=new Map(),timers=new Map();let searchInfo={count:0,current:0},recent=[];
@@ -50,17 +53,17 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
      const b=button(value,()=>execute(m=>m.char({[prop]:value},target)),palette);b.style.background=value;b.style.color=value==='#000000'?'white':'#15283e';b.setAttribute('aria-label',label+' '+value);b.textContent='●';
    }
  }
- function toggleDetails(label='세부 설정') {button(label,()=>{remember();expanded=!expanded;render();});}
+ function toggleDetails(label='세부 설정') { /* The dock already opens the complete settings sheet. */ }
+ function closePanel(){for(const value of timers.values()){clearTimeout(value.timer);value.commit();}timers.clear();expanded=false;fontList=false;render();}
+ function choose(name){remember();group=name;expanded=true;fontList=false;render();}
  function textPanel() {
    line(state.scope||'선택한 글자');
-   const fonts=api().fonts();select('font','글꼴',fonts.map(n=>[n,n]),async(m,v)=>{const r=await m.font(v,target);
-     for(const face of document.getElementById('engine').contentDocument.fonts)if(face.family.replaceAll('"','')===v)document.fonts.add(face);
-     const sample=panel.querySelector('.font-preview');if(sample)sample.style.fontFamily='"'+v+'"';return r;});
-   const sample=document.createElement('div');sample.className='font-preview';sample.textContent='가나다 ABC 123 · 선택한 글자에 적용';panel.append(sample);
+   const family=state.char?.fontFamily||state.char?.fontFamilies?.[0]||'문서 기본 글꼴';
+   const fontButton=button(family+' ▾',()=>{fontList=true;render();},line('글꼴'));fontButton.className='font-current';fontButton.setAttribute('aria-label','글꼴 선택 · '+family);
    const sizes=line('글자 크기');number('fontSize','크기(pt)',(state.char?.fontSize||1000)/100,1,4096,.5,(m,v)=>m.char({fontSize:Math.round(v*100)},target),sizes);
    button('글자 크기 −',()=>execute(m=>m.char({fontSize:Math.max(100,(m.state().char.fontSize||1000)-100)},target)),sizes);
    button('글자 크기 ＋',()=>execute(m=>m.char({fontSize:Math.min(409600,(m.state().char.fontSize||1000)+100)},target)),sizes);
-   for(const size of [9,10,11,12,14,16,20,24])button(String(size),()=>execute(m=>m.char({fontSize:size*100},target)),sizes);
+   for(const size of [8,9,10,11,12,14,16,18,20,24,28,32])button(String(size),()=>execute(m=>m.char({fontSize:size*100},target)),sizes);
    const style=line('글자 스타일');for(const [label,id] of [['취소선','strikethrough'],['위 첨자','superscript'],['아래 첨자','subscript']])command(label,'format:'+id,style);
    color('textColor','글자색','textColor');color('shadeColor','형광펜·글자 배경색','shadeColor');
    const dims=line('한글 글자 모양');
@@ -119,12 +122,20 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
  function render() {
    if(rendering||!api())return;const view=getEditor().captureView();rendering=true;
    for(const value of timers.values()){clearTimeout(value.timer);value.commit();}timers.clear();
-   state=api().state();groups.replaceChildren();tools.replaceChildren();panel.replaceChildren();fields.clear();
-   for(const n of names){const b=button(n,()=>{remember();group=n;expanded=false;render();},groups,{mutates:false});b.setAttribute('aria-selected',String(group===n));b.setAttribute('role','tab');}
+   state=api().state();picker?.dispose();picker=null;groups.replaceChildren();tools.replaceChildren();panel.replaceChildren();fields.clear();
+   sheetHead.querySelector('strong').textContent=fontList?'글꼴':group;
+   const contextName=state.object?'그림':state.cell||state.tableObject?'표':'표';
+   for(const [n,icon] of [['글자','char'],['문단','para'],[contextName,contextName==='그림'?'image':'table'],['삽입','insert'],['더보기','more']]){const b=UI.dockButton(n,icon,()=>{if(expanded&&group===n){closePanel();return;}choose(n);},remember);b.setAttribute('aria-selected',String(expanded&&group===n));groups.append(b);}
+   if(!expanded){rendering=false;update();layoutChanged?.(view);return;}
+   if(fontList){picker=UI.fontPicker(panel,{fonts:api().fonts(),current:state.char?.fontFamily,onPick:async name=>{await execute(m=>m.font(name,target));fontList=false;render();},onDefault:async()=>{await execute(m=>m.defaultFont(target));fontList=false;render();},preview:async name=>{await api().previewFont(name);for(const face of document.getElementById('engine').contentDocument.fonts)if(face.family.replaceAll('"','')===name)document.fonts.add(face);return true;},key:'studio-hangul-fonts',note:'번들 글꼴 · 문서에 없는 글꼴은 엔진 대체 글꼴로 표시됩니다.'});rendering=false;update();layoutChanged?.(view);return;}
+
    const basic=()=>{command('실행 취소','edit:undo');command('다시 실행','edit:redo');};
-   if(group==='글자'){
-     basic();command('굵게','format:bold');command('기울임','format:italic');command('밑줄','format:underline');
-     button('글자색',()=>{remember();expanded=true;render();});
+   if(group==='더보기'){
+     for(const n of names.filter(n=>!['글자','문단','표','삽입'].includes(n)))button(n,()=>choose(n),tools,{mutates:false});
+     line('형식에 맞는 도구를 선택하세요. 문서 본문을 누르면 선택 대상을 바꿀 수 있습니다.');
+   }else if(group==='글자'){
+     command('굵게','format:bold');command('기울임','format:italic');command('밑줄','format:underline');
+
      toggleDetails('글자 모양');if(expanded)textPanel();
    }else if(group==='문단'){
      for(const [label,id] of [['왼쪽','left'],['가운데','center'],['오른쪽','right'],['양쪽','justify'],['배분','distribute']])command(label,'format:align-'+id);
@@ -156,11 +167,11 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
      button('서식 유지 붙여넣기',()=>execute(m=>m.paste(false)));button('서식 없이 붙여넣기',()=>execute(m=>m.paste(true)));
      command('전체 선택','edit:select-all');command('선택 삭제','edit:delete');command('문단·글자 서식 복사','edit:format-copy');command('문단·글자 서식 붙이기','edit:format-paste');
    }
-   if(expanded)button('설정 완료',()=>{expanded=false;render();api()?.focus();},panel,{mutates:false});
+   if(expanded)button('설정 완료',()=>{closePanel();api()?.focus();},panel,{mutates:false});
    panel.hidden=!expanded;rendering=false;update();layoutChanged?.(view);
  }
  function update() {
-   if(!api())return;state=api().state();panel.hidden=!expanded||!state.editing||document.getElementById('tool-toggle').getAttribute('aria-expanded')!=='true';const available=isEditable()&&!state.composing;
+   if(!api())return;state=api().state();sheet.hidden=!expanded||!state.editing;panel.hidden=!expanded;tools.hidden=!expanded||fontList;const available=isEditable()&&!state.composing;
    for(const root of [groups,tools,panel])for(const b of root.querySelectorAll('[data-mobile-button]')){
      const cmd=b.dataset.engineCommand;b.disabled=(b.dataset.mutates==='true'&&!available)||Boolean(cmd&&!getEditor().enabled(cmd))||(b.dataset.requiresSelection==='true'&&!state.selection);
      if(cmd?.startsWith('format:')&&['bold','italic','underline','strikethrough','superscript','subscript'].includes(cmd.slice(7)))b.setAttribute('aria-pressed',String(Boolean(state.char?.[cmd.slice(7)])));
@@ -191,6 +202,6 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
    if(['bold','underline'].includes(name)){remember();return execute(m=>m.dispatch('format:'+name,undefined,target));}
    if(name==='colors'||name==='character'){remember();group='글자';expanded=true;render();}
  }
- return {render,update,action,context(name){if(state.object||name==='그림'){group='그림';expanded=false;render();}else update();},
-   showSearch(){group='찾기';expanded=true;render();},closePanel(){for(const value of timers.values()){clearTimeout(value.timer);value.commit();}timers.clear();expanded=false;render();api()?.focus();}};
+ return {render,update,action,open:choose,context(name){if(state.object||name==='그림'){group='그림';expanded=false;render();}else update();},
+   showSearch(){choose('찾기');},closePanel};
 }
