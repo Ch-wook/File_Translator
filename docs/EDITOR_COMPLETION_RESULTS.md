@@ -81,11 +81,19 @@
 
 - 40547456175: 설치·기존 0.8.5 데이터 보존·양 ABI 빌드와 Android 39건 중 38건 성공. Markdown 테스트가 고정된 하단 미리보기 버튼에 performScrollTo를 호출하여 1건 실패했다. 실제 숫자 17pt 입력 포커스/18pt 빠른 선택, Word·Calc·PPTX 저장·재열기와 PDF 검사는 통과했다. 테스트를 실제 표시 여부 확인 후 터치하도록 수정했으며, 최종 포장 검사가 이 실패를 감지해 배포를 차단했다.
 
-### 진행 중인 검증 / 배포 전 통과 조건
+### 최종 앱 검증 성공
 
-집중 native 검사 Actions 40545349072에서 공통 UI·TXT 검색·MD 구문·Word 부분 서식·Calc 실제 붙여넣기/서식/15개 계산/새 시트 저장·재열기 5건이 모두 통과했다. 이후 숫자 설정 포커스 및 빠른 크기 선택의 pending 값 덮어쓰기 방지 검사를 보강했다. 전체 39개 Android 회귀와 최종 ABI별 APK 검증은 진행 중이다. 이 문서 단계에서는 최종 APK 및 전체 테스트를 통과했다고 표시하지 않는다.
+최종 실행 [40550785247](https://github.com/Ch-wook/File_Translator/actions/runs/40550785247)은 성공했다. 앱 빌드 커밋은 728892f6071d2274aea1f4ca309f2b0785377440이다.
 
-전체 검증은 다음을 요구한다.
+- Android 35 x86_64 에뮬레이터: 39건, 실패·오류·건너뜀 0건.
+- 단위: core 127건 + officeruntime 2건 + app 19건 = 148건, 실패·오류·건너뜀 0건.
+- JavaScript 25건, 실제 Rhwp 브라우저 7개 시나리오, TypeScript·lint 및 독립 저장 파서 검사 성공.
+- Office 입력칸의 17pt 입력 포커스 유지와 18pt 빠른 선택, 기존 서식 독립성, native 저장·재열기 성공.
+- 기존 0.8.5 APK·개인 데이터 보존, 별도 preview 설치·실행 및 동일 APK 재설치 후 데이터 보존 성공.
+- ARM64/x86_64 APK의 서명·ABI·testOnly 없음·INTERNET 없음·16KiB ELF/ZIP 정렬·엔진/shared/추가 글꼴 바이트 대조 성공.
+- 원격 기준 f660e477… 변경 패치, 전체 소스 ZIP 바이트 비교, Git bundle 검증 성공.
+
+아래 항목을 실제 수행했다. 각 항목 안의 검증한 시나리오에 한정한 결과이며 모든 고급 기능의 보장을 뜻하지 않는다.
 
 1. DOCX: 부분 선택 글꼴·18pt·굵게 토글·기울임·밑줄·색의 독립 적용, 비선택 내용 보존, native 저장/독립 파서/provider 저장/engine 재열기.
 2. XLSX: 실제 붙여넣기로 A1 변경, 셀 글꼴·크기·굵게, 15개 계산 결과, 새 시트, 저장/파서/engine 재열기. 계산 대상은 A1+B1와 SUM·AVERAGE·MIN·MAX·COUNT·COUNTA·IF·AND·OR·ROUND·COUNTIF·SUMIF·VLOOKUP·XLOOKUP이다.
@@ -96,7 +104,7 @@
 7. TXT: 표시 글꼴 변경 시 바이트/선택 보존, 실제 찾기·바꾸기와 저장/재열기.
 8. ABI별 APK: 서명, testOnly 없음, INTERNET 권한 없음, 정확한 ABI, 16KiB ELF/ZIP 정렬, 엔진/shared/추가 글꼴 자산 일치.
 9. 설치: 기존 0.8.5 앱/개인 데이터 보존, 새 preview 설치·실행, 같은 APK 재설치 후 데이터 보존.
-10. 소스 ZIP 추적 파일 바이트 대조, 기준 f660e477… 패치 적용 검사, Git bundle 검증, Release 업로드 후 공개 다운로드 크기/해시 검사.
+10. 소스 ZIP 추적 파일 바이트 대조, 기준 f660e477… 패치 적용 검사, Git bundle 검증, Release 공개 다운로드 크기·해시는 배포 후 워크플로에서 따로 검사하고 확인서를 추가한다.
 
 ## 저장과 배포 안내
 
@@ -107,3 +115,64 @@
 ARM64 휴대폰용 APK와 x86_64 검증용 APK를 구분한다. 실제 휴대폰·삼성/Gboard 키보드 검증은 하지 못했다. Android x86_64 에뮬레이터와 정적 ARM64 패키지 검사로 물리 기기 검증을 대체했다고 표현하지 않는다.
 
 고급 차트·모든 개체 조작·고급 스타일/문서 구조·PDF 자유 재배치·모든 기존 문서의 무손실 호환성을 완성했다고 표시하지 않는다. 인쇄/인쇄 미리보기를 추가하지 않았다.
+
+## APK와 배포 출처
+
+| ABI | bytes | SHA-256 |
+| --- | ---: | --- |
+| arm64-v8a | 429635687 | `2af8228167f8be9fb1ae7e410e7b082c041f72dd4e5d93789ebdfcfb458ce1ce` |
+| x86_64 | 441522177 | `9abf10fbcc28ab268d64daf5445c96961bea9d5448249aa1c26250a662ce8095` |
+
+applicationId: `kr.documentstudio.editorspreview`, versionCode 16, versionName `0.8.6-preview`.
+개발 서명 인증서 SHA-256: `311ae1b51047c3aa5ddcd66d30bf978c2a9f394e275890f292955881011732dd`.
+앱 코드는 위 빌드 커밋의 산출물을 그대로 게시한다. 태그/소스 아카이브는 최종 문서·배포 CI만 추가한 후손 커밋이며, 워크플로가 앱 코드 차이 없음과 소스 ZIP의 태그 일치를 검사한다. 정확한 태그 커밋은 Release metadata의 sourceArchiveCommit과 공개 다운로드 확인서에서 확인한다.
+
+## 완료 판정과 남은 범위
+
+**정상 작동 확인**은 실제 테스트의 변경·저장·재열기·보존 검사까지 통과한 범위입니다. native 엔진에 연결되어 있어도 모든 선택·IME·객체·복잡한 기존 파일의 조합을 검증하지 못한 기능은 **부분 지원**으로 분류합니다.
+
+빈 숫자 값, 입력 중 포커스/빠른 크기 선택의 경합, Markdown 반복 서식과 미리보기 뒤 오래된 원문 연결은 수정했습니다. 모든 고급 기능을 구현한 것으로 표시하지 않습니다.
+
+**전용 도구 미구현/미확장**: 고급 차트·조건부 서식 패널, 전체 PPT 개체 그룹·테마·효과 편집, 자동 목차·각주·맞춤법·한자 전용 모바일 도구입니다. 기존 엔진이 제공하는 일부 대화상자 기능과 새 모바일 도구의 완성을 구분합니다.
+
+**형식/현재 엔진 범위에서 미지원**: TXT의 영속 글꼴·색·굵게, Markdown의 임의 글꼴·색·장평 저장, PDF의 워드프로세서 같은 자유 본문 재배치입니다.
+
+다음 우선순위는 실제 ARM64 휴대폰의 삼성/Gboard 조합·선택 핸들·IME 위 도구, 장문 성능, 고급 표/개체와 다양한 기존 문서의 왕복 보존 검사입니다.
+
+## 실제 변경 파일
+
+기준 f660e477…부터 검증 빌드 728892f6…까지 33개 파일입니다. 최종 배포 문서·워크플로 변경은 별도입니다.
+
+- `.github/workflows/common-ui-focused.yml` (수정)
+- `.github/workflows/editor-capability-audit.yml` (추가)
+- `.github/workflows/hangul-mobile.yml` (수정)
+- `.github/workflows/mobile-release.yml` (수정)
+- `app/build.gradle.kts` (수정)
+- `app/src/androidTest/java/kr/documentstudio/CommonMobileUiTest.kt` (수정)
+- `app/src/androidTest/java/kr/documentstudio/MarkdownUiTest.kt` (수정)
+- `app/src/androidTest/java/kr/documentstudio/NativeOfficeFontTest.kt` (수정)
+- `app/src/androidTest/java/kr/documentstudio/NativeOfficeModeSmokeTest.kt` (수정)
+- `app/src/androidTest/java/kr/documentstudio/PdfAnnotationsTest.kt` (수정)
+- `app/src/androidTest/java/kr/documentstudio/PdfMarkupUiTest.kt` (수정)
+- `app/src/main/AndroidManifest.xml` (수정)
+- `app/src/main/java/kr/documentstudio/data/MarkdownRender.kt` (수정)
+- `app/src/main/java/kr/documentstudio/data/MarkdownTasks.kt` (수정)
+- `app/src/main/java/kr/documentstudio/ui/EditorFonts.kt` (추가)
+- `app/src/main/java/kr/documentstudio/ui/FormatWorkspace.kt` (수정)
+- `app/src/main/java/kr/documentstudio/ui/LineNumberEditText.kt` (수정)
+- `app/src/main/java/kr/documentstudio/ui/MobileEditorControls.kt` (수정)
+- `app/src/main/java/kr/documentstudio/ui/StudioApp.kt` (수정)
+- `build.gradle.kts` (수정)
+- `config/studio-fonts.json` (추가)
+- `core/src/main/kotlin/kr/documentstudio/core/MarkdownEditing.kt` (수정)
+- `core/src/test/kotlin/kr/documentstudio/core/MarkdownEditingTest.kt` (수정)
+- `docs/EDITOR_COMPLETION_RESULTS.md` (추가)
+- `officeruntime/build.gradle.kts` (수정)
+- `officeruntime/src/main/assets/dist/studio-policy.js` (수정)
+- `scripts/package-mobile-release.py` (수정)
+- `scripts/prepare-studio-fonts.py` (추가)
+- `scripts/test-mobile-installation.py` (수정)
+- `scripts/tests/font-picker.test.cjs` (추가)
+- `scripts/tests/office-workspace.test.cjs` (수정)
+- `shared/editor-ui/dist/studio-editor-ui.css` (수정)
+- `shared/editor-ui/dist/studio-editor-ui.js` (수정)

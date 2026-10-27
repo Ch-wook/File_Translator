@@ -1,3 +1,20 @@
+# 문서 스튜디오 0.8.6-preview
+
+기존 Word·Excel·PowerPoint·한글·PDF·Markdown·TXT 편집기에 실제 글꼴과 형식별 도구, 서식·선택·저장 처리를 보완한 개발 서명 프리뷰입니다.
+
+[휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.6-preview/document-studio-0.8.6-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.6-preview/document-studio-0.8.6-preview-source.zip) · [작업 보고서 다운로드](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.6-preview/document-studio-0.8.6-preview-work-report.md) · [Release·검증 자료·SHA256SUMS](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.6-preview)
+
+나눔고딕·나눔명조·고운돋움·고운바탕·Lato·Cousine 6개 패밀리의 실제 파일과 라이선스를 추가했습니다. 공통 글꼴 검색·즐겨찾기·미리보기, 파일별 하단 도구, Word 선택 서식, Excel 수식·셀·시트, Markdown 문법 토글·미리보기 복귀와 TXT 찾기·바꾸기를 보완합니다. [변경 파일·검증 결과·부분 지원·미지원](docs/EDITOR_COMPLETION_RESULTS.md)을 확인하세요.
+
+휴대폰에서는 ARM64 APK를 다운로드해 설치합니다. 기존 서명키가 없어 사용자 선택에 따라 **문서 스튜디오 편집 개선**(kr.documentstudio.editorspreview)을 별도 설치합니다. 기존 앱과 비공개 작업 복구본을 삭제하지 마세요. 기존 앱에서 문서를 다른 이름으로 저장한 뒤 새 앱의 파일 열기에서 선택할 수 있습니다.
+
+검증: Android 35 x86_64 39건, 단위 148건, JavaScript 25건과 실제 엔진/독립 파서 검사를 통과했습니다. APK 서명·ABI·16KiB 정렬·자산과 기존 앱 보존 설치도 확인했습니다.
+
+고급 차트·전체 개체/스타일 편집·PDF 자유 재배치·모든 기존 파일의 무손실 호환성을 완성한 버전은 아닙니다. 실제 ARM64 휴대폰·삼성/Gboard 검증은 미완료입니다. 자동 저장은 작업 복구본이며 외부 원본의 저장 성공과 구분합니다.
+
+<details>
+<summary>0.8.5 이전 구현·배포 기록</summary>
+
 # 문서 스튜디오 0.8.5-preview
 
 Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하기**를 선택하면 문서 화면에서 직접 수정하는 앱입니다. 기존 파일 열기·최근 작업·외부 앱 열기는 기본적으로 보기로 시작합니다.
@@ -77,3 +94,5 @@ node scripts/tests/hangul-mobile.cjs
 [사용 안내](docs/USER_GUIDE.md) · [한글 엔진 출처](web/hangul/PROVENANCE.md) · [Office 엔진 출처](officeruntime/PROVENANCE.md) · [오픈소스 고지](docs/THIRD_PARTY.md)
 
 0.7.0 이하 문서와 테스트 수는 과거 기록입니다. 이번 버전의 실기기 검증 결과로 합산하지 않습니다.
+
+</details>
