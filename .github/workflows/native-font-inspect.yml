@@ -1,0 +1,43 @@
+name: Inspect native font configuration
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: contains(github.event.head_commit.message, '[font-config-audit]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read pinned native font directories and actual Korean font family
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib,struct,urllib.request,zipfile
+          p=pathlib.Path('baseline.apk')
+          with urllib.request.urlopen('https://github.com/Ch-wook/File_Translator/releases/download/v0.8.4-preview/document-studio-0.8.4-preview-x86_64.apk',timeout=120) as src,p.open('wb') as dst:
+              while b:=src.read(1024*1024):dst.write(b)
+          with p.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()=='cad44eedc7d433f7a902b875a442f925d02c20686ed81a15da5d6bfaab806d62'
+          with zipfile.ZipFile(p) as z:
+              for name in z.namelist():
+                  if name.endswith('fonts.conf'):print('ACTUAL_FONT_CONFIGURATION',name,z.read(name).decode())
+          data=pathlib.Path('app/src/main/assets/fonts/NotoSansKR.ttf').read_bytes()
+          tables={}
+          for i in range(struct.unpack_from('>H',data,4)[0]):
+              tag,_,offset,length=struct.unpack_from('>4sIII',data,12+16*i);tables[tag.decode()]=(offset,length)
+          offset,_=tables['name'];_,count,storage=struct.unpack_from('>HHH',data,offset);names=[]
+          for i in range(count):
+              platform,encoding,lang,kind,n,pos=struct.unpack_from('>HHHHHH',data,offset+6+i*12)
+              if kind not in (1,2,4,6,16,17):continue
+              if platform!=3 or lang not in (0x409,0x412):continue
+              names.append({'kind':kind,'language':lang,'value':data[offset+storage+pos:offset+storage+pos+n].decode('utf-16-be')})
+          print('ACTUAL_KOREAN_FONT_NAMES',json.dumps(names,ensure_ascii=False))
+          if 'fvar' in tables:
+              offset,_=tables['fvar'];_,_,start,_,count,size,_,_=struct.unpack_from('>HHHHHHHH',data,offset)
+              axes=[]
+              for i in range(count):
+                  tag,minimum,default,maximum,flags,name=struct.unpack_from('>4siiiHH',data,offset+start+i*size)
+                  axes.append({'tag':tag.decode(),'minimum':minimum/65536,'default':default/65536,'maximum':maximum/65536})
+              print('ACTUAL_FONT_AXES',json.dumps(axes))
+          PY
