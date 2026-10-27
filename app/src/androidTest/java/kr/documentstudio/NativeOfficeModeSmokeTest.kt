@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.graphics.Rect
 import android.os.Build
 import android.os.Process
@@ -22,6 +23,7 @@ import kr.documentstudio.core.Format
 import kr.documentstudio.data.DocumentRepository
 import kr.documentstudio.data.Session
 import org.json.JSONObject
+import org.json.JSONTokener
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -135,12 +137,14 @@ class NativeOfficeModeSmokeTest {
             session.base.copyTo(File(evidence, "$label-input.${format.extension}"), overwrite = true)
             launch(working, session.id, session.name)
             visible("편집하기", 150_000); NativeUiActions.tap(device,context.packageName,"편집하기"); visible("보기로 전환", 20_000)
+            eval("(function(){window.__modeCommands=[];window.__modeResults=[];const send=app.socket.sendMessage.bind(app.socket);app.socket.sendMessage=function(message,...args){if(typeof message==='string'&&message.startsWith('uno '))window.__modeCommands.push(message);return send(message,...args);};app.map.on('commandresult',e=>window.__modeResults.push({command:e.commandName,success:e.success}));})()")
             when (format) {
                 Format.DOCX -> { NativeUiActions.tap(device,context.packageName,"문단"); NativeUiActions.tap(device,context.packageName,"쪽 나누기") }
                 Format.XLSX -> { NativeUiActions.tap(device,context.packageName,"셀"); NativeUiActions.tap(device,context.packageName,"열 삽입") }
                 Format.PPTX -> { NativeUiActions.tap(device,context.packageName,"더보기"); NativeUiActions.tap(device,context.packageName,"슬라이드 도구"); NativeUiActions.tap(device,context.packageName,"새 슬라이드") }
                 else -> error("Unexpected roundtrip format")
             }
+            visible("저장 후 닫기",20_000);commandEvidence(label)
             NativeUiActions.tap(device,context.packageName,"저장 후 닫기",20_000)
             assertTrue("Explicit save intent must survive native process exit",awaitClosed(working,session))
             assertTrue("Only successful native save may approve output", File(working.path + ".edited").isFile)
@@ -172,6 +176,7 @@ class NativeOfficeModeSmokeTest {
             record.put("result", "failed").put("error", failure.toString()); throw failure
         } finally {
             if (!completed) runCatching {
+                commandEvidence(label)
                 device.dumpWindowHierarchy(File(evidence, "$label-failure.xml"))
                 device.takeScreenshot(File(evidence, "$label-failure.png"))
                 if (working.isFile) working.copyTo(File(evidence, "$label-failure.${format.extension}"), overwrite = true)
@@ -345,6 +350,15 @@ class NativeOfficeModeSmokeTest {
                 }
             }
         }
+    }
+
+    private fun eval(script: String): String {
+        val uri=Uri.parse("content://${context.packageName}.officeprobe")
+        val raw=context.contentResolver.acquireUnstableContentProviderClient(uri).use {client->checkNotNull(client).call("eval",script,null)!!.getString("result")!!}
+        return JSONTokener(raw).nextValue().toString()
+    }
+    private fun commandEvidence(label: String) {
+        runCatching {File(evidence,"$label-command-state.json").writeText(eval("JSON.stringify({editing:app.map.isEditMode(),changed:window.studioOffice.changed,blocked:app.map.uiManager.isUIBlocked(),dialog:app.map.dialog.hasOpenedDialog(),jsDialog:app.map.jsdialog?.hasDialogOpened(),commands:window.__modeCommands||[],results:window.__modeResults||[],buttons:Array.from(document.querySelectorAll('#studio-office-actions button')).map(b=>({label:b.getAttribute('aria-label'),disabled:b.disabled,rect:b.getBoundingClientRect().toJSON()}))})"))}
     }
 
     private fun visible(text: String,timeout: Long=15_000): UiObject2 {

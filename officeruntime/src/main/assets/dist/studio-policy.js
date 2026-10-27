@@ -216,6 +216,7 @@
     if(clipboard&&!args&&map()._clip?.filterExecCopyPaste('.uno:'+name)) {map().focus(false);return;}
     if(name==='FontHeight'&&args?.['FontHeight.Height']&&typeof map().applyFontSize==='function')
       map().applyFontSize(String(args['FontHeight.Height'].value));
+    else if(!args&&window.app?.socket?.sendMessage) app.socket.sendMessage('uno .uno:'+name);
     else map().sendUnoCommand('.uno:'+name,args);
     map().focus(false);
   }
