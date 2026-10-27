@@ -16,8 +16,8 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_SHA: 68162595a70991ca43cdd39b4c456ac7255c3a29
-      VERIFIED_RUN: '40419770270'
+      VERIFIED_SHA: 4328146f0e0cc624d1dc41d262e6b649aea3dbc7
+      VERIFIED_RUN: '40424845558'
       PREVIEW_TAG: v0.8.4-preview
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +86,14 @@ jobs:
               assert {p.filename for p in z.infolist() if not p.is_dir()}==set(tracked)
               for path,blob in tracked.items():
                   data=z.read(path);assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==blob,path
-          notes=(delivery/'README.txt').read_text()+'\n실행 결과: '+json.dumps(result,ensure_ascii=False)+'\n'
+          units={key:sum(counts[key] for counts in result['unitTests'].values()) for key in ('tests','failures','errors','skipped')}
+          notes=(delivery/'README.txt').read_text()
+          notes+='\n실행 검증: Android '+str(result['androidTests']['tests'])+'건, 단위 '+str(units['tests'])+'건 — 실패·오류·건너뜀 0건.\n'
+          notes+='이름/MIME 조회 회귀: 동일 3건에서 수정 전 3건 실패 → 수정 후 3건 통과.\n'
+          notes+='실제 엔진 브라우저 7개 시나리오, JavaScript 22건, TypeScript·lint, HWP/HWPX 독립 저장 파서 검사 통과.\n'
+          notes+='설치·기존 0.8.3 APK/개인 데이터 보존·재설치 확인. 실제 ARM64 휴대폰 검증은 미완료.\n'
+          notes+='전체 결과·원본 해시·재열기 증거는 verification.zip에 포함했습니다.\n'
+          for item in apks:notes+='\n'+item['abi']+': '+str(item['bytes'])+' bytes, SHA-256 '+item['sha256']+'\n'
           notes+='\n빌드 커밋: '+sha+'\n태그 커밋: '+os.environ['GITHUB_SHA']+' (앱 코드 차이 없음; 배포 문서·CI만 추가)\n'
           notes+='문서 열기 수정 원인·검증: https://github.com/'+repo+'/blob/codex/hangul-mobile-editing/docs/DOCUMENT_OPEN_FIX.md\n'
           notes+='기능·검증·지원 제한: https://github.com/'+repo+'/blob/codex/hangul-mobile-editing/docs/HANGUL_MOBILE_EDITING.md\n'

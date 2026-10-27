@@ -171,3 +171,26 @@ jobs:
               elif p.name=='android-runtime.log' or p.name.endswith('-failure.txt') or p.name.endswith('-failure.xml'):
                   print('RETAINED_REPORT',p);print(p.read_text(errors='replace')[:30000])
           PY
+
+  validate-publication:
+    if: contains(github.event.head_commit.message, '[validate-publish]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate publication syntax and unchanged application source
+        run: |
+          python3 - <<'PY'
+          import ast,pathlib,re,subprocess,textwrap
+          source=pathlib.Path('.github/workflows/publish-mobile-preview.yml').read_text()
+          blocks=re.findall(r"(?m)^([ ]*)python3 - <<'PY'\n(.*?)^\1PY[ \t]*$",source,re.S)
+          assert len(blocks)==4,len(blocks)
+          for _,block in blocks:ast.parse(textwrap.dedent(block))
+          sha=re.search(r'^      VERIFIED_SHA: ([0-9a-f]{40})$',source,re.M).group(1)
+          subprocess.run(['git','merge-base','--is-ancestor',sha,'HEAD'],check=True)
+          paths=subprocess.check_output(['git','diff','--name-only',sha,'HEAD'],text=True).splitlines()
+          assert all(p=='README.md' or p.startswith(('docs/','.github/workflows/')) for p in paths),paths
+          print('PUBLICATION_PREFLIGHT_PASSED',sha,len(blocks),paths)
+          PY
