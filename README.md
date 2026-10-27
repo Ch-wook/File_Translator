@@ -12,7 +12,7 @@ Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하
 
 [ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.4-preview/document-studio-0.8.4-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.4-preview/document-studio-0.8.4-preview-source.zip) · [Release·해시·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.4-preview)
 
-0.8.4는 검증·배포 진행 중입니다. 새 Release에 실제 APK가 공개된 뒤 링크가 작동합니다. 휴대폰은 ARM64용을 사용합니다. x86_64 APK는 해당 아키텍처용입니다. 기존 서명키를 확보하지 못했으므로 별도 앱 **문서 스튜디오 열기 수정**(`kr.documentstudio.openpreview`)으로 제공합니다. 기존 앱·데이터를 지울 필요가 없습니다. 새 앱에서 파일 열기를 선택하세요. [기존 설치 실패 분석](docs/INSTALLATION_FIX.md) · [0.8.3의 모바일 편집 기능·부분 지원·미구현](docs/HANGUL_MOBILE_EDITING.md).
+0.8.4-preview APK·소스·검증 자료를 게시했으며, [배포 파일 9개의 공개 다운로드·해시 확인](docs/releases/0.8.4-preview-download-verification.json)을 완료했습니다. ARM64 APK는 약 399 MB입니다. 휴대폰은 ARM64용을 사용합니다. x86_64 APK는 해당 아키텍처용입니다. 기존 서명키를 확보하지 못했으므로 별도 앱 **문서 스튜디오 열기 수정**(`kr.documentstudio.openpreview`)으로 제공합니다. 기존 앱·데이터를 지울 필요가 없습니다. 새 앱에서 파일 열기를 선택하세요. [기존 설치 실패 분석](docs/INSTALLATION_FIX.md) · [0.8.3의 모바일 편집 기능·부분 지원·미구현](docs/HANGUL_MOBILE_EDITING.md).
 
 ## 휴대폰에서 사용하기
 
@@ -43,7 +43,7 @@ Android 10 이상, arm64-v8a/x86_64를 지원합니다. Office 엔진은 Android
 
 APK는 [GitHub Releases](https://github.com/Ch-wook/File_Translator/releases)에 실제 첨부된 파일로 제공합니다. 개발 서명이 기존 설치와 다르면 바로 업데이트되지 않으므로 기존 작업을 보존한 상태에서 확인하세요.
 
-이전 0.8.3-preview의 2026-10-26 검증 기록: Android 35 x86_64 21건, 단위 테스트 135건, JavaScript 22건, 실제 엔진 브라우저 7개 시나리오와 HWP/HWPX 독립 저장 파서 검사 통과. [실행 결과·저장 보존·설치 검증](docs/HANGUL_MOBILE_EDITING.md#실제-완료한-검증--2026-10-26)을 확인하세요. 실제 휴대폰 검증은 남아 있습니다.
+2026-10-27 최종 검증: Android 35 x86_64 **23건**, 단위 **143건**, 실패·오류·건너뜀 0건. JavaScript 22건, 실제 엔진 브라우저 7개 시나리오, HWP/HWPX 독립 저장 파서, 설치·기존 앱/데이터 보존과 저장 후 재열기 검사를 통과했습니다. [수정 파일·원인·실행 결과](docs/DOCUMENT_OPEN_FIX.md) · [공개 다운로드 검증](docs/releases/0.8.4-preview-download-verification.json). 실제 ARM64 휴대폰 검증은 미완료입니다.
 
 ## 빌드와 검증
 

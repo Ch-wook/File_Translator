@@ -65,7 +65,9 @@ x86_64 APK: 410,754,987 bytes, SHA-256 `cad44eedc7d433f7a902b875a442f925d02c2068
 
 개발 서명 인증서 SHA-256: `2b25d82e5ad45128702cfe8e7f60c72e92c01a958212a034cb15ba45b3f53755`. ARM64는 정적 패키지 검사를 수행했으며 실제 ARM64 휴대폰에 설치한 결과로 표시하지 않는다.
 
-Release 업로드와 공개 다운로드 확인은 이 문서 커밋 이후 진행한다. 태그 커밋은 배포 문서·워크플로 보완분이며 APK 빌드 커밋과 앱 코드가 같은지 별도로 검사한다. 초기 43개 HWP 원인 비교 진단은 [이전 진단 실행](https://github.com/Ch-wook/File_Translator/actions/runs/40417174770)이며 위 최신 검사의 개수에 합산하지 않는다.
+[0.8.4-preview Release](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.4-preview) 게시 완료. [배포 작업](https://github.com/Ch-wook/File_Translator/actions/runs/40426934736)이 성공했으며, APK 2개를 포함한 자산 9개를 인증 없이 다시 다운로드해 크기·SHA-256을 모두 대조했다. [파일별 공개 다운로드 확인 기록](releases/0.8.4-preview-download-verification.json).
+
+APK·소스 빌드 커밋은 `4328146f0e0cc624d1dc41d262e6b649aea3dbc7`, 태그 커밋은 `27075b5afc85feaaa5955576648907d9fc0bbc43`이다. 태그에는 문서·배포 자동화만 보완했고 앱 코드 차이가 없음을 배포 과정에서 검사했다. 소스 ZIP은 8,105,828 bytes, 변경 패치는 344,699 bytes, Git bundle은 8,335,077 bytes, 검증 ZIP은 3,917,469 bytes이다. 초기 43개 HWP 원인 비교 진단은 [이전 진단 실행](https://github.com/Ch-wook/File_Translator/actions/runs/40417174770)이며 위 최신 검사의 개수에 합산하지 않는다.
 
 ## 설치와 제한
 
