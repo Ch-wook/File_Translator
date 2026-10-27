@@ -12,6 +12,10 @@ Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하
 
 상단과 하단을 각각 한 줄로 줄이고, 상세 설정은 필요할 때 여는 패널로 옮겼습니다. HWP/HWPX·Office는 같은 도구·글꼴 컴포넌트를, PDF·TXT·Markdown은 같은 네이티브 컴포넌트를 사용합니다. HWP/HWPX 눈금자는 기본 숨김이며, 글꼴 검색·현재/최근 글꼴·미리보기와 선택 범위 보존을 개선했습니다. Office의 서식 인수 유실과 이전 검색 API 연결, 저장 알림의 하단 도구 가림도 수정했습니다. [실제 수정 파일·형식별 지원·검증·제한](docs/COMMON_MOBILE_UI_RESULTS.md).
 
+## 작업 문서
+
+[작업 보고서·인수인계](docs/WORK_REPORT_0.8.5-preview.md)에 수정 파일, 실패 원인, 실제 검증·미검증, 배포 커밋·해시와 후속 작업을 정리했습니다.
+
 ## 다운로드
 
 [휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-source.zip) · [Release·해시·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.5-preview)
