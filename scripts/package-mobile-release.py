@@ -76,7 +76,7 @@ assert install['cleanInstallWithoutTestFlag'] and install['coexistsWith084'] and
 mobile=json.loads((root/'artifacts/hangul-mobile/mobile-engine-results.json').read_text())
 assert {r['format'] for r in mobile}=={'hwp','hwpx'} and len(mobile)==2,mobile
 for r in mobile:
-    assert r['partialSelection'] and r['savedAndReopened'] and r['autosave'] and r['atomicPasteUndoRedo'],r
+    assert r['partialSelection'] and r['savedAndReopened'] and r['autosave'] and r['atomicPasteUndoRedo'] and r['pendingFormatSaved'],r
     assert r['structure']['mergeSplitCycles']==3 and all(v is True or k=='mergeSplitCycles' for k,v in r['structure'].items()),r
 old_browser=json.loads((root/'artifacts/document-engines/hangul-browser-results.json').read_text());assert len(old_browser)==5
 js=(ci/'javascript.log').read_text()

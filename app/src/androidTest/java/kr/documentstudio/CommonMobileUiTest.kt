@@ -29,13 +29,13 @@ class CommonMobileUiTest {
     }
     @Test fun textViewFontsKeepSelectionAndSavedBytes(){
         compose.runOnUiThread {compose.activity.getSharedPreferences("editor-display",0).edit().clear().commit();vm.create(Format.TXT)}
-        ready();compose.onNodeWithTag("edit-document").performClick()
+        ready();compose.onNodeWithTag("edit-document").performClick();compose.waitForIdle()
         compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.setText("선택 AB 유지")}
         compose.waitForIdle()
         val file=File(compose.activity.cacheDir,"tests/ui-${UUID.randomUUID()}.txt").apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}
         val uri=FileProvider.getUriForFile(compose.activity,compose.activity.packageName+".testfiles",file)
         compose.runOnUiThread {vm.save(uri)};ready()
-        val before=file.readBytes()
+        val before=file.readBytes();assertEquals("선택 AB 유지",file.readText())
         compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.setSelection(3,5)}
         compose.onNodeWithTag("mobile-editor-header").assertHeightIsEqualTo(48.dp)
         compose.onNodeWithTag("mobile-editor-dock").assertHeightIsEqualTo(48.dp)
@@ -51,7 +51,7 @@ class CommonMobileUiTest {
         assertEquals("선택 AB 유지",runBlocking {vm.repository.open(uri).edits.text})
     }
     @Test fun markdownToolsKeepScopeAndReopenAsMarkdownSyntax(){
-        compose.runOnUiThread {vm.create(Format.MD)};ready();compose.onNodeWithTag("edit-document").performClick()
+        compose.runOnUiThread {vm.create(Format.MD)};ready();compose.onNodeWithTag("edit-document").performClick();compose.waitForIdle()
         compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.apply {setText("선택 AB 유지");setSelection(3,5)}}
         compose.onNodeWithText("글자").performClick()
         compose.onNodeWithText("굵게").performScrollTo().performClick();compose.waitForIdle()
@@ -66,8 +66,9 @@ class CommonMobileUiTest {
     @Test fun pdfZoomChangesOnlyTheViewportAndKeepsTheExistingPageCanvas(){
         compose.runOnUiThread {vm.create(Format.PDF)};ready()
         compose.waitUntil(30000){var found=false;compose.runOnUiThread {found=find(compose.activity.window.decorView,PdfObjectCanvas::class.java)!=null};found}
-        compose.onNodeWithTag("edit-document").performClick()
+        compose.onNodeWithTag("edit-document").performClick();compose.waitForIdle()
         lateinit var canvas: PdfObjectCanvas;var width=0
+        val originalDirty=vm.state.value.session!!.dirty
         val hash=kr.documentstudio.data.DocumentRepository.digest(vm.state.value.session!!.base)
         compose.runOnUiThread {canvas=find(compose.activity.window.decorView,PdfObjectCanvas::class.java)!!;width=canvas.width}
         compose.onNodeWithText("더보기").performClick()
@@ -75,7 +76,7 @@ class CommonMobileUiTest {
         compose.waitUntil(10000){var wider=false;compose.runOnUiThread {wider=canvas.width>width};wider}
         compose.onNodeWithContentDescription("설정 닫기").performClick()
         compose.runOnUiThread {assertSame(canvas,find(compose.activity.window.decorView,PdfObjectCanvas::class.java))}
-        assertFalse(vm.state.value.session!!.dirty)
+        assertEquals(originalDirty,vm.state.value.session!!.dirty)
         assertEquals(hash,kr.documentstudio.data.DocumentRepository.digest(vm.state.value.session!!.base))
     }
 }

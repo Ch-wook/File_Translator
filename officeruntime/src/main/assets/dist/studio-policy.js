@@ -195,6 +195,7 @@
     };
     const permission=m.setPermission;
     m.setPermission=function(value,...args) {
+      if((value==='readonly'||value==='view')&&actions){try{flushSettings();}catch(error){UI.toast(error.message,true);return false;}}
       const viewport=modeTransition && validViewport(transitionViewport) ? transitionViewport : snapshot();
       const generation=beginModeTransition(viewport);traceRestore('begin-'+String(value).slice(0,20),viewport);
       const result=permission.call(this,value,...args);
@@ -226,8 +227,9 @@
     const b=document.createElement('button');b.type='button';b.className='studio-office-action';b.textContent=label;b.setAttribute('aria-label',label);UI.retain(b);b.onclick=()=>{if(!b.disabled){releaseViewportPin();run();update();}};parent.append(b);return b;
   }
   function add(item,parent=actions){const b=button(item.label,item.run,parent);if(item.name)b.dataset.command=item.name;controls.push({b,item});return b;}
-  function closeSheet(){picker?.dispose();picker=null;groupOpen=false;fontList=false;sheet.hidden=true;renderDock();refreshLayout();}
-  function openSheet(name){activeTab=name;groupOpen=true;fontList=false;render();}
+  function flushSettings(){return UI.flushFields(actions);}
+  function closeSheet(){try{flushSettings();}catch(error){UI.toast(error.message,true);return;}picker?.dispose();picker=null;groupOpen=false;fontList=false;sheet.hidden=true;renderDock();refreshLayout();}
+  function openSheet(name){try{flushSettings();}catch(error){UI.toast(error.message,true);return;}activeTab=name;groupOpen=true;fontList=false;render();}
   function currentContext(){if(objectSelected())return '그림';if(map()?.getDocType()==='spreadsheet')return '셀';if(/table|cell/i.test(contextName))return '표';if(map()?.getDocType()==='presentation')return '슬라이드';return '표';}
   function renderDock(){
     tabs.replaceChildren();const context=currentContext();
@@ -317,6 +319,14 @@
     // Resizing the chrome keeps the current native document camera.
     if(validViewport(view)&&!modeTransition)restore(view);
   }
+  async function saveAndClose(saveOriginal=true){
+    if(modeTransition)return;
+    try{
+      const changed=flushSettings();
+      if(changed&&!policy.changed){const end=Date.now()+3000;while(!policy.changed&&Date.now()<end)await new Promise(resolve=>setTimeout(resolve,40));}
+      persistViewport();window.postMobileMessage(saveOriginal?'DOCUMENT_STUDIO_SAVE_AND_CLOSE':'BYE');
+    }catch(error){UI.toast(String(error.message||error),true);}
+  }
   function mount(){
     const wrapper=document.getElementById('toolbar-wrapper');if(!wrapper||!UI)return false;
     document.documentElement.dataset.studioOfficeHost='true';wrapper.classList.add('studio-office-host');
@@ -327,7 +337,7 @@
     undoButton=UI.iconButton('studio-office-undo','실행 취소','undo',()=>{releaseViewportPin();uno('Undo');});
     redoButton=UI.iconButton('studio-office-redo','다시 실행','redo',()=>{releaseViewportPin();uno('Redo');});
     modeButton=document.createElement('button');modeButton.id='studio-office-edit';modeButton.className='studio-office-action';modeButton.textContent='편집하기';modeButton.onclick=()=>{map()._switchToEditMode();update();};UI.retain(modeButton);
-    saveButton=UI.iconButton('studio-office-save','저장 후 닫기','done',()=>{persistViewport();window.postMobileMessage('DOCUMENT_STUDIO_SAVE_AND_CLOSE');});
+    saveButton=UI.iconButton('studio-office-save','저장 후 닫기','done',()=>{void saveAndClose();});
     const more=UI.iconButton('studio-office-more','문서 메뉴','more');header.append(back,title,undoButton,redoButton,modeButton,saveButton,more);bar.append(header);
     modeLabel=document.createElement('span');modeLabel.id='studio-office-mode-label';hint=document.createElement('div');hint.id='studio-office-hint';hint.setAttribute('aria-live','polite');bar.append(modeLabel,hint);
     bottom=document.createElement('section');bottom.id='studio-office-bottom';bottom.setAttribute('aria-label','모바일 편집 도구');
@@ -343,7 +353,7 @@
       {label:map().uiManager?.isRulerVisible?.()?'눈금자 숨기기':'눈금자 표시',hidden:family!=='text',action:()=>{map().uiManager.toggleRuler();refreshLayout();}},
       {label:groupOpen?'도구 접기':'도구 펼치기',hidden:!editable(),action:()=>groupOpen?closeSheet():openSheet(activeTab)},
       {label:policy.changed?'수정됨 · 작업 복사본 보호 중':'수정 없이 원본 보기',disabled:true},
-      {label:'작업 화면으로 돌아가기',action:()=>{persistViewport();window.postMobileMessage('BYE');}}
+      {label:'작업 화면으로 돌아가기',action:()=>{void saveAndClose(false);}}
     ]);
     const family=map().getDocType();
     if(family==='text'&&map().uiManager?.isRulerVisible?.())map().uiManager.hideRuler();

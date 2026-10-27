@@ -87,7 +87,11 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   const structureTest=require('./hangul-mobile-structure.cjs');fs.writeFileSync(path.join(fixtures,'mobile-image.png'),structureTest.image);
   const structure=await structureTest({page,frame,call,context});
   await page.waitForFunction(()=>window.__writeCount>0,null,{timeout:20000});
-  await page.locator('#save').click();await page.waitForFunction(()=>window.__closed,null,{timeout:60000});
+  await call('find','나다');await call('char',{spacings:Array(7).fill(11)});
+  const openPanel=page.getByRole('button',{name:'설정 닫기',exact:true});if(await openPanel.isVisible())await openPanel.click();
+  await page.locator('#groups').getByRole('button',{name:'글자',exact:true}).click();
+  await page.evaluate(()=>{const input=document.querySelector('[aria-label="자간(%)"]');input.value='12';input.dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('save').click();});
+  await page.waitForFunction(()=>window.__closed,null,{timeout:60000});
   const exported=await page.evaluate(()=>({data:window.__saved,report:window.__report,saveOriginal:window.__saveOriginal}));
   assert.equal(exported.report.count,0);assert.equal(exported.saveOriginal,true);
   const bytes=Buffer.from(exported.data,'base64');fs.writeFileSync(path.join(fixtures,'mobile-formatting.'+format),bytes);
@@ -98,7 +102,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   await call('find','ABC');for(const key of ['fontSize','bold','textColor','ratios','spacings'])assert.deepEqual((await call('state')).char[key],outsideBefore[key],'Reopened unselected '+key+' remains');
   assert.deepEqual(errors,[]);assert.deepEqual(engineErrors,[]);assert.deepEqual(external,[]);
   await page.screenshot({path:path.join(out,'mobile-format-'+format+'.png'),fullPage:true});
-  results.push({format,phone:true,partialSelection:true,font,structure,combinedCharacterFormatting:true,spacingMetrics:{base,spaced,narrow},unselectedPreserved:true,clipboardRichAndPlain:true,atomicPasteUndoRedo:true,autosave:true,savedAndReopened:true,bytes:bytes.length});
+  results.push({format,phone:true,partialSelection:true,font,structure,combinedCharacterFormatting:true,spacingMetrics:{base,spaced,narrow},unselectedPreserved:true,clipboardRichAndPlain:true,atomicPasteUndoRedo:true,pendingFormatSaved:true,autosave:true,savedAndReopened:true,bytes:bytes.length});
   await context.close();
  }
  fs.writeFileSync(path.join(out,'mobile-engine-results.json'),JSON.stringify(results,null,2));console.log('MOBILE_ENGINE_RESULTS',JSON.stringify(results));

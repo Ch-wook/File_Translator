@@ -55,7 +55,7 @@ class NativeOfficeFontTest {
         var closed=false
         fun launch(id: String,name: String){context.startActivity(Intent().setClassName(context.packageName,"org.libreoffice.androidlib.StudioOfficeActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("sessionId",id).putExtra("workingPath",working.absolutePath).putExtra("displayName",name))}
         try {
-            device.wakeUp();launch(session.id,session.name)
+            device.wakeUp();device.executeShellCommand("am force-stop com.android.launcher3");launch(session.id,session.name)
             waitFor("Real Office host loads",150000){eval("window.studioOffice?.ready===true")=="true"}
             assertEquals("48",eval("document.getElementById('studio-office-header').getBoundingClientRect().height"))
             assertEquals("true",eval("document.getElementById('studio-office-bottom').hidden"))

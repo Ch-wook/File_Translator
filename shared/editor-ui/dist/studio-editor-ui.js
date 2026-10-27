@@ -40,7 +40,16 @@
  }search.oninput=draw;draw();return {search,dispose:()=>{disposed=true;observer?.disconnect();}};}
  let toastNode,timer;
  function toast(text,error=false){if(!toastNode){toastNode=document.createElement('div');toastNode.className='studio-ui-toast';toastNode.setAttribute('role','status');toastNode.setAttribute('aria-live','polite');document.body.append(toastNode);}clearTimeout(timer);toastNode.textContent=text;toastNode.dataset.error=String(error);toastNode.hidden=false;if(!error)timer=setTimeout(()=>toastNode.hidden=true,2600);}
- function field(parent,label,value,apply,{type='number',min,max,step='1'}={}){const wrap=document.createElement('label');wrap.textContent=label;const input=document.createElement('input');input.type=type;input.value=value??'';input.setAttribute('aria-label',label);if(min!==undefined)input.min=min;if(max!==undefined)input.max=max;input.step=step;let pending;
- const commit=()=>{clearTimeout(pending);if(!input.checkValidity())return;const v=type==='number'?Number(input.value):input.value;if(type==='number'&&!Number.isFinite(v))return;apply(v);};input.oninput=()=>{clearTimeout(pending);pending=setTimeout(commit,180);};input.onchange=commit;input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();commit();}};wrap.append(input);parent.append(wrap);return input;}
- global.StudioEditorUI={svg,retain,iconButton,dockButton,sheet,popup,fontPicker,toast,field};
+ function field(parent,label,value,apply,{type='number',min,max,step='1'}={}){
+ const wrap=document.createElement('label');wrap.textContent=label;const input=document.createElement('input');input.type=type;input.value=value??'';input.setAttribute('aria-label',label);if(min!==undefined)input.min=min;if(max!==undefined)input.max=max;input.step=step;let pending,modified=false;
+ const commit=()=>{clearTimeout(pending);if(!modified)return 0;
+   const v=type==='number'?Number(input.value):input.value;
+   if(!input.checkValidity()||(type==='number'&&!Number.isFinite(v))){input.setAttribute('aria-invalid','true');return -1;}
+   input.removeAttribute('aria-invalid');modified=false;apply(v);return 1;
+ };
+ input.studioCommit=commit;input.oninput=()=>{modified=true;clearTimeout(pending);pending=setTimeout(commit,180);};input.onchange=commit;input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();commit();}};wrap.append(input);parent.append(wrap);return input;
+ }
+ function flushFields(root){let changed=0;for(const input of root.querySelectorAll('input'))if(input.studioCommit){const result=input.studioCommit();if(result<0)throw new Error('입력한 서식 값의 범위를 확인하세요.');changed+=result;}return changed;}
+
+ global.StudioEditorUI={svg,retain,iconButton,dockButton,sheet,popup,fontPicker,toast,field,flushFields};
 })(window);

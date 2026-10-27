@@ -61,7 +61,7 @@ async function setEditing(value){
    try{await editor.setEditing(true);}catch(error){native.setEditing(false);throw error;}
    editing=true;message('편집 모드 · 문서 본문·표·그림을 직접 선택해 수정하세요.');
   }else{
-   await editor.finishInput();
+   await mobileUI.flush();await editor.finishInput();
    if(!await checkpoint())return;
    await editor.setEditing(false);
    if(!native.setEditing(false))throw new Error('보기 모드로 전환하지 못했습니다.');
@@ -78,7 +78,7 @@ async function close(saveOriginal){
  if(!ready){native.closeEditor(false);return;}
  if(pending||switching){message('현재 작업이 끝난 뒤 다시 선택하세요.');return;}
  try{
-  if(editing)await editor.finishInput();
+  if(editing){await mobileUI.flush();await editor.finishInput();}
   if(!await checkpoint())return;
   persistView();native.closeEditor(Boolean(saveOriginal&&edited));
  }catch(error){message(String(error.message||error),true);}
