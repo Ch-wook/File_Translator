@@ -6,34 +6,28 @@
   window.enableMacrosExecution = false;
   const style = document.createElement('style');
   style.textContent = `
-    #AIAssistant-tab-label, #AIAssistant-tab, [id*="aiassistant"], [id*="ai-assistant"] { display:none !important; }
-    html[data-studio-office-host] #document-container.readonly.mobile { position:relative !important; top:auto !important; min-height:0; }
-    #toolbar-wrapper.studio-office-host { display:flex !important; position:relative; z-index:20 !important; flex-shrink:0; }
-    #toolbar-wrapper.studio-office-host.readonly > :not(#studio-office-tools) { display:none !important; }
-    #studio-office-tools { position:relative; z-index:1; pointer-events:auto; --studio-accent:#2858a5; background:var(--color-background-lighter,#fff); color:var(--color-main-text,#243247); border-top:1px solid var(--color-border,#e3e8ef); font:13px system-ui,sans-serif; flex:none; }
-    #studio-office-tools[data-family="spreadsheet"] { --studio-accent:#217346; }
-    #studio-office-tools[data-family="presentation"] { --studio-accent:#b94d30; }
-    #studio-office-mode { display:flex; align-items:center; gap:4px; padding:3px 8px; }
-    #studio-office-mode button { min-height:44px; }
-    #studio-office-mode-label { font-weight:600; margin-inline-end:auto; }
-    #studio-office-tools[data-editing="false"] #studio-office-tabs,
-    #studio-office-tools[data-editing="false"] #studio-office-actions { display:none; }
-    #studio-office-tabs, #studio-office-actions { display:flex; align-items:center; gap:4px; overflow-x:auto; scrollbar-width:none; padding:3px 8px; }
-    #studio-office-tools button { flex:none; min-height:36px; border:0; border-radius:6px; padding:6px 11px; color:inherit; background:transparent; font:inherit; cursor:pointer; white-space:nowrap; }
-    #studio-office-tools button:hover { background:var(--color-background-dark,#edf1f7); }
-    #studio-office-tools button:focus-visible { outline:2px solid var(--studio-accent); outline-offset:-2px; }
-    #studio-office-tools button[aria-selected="true"], #studio-office-tools button[aria-pressed="true"] { color:var(--studio-accent); background:color-mix(in srgb,var(--studio-accent) 10%,transparent); font-weight:600; }
-    #studio-office-tools button:disabled { opacity:.38; cursor:default; }
-    #studio-office-hint { font-size:11px; padding:2px 14px 6px; opacity:.75; }
-    #studio-office-toggle { margin-inline-start:auto; }
-    #studio-office-tools[data-collapsed="true"] #studio-office-actions, #studio-office-tools[data-collapsed="true"] #studio-office-hint { display:none; }
-    @media(max-height:480px) { #studio-office-hint { display:none; } #studio-office-tools button { min-height:30px; } }
+    #AIAssistant-tab-label,#AIAssistant-tab,[id*="aiassistant"],[id*="ai-assistant"]{display:none!important}
+    html[data-studio-office-host] #toolbar-wrapper{display:flex!important;flex-direction:column;position:relative;z-index:30!important;flex:none;min-height:48px}
+    html[data-studio-office-host] #toolbar-row,html[data-studio-office-host] #document-titlebar,html[data-studio-office-host] #main-menu,html[data-studio-office-host] #toolbar-down,html[data-studio-office-host] #mobile-edit-button{display:none!important}
+    html[data-studio-office-host] #document-container.readonly.mobile{position:relative!important;top:auto!important;min-height:0}
+    #studio-office-tools{display:contents;--studio-accent:#2858a5;--studio-line:#dfe5ed;--studio-ink:#26364a;--studio-paper:#fff}
+    #studio-office-header{width:100%;color:#26364a;background:#fff}
+    #studio-office-bottom{display:flex;flex-direction:column;flex:none;z-index:30;min-height:0;background:#fff;padding-bottom:env(safe-area-inset-bottom)}
+    #studio-office-actions .studio-ui-fields{padding:4px 8px}
+    #studio-office-actions .studio-office-action{min-height:44px;min-width:44px;padding:5px 9px;margin:2px;border:0;border-radius:7px;background:#edf2f9;color:#26364a;font:12px system-ui}
+    #studio-office-actions .studio-office-action:disabled{opacity:.35}
+    #studio-office-actions .studio-office-action[aria-pressed=true]{background:#dbe7fc;color:#2858a5}
+    #studio-office-mode-label,#studio-office-hint{display:none!important}
+    #studio-office-sheet{max-height:min(38dvh,300px)}
+    html[data-studio-office-host] #toolbar-search{z-index:40}
+    @media(max-height:520px){#studio-office-sheet{max-height:min(32dvh,180px)}}
   `;
   document.head.appendChild(style);
   let attempts = 0;
-  let bar, actions, hint, tabs, modeButton, modeLabel, saveButton;
+  const UI=window.StudioEditorUI;
+  let bar,actions,hint,tabs,modeButton,modeLabel,saveButton,header,bottom,sheet,undoButton,redoButton,picker,groupOpen=false,fontList=false,contextName='',previousContext='';
   let transitionViewport, persistTimer, lastViewport='';
-  let activeTab = '홈';
+  let activeTab = '글자';
   let modeTransition=false, transitionGeneration=0, ownedNativeRestore=null;
   const restoreTrace=[];
   let heldViewport=null, initialViewportRestored=false;
@@ -160,7 +154,7 @@
     }
   }
   function cancelModeRestore(event) {
-    if(!event.isTrusted || bar?.contains(event.target)) return;
+    if(!event.isTrusted || bar?.contains(event.target) || header?.contains(event.target) || bottom?.contains(event.target)) return;
     releaseViewportPin();
     if(modeTransition) {
       ++transitionGeneration;modeTransition=false;update();
@@ -219,99 +213,143 @@
   function command(label, name, needsObject = false) {
     return { label, name, needsObject, run: () => uno(name) };
   }
-  function button(label, run, parent) {
-    const b = document.createElement('button');
-    b.type = 'button'; b.textContent = label; b.setAttribute('aria-label', label);
-    // Toolbar interactions retain the current document/cell/shape selection.
-    b.addEventListener('mousedown', e => e.preventDefault());
-    b.addEventListener('click', run); parent.appendChild(b); return b;
+  const bundledFonts={
+    'Noto Sans KR':'NotoSansKR.ttf','Caladea':'Caladea-Regular.ttf','Carlito':'Carlito-Regular.ttf',
+    'Gentium Basic':'GenBasR.ttf','Gentium Book Basic':'GenBkBasR.ttf',
+    'Liberation Mono':'LiberationMono-Regular.ttf','Liberation Sans':'LiberationSans-Regular.ttf',
+    'Liberation Sans Narrow':'LiberationSansNarrow-Regular.ttf','Liberation Serif':'LiberationSerif-Regular.ttf'
+  };
+  const fontFaces=new Map();
+  const state=name=>map()?.stateChangeHandler?.getItemValue('.uno:'+name);
+  const fonts=()=>Object.keys(map()?.getToolbarCommandValues?.('.uno:CharFontName')||{}).filter(name=>bundledFonts[name]);
+  function button(label,run,parent=actions){
+    const b=document.createElement('button');b.type='button';b.className='studio-office-action';b.textContent=label;b.setAttribute('aria-label',label);UI.retain(b);b.onclick=()=>{if(!b.disabled){releaseViewportPin();run();update();}};parent.append(b);return b;
   }
-  function update() {
-    if (!bar) return;
-    const editing = editable(), object = objectSelected();
-    bar.dataset.editing=String(editing);
+  function add(item,parent=actions){const b=button(item.label,item.run,parent);if(item.name)b.dataset.command=item.name;controls.push({b,item});return b;}
+  function closeSheet(){picker?.dispose();picker=null;groupOpen=false;fontList=false;sheet.hidden=true;renderDock();refreshLayout();}
+  function openSheet(name){activeTab=name;groupOpen=true;fontList=false;render();}
+  function currentContext(){if(objectSelected())return '그림';if(map()?.getDocType()==='spreadsheet')return '셀';if(/table|cell/i.test(contextName))return '표';if(map()?.getDocType()==='presentation')return '슬라이드';return '표';}
+  function renderDock(){
+    tabs.replaceChildren();const context=currentContext();
+    for(const [label,icon] of [['글자','char'],['문단','para'],[context,context==='그림'?'image':'table'],['삽입','insert'],['더보기','more']]){
+      const b=UI.dockButton(label,icon,()=>{if(groupOpen&&activeTab===label)closeSheet();else openSheet(label);});b.setAttribute('aria-selected',String(groupOpen&&activeTab===label));tabs.append(b);
+    }
+  }
+  function update(){
+    if(!bar)return;const editing=editable(),object=objectSelected();
+    bar.dataset.editing=String(editing);bottom.hidden=!editing;sheet.hidden=!editing||!groupOpen;
     modeLabel.textContent=editing?'편집 중':'원본 보기';
-    modeButton.textContent=editing?'보기로 전환':'편집하기';
-    modeButton.setAttribute('aria-label',modeButton.textContent);
-    modeButton.hidden=!policy.modeSupported || new URLSearchParams(location.search).get('permission')!=='edit';
-    saveButton.hidden=!policy.changed;
-    modeButton.disabled=modeTransition || !initialViewportRestored;saveButton.disabled=modeTransition;
-    controls.forEach(({ b, item }) => {
-      const state = item.name && map().stateChangeHandler && map().stateChangeHandler.getItemValue('.uno:' + item.name);
-      b.disabled = !editing || modeTransition || (item.needsObject && !object) || state === 'disabled';
-      if (state === 'true' || state === 'false') b.setAttribute('aria-pressed', state);
-      else b.removeAttribute('aria-pressed');
-    });
-    hint.textContent = !editing ? '원본 보기 · 편집하기를 선택하면 같은 문서에서 수정할 수 있습니다.' : activeTab === '개체'
-      ? (object ? '선택한 개체를 드래그해 이동 · 테두리 핸들로 크기 변경 · 위치·크기로 수치 지정' : '그림·도형·텍스트 상자를 눌러 선택하세요. 텍스트 입력 중이면 Esc로 빠져나오세요.')
-      : map().getDocType() === 'spreadsheet' ? '셀을 두 번 눌러 입력 · 선택 핸들로 범위 지정 · 행·열 경계를 끌어 크기 조절'
-      : map().getDocType() === 'presentation' ? '개체를 눌러 선택하고 드래그 · 텍스트는 두 번 눌러 편집'
-      : '본문을 눌러 입력 · 글자를 선택해 서식 변경 · 그림은 개체 탭에서 배치';
+    modeButton.textContent='편집하기';modeButton.setAttribute('aria-label','편집하기');
+    modeButton.hidden=editing||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit';
+    modeButton.disabled=modeTransition||!initialViewportRestored;
+    saveButton.hidden=!editing&&!policy.changed;saveButton.disabled=modeTransition;
+    undoButton.hidden=redoButton.hidden=!editing;
+    for(const {b,item}of controls){const value=item.name&&state(item.name);b.disabled=!editing||modeTransition||(item.needsObject&&!object)||value==='disabled';if(value==='true'||value==='false')b.setAttribute('aria-pressed',value);else b.removeAttribute('aria-pressed');}
+    undoButton.disabled=!editing||modeTransition||state('Undo')==='disabled';redoButton.disabled=!editing||modeTransition||state('Redo')==='disabled';
+    const back=header.querySelector('#studio-office-back');back.setAttribute('aria-label',editing?'보기로 전환':'돌아가기');back.disabled=modeTransition||!initialViewportRestored;
+    const input=actions.querySelector('[aria-label="크기(pt)"]');if(input&&document.activeElement!==input){const value=state('FontHeight');if(value&&Number.isFinite(Number(value)))input.value=value;}
+    const font=actions.querySelector('[data-current-font]');if(font){const name=state('CharFontName')||'문서 글꼴';font.textContent=name+' ▾';font.setAttribute('aria-label','글꼴 선택 · '+name);}
+    hint.textContent=editing?'편집 중':'원본 보기';
+    const context=currentContext();if(context!==previousContext){previousContext=context;if(groupOpen&&['그림','표','셀','슬라이드'].includes(activeTab))closeSheet();renderDock();}
   }
-  function render() {
-    actions.replaceChildren(); controls.length = 0;
-    tabs.querySelectorAll('[role="tab"]').forEach(b => b.setAttribute('aria-selected', String(b.textContent === activeTab)));
-    const family = map().getDocType();
-    let items;
-    if (activeTab === '홈') items = [command('실행 취소','Undo'), command('다시 실행','Redo'), command('잘라내기','Cut'), command('복사','Copy'), command('붙여넣기','Paste'), command('굵게','Bold'), command('기울임','Italic'), command('밑줄','Underline'), command('왼쪽 정렬','LeftPara'), command('가운데 정렬','CenterPara'), command('오른쪽 정렬','RightPara')];
-    else if (activeTab === '삽입') items = [
-      { label:'그림', run:() => document.getElementById('insertgraphic').click() },
-      command('텍스트 상자','Text'), command('사각형','BasicShapes.rectangle'), command('타원','BasicShapes.ellipse'),
-      ...(family === 'text' ? [command('표','InsertTable')] : []),
-      ...(family === 'presentation' ? [command('새 슬라이드','InsertPage')] : [])
-    ];
-    else if (activeTab === '문단') items = [command('글꼴','FontDialog'),command('문단','ParagraphDialog'),command('쪽 설정','PageDialog'),command('쪽 나누기','InsertPagebreak')];
-    else if (activeTab === '개체') items = [
-      { label:'선택·이동', run:() => { map()._docLayer.postKeyboardEvent('input',0,1280); map().focus(false); } },
-      ...(family === 'text' ? [{ label:'자유 배치', needsObject:true, run:() => { uno('SetAnchorToPara'); uno('WrapThrough'); } }] : []),
-      command('위치·크기','TransformDialog',true), command('맨 앞으로','BringToFront',true), command('맨 뒤로','SendToBack',true),
-      command('왼쪽 맞춤','ObjectAlignLeft',true), command('가운데 맞춤','AlignCenter',true), command('오른쪽 맞춤','ObjectAlignRight',true),
-      command('좌우 뒤집기','FlipHorizontal',true), command('상하 뒤집기','FlipVertical',true)
-    ];
-    else if (family === 'spreadsheet') items = [command('행 삽입','InsertRowsBefore'), command('열 삽입','InsertColumnsBefore'), command('셀 병합','MergeCells'), command('오름차순','SortAscending'), command('내림차순','SortDescending'), command('행 높이','RowHeight'), command('열 너비','ColumnWidth'),command('셀 서식','FormatCellDialog'),command('함수 마법사','FunctionDialog')];
-    else items = [command('새 슬라이드','InsertPage'), command('슬라이드 복제','DuplicatePage'), command('슬라이드 삭제','DeletePage')];
-    items.forEach(item => { const b=button(item.label, () => { if(!b.disabled) {releaseViewportPin();item.run();} update(); },actions); if(item.name) b.dataset.command=item.name; controls.push({b,item}); });
-    update(); refreshLayout();
+  function row(){const r=document.createElement('div');r.className='studio-ui-fields';actions.append(r);return r;}
+  function numeric(label,value,apply,options={}){const input=UI.field(row(),label,value,v=>{if(editable()&&!modeTransition){releaseViewportPin();apply(v);}},{min:1,max:4096,...options});input.disabled=!editable();return input;}
+  function palette(label,name,property=name){
+    const r=row(),text=document.createElement('span');text.textContent=label;r.append(text);
+    const apply=value=>uno(name,{[property]:{type:'long',value:parseInt(value.slice(1),16)}});
+    UI.field(r,label,'#000000',apply,{type:'color'});
+    for(const value of ['#000000','#e53935','#1e88e5','#43a047','#ffeb3b','#ffffff']){const b=button(label+' '+value,()=>apply(value),r);b.textContent='●';b.style.background=value;b.style.border='1px solid #ccd6e2';b.style.color=value==='#000000'?'white':'#26364a';}
   }
-  function mount() {
-    const wrapper = document.getElementById('toolbar-wrapper');
-    if (!wrapper) return false;
+  async function previewFont(name){
+    if(!bundledFonts[name]||typeof FontFace==='undefined')return false;
+    if(!fontFaces.has(name)){const face=new FontFace(name,'url("'+new URL('../unpack/user/fonts/'+bundledFonts[name],location.href).href+'")');fontFaces.set(name,face.load().then(loaded=>{document.fonts.add(loaded);return true;}));}
+    return fontFaces.get(name);
+  }
+  function render(){
+    if(!actions)return;const view=snapshot();picker?.dispose();picker=null;actions.replaceChildren();controls.length=0;renderDock();
+    sheet.querySelector('.studio-ui-sheet-head strong').textContent=fontList?'글꼴':activeTab;sheet.hidden=!groupOpen;
+    const family=map().getDocType(),items=[];
+    if(!groupOpen){update();refreshLayout();return;}
+    if(fontList){
+      const available=fonts();
+      picker=UI.fontPicker(actions,{fonts:available,current:state('CharFontName'),onPick:name=>{if(!editable()||modeTransition)return;uno('CharFontName',{'CharFontName.FamilyName':{type:'string',value:name}});fontList=false;render();},preview:previewFont,key:'studio-office-fonts',note:'실제 번들 글꼴 · 원래 글꼴이 없으면 대체 표시됩니다. 글꼴 변경은 선택 영역 또는 이후 입력에 적용됩니다.'});
+      update();refreshLayout();return;
+    }
+    if(activeTab==='글자'){
+      const font=button((state('CharFontName')||'문서 글꼴')+' ▾',()=>{fontList=true;render();});font.dataset.currentFont='true';font.setAttribute('aria-label','글꼴 선택 · '+(state('CharFontName')||'문서 글꼴'));
+      numeric('크기(pt)',Number(state('FontHeight'))||12,v=>uno('FontHeight',{'FontHeight.Height':{type:'float',value:v}}),{step:.5});
+      const sizes=row();for(const size of [8,9,10,11,12,14,16,18,20,24,28,32])button(String(size),()=>uno('FontHeight',{'FontHeight.Height':{type:'float',value:size}}),sizes);
+      for(const [label,name]of [['굵게','Bold'],['기울임','Italic'],['밑줄','Underline'],['취소선','Strikeout'],['위 첨자','SuperScript'],['아래 첨자','SubScript']])items.push(command(label,name));
+      items.forEach(item=>add(item));palette('글자색',family==='text'?'Color':'FontColor');
+      if(family==='text')palette('형광펜·글자 배경색','CharBackColor');
+      add(command('자간·장평·글자 위치','FontDialog'));add(command('선택 글자 서식 초기화','ResetAttributes'));
+    }else if(activeTab==='문단'){
+      for(const [label,name]of [['왼쪽 정렬','LeftPara'],['가운데 정렬','CenterPara'],['오른쪽 정렬','RightPara'],['양쪽 정렬','JustifyPara'],['글머리표','DefaultBullet'],['번호 매기기','DefaultNumbering'],['들여쓰기 증가','IncrementIndent'],['들여쓰기 감소','DecrementIndent'],['줄 간격·문단 간격·테두리','ParagraphDialog']])add(command(label,name));
+      if(family==='text')add(command('쪽 설정','PageDialog'));
+    }else if(activeTab==='표'){
+      for(const [label,name]of [['표 삽입','InsertTable'],['위에 행','InsertRowsBefore'],['아래에 행','InsertRowsAfter'],['왼쪽 열','InsertColumnsBefore'],['오른쪽 열','InsertColumnsAfter'],['행 삭제','DeleteRows'],['열 삭제','DeleteColumns'],['셀 병합','MergeCells'],['셀 나누기','SplitCell'],['표·셀 서식','TableDialog'],['행 높이','SetRowHeight'],['열 너비','SetColumnWidth'],['표 삭제','DeleteTable']])add(command(label,name));
+    }else if(activeTab==='셀'){
+      for(const [label,name]of [['행 삽입','InsertRowsBefore'],['열 삽입','InsertColumnsBefore'],['행 삭제','DeleteRows'],['열 삭제','DeleteColumns'],['셀 병합','MergeCells'],['행 높이','RowHeight'],['열 너비','ColumnWidth'],['셀 서식','FormatCellDialog'],['함수 마법사','FunctionDialog'],['오름차순','SortAscending'],['내림차순','SortDescending']])add(command(label,name));
+      palette('셀 배경색','BackgroundColor');
+    }else if(activeTab==='그림'||activeTab==='개체'){
+      add({label:'선택·이동',run:()=>{map()._docLayer.postKeyboardEvent('input',0,1280);map().focus(false);}});
+      if(family==='text')add({label:'자유 배치',needsObject:true,run:()=>{uno('SetAnchorToPara');uno('WrapThrough');}});
+      for(const [label,name]of [['위치·크기','TransformDialog'],['맨 앞으로','BringToFront'],['맨 뒤로','SendToBack'],['왼쪽 맞춤','ObjectAlignLeft'],['가운데 맞춤','AlignCenter'],['오른쪽 맞춤','ObjectAlignRight'],['좌우 뒤집기','FlipHorizontal'],['상하 뒤집기','FlipVertical']])add(command(label,name,true));
+    }else if(activeTab==='삽입'){
+      add({label:'그림 삽입',run:()=>document.getElementById('insertgraphic')?.click()});
+      for(const [label,name]of [['텍스트 상자','Text'],['사각형','BasicShapes.rectangle'],['타원','BasicShapes.ellipse'],['하이퍼링크','HyperlinkDialog'],['특수문자','InsertSymbol']])add(command(label,name));
+      if(family==='text')add(command('표 삽입','InsertTable'));
+      if(family==='presentation')add(command('새 슬라이드','InsertPage'));
+    }else if(activeTab==='슬라이드'){
+      for(const [label,name]of [['새 슬라이드','InsertPage'],['슬라이드 복제','DuplicatePage'],['슬라이드 삭제','DeletePage']])add(command(label,name));
+    }else{
+      for(const [label,name]of [['잘라내기','Cut'],['복사','Copy'],['붙여넣기','Paste'],['서식 없이 붙여넣기','PasteUnformatted'],['전체 선택','SelectAll'],['찾기·바꾸기','SearchDialog'],['글자 모양','FontDialog']])add(command(label,name));
+      button('개체',()=>openSheet('개체'));button('읽기 모드로 전환',()=>map().setPermission('readonly'));
+    }
+    update();refreshLayout();
+    // Resizing the chrome keeps the current native document camera.
+    if(validViewport(view)&&!modeTransition)restore(view);
+  }
+  function mount(){
+    const wrapper=document.getElementById('toolbar-wrapper');if(!wrapper||!UI)return false;
     document.documentElement.dataset.studioOfficeHost='true';wrapper.classList.add('studio-office-host');
-    bar = document.createElement('section'); bar.id='studio-office-tools'; bar.dataset.family=map().getDocType(); bar.setAttribute('aria-label','문서 편집 도구');
-    const mode=document.createElement('div');mode.id='studio-office-mode';
-    modeLabel=document.createElement('span');modeLabel.id='studio-office-mode-label';modeLabel.setAttribute('aria-live','polite');mode.appendChild(modeLabel);
-    modeButton=button('편집하기',()=>{
-      if(editable()) map().setPermission('readonly'); else map()._switchToEditMode();
-      update();refreshLayout();
-    },mode);
-    saveButton=button('저장 후 닫기',()=>{persistViewport();window.postMobileMessage('DOCUMENT_STUDIO_SAVE_AND_CLOSE');},mode);
-    button('돌아가기',()=>{persistViewport();window.postMobileMessage('BYE');},mode);
-    tabs=document.createElement('div'); tabs.id='studio-office-tabs'; tabs.setAttribute('role','tablist'); tabs.setAttribute('aria-label','편집 도구 탭');
-    actions=document.createElement('div'); actions.id='studio-office-actions'; actions.setAttribute('role','toolbar');
-    hint=document.createElement('div'); hint.id='studio-office-hint';
-    const names=['홈','삽입','개체']; if(map().getDocType()==='text') names.push('문단'); if(map().getDocType()==='spreadsheet') names.push('셀'); if(map().getDocType()==='presentation') names.push('슬라이드');
-    names.forEach(name => {const b=button(name,()=>{activeTab=name;bar.dataset.collapsed='false';render();},tabs);b.setAttribute('role','tab');});
-    const toggle=button('도구 접기',()=>{const collapsed=bar.dataset.collapsed!=='true';bar.dataset.collapsed=String(collapsed);toggle.textContent=collapsed?'도구 펼치기':'도구 접기';toggle.setAttribute('aria-label',toggle.textContent);toggle.setAttribute('aria-expanded',String(!collapsed));refreshLayout();},tabs);
-    toggle.id='studio-office-toggle';toggle.setAttribute('aria-expanded','true');
-    bar.append(mode,tabs,actions,hint);wrapper.appendChild(bar);
-    // Keep map touch/drag handlers from consuming host toolbar taps.
-    if(window.L?.DomEvent?.disableClickPropagation) L.DomEvent.disableClickPropagation(bar);
-    else for(const name of ['mousedown','touchstart','pointerdown','dblclick','contextmenu']) bar.addEventListener(name,event=>event.stopPropagation());
+    bar=document.createElement('section');bar.id='studio-office-tools';bar.dataset.family=map().getDocType();wrapper.append(bar);
+    header=document.createElement('header');header.className='studio-ui-header';header.id='studio-office-header';header.setAttribute('aria-label','문서');
+    const back=UI.iconButton('studio-office-back','돌아가기','back',()=>{if(editable())map().setPermission('readonly');else{persistViewport();window.postMobileMessage('BYE');}});
+    const title=document.createElement('strong');title.textContent=document.getElementById('document-name-input')?.value||'Office 문서';
+    undoButton=UI.iconButton('studio-office-undo','실행 취소','undo',()=>{releaseViewportPin();uno('Undo');});
+    redoButton=UI.iconButton('studio-office-redo','다시 실행','redo',()=>{releaseViewportPin();uno('Redo');});
+    modeButton=document.createElement('button');modeButton.id='studio-office-edit';modeButton.className='studio-office-action';modeButton.textContent='편집하기';modeButton.onclick=()=>{map()._switchToEditMode();update();};UI.retain(modeButton);
+    saveButton=UI.iconButton('studio-office-save','저장 후 닫기','done',()=>{persistViewport();window.postMobileMessage('DOCUMENT_STUDIO_SAVE_AND_CLOSE');});
+    const more=UI.iconButton('studio-office-more','더보기','more');header.append(back,title,undoButton,redoButton,modeButton,saveButton,more);bar.append(header);
+    modeLabel=document.createElement('span');modeLabel.id='studio-office-mode-label';hint=document.createElement('div');hint.id='studio-office-hint';hint.setAttribute('aria-live','polite');bar.append(modeLabel,hint);
+    bottom=document.createElement('section');bottom.id='studio-office-bottom';bottom.setAttribute('aria-label','모바일 편집 도구');
+    sheet=document.createElement('section');sheet.id='studio-office-sheet';sheet.hidden=true;UI.sheet(sheet,'글자',closeSheet);
+    actions=document.createElement('div');actions.id='studio-office-actions';actions.setAttribute('role','toolbar');sheet.append(actions);
+    tabs=document.createElement('div');tabs.id='studio-office-tabs';tabs.className='studio-ui-dock';tabs.setAttribute('role','toolbar');tabs.setAttribute('aria-label','편집 도구');bottom.append(sheet,tabs);
+    const lower=document.getElementById('toolbar-down');if(lower)lower.before(bottom);else document.body.append(bottom);
+    UI.popup(more,()=>[
+      {label:editable()?'읽기 모드로 전환':'편집하기',hidden:!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit',disabled:modeTransition||!initialViewportRestored,action:()=>editable()?map().setPermission('readonly'):map()._switchToEditMode()},
+      {label:'찾기·바꾸기',disabled:!editable(),action:()=>uno('SearchDialog')},
+      {label:'확대 '+Math.round((map().getZoomScale?.(map().getZoom(),10)||1)*100)+'%',action:()=>{releaseViewportPin();map().zoomIn?.();}},
+      {label:'축소',action:()=>{releaseViewportPin();map().zoomOut?.();}},
+      {label:map().uiManager?.isRulerVisible?.()?'눈금자 숨기기':'눈금자 표시',hidden:family!=='text',action:()=>{map().uiManager.toggleRuler();refreshLayout();}},
+      {label:groupOpen?'도구 접기':'도구 펼치기',hidden:!editable(),action:()=>groupOpen?closeSheet():openSheet(activeTab)},
+      {label:policy.changed?'수정됨 · 작업 복사본 보호 중':'수정 없이 원본 보기',disabled:true},
+      {label:'작업 화면으로 돌아가기',action:()=>{persistViewport();window.postMobileMessage('BYE');}}
+    ]);
+    const family=map().getDocType();
+    map().uiManager?.hideRuler?.();
+    for(const element of [bar,bottom]){
+      if(window.L?.DomEvent?.disableClickPropagation)L.DomEvent.disableClickPropagation(element);
+      else for(const name of ['mousedown','touchstart','pointerdown','dblclick','contextmenu'])element.addEventListener(name,event=>event.stopPropagation());
+    }
     policy.modeSupported=installModeGate();
-    if(!policy.modeSupported) {hint.textContent='이 엔진에서는 모드 전환을 지원하지 않습니다.';modeButton.hidden=true;}
-    map().on('commandstatechanged',event=>{
-      if(event.commandName==='.uno:ModifiedStatus' && String(event.state)==='true' && policy.wasAuthorized) policy.changed=true;
-      update();
-    });
-    app.events.on('updatepermission',()=>{update();refreshLayout();if(modeTransition) restore(transitionViewport,undefined,transitionGeneration);});
+    map().on('commandstatechanged',event=>{if(event.commandName==='.uno:ModifiedStatus'&&String(event.state)==='true'&&policy.wasAuthorized)policy.changed=true;update();});
+    app.events.on('contextchange',event=>{contextName=String(event.detail?.context||event.context||'');update();});
+    app.events.on('updatepermission',()=>{update();refreshLayout();if(modeTransition)restore(transitionViewport,undefined,transitionGeneration);});
     map().on('moveend zoomend updateparts',rememberViewport);
-    try {
-      const saved=JSON.parse(bridge()?.getStudioViewState?.() || '{}');
-      restore(saved,()=>{
-        if(validViewport(saved)) holdViewport(snapshot());
-        initialViewportRestored=true;update();persistViewport();
-      });
-    } catch(ignore) {initialViewportRestored=true;}
+    try{const saved=JSON.parse(bridge()?.getStudioViewState?.()||'{}');restore(saved,()=>{if(validViewport(saved))holdViewport(snapshot());initialViewportRestored=true;update();persistViewport();});}catch(ignore){initialViewportRestored=true;}
     render();policy.ready=true;return true;
   }
   const timer=setInterval(() => {

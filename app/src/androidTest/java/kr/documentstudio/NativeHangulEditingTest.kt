@@ -83,7 +83,7 @@ class NativeHangulEditingTest {
         ?: device.wait(Until.findObject(By.pkg(context.packageName).text(label)),5000)
         ?: error("Visible control missing: "+label)
     private fun revealControl(label: String) {
-        eval("(function(){const e=Array.from(document.querySelectorAll('button,input,select')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)throw new Error('Missing control');const p=document.getElementById('mobile-panel');if(p.contains(e)){const r=e.getBoundingClientRect(),b=p.getBoundingClientRect();p.scrollTop+=r.top-b.top-(p.clientHeight-r.height)/2;}else e.scrollIntoView({block:'nearest',inline:'center'});})()")
+        eval("(function(){const e=Array.from(document.querySelectorAll('button,input,select')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)throw new Error('Missing control');const p=document.getElementById('detail-sheet');if(p.contains(e)){const r=e.getBoundingClientRect(),b=p.getBoundingClientRect();p.scrollTop+=r.top-b.top-(p.clientHeight-r.height)/2;}else e.scrollIntoView({block:'nearest',inline:'center'});})()")
     }
     private fun tapVisibleControl(label: String) {
         revealControl(label)

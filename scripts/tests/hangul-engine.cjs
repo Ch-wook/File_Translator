@@ -74,7 +74,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
    assert.ok(Math.abs(beforeMode.scrollTop-afterMode.scrollTop)<=2,'VIEW to EDIT preserves scroll');
    assert.equal(beforeMode.zoom,afterMode.zoom,'VIEW to EDIT preserves zoom');
    box=await canvas.boundingBox();
-   if(phone) await page.touchscreen.tap(box.x+110*(box.width/794),box.y+100*(box.width/794)); else await page.mouse.click(box.x+110,box.y+100);
+   if(phone) await page.touchscreen.tap(box.x+110*(box.width/794),box.y+100*(box.width/794)); else await page.mouse.click(box.x+110*(box.width/794),box.y+100*(box.width/794));
    await page.keyboard.press('Control+Home');await page.keyboard.press('Home');await page.keyboard.press('Shift+End');
    await page.keyboard.insertText('PAGE_EDIT_CHANGED 한글 직접 편집');
    await frame.waitForFunction(()=>window.rhwpStudio.automation.getContext().canUndo);
@@ -82,7 +82,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
    await page.keyboard.press('Control+Shift+z');
    if(format==='hwpx' && !phone) {
     box=await canvas.boundingBox();
-    await page.mouse.click(box.x+145,box.y+184);
+    await page.mouse.click(box.x+145*(box.width/794),box.y+184*(box.width/794));
     assert.equal(await frame.evaluate(()=>window.rhwpStudio.automation.getContext().inTable),true,'Clicking the rendered table enters that cell');
     await page.keyboard.press('Home');await page.keyboard.press('Shift+End');await page.keyboard.insertText('CELL_CHANGED');
    }

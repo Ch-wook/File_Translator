@@ -102,6 +102,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
             "표"->if(s.format==Format.MD) {Tool("표 삽입"){textController.markdown("table")};Text("Markdown 표 구문을 삽입합니다. 셀 병합은 지원하지 않습니다.",style=MaterialTheme.typography.bodySmall)}
                 else Text("이 파일 형식은 표 구조 편집을 지원하지 않습니다.",style=MaterialTheme.typography.bodySmall)
             "그림"->if(s.format==Format.PDF) {Text("페이지에서 그림을 드래그해 이동하고 오른쪽 아래 핸들로 크기를 바꿉니다.",style=MaterialTheme.typography.bodySmall);Row {Tool("적용",pdfController.apply);Tool("취소",pdfController.cancel);Tool("이미지 삭제",pdfController.deleteImage)};DocumentTools(s,null,vm,busy,page,navigate,"삽입"){ocr=true}}
+            "페이지","주석","PDF 검색"->DocumentTools(s,null,vm,busy,page,navigate,if(panel=="PDF 검색")"보기" else panel!!){ocr=true}
             "삽입"->if(s.format==Format.PDF) DocumentTools(s,null,vm,busy,page,navigate,"삽입"){ocr=true}
                 else Row(Modifier.horizontalScroll(rememberScrollState())) {
                     if(s.format==Format.MD) {Tool("링크"){textController.markdown("link")};Tool("코드 블록"){textController.markdown("block")}}
@@ -117,10 +118,12 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                     Row {Tool("문서 맨 위"){textController.navigate(false)};Tool("문서 맨 아래"){textController.navigate(true)}}
                     if(s.format==Format.MD) Tool(if(preview)"원문 편집" else "미리보기"){preview=!preview;panel=null}
                     if(editing)Tool("저장 인코딩"){encoding=true}
+                    Tool("보기 글꼴·크기"){panel="글자"}
                 } else {
                     Row(verticalAlignment=Alignment.CenterVertically) {Tool("이전 페이지"){navigate(page-1)};Text("${page+1} / ${s.pdf!!.pages}");Tool("다음 페이지"){navigate(page+1)}}
                     Row(verticalAlignment=Alignment.CenterVertically) {Tool("축소"){pdfController.setZoom(pdfController.zoom-.25f)};Text("${(pdfController.zoom*100).toInt()}%");Tool("확대"){pdfController.setZoom(pdfController.zoom+.25f)};Tool("너비 맞춤"){pdfController.setZoom(1f)}}
-                    if(editing)DocumentTools(s,null,vm,busy,page,navigate,"편집"){ocr=true}
+                    Tool("PDF 검색"){panel="PDF 검색"}
+                    if(editing){Row{Tool("페이지 도구"){panel="페이지"};Tool("주석"){panel="주석"}};DocumentTools(s,null,vm,busy,page,navigate,"편집"){ocr=true}}
                 }
                 if(editing)Tool("문자 인식"){ocr=true}
                 Text(if(s.dirty)"수정됨 · 원본과 분리된 작업 복사본에 자동 저장" else "저장됨",style=MaterialTheme.typography.bodySmall)

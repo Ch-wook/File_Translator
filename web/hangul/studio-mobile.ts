@@ -113,7 +113,16 @@ export function createStudioMobile(env:Env) {
    ih.applyParaPropsAtCursor(mods);return result();
  }
  function fonts() {
-   return [...new Set(FONT_RULE_WEBFONT_ENTRIES.filter(f=>!/^https?:|^data:/.test(f.file)&&!/(Cafe24|Happiness)/i.test(f.file)).map(f=>f.name))].sort();
+   // Legacy compatibility aliases (e.g. 맑은 고딕 -> Pretendard) remain in
+   // the renderer, but the picker must use the name of the actual supplied face.
+   const localNames:Record<string,string>={'나눔고딕':'NanumGothic','나눔명조':'NanumMyeongjo','나눔고딕코딩':'NanumGothicCoding','나눔고딕_코딩':'NanumGothicCoding','고운돋움':'GowunDodum','고운바탕':'GowunBatang'};
+   const normalize=(s:string)=>s.replace(/[^a-z0-9]/gi,'').toLowerCase();
+   return [...new Set(FONT_RULE_WEBFONT_ENTRIES.filter(f=>{
+     if(/^https?:|^data:/.test(f.file)||/(Cafe24|Happiness)/i.test(f.file))return false;
+     const supplied=normalize(f.file.split('/').pop()!.replace(/\.(woff2?|ttf|otf)$/i,''));
+     const family=normalize(localNames[f.name]||f.name);
+     return family.length>2&&(supplied===family||supplied===family+'regular');
+   }).map(f=>f.name))].sort();
  }
  async function previewFont(name:string) {
    if(!fonts().includes(name))throw new Error('제공되지 않는 글꼴입니다.');

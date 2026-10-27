@@ -34,7 +34,12 @@ android {
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     lint { disable += "ExpiredTargetSdkVersion" }
 }
-tasks.named("preBuild") { dependsOn(prepareEngine) }
+val prepareStudioFonts by tasks.registering(Copy::class) {
+    dependsOn(prepareEngine)
+    from(rootProject.file("app/src/main/assets/fonts/NotoSansKR.ttf"))
+    into(runtimeDir.dir("assets/unpack/user/fonts"))
+}
+tasks.named("preBuild") { dependsOn(prepareStudioFonts) }
 dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
