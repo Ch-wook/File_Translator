@@ -155,7 +155,7 @@ test('shared font picker uses native available faces and sends font-only UNO pro
  const s=workspace();try{
  const filtered=[];s.w.app.map._clip={filterExecCopyPaste:command=>{filtered.push(command);return true;}};
  const sizes=[];s.w.app.map.applyFontSize=value=>sizes.push(value);
- s.click('편집하기');s.click('글자');s.click('글꼴 선택 · 문서 글꼴');
+ s.click('편집하기');s.click('글자');s.click('글꼴 선택');
  const options=[...s.w.document.querySelectorAll('[role=option]')];assert.deepEqual(options.map(b=>b.getAttribute('aria-label')),['Android Available Font','Liberation Sans','Noto Sans KR']);
  const search=s.w.document.querySelector('[aria-label="글꼴 검색"]');search.value='Noto';search.dispatchEvent(new s.w.Event('input'));
  assert.equal(s.w.document.querySelectorAll('[role=option]').length,1);

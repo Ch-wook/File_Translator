@@ -262,8 +262,8 @@
     for(const {b,item}of controls){const value=item.name&&state(item.name);b.disabled=!editing||modeTransition||(item.needsObject&&!object)||value==='disabled';if(value==='true'||value==='false')b.setAttribute('aria-pressed',value);else b.removeAttribute('aria-pressed');}
     undoButton.disabled=!editing||modeTransition||state('Undo')==='disabled';redoButton.disabled=!editing||modeTransition||state('Redo')==='disabled';
     const back=header.querySelector('#studio-office-back');back.setAttribute('aria-label',editing?'보기로 전환':'돌아가기');back.disabled=modeTransition||!initialViewportRestored;
-    const input=actions.querySelector('[aria-label="크기(pt)"]');if(input&&document.activeElement!==input){const value=state('FontHeight');if(value&&Number.isFinite(Number(value)))input.value=value;}
-    const font=actions.querySelector('[data-current-font]');if(font){const name=state('CharFontName')||'문서 글꼴';font.textContent=name+(fonts().includes(name)?'':' · 대체 표시')+' ▾';font.setAttribute('aria-label','글꼴 선택 · '+name);}
+    const input=actions.querySelector('[aria-label="크기(pt)"]');if(input&&document.activeElement!==input){const value=state('FontHeight');if(value!==undefined&&Number.isFinite(Number(value))){input.value=Number(value)>0?value:'';input.placeholder=Number(value)>0?'':'혼합';}}
+    const font=actions.querySelector('[data-current-font]');if(font){const name=state('CharFontName')===undefined?'문서 글꼴':state('CharFontName')||'혼합 글꼴';font.textContent=name+(fonts().includes(name)?'':' · 대체 표시')+' ▾';font.setAttribute('aria-label','글꼴 선택');font.setAttribute('aria-description','현재 글꼴: '+name);}
     hint.textContent=editing?'편집 중':'원본 보기';
     const signature=JSON.stringify([map().getNumberOfParts?.(),map().getCurrentPartNumber?.(),map()._docLayer?._partNames]);
     if(signature!==partsSignature){partsSignature=signature;if(groupOpen&&activeTab==='시트'){render();return;}}
@@ -299,8 +299,8 @@
       q.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();find(false);}};
       update();refreshLayout();return;
     }else if(activeTab==='글자'||activeTab==='서식'){
-      const font=button((state('CharFontName')||'문서 글꼴')+' ▾',()=>{fontList=true;render();});font.dataset.currentFont='true';font.setAttribute('aria-label','글꼴 선택 · '+(state('CharFontName')||'문서 글꼴'));
-      numeric('크기(pt)',Number(state('FontHeight'))||12,v=>uno('FontHeight',{'FontHeight.Height':{type:'float',value:v}}),{step:.5});
+      const font=button((state('CharFontName')||'문서 글꼴')+' ▾',()=>{fontList=true;render();});font.dataset.currentFont='true';font.setAttribute('aria-label','글꼴 선택');font.setAttribute('aria-description','현재 글꼴: '+(state('CharFontName')||'혼합 글꼴'));
+      numeric('크기(pt)',state('FontHeight')!==undefined&&Number(state('FontHeight'))<=0?'':Number(state('FontHeight'))||12,v=>uno('FontHeight',{'FontHeight.Height':{type:'float',value:v}}),{step:.5});
       const sizes=row();for(const size of [8,9,10,11,12,14,16,18,20,24,28,32])button(String(size),()=>uno('FontHeight',{'FontHeight.Height':{type:'float',value:size}}),sizes);
       for(const [label,name]of [['굵게','Bold'],['기울임','Italic'],['밑줄','Underline'],['취소선','Strikeout'],['위 첨자','SuperScript'],['아래 첨자','SubScript']])items.push(command(label,name));
       items.forEach(item=>add(item));palette('글자색',family==='text'?'Color':'FontColor');

@@ -76,7 +76,7 @@ class NativeOfficeFontTest {
             val originalSize=eval("app.map.stateChangeHandler.getItemValue('.uno:FontHeight')")
             selectText(target)
             tap("글자")
-            val label=eval("document.querySelector('[data-current-font]').getAttribute('aria-label')")
+            val label="글꼴 선택"
             tap(label)
             val catalog=eval("JSON.stringify(Object.keys(app.map.getToolbarCommandValues('.uno:CharFontName')||{}))")
             File(out,"available-fonts.json").writeText(catalog)
@@ -200,7 +200,7 @@ class NativeOfficeFontTest {
             (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Calc replacement","7"))
             tap("시트");tap("더보기");tap("붙여넣기");SystemClock.sleep(400)
             tap("설정 닫기");go("A1");waitFor("Real paste changes the native cell"){eval("app.map._docLayer._lastFormula")=="7"}
-            tap("서식");tap(eval("document.querySelector('[data-current-font]').getAttribute('aria-label')"));tap("NanumGothic");tap("18");tap("굵게")
+            tap("서식");tap("글꼴 선택");tap("NanumGothic");tap("18");tap("굵게")
             tap("수식");tap("전체 다시 계산")
             tap("시트");tap("새 시트")
             waitFor("Native sheet insertion is acknowledged"){eval("app.map._docLayer._partNames?.length===2")=="true"}
@@ -222,7 +222,7 @@ class NativeOfficeFontTest {
             if(working.isFile)working.copyTo(File(out,"calc-failure.xlsx"),true)
             throw error
         } finally {
-            if(!closed)device.executeShellCommand("am force-stop ${context.packageName}")
+            if(!closed)device.executeShellCommand("pidof ${context.packageName}:office").trim().split(Regex("\\s+")).mapNotNull {it.toIntOrNull()}.filter {it!=android.os.Process.myPid()}.forEach {android.os.Process.killProcess(it)}
         }
     }
 

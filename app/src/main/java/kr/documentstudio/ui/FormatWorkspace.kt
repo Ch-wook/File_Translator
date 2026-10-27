@@ -80,6 +80,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                 Text(run?.let {"현재 글꼴: ${it.font}"} ?: "페이지의 본문을 눌러 편집합니다.",style=MaterialTheme.typography.bodySmall)
                 Text("PDF 기존 본문은 원본 글꼴로 편집합니다. 글꼴·크기·자간·장평 변경은 지원하지 않습니다.",style=MaterialTheme.typography.bodySmall)
                 Row {Tool("적용",pdfController.apply);Tool("취소",pdfController.cancel)}
+                DocumentTools(s,null,vm,busy,page,navigate,"편집"){ocr=true}
             } else {
               Text("보기 설정 · TXT·Markdown 파일에는 글꼴·크기·색상 서식이 저장되지 않습니다.",style=MaterialTheme.typography.bodySmall)
               if(fontList) {

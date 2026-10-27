@@ -123,8 +123,15 @@ class NativeOfficeModeSmokeTest {
                         assertEquals("Native column insertion must shift A1 to B1", token, cells["B1"])
                         assertNotEquals(token, cells["A1"])
                     }
-                    Format.PPTX -> assertEquals("Native slide insertion must create a second slide",
-                        2, kr.documentstudio.core.PackageDocument.open(file).sections.size)
+                    Format.PPTX -> {
+                        assertEquals("Native slide insertion must create a second slide",2,kr.documentstudio.core.PackageDocument.open(file).sections.size)
+                        val slide=kr.documentstudio.core.Xml.parse(zip.getInputStream(zip.getEntry("ppt/slides/slide1.xml")).use {it.readBytes()})
+                        val runs=kr.documentstudio.core.Xml.elements(slide,"r")
+                        val selected=runs.firstOrNull {r->kr.documentstudio.core.Xml.elements(r,"t").any {it.textContent.contains(token)}} ?: error("Edited slide text is missing")
+                        val props=kr.documentstudio.core.Xml.elements(selected,"rPr").single()
+                        assertEquals("1800",props.getAttribute("sz"));assertEquals("1",props.getAttribute("b"))
+                        assertTrue("The native font is stored on the original slide",kr.documentstudio.core.Xml.elements(props,"latin").any {it.getAttribute("typeface")=="NanumGothic"}||kr.documentstudio.core.Xml.elements(props,"ea").any {it.getAttribute("typeface")=="NanumGothic"})
+                    }
                     else -> error("Unexpected roundtrip format")
                 }
             }
@@ -141,7 +148,13 @@ class NativeOfficeModeSmokeTest {
             when (format) {
                 Format.DOCX -> { tap("문단"); tap("쪽 나누기") }
                 Format.XLSX -> { tap("셀"); tap("열 삽입") }
-                Format.PPTX -> { tap("더보기"); tap("슬라이드 도구"); tap("새 슬라이드") }
+                Format.PPTX -> {
+                    eval("(function(){window.__slideSearch=null;app.map.on('search',e=>window.__slideSearch={phrase:e.originalPhrase,count:e.count});app.searchService.search("+JSONObject.quote(token)+",false);})()")
+                    await("Native slide text is selected before formatting"){eval("window.__slideSearch?.count===1")=="true"}
+                    tap("글자");tap("글꼴 선택");tap("NanumGothic");tap("18")
+                    if(eval("app.map.stateChangeHandler.getItemValue('.uno:Bold')")!="true")tap("굵게")
+                    tap("설정 닫기");tap("슬라이드");tap("새 슬라이드")
+                }
                 else -> error("Unexpected roundtrip format")
             }
             val expectedCommand=when(format){Format.DOCX->"InsertPagebreak";Format.XLSX->"InsertColumnsBefore";Format.PPTX->"InsertPage";else->error("Unexpected native format")}

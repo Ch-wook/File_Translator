@@ -26,3 +26,10 @@ test('font pick keeps selection state and recent ordering without adding unavail
   const input=s.panel.querySelector('input');input.value='맑은 고딕';input.dispatchEvent(new s.w.Event('input'));assert.deepEqual(s.options(),[]);
  }finally{s.d.window.close();}
 });
+
+test('clearing numeric settings cannot apply zero or erase unrelated document formatting',()=>{
+ const s=picker();try{const values=[],input=s.w.StudioEditorUI.field(s.panel,'크기(pt)',12,v=>values.push(v),{min:1,max:4096});
+  input.value='';input.dispatchEvent(new s.w.Event('input'));assert.equal(input.studioCommit(),-1);assert.deepEqual(values,[]);
+  input.value='18';input.dispatchEvent(new s.w.Event('input'));assert.equal(input.studioCommit(),1);assert.deepEqual(values,[18]);
+ }finally{s.d.window.close();}
+});

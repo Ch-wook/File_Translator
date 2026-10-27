@@ -4,7 +4,7 @@ import hashlib,json,os,pathlib,re,shutil,struct,subprocess,urllib.request,zipfil
 root=pathlib.Path.cwd();out=root/'artifacts/delivery';out.mkdir(parents=True,exist_ok=True)
 ci=root/'artifacts/ci';ci.mkdir(parents=True,exist_ok=True)
 tools=pathlib.Path(os.environ['ANDROID_HOME'])/'build-tools/35.0.0'
-name='document-studio-0.8.5-preview';pkg='kr.documentstudio.compactpreview';sha=os.environ['GITHUB_SHA']
+name='document-studio-0.8.6-preview';pkg='kr.documentstudio.editorspreview';sha=os.environ['GITHUB_SHA']
 def digest(path):
     with path.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
 def elf_alignments(z,entry):
@@ -29,7 +29,7 @@ for abi in ('arm64-v8a','x86_64'):
     (ci/(abi+'-manifest.txt')).write_text(manifest)
     xml=subprocess.check_output([str(tools/'aapt2'),'dump','xmltree',str(apk),'--file','AndroidManifest.xml'],text=True)
     (ci/(abi+'-manifest-tree.txt')).write_text(xml)
-    assert "name='"+pkg+"'" in manifest and "versionCode='15'" in manifest and "versionName='0.8.5-preview'" in manifest
+    assert "name='"+pkg+"'" in manifest and "versionCode='16'" in manifest and "versionName='0.8.6-preview'" in manifest
     assert 'testOnly' not in xml and 'KoreanImeFixture' not in xml,xml
     permissions=subprocess.check_output([str(tools/'aapt2'),'dump','permissions',str(apk)],text=True)
     assert 'android.permission.INTERNET' not in permissions
@@ -53,16 +53,30 @@ for abi in ('arm64-v8a','x86_64'):
             if shared.is_file():
                 assert z.read('assets/dist/'+shared.name)==shared.read_bytes()
                 assert z.read('assets/hangul/'+shared.name)==shared.read_bytes()
+        font_manifest=json.loads((root/'config/studio-fonts.json').read_text())
+        checked_fonts=[]
+        for family in font_manifest['families']:
+            for item in family['files']:
+                filename=item['filename']
+                folder='font-licenses' if filename.endswith('.txt') else 'fonts'
+                data=(root/'.engine-cache/studio-fonts/assets'/folder/filename).read_bytes()
+                assert len(data)==item['size'] and hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==item['gitBlob']
+                assert z.read('assets/'+folder+'/'+filename)==data
+                if folder=='fonts':
+                    assert z.read('assets/unpack/user/fonts/'+filename)==data
+                    checked_fonts.append(dict(family=family['family'],file=filename,sha256=hashlib.sha256(data).hexdigest()))
+        assert len(checked_fonts)==15
+        (ci/('bundled-fonts-'+abi+'.json')).write_text(json.dumps(checked_fonts,indent=2))
         assert z.read('assets/unpack/user/fonts/NotoSansKR.ttf')==(root/'app/src/main/assets/fonts/NotoSansKR.ttf').read_bytes()
         assert z.read('assets/dist/studio-policy.js')==(root/'officeruntime/src/main/assets/dist/studio-policy.js').read_bytes()
     filename=name+'-'+abi+'.apk';shutil.copy2(apk,out/filename)
-    apks.append({'file':filename,'applicationId':pkg,'versionCode':15,'versionName':'0.8.5-preview','abi':abi,'bytes':apk.stat().st_size,
+    apks.append({'file':filename,'applicationId':pkg,'versionCode':16,'versionName':'0.8.6-preview','abi':abi,'bytes':apk.stat().st_size,
                  'sha256':digest(apk),'certificateSHA256':cert[0],'elf16k':True,'testOnly':False})
 assert apks[0]['certificateSHA256']==apks[1]['certificateSHA256']
 # Refuse a future incompatible update to this preview identity.
 with urllib.request.urlopen('https://api.github.com/repos/Ch-wook/File_Translator/releases?per_page=50',timeout=60) as response: releases=json.load(response)
 for release in releases:
-    if release['draft'] or release['tag_name']=='v0.8.5-preview':continue
+    if release['draft'] or release['tag_name']=='v0.8.6-preview':continue
     for asset in release.get('assets',[]):
         if not asset['name'].endswith('-apk-metadata.json'):continue
         with urllib.request.urlopen(asset['browser_download_url'],timeout=60) as response: previous=json.load(response)
@@ -70,9 +84,9 @@ for release in releases:
             if old['applicationId']==pkg:
                 assert old['certificateSHA256']==apks[0]['certificateSHA256'],'Signing key differs from an existing preview. Configure the original secure STUDIO_KEYSTORE; do not publish an incompatible update.'
 android=json.loads((ci/'android-summary.json').read_text())
-assert os.environ['EMULATOR_OUTCOME']=='success' and android=={'tests':27,'failures':0,'errors':0,'skipped':0},android
+assert os.environ['EMULATOR_OUTCOME']=='success' and android=={'tests':39,'failures':0,'errors':0,'skipped':0},android
 install=json.loads((root/'artifacts/mobile-install/summary.json').read_text())
-assert install['cleanInstallWithoutTestFlag'] and install['coexistsWith084'] and install['priorApkHashUnchanged'] and install['priorPrivateDataPreserved'] and install['sameSignerReinstallPreservedPrivateData']
+assert install['cleanInstallWithoutTestFlag'] and install['coexistsWith085'] and install['priorApkHashUnchanged'] and install['priorPrivateDataPreserved'] and install['sameSignerReinstallPreservedPrivateData']
 mobile=json.loads((root/'artifacts/hangul-mobile/mobile-engine-results.json').read_text())
 assert {r['format'] for r in mobile}=={'hwp','hwpx'} and len(mobile)==2,mobile
 for r in mobile:
@@ -81,7 +95,7 @@ for r in mobile:
 old_browser=json.loads((root/'artifacts/document-engines/hangul-browser-results.json').read_text());assert len(old_browser)==5
 js=(ci/'javascript.log').read_text()
 js_counts={key:int(value) for key,value in re.findall(r'^(?:#|ℹ)\s+(tests|pass|fail|cancelled|skipped)\s+(\d+)\s*$',js,re.M)}
-assert js_counts=={'tests':20,'pass':20,'fail':0,'cancelled':0,'skipped':0},(js_counts,js)
+assert js_counts=={'tests':25,'pass':25,'fail':0,'cancelled':0,'skipped':0},(js_counts,js)
 assert 'MOBILE_INDEPENDENT_ROUND_TRIP' in (ci/'roundtrip.log').read_text()
 regression=json.loads((ci/'open-regression/summary.json').read_text())
 assert regression=={'before':{'tests':3,'failures':3,'errors':0,'skipped':0},'after':{'tests':3,'failures':0,'errors':0,'skipped':0}},regression
@@ -109,7 +123,7 @@ with zipfile.ZipFile(out/(name+'-source.zip')) as z:
     for path,blob in tracked.items():
         data=z.read(path);assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==blob,path
 with (out/(name+'-changes.patch')).open('wb') as f:
-    subprocess.run(['git','diff','--binary','244b94507d8bda5dbf248877f17ed88b745035f2','HEAD'],stdout=f,check=True)
+    subprocess.run(['git','diff','--binary','f660e477a830b09f5f584a29a1ccc9b06d18b08c','HEAD'],stdout=f,check=True)
 subprocess.run(['git','apply','--check','--reverse',str(out/(name+'-changes.patch'))],check=True)
 subprocess.run(['git','bundle','create',str(out/(name+'-history.bundle')),'--all'],check=True)
 subprocess.run(['git','bundle','verify',str(out/(name+'-history.bundle'))],check=True)
@@ -120,17 +134,41 @@ for sample in layout:
     assert sample['closed']['#engine']['height']==sample['viewport']['height']-96
 font_result=json.loads((root/'artifacts/native-android/native-office-font/summary.json').read_text())
 assert all(font_result[k] is True for k in ['selectedNativeFont','independentSizeAndColor','unselectedPreserved','nativeSaved','parserReopened','engineReopened','originalProtected'])
+assert font_result['independentBoldItalicUnderline'] is True and font_result['bundledFamilies']==6
+calc_result=json.loads((root/'artifacts/native-android/native-office-font/calc-summary.json').read_text())
+assert calc_result['nativeFormulaResults']==15 and all(calc_result[k] is True for k in ['nativePaste','nativeCellFontBoldSize','nativeNewSheet','providerSaved','parserReopened','engineReopened','originalProtected']),calc_result
 metadata={'commit':sha,'physicalDeviceTested':False,'apks':apks}
 (out/(name+'-apk-metadata.json')).write_text(json.dumps(metadata,indent=2))
 (ci/'apk-engine-assets.json').write_text(json.dumps(engine_assets,indent=2))
-summary={'commit':sha,'version':'0.8.5-preview','applicationId':pkg,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],
-         'androidTests':android,'unitTests':reports,'installation':install,'mobileEngineTests':mobile,'originalBrowserScenarios':len(old_browser),'javascriptTests':20,'independentPartialFormattingParser':True,'physicalDeviceTested':False,'apks':apks}
+summary={'commit':sha,'version':'0.8.6-preview','applicationId':pkg,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],
+         'androidTests':android,'unitTests':reports,'installation':install,'mobileEngineTests':mobile,'originalBrowserScenarios':len(old_browser),'javascriptTests':25,'independentPartialFormattingParser':True,'physicalDeviceTested':False,'nativeCalc':calc_result,'additionalBundledFontFamilies':6,'apks':apks}
 (ci/'summary.json').write_text(json.dumps(summary,indent=2))
 with zipfile.ZipFile(out/(name+'-verification.zip'),'w',zipfile.ZIP_DEFLATED) as z:
     for folder in ('artifacts/open-fixtures','artifacts/ci','artifacts/mobile-install','artifacts/hangul-mobile','artifacts/mobile-ui','artifacts/native-android','artifacts/document-engines',
                    'core/build/test-results','officeruntime/build/test-results','app/build/test-results','app/build/outputs/androidTest-results','app/build/reports','core/build/visual-fixtures'):
         for p in (root/folder).rglob('*'):
             if p.is_file():z.write(p,p.relative_to(root))
-(out/'README.txt').write_text("문서 스튜디오 모바일 UI 0.8.5-preview\n\n휴대폰: document-studio-0.8.5-preview-arm64-v8a.apk\nx86_64 APK는 해당 아키텍처와 에뮬레이터용입니다. Android 10+ 64비트, Office는 Android 11+입니다.\n\n기존 앱의 서명키가 없어 별도 프리뷰 ID kr.documentstudio.compactpreview로 제공합니다. 기존 0.8.4 앱과 문서를 삭제하지 마세요. 새 프로젝트가 아니라 동일 저장소와 문서 엔진을 개선한 빌드입니다. 앱 이름은 문서 스튜디오 모바일 UI입니다.\n\n상단 48px 한 줄과 하단 48px 한 줄, 닫을 수 있는 상세 패널, 실제 글꼴 검색·미리보기·최근 목록을 적용했습니다. HWP/HWPX, DOC/DOCX, XLS/XLSX, PPT/PPTX, PDF, TXT, Markdown에 형식별 기능을 연결했습니다. 지원하지 않는 HTML 편집기는 추가하지 않았습니다.\n\nHWP/HWPX 자간·장평은 실제 서식으로 저장합니다. Office 고급 자간·장평은 네이티브 글자 모양 대화상자를 사용합니다. TXT/Markdown의 보기 글꼴은 파일 서식이 아닙니다. PDF 기존 본문은 원래 글꼴을 보존하며 글꼴 교체·문단 재배치는 지원하지 않습니다. 이미지 자르기·교체 등 확인하지 않은 고급 개체 기능은 추가하지 않았습니다.\n\nAndroid 35 x86_64 에뮬레이터에서 설치·기존 앱 보존·27개 기기 테스트·저장 재열기를 검증합니다. 실제 ARM64 휴대폰, 삼성/Gboard 키보드는 미검증입니다. ARM64 APK는 서명·패키지·ELF·자산 무결성 검사를 수행합니다. 자세한 결과와 제한은 소스의 docs/COMMON_MOBILE_UI_RESULTS.md 및 verification.zip을 확인하세요.\n\n개발 서명 프리뷰입니다. 이전 미푸시 0.8.0 원본 복구본이 아닙니다.\n\n빌드 커밋: "+sha+'\n')
+(out/'README.txt').write_text("""문서 스튜디오 편집 개선 0.8.6-preview
+
+휴대폰: document-studio-0.8.6-preview-arm64-v8a.apk
+x86_64 APK는 해당 아키텍처와 에뮬레이터용입니다. Android 10+ 64비트, Office는 Android 11+입니다.
+
+기존 서명키가 없어 별도 프리뷰 ID kr.documentstudio.editorspreview로 제공합니다. 기존 0.8.5 앱과 문서를 삭제하지 마세요. 같은 프로젝트의 개선 빌드이며 앱 이름은 '문서 스튜디오 편집 개선'입니다. 기존 앱의 비공개 작업 복구본은 자동 이관하지 않습니다. 기존 앱에서 다른 이름으로 저장한 문서를 새 앱에서 열 수 있습니다.
+
+나눔고딕(NanumGothic)·나눔명조(NanumMyeongjo)·고운돋움·고운바탕·Lato·Cousine의 실제 글꼴 파일과 OFL 라이선스를 추가했습니다. 엔진이 실제 제공하는 글꼴만 목록에 표시합니다. 검색·미리보기·최근·즐겨찾기를 제공합니다. 맑은 고딕·Arial 등 별도 배포 권한이 없는 글꼴을 포함한 것으로 표시하지 않습니다.
+
+파일별 하단 도구를 나누고 상단/하단을 각각 48px 한 줄로 유지합니다. Excel 셀·수식·시트, PowerPoint 슬라이드·도형·이미지, PDF 선택·주석·텍스트·페이지, Markdown 문법·미리보기, TXT 편집·찾기·보기 설정으로 접근합니다. 상세 설정은 필요할 때만 엽니다.
+
+TXT·Markdown 글꼴은 화면 표시 설정이며 파일 서식이 아닙니다. Markdown 굵게·기울임·취소선의 해제, 제목 1~6, 목록 전환·번호, 이미지 링크·구분선은 실제 원문 문법으로 저장합니다. TXT 찾기·바꾸기, 줄 번호·자동 줄바꿈·통계를 보완했습니다. PDF 기존 글꼴 교체·문단 재배치와 검증하지 않은 고급 편집을 지원한다고 표시하지 않습니다.
+
+원본과 작업 복사본을 분리합니다. 자동 저장은 작업 복구본 보존이며 외부 원본 저장 완료와 다릅니다. 원본 반영은 저장 동작과 성공 확인이 필요합니다.
+
+Android 35 x86_64 에뮬레이터에서 39개 테스트와 기존 앱 보존 설치·동일 APK 재설치를 검증합니다. Word 선택 서식의 독립 적용, Excel 실제 붙여넣기·15개 수식 결과·셀 서식·새 시트, PowerPoint 슬라이드 추가와 텍스트 서식, PDF 주석·이미지·필기, Markdown·TXT 저장과 재열기를 포함합니다. HWP/HWPX는 실제 브라우저 엔진, 독립 파서, Android 입력 테스트를 수행합니다.
+
+실제 ARM64 휴대폰과 삼성/Gboard 키보드는 미검증입니다. ARM64 APK는 빌드·서명·패키지·16KiB ELF/ZIP 정렬·자산 검사를 수행합니다. 모든 고급 기능이나 모든 기존 문서의 무손실 저장을 보장한 결과가 아닙니다. 상세 범위는 docs/EDITOR_COMPLETION_RESULTS.md와 verification.zip을 확인하세요.
+
+개발 서명 프리뷰입니다. 이전 미푸시 0.8.0 원본 복구본이 아닙니다.
+
+빌드 커밋: """+sha+'\n')
 (out/'SHA256SUMS').write_text(''.join(digest(p)+'  '+p.name+'\n' for p in sorted(out.iterdir()) if p.is_file()))
 print('MOBILE_RELEASE_VERIFIED',json.dumps(summary),flush=True)

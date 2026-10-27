@@ -56,7 +56,7 @@ class NativeEditorController {
     fun capture(){editor?.let {range=it.selectionStart.coerceAtLeast(0) to it.selectionEnd.coerceAtLeast(0)}}
     fun restore(){editor?.let {v->range?.let {(a,b)->v.setSelection(a.coerceIn(0,v.length()),b.coerceIn(0,v.length()))}}}
     fun focus(){restore();editor?.let {v->if(v.keyListener!=null){v.requestFocus();(v.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showSoftInput(v,android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)}}}
-    fun clipboard(id: Int){restore();editor?.let {it.onTextContextMenuItem(id);capture()}}
+    fun clipboard(id: Int){restore();editor?.let {it.onTextContextMenuItem(if(id==android.R.id.paste)android.R.id.pasteAsPlainText else id);capture()}}
     fun select(start: Int,end: Int){editor?.let {v->v.setSelection(start.coerceIn(0,v.length()),end.coerceIn(0,v.length()));v.bringPointIntoView(v.selectionStart);capture()}}
     fun replace(value: String,start: Int,end: Int){editor?.let {v->
         val old=v.text.toString();var first=0
