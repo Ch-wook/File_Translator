@@ -91,3 +91,25 @@
 - 실제 검증·배포: `CommonMobileUiTest.kt`, `NativeOfficeFontTest.kt`, `NativeUiActions.kt`, 기존 Android 회귀 테스트의 UI 접근 경로, `scripts/tests/mobile-ui-layout.cjs`, `hangul-mobile*.cjs`, `office-workspace.test.cjs`, `scripts/run-android-mode-tests.sh`, `package-mobile-release.py`, `test-mobile-installation.py`, 관련 CI. 전체 목록은 아래 비교 링크에 있다.
 
 [0.8.4 기준과 검증한 변경 전체 비교](https://github.com/Ch-wook/File_Translator/compare/63944c500c5437e478f235598158159a36d99428...10ab10e01e027c35af3083e5d22a9e14b02c4f50).
+
+
+## 실제 Android 화면
+
+<details>
+<summary>HWPX·DOCX·TXT 검증 화면 보기</summary>
+
+Android 35 x86_64 에뮬레이터에서 위 빌드로 수집한 원본 화면이다. HWPX 아래쪽의 IME는 조합 검증용 테스트 서비스이며 배포 APK에 포함되지 않는다. [출처](screenshots/0.8.5-evidence.json).
+
+HWPX 한국어 입력·표 셀 선택:
+
+<img src="screenshots/0.8.5-hwpx-android.png" width="300" alt="Android HWPX 한국어 입력과 표 셀 선택"/>
+
+DOCX 선택 부분의 글꼴·18pt·빨간색과 인접 글자 보존:
+
+<img src="screenshots/0.8.5-docx-android.png" width="300" alt="Android Writer 부분 서식과 한 줄 도구"/>
+
+TXT 보기 글꼴·크기 패널(원문 서식이 아닌 보기 설정):
+
+<img src="screenshots/0.8.5-txt-android.png" width="300" alt="Android TXT 공통 도구와 보기 글꼴 패널"/>
+
+</details>
