@@ -157,12 +157,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 40419770270 --repo Ch-wook/File_Translator --name mobile-release-logs-68162595a70991ca43cdd39b4c456ac7255c3a29 --dir retained
+          gh run download 40423000942 --repo Ch-wook/File_Translator --name mobile-release-logs-62784feb0246ec5f72eeb181fd3cb04b7ec12c9f --dir retained
           python3 - <<'PY'
           import pathlib
           for p in pathlib.Path('retained').rglob('*'):
               if not p.is_file():continue
-              if p.name=='android-runtime.log' or (p.suffix=='.xml' and 'androidTest-results' in str(p)):
-                  print('RETAINED_REPORT',p)
-                  print(p.read_text()[:28000])
+              if p.name=='android-all-processes.log':
+                  lines=p.read_text(errors='replace').splitlines()
+                  selected=[(i,line) for i,line in enumerate(lines) if any(key.lower() in line.lower() for key in
+                      ('kr.documentstudio','lmkd','am_kill','am_anr','am_crash','fatal signal','Fatal Exception','ANR in','Force stopping','Killing','out of memory','excessive'))]
+                  print('PROCESS_EVENTS',p)
+                  for i,line in selected[-550:]:print(i,line)
+              elif p.name=='android-runtime.log' or p.name.endswith('-failure.txt') or p.name.endswith('-failure.xml'):
+                  print('RETAINED_REPORT',p);print(p.read_text(errors='replace')[:30000])
           PY
