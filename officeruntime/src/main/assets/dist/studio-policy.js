@@ -36,6 +36,7 @@
   const map = () => window.app && app.map;
   const objectSelected = () => typeof GraphicSelection !== 'undefined' && GraphicSelection.hasActiveSelection();
   const editable = () => Boolean(policy.authorized && map() && map().isEditMode());
+  const searchService=()=>typeof window.app?.searchService?.search==='function'?app.searchService:typeof map()?.search==='function'?map():null;
   function refreshLayout() {
     // The pinned Writer/Impress map no longer exposes Leaflet invalidateSize.
     const layout=window.app?.activeDocument?.activeLayout;
@@ -286,7 +287,7 @@
     }
     if(activeTab==='찾기'){
       const r=row(),q=document.createElement('input');q.type='search';q.setAttribute('aria-label','찾을 내용');q.placeholder='찾을 내용';r.append(q);
-      const find=backwards=>{if(q.value&&typeof map().search==='function'){releaseViewportPin();map().search(q.value,backwards);}};
+      const find=backwards=>{if(q.value&&searchService()){releaseViewportPin();searchService().search(q.value,backwards);}};
       button('이전 결과',()=>find(true));button('다음 결과',()=>find(false));
       q.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();find(false);}};
       update();refreshLayout();return;
@@ -354,7 +355,7 @@
     const lower=document.getElementById('toolbar-down');if(lower)lower.before(bottom);else document.body.append(bottom);
     UI.popup(more,()=>[
       {label:editable()?'읽기 모드로 전환':'편집하기',hidden:!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit',disabled:modeTransition||!initialViewportRestored,action:()=>editable()?map().setPermission('readonly'):map()._switchToEditMode()},
-      {label:editable()?'찾기·바꾸기':'찾기',disabled:!editable()&&typeof map().search!=='function',action:()=>editable()?uno('SearchDialog'):openSheet('찾기')},
+      {label:editable()?'찾기·바꾸기':'찾기',disabled:!editable()&&!searchService(),action:()=>editable()?uno('SearchDialog'):openSheet('찾기')},
       {label:'확대 '+Math.round((map().getZoomScale?.(map().getZoom(),10)||1)*100)+'%',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(map().getZoom()+1);}},
       {label:'축소',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(Math.max(0,map().getZoom()-1));}},
       {label:map().uiManager?.isRulerVisible?.()?'눈금자 숨기기':'눈금자 표시',hidden:family!=='text',action:()=>{map().uiManager.toggleRuler();refreshLayout();}},

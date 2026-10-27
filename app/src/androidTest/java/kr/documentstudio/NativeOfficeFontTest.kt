@@ -44,6 +44,13 @@ class NativeOfficeFontTest {
         waitFor("Visible Office tool: $label"){device.findObject(By.pkg(context.packageName).desc(label).enabled(true))!=null||device.findObject(By.pkg(context.packageName).text(label).enabled(true))!=null}
         (device.findObject(By.pkg(context.packageName).desc(label).enabled(true))?:device.findObject(By.pkg(context.packageName).text(label).enabled(true)))!!.click()
     }
+    private fun selectText(value: String) {
+        eval("(function(){if(!window.__searchProbeInstalled){window.__searchProbeInstalled=true;app.map.on('search',e=>window.__nativeSearch={phrase:e.originalPhrase,count:e.count});}window.__nativeSearch=null;app.searchService.search("+JSONObject.quote(value)+",false);})()")
+        waitFor("Native Writer finds exactly the requested text: $value"){
+            eval("window.__nativeSearch?.phrase==="+JSONObject.quote(value)+" && window.__nativeSearch.count===1")=="true"
+        }
+        SystemClock.sleep(250)
+    }
     @Test fun partialFontSizeAndColorSurviveNativeSaveWithoutChangingAdjacentText()=runBlocking {
         val repo=DocumentRepository(context);var seed=repo.create(Format.DOCX)
         val text="KEEP_LEFT 선택TARGET KEEP_RIGHT";val target="선택TARGET"
@@ -63,11 +70,11 @@ class NativeOfficeFontTest {
             assertEquals("48",eval("document.getElementById('studio-office-header').getBoundingClientRect().height"))
             assertEquals("true",eval("document.getElementById('studio-office-bottom').hidden"))
             tap("편집하기");waitFor("Explicit edit mode settles"){eval("app.map.isEditMode() && !document.getElementById('studio-office-back').disabled")=="true"}
-            eval("(function(){window.__fontCommands=[];const send=app.socket.sendMessage.bind(app.socket);app.socket.sendMessage=function(message,...args){if(typeof message==='string'&&/^uno \\.uno:(FontHeight|CharFontName|Color)/.test(message))window.__fontCommands.push(message);return send(message,...args);};})()")
-            eval("app.map.search('KEEP_LEFT',false)");SystemClock.sleep(800)
+            eval("(function(){window.__fontCommands=[];const send=app.socket.sendMessage.bind(app.socket);app.socket.sendMessage=function(message,...args){if(typeof message==='string'&&/^uno \\.uno:(FontHeight|CharFontName|Color|ExecuteSearch)/.test(message))window.__fontCommands.push(message);return send(message,...args);};})()")
+            selectText("KEEP_LEFT")
             val originalFont=eval("app.map.stateChangeHandler.getItemValue('.uno:CharFontName')")
             val originalSize=eval("app.map.stateChangeHandler.getItemValue('.uno:FontHeight')")
-            eval("app.map.search("+JSONObject.quote(target)+",false)");SystemClock.sleep(800)
+            selectText(target)
             tap("글자")
             val label=eval("document.querySelector('[data-current-font]').getAttribute('aria-label')")
             tap(label)
@@ -80,7 +87,9 @@ class NativeOfficeFontTest {
             tap("18");waitFor("Selected text changes size"){eval("Number(app.map.stateChangeHandler.getItemValue('.uno:FontHeight'))")=="18"}
             tap("굵게");tap("글자색 #e53935")
             tap("설정 닫기")
-            eval("app.map.search('KEEP_LEFT',false)");SystemClock.sleep(800)
+            device.takeScreenshot(File(out,"formatted-target.png"))
+            selectText("KEEP_LEFT")
+            waitFor("Unselected text restores its original native font and size"){eval("app.map.stateChangeHandler.getItemValue('.uno:CharFontName')")==originalFont && eval("app.map.stateChangeHandler.getItemValue('.uno:FontHeight')")==originalSize}
             assertEquals(originalFont,eval("app.map.stateChangeHandler.getItemValue('.uno:CharFontName')"))
             assertEquals(originalSize,eval("app.map.stateChangeHandler.getItemValue('.uno:FontHeight')"))
             device.takeScreenshot(File(out,"docx-compact-font.png"))
@@ -113,7 +122,7 @@ class NativeOfficeFontTest {
             assertFalse(repo.completeOfficeClose(reopened));closed=true
             File(out,"summary.json").writeText(JSONObject().put("selectedNativeFont",true).put("font",selectedFont).put("independentSizeAndColor",true).put("unselectedPreserved",true).put("nativeSaved",true).put("parserReopened",true).put("engineReopened",true).put("originalProtected",true).put("physicalDeviceTested",false).toString(2))
         } catch(error: Throwable){
-            runCatching {File(out,"ui-state.json").writeText(eval("JSON.stringify({font:app.map.stateChangeHandler.getItemValue('.uno:CharFontName'),height:app.map.stateChangeHandler.getItemValue('.uno:FontHeight'),editing:app.map.isEditMode(),authorized:window.studioOffice.authorized,commands:window.__fontCommands||[],buttons:Array.from(document.querySelectorAll('#studio-office-actions button')).map(b=>({label:b.getAttribute('aria-label'),disabled:b.disabled,rect:b.getBoundingClientRect().toJSON()}))})"))}
+            runCatching {File(out,"ui-state.json").writeText(eval("JSON.stringify({font:app.map.stateChangeHandler.getItemValue('.uno:CharFontName'),height:app.map.stateChangeHandler.getItemValue('.uno:FontHeight'),editing:app.map.isEditMode(),authorized:window.studioOffice.authorized,commands:window.__fontCommands||[],search:window.__nativeSearch,searchTerm:app.map._docLayer._searchTerm,searchFunction:String(app.map.search),buttons:Array.from(document.querySelectorAll('#studio-office-actions button')).map(b=>({label:b.getAttribute('aria-label'),disabled:b.disabled,rect:b.getBoundingClientRect().toJSON()}))})"))}
             runCatching {device.takeScreenshot(File(out,"failure.png"));device.dumpWindowHierarchy(File(out,"failure.xml"));File(out,"failure.txt").writeText(error.stackTraceToString())};throw error
         } finally {if(!closed)runCatching {context.contentResolver.acquireUnstableContentProviderClient(probe).use {it?.call("close",null,null)}}}
     }

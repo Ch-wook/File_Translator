@@ -179,7 +179,14 @@ test('mode changes do not mark content modified, actual changes expose save afte
  }finally{s.close();}
 });
 test('reading close persists viewport without exporting or saving the original',()=>{
- const s=workspace();try{s.click('돌아가기');assert.deepEqual(s.mobile,['BYE']);assert.equal(s.persisted.length,1);assert.deepEqual(s.persisted[0],s.viewport());assert.equal(s.commands.length,0);}finally{s.close();}
+ const s=workspace();try{
+ const searches=[];s.w.app.searchService={search:(...args)=>searches.push(args)};
+ s.w.app.map.search=()=>{throw new Error('Legacy map.search must not consume native search');};
+ s.click('문서 메뉴');s.click('찾기');
+ const input=s.w.document.querySelector('[aria-label="찾을 내용"]');input.value='선택';
+ s.click('다음 결과');s.click('이전 결과');assert.deepEqual(searches,[['선택',false],['선택',true]]);
+ s.click('설정 닫기');s.click('돌아가기');assert.deepEqual(s.mobile,['BYE']);assert.equal(s.persisted.length,1);assert.deepEqual(s.persisted[0],s.viewport());assert.equal(s.commands.length,0);
+ }finally{s.close();}
 });
 test('native caret restoration remains pinned until actual document input releases it',()=>{
  const s=workspace();try{
