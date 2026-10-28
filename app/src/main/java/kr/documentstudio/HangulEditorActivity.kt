@@ -139,9 +139,9 @@ class HangulEditorActivity: ComponentActivity() {
             val file=AtomicFile(File(filesDir,"signatures.json"));val out=file.startWrite()
             try{out.write(value.toByteArray());file.finishWrite(out)}catch(e:Exception){file.failWrite(out);throw e};true
         }.getOrDefault(false)
-        @JavascriptInterface fun requestPdf(){if(ready && loadError==null)runOnUiThread {pdfPicker.launch(intent.getStringExtra("displayName")?.substringBeforeLast('.')+".pdf")}}
+        @JavascriptInterface fun requestPdf(){if(ready && loadError==null && readOnlyReason==null)runOnUiThread {pdfPicker.launch(intent.getStringExtra("displayName")?.substringBeforeLast('.')+".pdf")}}
         @JavascriptInterface fun beginPdf(count: Int): Boolean = runCatching {
-            require(ready && loadError==null && pdfUri!=null);abortPdf()
+            require(ready && loadError==null && readOnlyReason==null && pdfUri!=null);abortPdf()
             val file=File.createTempFile("hangul-conversion-",".pdf",cacheDir);pdfFile=file;pdfSession=kr.documentstudio.data.RasterPdfSession(file,count);true
         }.getOrDefault(false)
         @JavascriptInterface fun pdfPage(json: String): Boolean = runCatching {requireNotNull(pdfSession).page(json);true}.getOrDefault(false)

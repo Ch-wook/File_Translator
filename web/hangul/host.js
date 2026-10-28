@@ -85,17 +85,33 @@ async function close(saveOriginal){
  }catch(error){message(String(error.message||error),true);}
 }
 async function convertPdf(){
- if(!ready||pending||switching)return;
+ if(!ready||pending||switching||readOnlyReason)return;
  if(!confirm('전체 페이지를 원본 레이아웃으로 PDF 변환합니다. 한글 PDF는 페이지 이미지 방식이며 텍스트 선택·검색·링크는 보존되지 않습니다. 현재 편집 내용도 포함합니다.'))return;
  try{if(editing){await mobileUI.flush();await editor.finishInput();if(!await checkpoint())return;}native.requestPdf();}
  catch(error){message(error.message,true);}
 }
 async function writePdf(){
- pending=true;update();let cancelled=false;const cancel=document.createElement('button');cancel.textContent='변환 취소';cancel.onclick=()=>{cancelled=true;};status.after(cancel);
- try{const count=editor.info().pages;if(!native.beginPdf(count))throw Error('PDF를 준비하지 못했습니다.');
-  for(let i=0;i<count;i++){if(cancelled)throw Error('PDF 변환을 취소했습니다.');message('PDF 변환 중 · '+(i+1)+' / '+count+'쪽');await new Promise(r=>setTimeout(r,0));const page=editor.pdfPage(i);if(!native.pdfPage(JSON.stringify(page)))throw Error('페이지 변환에 실패했습니다.');}
+ if(pending||switching){message('현재 저장이 끝난 뒤 PDF 변환을 다시 선택하세요.');return;}
+ try{if(editing){await mobileUI.flush();await editor.finishInput();if(!await checkpoint())return;}}
+ catch(error){message(error.message,true);return;}
+ const restoreEditing=editing,view=editor.captureView();pending=true;switching=true;update();
+ let cancelled=false;const cancel=document.createElement('button');cancel.textContent='변환 취소';cancel.onclick=()=>{cancelled=true;};status.after(cancel);
+ try{
+  // Freeze mutations in the actual engine for a consistent multi-page export.
+  if(restoreEditing)await editor.setEditing(false);
+  const count=editor.info().pages;if(!native.beginPdf(count))throw Error('PDF를 준비하지 못했습니다.');
+  for(let i=0;i<count;i++){
+   if(cancelled)throw Error('PDF 변환을 취소했습니다.');
+   message('PDF 변환 중 · '+(i+1)+' / '+count+'쪽');await new Promise(r=>setTimeout(r,0));
+   const page=editor.pdfPage(i);if(!native.pdfPage(JSON.stringify(page)))throw Error('페이지 변환에 실패했습니다.');
+  }
+  if(cancelled)throw Error('PDF 변환을 취소했습니다.');
   const result=JSON.parse(native.finishPdf());if(!result.ok)throw Error(result.error||'PDF 검증 실패');message('PDF 변환 완료 · '+count+'쪽');
- }catch(error){native.abortPdf();message(error.message,true);}finally{cancel.remove();pending=false;update();}
+ }catch(error){native.abortPdf();message(error.message,true);}
+ finally{
+  try{if(restoreEditing)await editor.setEditing(true);}catch(error){message(error.message,true);}
+  cancel.remove();pending=false;switching=false;update();await editor.restoreView(view);
+ }
 }
 window.documentStudioHost={writePdf,convertPdf,signature:()=>openSignature({editor,native,message}),
  changed(){if(!ready||!editing)return;revision++;message('수정됨 · 작업 복사본 저장 대기');clearTimeout(timer);timer=setTimeout(checkpoint,1200);update();},
@@ -122,7 +138,7 @@ UI.popup(more,()=>[
  {label:rulers?'눈금자 숨기기':'눈금자 표시',disabled:!ready,action:()=>{rulers=!rulers;editor.setRulers(rulers);}},
  {label:toolsVisible?'도구 접기':'도구 펼치기',hidden:!editing,action:()=>{toolsVisible=!toolsVisible;update();}},
  {label:'서명/필기',hidden:!editing,disabled:pending||switching,action:()=>openSignature({editor,native,message})},
- {label:'PDF로 변환',disabled:!ready||pending||switching,action:()=>convertPdf()},
+ {label:'PDF로 변환',disabled:!ready||pending||switching||Boolean(readOnlyReason),action:()=>convertPdf()},
  {separator:true},
  {label:pending?'저장 중…':savedRevision<revision?'자동 저장 대기':'작업 복사본 저장됨',disabled:true},
  {label:readOnlyReason||'',hidden:!readOnlyReason,disabled:true},

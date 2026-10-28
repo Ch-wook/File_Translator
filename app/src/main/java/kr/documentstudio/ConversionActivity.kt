@@ -116,7 +116,7 @@ class ConversionActivity: ComponentActivity() {
         val s=model.source ?: return
         if(model.target=="hwpx"){model.action {val converted=model.repo.convertHangul(s);val dir=File(cacheDir,"conversions").apply {mkdirs()};model.result=File(dir,java.util.UUID.randomUUID().toString()+".hwpx").also {it.writeBytes(converted.base.readBytes())};model.status="HWPX 변환 완료 · 보존 검사 통과"};return}
         if(s.format in DocumentRepository.visualFormats && model.target=="pdf"){
-            model.action {model.status="문서 엔진 준비 중";val file=model.repo.prepareOffice(s);engine.launch(Intent(this,if(s.format in listOf(Format.HWP,Format.HWPX))HangulEditorActivity::class.java else org.libreoffice.androidlib.StudioOfficeActivity::class.java).putExtra("sessionId",s.id).putExtra("workingPath",file.absolutePath).putExtra("displayName",s.name).putExtra("originalUri",s.uri).putExtra("conversionOnly",true).putExtra("openIntent","VIEW"))}
+            model.action {require(s.readOnlyReason==null) {s.readOnlyReason ?: "보호된 문서는 변환할 수 없습니다."};require(s.format in listOf(Format.HWP,Format.HWPX) || android.os.Build.VERSION.SDK_INT>=30) {"Office PDF 변환은 Android 11 이상에서 지원합니다."};model.status="문서 엔진 준비 중";val file=model.repo.prepareOffice(s);engine.launch(Intent(this,if(s.format in listOf(Format.HWP,Format.HWPX))HangulEditorActivity::class.java else org.libreoffice.androidlib.StudioOfficeActivity::class.java).putExtra("sessionId",s.id).putExtra("workingPath",file.absolutePath).putExtra("displayName",s.name).putExtra("originalUri",s.uri).putExtra("conversionOnly",true).putExtra("openIntent","VIEW"))}
         }else model.convert()
     }
 }
