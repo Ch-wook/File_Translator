@@ -68,4 +68,12 @@ class ProviderWriteRecoveryTest {
         assertEquals(edited.edits,restored.edits);assertNotNull(restored.recoveryWarning)
         assertTrue(receipt.original.isFile);assertTrue(receipt.payload.isFile)
     }
+    @Test fun atomicMetadataBackupIsReopenedRatherThanHidden() {
+        val target=file("원본");val receipt=prepare(UUID.randomUUID().toString(),target,file("최신"))
+        val metadata=File(receipt.directory,"journal.json")
+        assertTrue(metadata.renameTo(File(receipt.directory,"journal.json.bak")))
+        val reopened=ProviderWrites(context)
+        assertEquals(receipt.recovery.id,reopened.list().single().id)
+        assertEquals("원본",reopened.snapshot(receipt.recovery.id,true).readText())
+    }
 }

@@ -260,7 +260,7 @@ class DocumentRepository(private val context: Context) {
         val newBase=if(s.format==Format.PDF) File(dir,"${UUID.randomUUID()}.bin").also {atomic(it,stage.readBytes());PdfEngine.cleanOwned(it)} else s.base
         val result = s.copy(name=displayName(destination),uri=destination.toString(),sourceHash=expected,saved=s.edits,
             pdf=s.pdf?.copy(archival=false),base=newBase,savedRevision=s.revision)
-        checkpointInternal(result); providerWrites.finish(receipt,listOf(dir,root));stage.delete(); result
+        checkpointInternal(result);java.io.RandomAccessFile(result.base,"rw").use {it.fd.sync()};providerWrites.finish(receipt,listOf(dir,root));stage.delete(); result
     }
     suspend fun exportPdf(s: Session, destination: Uri) = io {
         require(destination.toString()!=s.uri) { "PDF 내보내기는 원본과 다른 파일을 선택하세요." }

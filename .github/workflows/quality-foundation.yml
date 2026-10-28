@@ -47,8 +47,8 @@ jobs:
           roots=[E.parse(p).getroot() for p in files]
           counts={k:sum(int(r.get(k,0)) for r in roots) for k in ('tests','failures','errors','skipped')}
           recovery=[r for r in roots if r.get('name','').endswith('ProviderWriteRecoveryTest')]
-          assert len(recovery)==1 and int(recovery[0].get('tests'))==6
-          assert counts['tests']>=30 and counts['failures']==counts['errors']==counts['skipped']==0,counts
+          assert len(recovery)==1 and int(recovery[0].get('tests'))==7
+          assert counts['tests']>=31 and counts['failures']==counts['errors']==counts['skipped']==0,counts
           print('QUALITY_FOUNDATION_VERIFIED',json.dumps(counts))
           PY
       - uses: actions/upload-artifact@v4

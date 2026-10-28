@@ -38,8 +38,8 @@ class ProviderWrites(private val context: Context) {
     private fun record(r: SaveRecovery) {DocumentRepository.atomic(File(directory(r.id),"journal.json"),manifest(r).toString().toByteArray())}
     private fun read(dir: File): SaveRecovery?=runCatching {
         require(validId(dir.name))
-        val f=File(dir,"journal.json");require(f.length() in 1..32768)
-        val j=JSONObject(AtomicFile(f).openRead().use {it.bufferedReader().readText()});require(j.getInt("version")==1 && j.getString("id")==dir.name)
+        val f=File(dir,"journal.json")
+        val j=JSONObject(AtomicFile(f).openRead().use {require(it.channel.size() in 1L..32768L);it.bufferedReader().readText()});require(j.getInt("version")==1 && j.getString("id")==dir.name)
         val r=SaveRecovery(dir.name,j.getString("owner"),j.getString("name"),j.getString("mime"),j.getString("uri"),j.getString("before"),j.getString("after"),j.getString("phase"),j.getLong("created"))
         require(r.owner.length<=256 && r.name.length<=512 && r.mime.length<=256 && r.uri.length<=8192)
         require(Uri.parse(r.uri).scheme in setOf("content","file"))
@@ -55,7 +55,7 @@ class ProviderWrites(private val context: Context) {
         java.io.RandomAccessFile(File(root,"writes.lock"),"rw").use {file->file.channel.lock().use {block()}}
     }
     private fun syncDirectory(dir: File) {
-        val fd=android.system.Os.open(dir.path,android.system.OsConstants.O_RDONLY or android.system.OsConstants.O_DIRECTORY,0)
+        val fd=android.system.Os.open(dir.path,android.system.OsConstants.O_RDONLY,0)
         try {android.system.Os.fsync(fd)} finally {android.system.Os.close(fd)}
     }
     private fun active(r: SaveRecovery)=r.phase in setOf("PREPARED","WRITING","VERIFIED","RECOVERY_REQUIRED")
@@ -145,10 +145,10 @@ class ProviderWrites(private val context: Context) {
         val actual=read(receipt.directory) ?: return@locked
         checkpointDirectories.distinct().forEach(::syncDirectory)
         require(actual.phase=="VERIFIED" && actual.after==receipt.recovery.after)
-        record(actual.copy(phase="COMPLETE"))
+        record(actual.copy(phase="COMPLETE"));syncDirectory(receipt.directory)
         // Failure to delete completed housekeeping must not turn a verified save
         // into a false failure. Incomplete records are never deleted here.
-        runCatching {receipt.directory.deleteRecursively()};Unit
+        runCatching {receipt.directory.deleteRecursively();syncDirectory(root)};Unit
     }
     fun snapshot(id: String,original: Boolean): File = locked {
         val dir=directory(id);val r=read(dir) ?: throw IOException("복구 기록을 확인하지 못했습니다.")
