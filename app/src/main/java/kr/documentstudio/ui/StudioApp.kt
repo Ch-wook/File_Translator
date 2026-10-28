@@ -77,7 +77,10 @@ fun StudioApp(vm: EditorViewModel) {
     var fullScreen by rememberSaveable(state.active) {mutableStateOf(false)}
     var info by remember {mutableStateOf(false)}
     val editing=state.active?.let {state.presentation(it).allowsMutation}==true
-    LaunchedEffect(editing) {if(editing)fullScreen=false}
+    LaunchedEffect(editing,state.active) {
+        if(editing)fullScreen=false
+        else (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(view.windowToken,0)
+    }
     var newDialog by remember { mutableStateOf(false) }
     var settingsDialog by remember { mutableStateOf(false) }
     var splitLeft by rememberSaveable {mutableStateOf<String?>(null)}

@@ -208,7 +208,12 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
             } finally {file.delete();changed.delete()}
         }} catch(e: CancellationException) {produced?.recycle();throw e}
     }
-    fun show(scene: Triple<Bitmap,List<PdfBodyRun>,List<PdfImagePlacement>>) {display(scene.first);runs=scene.second;images=scene.third}
+    fun show(scene: Triple<Bitmap,List<PdfBodyRun>,List<PdfImagePlacement>>) {
+        display(scene.first)
+        // An initial VIEW render may finish after EDIT metadata was loaded.
+        // A render that intentionally skipped metadata must not erase that data.
+        if(!readOnly || scene.second.isNotEmpty() || scene.third.isNotEmpty()) {runs=scene.second;images=scene.third}
+    }
     LaunchedEffect(s.base,page,s.edits.values,s.edits.strokes) {
         delay(120)
         try {show(render(s.edits.values));failure=null}
