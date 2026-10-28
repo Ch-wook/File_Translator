@@ -53,7 +53,7 @@ object PortableConversions {
                             check();progress("페이지 변환 중 · ${index+1} / ${selected.size}")
                             val size=PdfEngine.displaySize(source,page);val w=(size.first*dpi/72).toInt();val h=(size.second*dpi/72).toInt()
                             require(w>0 && h>0 && w.toLong()*h<=16000000) {"페이지가 너무 큽니다. 해상도를 낮추세요."}
-                            val bitmap=PdfEngine.render(source,page,w,h)
+                            val bitmap=PdfEngine.renderAtDpi(source,page,dpi)
                             try {val ext=if(target=="png.zip")"png" else "jpg";zip.putNextEntry(ZipEntry("page-%04d.%s".format(page+1,ext)))
                                 require(bitmap.compress(if(ext=="png")Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG,92,zip));zip.closeEntry()
                             } finally {bitmap.recycle()}

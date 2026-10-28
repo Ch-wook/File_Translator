@@ -47,7 +47,11 @@ public final class HangulProbeProvider extends ContentProvider {
                     return;
                 }
                 InputMethodManager manager=activity.getSystemService(InputMethodManager.class);
-                if("close".equals(method)) {activity.finish();}
+                if("pdf-target".equals(method)){
+                    if(argument==null || !argument.startsWith("content://"+getContext().getPackageName()+".testfiles/"))throw new IllegalArgumentException();
+                    java.lang.reflect.Field target=HangulEditorActivity.class.getDeclaredField("pdfUri");target.setAccessible(true);target.set(activity,Uri.parse(argument));
+                }
+                else if("close".equals(method)) {activity.finish();}
                 else if("show-ime".equals(method)) {
                     browser.requestFocus();
                     manager.showSoftInput(browser,InputMethodManager.SHOW_IMPLICIT);

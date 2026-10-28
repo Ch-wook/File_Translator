@@ -29,7 +29,7 @@ class ConversionIntegrationTest {
     private val output get()=File(context.getExternalFilesDir(null),"native-conversion").apply {mkdirs()}
     private fun await(label: String,timeout: Long=60000,condition: ()->Boolean){val end=SystemClock.uptimeMillis()+timeout;while(SystemClock.uptimeMillis()<end){if(runCatching(condition).getOrDefault(false))return;SystemClock.sleep(200)};device.takeScreenshot(File(output,"failure.png"));error(label)}
     private fun probe(method: String,arg: String?=null)=context.contentResolver.acquireUnstableContentProviderClient(Uri.parse("content://"+context.packageName+".officeprobe")).use {requireNotNull(it).call(method,arg,null)}
-    private fun uri(file: File)=FileProvider.getUriForFile(context,context.packageName+".testfiles",file)
+    private fun uri(file: File)=FileProvider.getUriForFile(context,context.packageName+if(file.canonicalPath.startsWith(File(context.cacheDir,"conversions").canonicalPath+"/"))".conversionfiles" else ".testfiles",file)
     @Test fun pptxTenSlidesToPdf()=nativePdf("pptx",10,listOf("TEST_SLIDE_01","TEST_SLIDE_10","TABLE"))
     @Test fun docxPagesToPdf()=nativePdf("docx",2,listOf("DOCX_PAGE_ONE","DOCX_PAGE_TWO","HEADER_TEST","FOOTER_TEST","TABLE_TEST"))
     @Test fun xlsxSheetsToPdf()=nativePdf("xlsx",2,listOf("XLSX_SHEET_ONE","XLSX_SHEET_TWO","42"))
@@ -55,6 +55,36 @@ class ConversionIntegrationTest {
             File(output,ext+".json").writeText(JSONObject().put("pages",pages).put("tokensVerified",true).put("originalUnchanged",true).put("nativeFilter",true).toString(2))
             device.findObject(By.text("닫기"))?.click()
         }finally{runCatching {probe("close")};await("Office process must exit",30000){device.executeShellCommand("pidof "+context.packageName+":office").trim().isEmpty()};runCatching {repo.acceptOffice(source)}}
+    }
+    @Test fun hwpxSignatureAndLayoutPdf()=runBlocking {
+        val repo=DocumentRepository(context);val s=repo.create(Format.HWPX);val working=repo.prepareOffice(s);val original=ConversionFiles.digest(s.base)
+        val provider=Uri.parse("content://"+context.packageName+".hangulprobe")
+        fun eval(script: String): String?=context.contentResolver.call(provider,"eval",script,null)?.getString("result")
+        context.startActivity(Intent(context,HangulEditorActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("sessionId",s.id).putExtra("workingPath",working.absolutePath).putExtra("displayName",s.name).putExtra("openIntent","EDIT"))
+        try {
+            await("HWPX editor must load",120000){eval("document.body.dataset.state")?.contains("EDITING")==true}
+            eval("window.documentStudioHost.signature()")
+            await("Signature panel visible"){device.findObject(By.desc("서명 입력 공간"))!=null}
+            val area=device.findObject(By.desc("서명 입력 공간")).visibleBounds
+            device.swipe(area.left+30,area.centerY(),area.right-30,area.centerY()-40,24)
+            device.swipe(area.left+60,area.centerY()-25,area.right-60,area.centerY()+40,24)
+            device.findObject(By.text("완료")).click()
+            await("Native picture placement must be active"){eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.state().placement")=="true"}
+            val web=device.findObject(By.clazz("android.webkit.WebView")).visibleBounds
+            device.swipe(web.centerX()-80,web.top+150,web.centerX()+80,web.top+220,24)
+            await("Signature must become native document picture"){eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.objects().some(o=>o.type==='image')")=="true"}
+            eval("window.documentStudioHost.checkpoint()")
+            await("Signed HWPX must be durably saved"){java.util.zip.ZipFile(working).use {z->z.entries().asSequence().any {it.name.startsWith("BinData/") && it.name.endsWith(".png")}}}
+            val pdf=File(context.cacheDir,"tests/signed-hwpx.pdf").apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}
+            context.contentResolver.call(provider,"pdf-target",uri(pdf).toString(),null)
+            eval("window.documentStudioHost.writePdf()")
+            await("Native PDF bridge must save signed page",90000){device.findObject(By.text("PDF 변환 완료"))!=null}
+            assertTrue(PdfEngine.inspect(pdf).pages>=1);assertEquals(original,ConversionFiles.digest(s.base))
+            val bitmap=PdfEngine.render(pdf,0,600,800)
+            try{File(output,"signed-hwpx.png").outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}}finally{bitmap.recycle()}
+            File(output,"signed.hwpx").writeBytes(working.readBytes());File(output,"signed.pdf").writeBytes(pdf.readBytes())
+            File(output,"signature.json").writeText(JSONObject().put("nativeTouchSignature",true).put("embeddedPng",true).put("nativePdfSaved",true).put("originalUnchanged",true).toString(2))
+        }finally {runCatching {context.contentResolver.call(provider,"close",null,null)};await("Hangul process must exit",30000){device.executeShellCommand("pidof "+context.packageName+":hangul").trim().isEmpty()}}
     }
     @Test fun textMarkdownAndPdfConversions()=runBlocking {
         val repo=DocumentRepository(context);var txt=repo.create(Format.TXT);txt=txt.copy(edits=txt.edits.copy(text=("한국어 문장 English 123\n").repeat(120)))

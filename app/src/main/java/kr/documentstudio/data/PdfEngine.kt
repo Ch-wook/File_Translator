@@ -65,6 +65,18 @@ object PdfEngine {
             } }
         }
     }
+    fun renderAtDpi(file: File,index: Int,dpi: Int): Bitmap {
+        require(dpi in 72..216)
+        ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY).use {fd->
+            PdfRenderer(fd).use {renderer->renderer.openPage(index).use {page->
+                val w=kotlin.math.ceil(page.width*dpi/72.0).toInt();val h=kotlin.math.ceil(page.height*dpi/72.0).toInt()
+                require(w>0 && h>0 && w.toLong()*h<=16000000) {"페이지가 너무 큽니다. 해상도를 낮추세요."}
+                val bitmap=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888)
+                try{bitmap.eraseColor(Color.WHITE);page.render(bitmap,null,null,PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);PdfAnnotations.overlay(file,index,bitmap);return bitmap}
+                catch(e:Throwable){bitmap.recycle();throw e}
+            }}
+        }
+    }
     fun displaySize(file: File,index: Int): Pair<Float,Float> = PDDocument.load(file).use {doc->val page=doc.getPage(index);val r=page.cropBox;if(((page.rotation%360)+360)%360 in listOf(90,270)) r.height to r.width else r.width to r.height}
     fun write(base: File, destination: File, strokes: List<Stroke>, ordinaryCopy: Boolean,values: Map<String,String> = emptyMap(),layers: List<InkLayer> = listOf(InkLayer())) {
         InkLayers.validate(layers)

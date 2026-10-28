@@ -62,7 +62,7 @@ Object.assign((window as any).rhwpStudio, {
     },
     async placeSignature(url: string, width: number, height: number, token: any) {
       if(!studioIsEditing())throw new Error('편집하기를 먼저 선택하세요.');
-      await studioFinishInput();studioMobile.restore(token);
+      await studioFinishInput();studioMobile.restore(token);inputHandler!.cursor.clearSelection();
       if(!url.startsWith('data:image/png;base64,')||url.length>4*1024*1024)throw new Error('서명 이미지가 올바르지 않습니다.');
       const bytes=Uint8Array.from(atob(url.split(',')[1]),c=>c.charCodeAt(0));
       inputHandler!.enterImagePlacementMode(bytes,'png',width,height,'자필서명.png');
