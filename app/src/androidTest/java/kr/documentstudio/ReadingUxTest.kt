@@ -94,7 +94,7 @@ class ReadingUxTest {
         compose.onNodeWithContentDescription("설정 닫기").performClick()
         compose.onNodeWithContentDescription("PDF 연속 페이지 목록").performScrollToIndex(60)
         for(scale in listOf(2f,1f,3f,1f)) {
-            compose.onNode(hasSetProgressAction()).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress){it(scale)}
+            compose.onNode(SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsActions.SetProgress)).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress){it(scale)}
             compose.waitForIdle();android.os.SystemClock.sleep(400);compose.waitForIdle()
             compose.onNodeWithContentDescription("PDF 연속 페이지 목록").assertExists()
         }
