@@ -129,7 +129,7 @@ with zipfile.ZipFile(out/(name+'-source.zip')) as z:
     for path,blob in tracked.items():
         data=z.read(path);assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==blob,path
 with (out/(name+'-changes.patch')).open('wb') as f:
-    subprocess.run(['git','diff','--binary','5a655fdd5dae50b00443bfe57a8a8a0c6acee963','HEAD'],stdout=f,check=True)
+    subprocess.run(['git','diff','--binary','3a56a4b3e14e56ee17988fb2688556a1d7e40e69','HEAD'],stdout=f,check=True)
 subprocess.run(['git','apply','--check','--reverse',str(out/(name+'-changes.patch'))],check=True)
 subprocess.run(['git','bundle','create',str(out/(name+'-history.bundle')),'--all'],check=True)
 subprocess.run(['git','bundle','verify',str(out/(name+'-history.bundle'))],check=True)
@@ -160,27 +160,6 @@ with zipfile.ZipFile(out/(name+'-verification.zip'),'w',zipfile.ZIP_DEFLATED) as
                    'core/build/test-results','officeruntime/build/test-results','app/build/test-results','app/build/outputs/androidTest-results','app/build/reports','core/build/visual-fixtures'):
         for p in (root/folder).rglob('*'):
             if p.is_file():z.write(p,p.relative_to(root))
-(out/'README.txt').write_text("""문서 스튜디오 읽기 개선 0.8.9-preview
-
-휴대폰: document-studio-0.8.9-preview-arm64-v8a.apk
-x86_64 APK는 해당 아키텍처와 에뮬레이터용입니다. Android 10+ 64비트, Office는 Android 11+입니다.
-
-기존 서명키가 없어 별도 프리뷰 ID kr.documentstudio.readingpreview로 제공합니다. 기존 0.8.8 앱과 문서를 삭제하지 마세요. 같은 프로젝트의 개선 빌드이며 앱 이름은 '문서 스튜디오 읽기 개선'입니다. 기존 앱의 비공개 작업 복구본은 자동 이관하지 않습니다. 기존 앱에서 다른 이름으로 저장한 문서를 새 앱에서 열 수 있습니다.
-
-나눔고딕(NanumGothic)·나눔명조(NanumMyeongjo)·고운돋움·고운바탕·Lato·Cousine의 실제 글꼴 파일과 OFL 라이선스를 추가했습니다. 엔진이 실제 제공하는 글꼴만 목록에 표시합니다. 검색·미리보기·최근·즐겨찾기를 제공합니다. 맑은 고딕·Arial 등 별도 배포 권한이 없는 글꼴을 포함한 것으로 표시하지 않습니다.
-
-파일별 하단 도구를 나누고 상단/하단을 각각 48px 한 줄로 유지합니다. Excel 셀·수식·시트, PowerPoint 슬라이드·도형·이미지, PDF 선택·주석·텍스트·페이지, Markdown 문법·미리보기, TXT 편집·찾기·보기 설정으로 접근합니다. 상세 설정은 필요할 때만 엽니다.
-
-TXT·Markdown 글꼴은 화면 표시 설정이며 파일 서식이 아닙니다. Markdown 굵게·기울임·취소선의 해제, 제목 1~6, 목록 전환·번호, 이미지 링크·구분선은 실제 원문 문법으로 저장합니다. TXT 찾기·바꾸기, 줄 번호·자동 줄바꿈·통계를 보완했습니다. PDF 기존 글꼴 교체·문단 재배치와 검증하지 않은 고급 편집을 지원한다고 표시하지 않습니다.
-
-원본과 작업 복사본을 분리합니다. 자동 저장은 작업 복구본 보존이며 외부 원본 저장 완료와 다릅니다. 원본 반영은 저장 동작과 성공 확인이 필요합니다.
-
-Android 35 x86_64 에뮬레이터에서 52개 테스트와 기존 앱 보존 설치·동일 APK 재설치를 검증합니다. Word 선택 서식의 독립 적용, Excel 실제 붙여넣기·15개 수식 결과·셀 서식·새 시트, PowerPoint 슬라이드 추가와 텍스트 서식, PDF 주석·이미지·필기, Markdown·TXT 저장과 재열기를 포함합니다. HWP/HWPX는 실제 브라우저 엔진, 독립 파서, Android 입력 테스트를 수행합니다.
-
-실제 ARM64 휴대폰과 삼성/Gboard 키보드는 미검증입니다. ARM64 APK는 빌드·서명·패키지·16KiB ELF/ZIP 정렬·자산 검사를 수행합니다. 모든 고급 기능이나 모든 기존 문서의 무손실 저장을 보장한 결과가 아닙니다. 추가 변경: 로컬 파일 변환·실제 엔진 PDF·투명 PNG 자필 서명 및 문서 삽입. 한글 PDF는 페이지 이미지 방식이며 검색/선택/링크는 미지원입니다. OCR·직접 벡터 필기·고급 상호 변환은 미지원입니다. 이전 변경: PowerPoint 슬라이드 목록·이동·삭제 확인, Excel 셀 입력 완료·취소와 숨겨진 시트/마지막 표시 시트 보호. 상세 범위는 docs/SIGNATURE_CONVERSION_RESULTS.md와 verification.zip을 확인하세요.
-
-개발 서명 프리뷰입니다. 이전 미푸시 0.8.0 원본 복구본이 아닙니다.
-
-빌드 커밋: """+sha+'\n')
+(out/'README.txt').write_text("문서 스튜디오 읽기 개선 0.8.9-preview\n\n휴대폰: document-studio-0.8.9-preview-arm64-v8a.apk (약429.9MB)\nx86_64 APK는 해당 아키텍처와 에뮬레이터용입니다. Android10+ 64비트, Office는Android11+입니다.\n\n기존 서명키가 없어 별도 ID kr.documentstudio.readingpreview / '문서 스튜디오 읽기 개선'으로 제공합니다. 기존0.8.8 앱·문서·작업 복구본을 삭제하지 마세요. 기존 앱에서 파일로 저장한 문서를 새 앱에서 열 수 있습니다. 비공개 데이터는 자동 이관하지 않습니다.\n\n이번 변경: 읽기 상태에서 편집 도구 숨김, 검색·편집·더보기 한 줄 헤더와 전체 화면, TXT 선택/복사·보기 설정·스크롤 보존, 서식 있는 Markdown 기본 보기, PDF 모드 전환에서 캔버스 유지·페이지/배율 복원·선택적 연속 보기. Office/HWP는 기존 실제 엔진을 유지하고 상태 갱신을 병합했습니다. 편집을 한 번도 허용하지 않은 정상 Office 읽기 세션은 해시/종료 상태를 봉인한 뒤 전용 프로세스를 종료합니다. 수정·저장·변환 세션은 기존 저장 확인을 거칩니다.\n\n중복 재파싱·체크포인트·목록 조회를 줄이고 파일 복사는64KiB 스트리밍을 사용합니다. 약한 참조 상태 캐시·제한된 폴더 캐시를 사용하며 복구본은 지우지 않습니다. 자동 복구본과 외부 원본 저장 성공을 구분합니다. 실제 저장 실패 시 편집·복구·재시도를 유지합니다.\n\n같은 Android35 x86_64 에뮬레이터에서 이전/수정 코드를 비교했습니다. 수정 없는 DOCX/XLSX/PPTX 닫기 약2.3~2.4초→0.27~0.38초, 동일 복구 체크포인트 중앙값30.13→0.219ms입니다. 모드 전환·프로세스 PSS 등 증가한 항목도 있습니다. 전체 조건·원시 값·제한은 work-report.md와 verification.zip의 reading-performance/comparison.json에 있습니다. 실기기·모든 버튼100ms·60fps를 보장하지 않습니다.\n\n기존 Word·Excel·PowerPoint·한글·PDF·Markdown·TXT 편집과 실제 글꼴, 자필 서명PNG 삽입·보관, 로컬 변환을 유지했습니다. PPTX/DOCX/XLSX→PDF는 Office 필터, HWP/HWPX→PDF는 전체 페이지 이미지입니다. TXT/Markdown→PDF와 PDF→PNG/JPG/TXT 등 기존 경로를 유지합니다. 한글 PDF는 텍스트 검색·선택·링크가 없고, Markdown PDF는 기본 서식 범위입니다. OCR·편집 가능한 PDF→Word·DOCX↔HWPX·직접 벡터 필기·일괄 변환은 미지원입니다. 이전에 추가한 글꼴6종을 이번에 새로 추가한 것으로 세지 않습니다.\n\n실제 ARM64 휴대폰·삼성/Gboard·S펜은 미검증입니다. 큰 실제 문서·장시간 메모리·배터리·모든 고급 기능의 무손실 호환성을 확인한 버전이 아닙니다. 상세 작업 결과와 남은 기능은 docs/READING_PERFORMANCE_RESULTS.md에 있습니다.\n\n개발 서명 프리뷰입니다. 이전 미푸시0.8.0 원본 복구본이 아닙니다.\n\n빌드 커밋: "+sha+'\n')
 (out/'SHA256SUMS').write_text(''.join(digest(p)+'  '+p.name+'\n' for p in sorted(out.iterdir()) if p.is_file()))
 print('MOBILE_RELEASE_VERIFIED',json.dumps(summary),flush=True)

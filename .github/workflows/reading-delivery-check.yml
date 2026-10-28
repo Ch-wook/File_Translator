@@ -28,5 +28,14 @@ jobs:
           ast.parse(embedded)
           assert "'tests':52" in source and 'coexistsWith088' in source
           assert '원래 실행의 앱 검사 44건' not in source
+          assert "item['applicationId']=='kr.documentstudio.readingpreview' and item['versionCode']==19" in source
+          assert 'PLACEHOLDER' not in source
+          assert "VERIFIED_SHA: 34831b1ee82386bf7a1a93b989a4edbe1de77422" in source
+          import json
+          proof=json.loads(pathlib.Path('docs/releases/0.8.9-preview-build-verification.json').read_text())
+          comparison=json.loads(pathlib.Path('docs/releases/0.8.9-preview-performance.json').read_text())
+          assert proof['commit']==comparison['candidateCommit']=='34831b1ee82386bf7a1a93b989a4edbe1de77422'
+          assert proof['androidTests']=={'tests':52,'failures':0,'errors':0,'skipped':0}
+          assert comparison['records']['candidate']['repository']['checkpointStateWrites']==0
           print('READING_DELIVERY_SYNTAX_OK',len(blocks))
           PY

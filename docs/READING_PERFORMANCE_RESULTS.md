@@ -1,4 +1,8 @@
-# 문서 스튜디오 읽기 화면 및 성능 점검
+# 문서 스튜디오 0.8.9-preview — 읽기 화면·성능 작업 결과
+
+작성: 2026-10-28 UTC. 앱 빌드 커밋: `34831b1ee82386bf7a1a93b989a4edbe1de77422`.
+
+[휴대폰 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/document-studio-0.8.9-preview-arm64-v8a.apk) · [전체 소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/document-studio-0.8.9-preview-source.zip) · [Release·검증 ZIP·SHA256SUMS](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.9-preview) · [PR #1](https://github.com/Ch-wook/File_Translator/pull/1)
 
 기준: 0.8.8-preview 원격 작업 코드 `3a56a4b3e14e56ee17988fb2688556a1d7e40e69`.
 이전 미푸시 0.8.0 소스를 복구한 결과가 아닙니다. 현재 실행 환경이 연결되지 않아 GitHub 원격 코드와 Actions로 작업했습니다.
@@ -40,11 +44,13 @@
 
 전체 화면 자동 전환은 문서의 빈 여백에서 짧게 탭했을 때만 처리합니다. 텍스트 링크·셀·선택 처리를 맡는 실제 문서 canvas/img/svg에는 자동 전환을 적용하지 않습니다. 전체 화면 메뉴는 계속 사용할 수 있습니다. 드래그·긴 누르기·여러 포인터·기존 선택·링크·도구 클릭은 제외하고 메뉴 표시 버튼으로 복귀할 수 있습니다. 자동 스크롤에 의한 메뉴 숨김은 추가하지 않았습니다.
 
+기존 Rhwp0.8.7(MIT)·Collabora/LibreOffice26.04.6(MPL2.0 및 포함 구성요소별 고지)·PDFBox Android2.0.27을 유지했습니다. 새 유료 SDK나 서버 변환 서비스를 도입하지 않았고 기존 출처/라이선스 고지를 유지합니다. 문서·서명 처리는 기기 내에서 하며 앱에 INTERNET 권한이 없습니다.
+
 자필 서명·파일 변환의 엔진이나 손실 정책을 교체하지 않았습니다. 한글→PDF는 기존 전체 페이지 이미지 방식으로, 검색 가능한 텍스트/링크를 보존하는 변환으로 표시하지 않습니다.
 
-## 검증 상태
+## 실제 실행한 검증과 측정 조건
 
-측정 및 최종 회귀 실행 중입니다. 아래의 수치는 실행 결과가 확보된 뒤 채웁니다. 이 문서 초안은 테스트 완료 보고가 아닙니다.
+[최종 빌드·전체 회귀 실행](https://github.com/Ch-wook/File_Translator/actions/runs/40719646635), [같은 에뮬레이터의 이전/수정 코드 비교](https://github.com/Ch-wook/File_Translator/actions/runs/40719645309)는 모두 성공했습니다. 비교용 APK는 각 소스를 해당 측정 작업에서 빌드했으며, 배포 APK는 같은 후보 커밋의 전체 회귀 작업에서 생성·설치 검사한 바이트를 그대로 사용합니다. APK 서명·빌드 환경별 해시는 서로 다를 수 있습니다.
 
 - 비교 기준: 동일 GitHub Actions 실행의 같은 Android 35 x86_64 Pixel 7 프로필 에뮬레이터, SwiftShader, RAM 3,072MiB.
 - 기준 앱과 후보 앱을 순서대로 새로 설치합니다. 물리 휴대폰 측정이 아닙니다.
@@ -55,9 +61,58 @@
 - Activity 시작 TotalTime은 3회 기록하며, 홈 데이터가 모두 보이는 시간 또는 기기 콜드 부팅 시간과 동일하지 않습니다.
 - Android 실제 입력/서식/구조 저장·재열기, 서명·변환, JS 권한, TypeScript, 독립 문서 파서, 설치 보존을 함께 검증합니다.
 
+
+## 이전 코드와 수정 코드의 측정 결과
+
+아래 시간은 ms이며 반복 측정은 중앙값입니다. 첫 실행을 제외하지 않았습니다. 원시 배열·APK 해시는 [비교 JSON](releases/0.8.9-preview-performance.json)과 검증 ZIP의 `artifacts/reading-performance/comparison.json`에 있습니다.
+
+| 측정 항목 | 이전 | 수정 | 해석 |
+|---|---:|---:|---|
+| TXT 저장소 열기, 5회 | 46.160 | 20.882 | 중앙값 54.8% 감소. 첫 회는 172.243→230.705로 느려짐; 모든 열기가 빨라진 결과가 아님 |
+| 동일 복구 상태 체크포인트, 20회 | 30.130 | 0.219 | 99.3% 감소. 상태 파일 재쓰기 20회→0회; 첫 검증은 47.082ms 소요 |
+| 변경 없는 원본 저장 요청, 5회 | 0.349 | 1.553 | 1.204ms 증가. 안전한 상태 일관성 확인 비용이 추가됨; 실제 파일 재저장은 하지 않음 |
+| 80쪽 PDF의 페이지 크기 조회, 20회 | 9.714 | 0.606 | 93.8% 감소. 본문 텍스트 전체 분석 생략 |
+| PDF 페이지 렌더, 3회 | 3.410 | 3.644 | 6.9% 증가. 렌더 속도 개선으로 단정하지 않음 |
+| TXT 보기/편집 전환 드라이버 왕복, 5회 | 235.661 | 436.763 | 85.3% 증가. Compose 대기·키보드 전환 포함; 원시 버튼 반응과 다름. 지연 원인은 추가 프로파일링 필요 |
+| TXT 메뉴 열기 드라이버 왕복, 5회 | 332.597 | 231.743 | 30.3% 감소. 100ms 입력 반응을 증명하지 않음 |
+| Activity TotalTime, 3회 | 2155 | 2130 | 중앙값 약 1.2% 감소. [1937,2155,2718]→[2130,1727,2782]; 변동 폭이 커 시작 시간 개선을 확정하지 않음 |
+| 저장소 측정 후 프로세스 PSS, KiB | 151671 | 168953 | 단일 시점에서 17282KiB 증가. 최대 메모리·동일 GC 상태 측정이 아니며, 메모리 절감으로 보고하지 않음 |
+
+네이티브 파일은 각 형식의 기본 새 문서 1회입니다. `ready`는 실제 엔진의 편집 전환 버튼이 활성화된 시각이며 첫 픽셀 표시와 다릅니다. 닫기는 터치 후 전용 프로세스 종료·종료 표시·원본 해시/잠금 확인까지 포함합니다.
+
+| 형식 | ready 이전→수정 ms | 변경 없이 닫기 이전→수정 ms | 대기 중 2초간 헤더 DOM 수정 이전→수정 |
+|---|---:|---:|---:|
+| DOCX | 7134.281→6088.897 | 2443.492→270.146 | 1032→0 |
+| XLSX | 6065.138→5955.943 | 2346.377→373.384 | 80→0 |
+| PPTX | 4382.521→4667.596 | 2344.480→377.730 | 80→0 |
+| HWPX | 4830.650→5280.081 | 393.149→411.692 | 0→0 |
+
+Office의 변경 없는 닫기는 이번 표본에서 약 84~89% 빨라졌습니다. PPTX·HWPX의 준비 완료와 HWPX 닫기는 느려졌습니다. 1회 표본으로 형식 전체 또는 대형 문서에 일반화하지 않습니다. 모든 읽기 표본의 원본 해시가 같고 `.edited` 표시 없이 종료했습니다. Office 전용 종료는 편집을 한 번이라도 허용했다면 사용하지 않습니다.
+
+메모리 관련 구현 개선은 전체 바이트 배열 복사 제거, 약한 참조 캐시 4개 제한, 폴더 캐시 5초/8개/총2000항목 한도, PDF 화면 밖 비트맵 소유 제한입니다. 구조를 개선한 사실과 실제 프로세스 메모리가 감소했다는 주장은 구분합니다. 장시간·최대 PSS·배터리·프레임률은 측정하지 못했습니다.
+
+## 회귀 및 저장 후 재열기 결과
+
+- Android 35 x86_64 에뮬레이터 **52건**, core **127건**·Office **2건**·app **21건**(단위 합계150건): 실패·오류·건너뜀 0건. [전체 검증 JSON](releases/0.8.9-preview-build-verification.json).
+- JavaScript **28건**, 실제 Rhwp 브라우저 **9개 시나리오**(기존5·휴대폰 화면2·서명2), TypeScript·lint·실제 저장 파일 독립 파서 검사 통과. 휴대폰 화면 크기 브라우저를 Android 실기기로 세지 않습니다.
+- 신규 읽기 UI 4건은 전체52건에 포함: TXT 입력 조합/선택·읽기 도구 숨김·전체 화면 영역 증가/선택/원본 유지, PDF 모드 전환에서 같은 캔버스·비트맵, 80페이지 PDF의 41쪽 이동→61쪽 스크롤→홈/재열기, MD 서식 보기 기본·저장 실패 후 편집/복구/재시도.
+- 저장소 단위 검증: 다른 저장소 인스턴스의 원자적 상태 교체를 캐시가 감지하고, 상태 파일 삭제 후 체크포인트를 재생성하며, 같은 바이트는 수정 시각을 바꾸지 않음. 폴더 캐시의 만료·용량·큰 폴더 우회도 검사.
+- DOCX: 실제 Writer 부분 글꼴·크기·굵게·색·문단 서식 저장/재열기와 독립 OOXML 검사. XLSX: 실제 셀 붙여넣기·서식·15개 수식 결과·시트 생성, 제공자 저장 및 엔진/파서 재열기. PPTX: 실제 슬라이드 생성·텍스트 서식 및 저장된 개체 검사. PDF: 주석·필기·이미지·페이지 도구와 저장/재열기. MD/TXT: 실제 원문 저장·재열기. 개별 테스트 문서 범위의 결과입니다.
+- HWP/HWPX: 부분 선택·복합 서식·자간/장평·붙여넣기·IME 취소 그룹·표 행/열/병합·나누기3회·그림 터치 배치/크기·자동 복구 저장/재열기, 독립 HWP/HWPX 파서 검사 유지.
+- 자필 서명: 실제 터치 입력→투명PNG 삽입→문서 저장/재열기·표 텍스트/구조 보존 검사. 실제 네이티브 PDF 변환 결과와 한글 서명 결과를 재열기/이미지 검사했습니다. HWP PDF는 페이지 이미지 방식이라는 기존 제한이 그대로입니다.
+- Office PDF: 실제 엔진 DOCX/XLSX/PPTX 변환, 페이지/텍스트·도형/이미지/표/배경 검증; PPTX 10슬라이드가 10페이지로 생성됨을 확인. 모든 고급 애니메이션·차트·효과 보존을 증명하지 않습니다.
+- 설치: x86_64 APK를 test 플래그 없이 설치/실행, 기존0.8.8 APK·비공개 데이터 보존, 같은 서명 APK 재설치에서 데이터 보존 확인. 두 ABI의 서명·ZIP/ELF16KiB 정렬·엔진/글꼴 자산 일치·INTERNET 권한 없음 확인. ARM64 설치는 실제 기기 미확보로 실행하지 못함.
+- 별도 집중 실행40719645440의 첫 시도는 에뮬레이터 TCP5554 연결 실패로 테스트 시작 전에 종료되었습니다. 앱 기능 실패로 분류하지 않으며 통과로 세지 않습니다. 같은4건은 위 전체 회귀 실행에서 실제 통과했습니다. 반복 측정 작업은 기준/후보 각각3건이 통과했고 회귀52건과 중복 합산하지 않습니다.
+
+## 화면 공간과 동작의 확인 범위
+
+PDF/TXT/MD 읽기 상태에서 고정 하단48dp 도구를 없애고 상단의 undo/redo/save도 편집 때만 표시합니다. 전체 화면에서는 상단48dp를 추가로 숨깁니다. TXT Android 테스트는 전체 화면 전후 실제 문서 View 높이가 증가하고 선택 범위/바이트가 유지됨을 검사했습니다. HWP/Office는 이전0.8.8에도 이미 상단48 CSS px였으며, 이번에도48px입니다. 이전 여러 줄 화면 사진과 직접 높이를 비교했다고 주장하지 않습니다.
+
+모드 변경은 동일 네이티브 엔진/문서 인스턴스를 사용하며 PDF도 같은 페이지 비트맵을 유지합니다. 읽기 전환 시 키보드는 한 번 닫고 텍스트 선택은 유지합니다. native문서의 선택/링크/표 터치가 전체 화면 제스처와 충돌하지 않도록 자동 전환은 여백만 처리합니다. 전체 문서 중앙을 누를 때마다 메뉴를 숨기거나 스크롤에 따라 자동 숨기는 기능은 구현하지 않았습니다.
+
 ## 아직 검증하지 않았거나 추가 작업이 필요한 부분
 
-실제 ARM64 휴대폰, 삼성/Gboard 조합·S펜, 실제 저장 장치/클라우드 SAF 제공자 지연, 60fps·입력 100ms 보장, 장시간 배터리와 최대 메모리, 대형 실제 회사 문서/수식/슬라이드의 성능은 별도 실기기 검증이 필요합니다. 읽기 전용 종료의 과정별 시간을 실제로 비교하며, 중간 후보에서 관측한 종료 지연 악화를 최종 결과로 숨기지 않습니다. 개별 기본 파일 1회로 모든 문서의 열기/닫기 속도 향상을 단정하지 않습니다.
+실제 ARM64 휴대폰, 삼성/Gboard 조합·S펜, 실제 저장 장치/클라우드 SAF 제공자 지연, 60fps·입력 100ms 보장, 장시간 배터리와 최대 메모리, 대형 실제 회사 문서/수식/슬라이드의 성능은 별도 실기기 검증이 필요합니다. 중간 후보의 Office 종료 지연 악화를 실제 측정으로 발견해 종료 순서를 수정했으며, 위 표는 최종 후보의 값입니다. 개별 기본 파일 1회로 모든 문서의 열기/닫기 속도 향상을 단정하지 않습니다.
 
 Word 재배치 읽기·제목 탐색, PPT 썸네일 선행 준비·스와이프, 확대 배율별 PDF 고해상도 재렌더, 연속 보기의 픽셀 단위 위치 복원, 모든 형식 공통 확대/페이지 정보 UI, 변환기의 전후 속도 비교는 완료 범위에 포함하지 않습니다.
 
@@ -65,10 +120,20 @@ Word 재배치 읽기·제목 탐색, PPT 썸네일 선행 준비·스와이프,
 
 ## 변경 파일
 
-구현: `EditorViewModel.kt`, `data/DocumentRepository.kt`, `data/DocumentTree.kt`, `data/PdfEngine.kt`, `ui/StudioApp.kt`, `FormatWorkspace.kt`, `MobileEditorControls.kt`, `LineNumberEditText.kt`, `MarkdownPreview.kt`, `PdfCanvasEditor.kt`, `PdfNavigation.kt`, `DocumentTools.kt`, `FolderBrowser.kt`, `WorkspaceHome.kt`; 한글 `host.js/index.html/engine-adapter.ts`; Office `studio-policy.js`, `LOActivity.java`; 공유 `shared/editor-ui/dist/*`.
+구현: `EditorViewModel.kt`, `data/DocumentRepository.kt`, `data/DocumentTree.kt`, `data/PdfEngine.kt`, `ui/StudioApp.kt`, `FormatWorkspace.kt`, `MobileEditorControls.kt`, `LineNumberEditText.kt`, `MarkdownPreview.kt`, `PdfCanvasEditor.kt`, `PdfNavigation.kt`, `DocumentTools.kt`, `FolderBrowser.kt`, `WorkspaceHome.kt`; 한글 `host.js/index.html/engine-adapter.ts`; Office `studio-policy.js`, `LOActivity.java`, `StudioOfficeActivity.java`; 공유 `shared/editor-ui/dist/*`.
 
 검증: `ReadingUxTest.kt`, `ReadingPerformanceTest.kt`, `NativeReadingPerformanceTest.kt`, `DocumentTreeTest.kt`, `VisualWorkingCopyTest.kt`, `DocumentOpenRegressionTest.kt`, `scripts/tests/office-workspace.test.cjs`, `scripts/run-reading-performance.sh`; 빌드·설치·패키징 workflow와 0.8.9 프리뷰 식별 정보.
 
 ## 배포
 
-확인된 APK·소스·검증 자료를 준비한 뒤 최종 커밋과 다운로드 해시를 기록합니다. 기존 0.8.8 서명키를 사용할 수 없어 사용자 선택에 따라 별도 `kr.documentstudio.readingpreview` 앱을 사용합니다. 기존 앱과 내부 복구본을 삭제하지 마세요. 자동 이관은 하지 않으며 기존 앱에서 저장한 문서를 새 앱으로 열 수 있습니다.
+배포는 위 검증 커밋의 APK를 재빌드/재서명하지 않고 사용합니다. 태그에는 보고서·배포 CI만 추가할 수 있고 앱/엔진 코드 차이가 없음을 검사합니다. 소스 ZIP·0.8.8 작업 기준(3a56a4b3...)부터의 바이너리 패치·Git bundle·검증 ZIP·보고서·APK 메타데이터·SHA256SUMS를 함께 게시하며 공개 다운로드의 바이트 크기·해시를 확인합니다. 기존 0.8.8 서명키를 사용할 수 없어 사용자 선택에 따라 별도 `kr.documentstudio.readingpreview` 앱을 사용합니다. 기존 앱과 내부 복구본을 삭제하지 마세요. 자동 이관은 하지 않으며 기존 앱에서 저장한 문서를 새 앱으로 열 수 있습니다.
+
+
+휴대폰 ARM64 APK: **429906497 bytes**(429.9MB / 약410MiB), SHA-256 `6e3be719a2836a9aae2f5be30d2ae8c1b19b095487a9926ad1c6e8f7e2ec1b63`.
+x86_64 APK: **441792987 bytes**, SHA-256 `0d8e78a3ed7cc9765acb76254f2bd27ff88f6239ce70f4e8852085e4a669620e`.
+공통 개발 서명 인증서 SHA-256: `61d922d135ce21065d421f1039d068402355064ec966a2b171cdee4da6e4f1ca`.
+버전19 / 0.8.9-preview, 최소Android10(API29), Office는Android11(API30)+입니다.
+
+소스와 앱의 출처는 명확히 구분합니다. 이전 환경의 `aa3be049...` 소스/패치는 회수하지 못했습니다. 이번 변경은 확인 가능한 원격 코드에서 수행한 개선이며 없는 소스를 복구했다고 표시하지 않습니다. 원본8MB 소스 ZIP 다운로드 장애를 APK 크기 탓으로 결론 내리지 않습니다.
+
+실제 앱/검증 변경44개 파일은 [기준 대비 변경 목록](releases/0.8.9-preview-changes.json)에 기록했습니다. 다음 배포 문서/CI 수정은 앱 코드를 바꾸지 않습니다. 공개 업로드 완료와 태그/해시 검증 증거는 배포 후 `docs/releases/0.8.9-preview-download-verification.json`에 추가합니다.

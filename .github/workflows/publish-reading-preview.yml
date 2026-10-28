@@ -16,9 +16,9 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_SHA: VERIFIED_BUILD_PLACEHOLDER
-      VERIFIED_RUN: 'VERIFIED_RUN_PLACEHOLDER'
-      PERFORMANCE_RUN: 'PERFORMANCE_RUN_PLACEHOLDER'
+      VERIFIED_SHA: 34831b1ee82386bf7a1a93b989a4edbe1de77422
+      VERIFIED_RUN: '40719646635'
+      PERFORMANCE_RUN: '40719645309'
       PREVIEW_TAG: v0.8.9-preview
     steps:
       - uses: actions/checkout@v4
@@ -125,7 +125,7 @@ jobs:
           apks=result['apks'];assert {a['abi'] for a in apks}=={'arm64-v8a','x86_64'}
           assert len({a['certificateSHA256'] for a in apks})==1
           for item in apks:
-              assert item['applicationId']=='kr.documentstudio.convertpreview' and item['versionCode']==18 and item['versionName']=='0.8.9-preview' and not item['testOnly'] and item['elf16k']
+              assert item['applicationId']=='kr.documentstudio.readingpreview' and item['versionCode']==19 and item['versionName']=='0.8.9-preview' and not item['testOnly'] and item['elf16k']
               p=delivery/item['file'];assert p.stat().st_size==item['bytes']
               with p.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()==item['sha256']
           archive_sha=result.get('sourceArchiveCommit',sha)
@@ -158,7 +158,7 @@ jobs:
                   data=z.read(path);assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==blob,path
           patch=delivery/'document-studio-0.8.9-preview-changes.patch'
           with patch.open('wb') as f:
-              subprocess.run(['git','diff','--binary','5a655fdd5dae50b00443bfe57a8a8a0c6acee963','HEAD'],stdout=f,check=True)
+              subprocess.run(['git','diff','--binary','3a56a4b3e14e56ee17988fb2688556a1d7e40e69','HEAD'],stdout=f,check=True)
           subprocess.run(['git','apply','--check','--reverse',str(patch)],check=True)
           bundle=delivery/'document-studio-0.8.9-preview-history.bundle'
           bundle.unlink()
