@@ -10,6 +10,8 @@ Android 에뮬레이터 **52건**, 단위 **150건**, JavaScript **28건**, 실�
 
 휴대폰용 APK는 약429.9MB입니다. 기존 서명키를 사용할 수 없어 사용자 선택대로 **문서 스튜디오 읽기 개선**(`kr.documentstudio.readingpreview`)을 별도 설치합니다. 기존 앱·작업 복구본은 삭제하지 마세요. 기존 앱에서 파일로 저장한 문서를 새 앱으로 열 수 있으며 앱 비공개 데이터는 자동 이관하지 않습니다. Android10+ 64비트, Office는Android11+입니다. 개발 서명 프리뷰입니다.
 
+[공개 다운로드·크기·해시·기존 배포 보존 확인서](docs/releases/0.8.9-preview-download-verification.json) — APK·소스·검증 자료 등10개 자산 확인 완료.
+
 <details>
 <summary>0.8.8 및 이전 구현·배포 기록</summary>
 

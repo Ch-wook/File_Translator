@@ -1,0 +1,162 @@
+{
+  "verifiedBuildCommit": "34831b1ee82386bf7a1a93b989a4edbe1de77422",
+  "tagCommit": "4a9fabb7065fffaa9896ca23bc4475d00a2147b1",
+  "finalizationCommit": "d8557d9303b80277a6785178794bb3b45aab5daf",
+  "publicationRun": 40722976911,
+  "assets": [
+    {
+      "name": "README.txt",
+      "bytes": 3429,
+      "sha256": "1b9cd3d2ad816f543304ca6e1caa8f6bdb435b0d6c3917f2e0d14149e24e874d",
+      "publicDownloadVerified": true,
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/README.txt"
+    },
+    {
+      "name": "SHA256SUMS",
+      "bytes": 960,
+      "sha256": "765463aa25e93ed83a12a53b90111e6bd433a5969e92cb4f6adb3150832e5d81",
+      "publicDownloadVerified": true,
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/SHA256SUMS"
+    },
+    {
+      "name": "document-studio-0.8.9-preview-apk-metadata.json",
+      "bytes": 1116,
+      "sha256": "9e0cd6f0d27aea4139d4f761904986af595532519a1aa375f3329229388bd887",
+      "publicDownloadVerified": true,
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/document-studio-0.8.9-preview-apk-metadata.json"
+    },
+    {
+      "name": "document-studio-0.8.9-preview-arm64-v8a.apk",
+      "bytes": 429906497,
+      "sha256": "6e3be719a2836a9aae2f5be30d2ae8c1b19b095487a9926ad1c6e8f7e2ec1b63",
+      "publicDownloadVerified": true,
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/document-studio-0.8.9-preview-arm64-v8a.apk"
+    },
+    {
+      "name": "document-studio-0.8.9-preview-changes.patch",
+      "bytes": 241723,
+      "sha256": "2fd64ed7d2fbfe7fdc10641ceae536a89d42e059fe59d2c4a30539989b844df8",
+      "publicDownloadVerified": true,
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/document-studio-0.8.9-preview-changes.patch"
+    },
+    {
+      "name": "document-studio-0.8.9-preview-history.bundle",
+      "bytes": 9081595,
+      "sha256": "1f8151fbbe49208508e67443d9a711be7bdc4a354a55bca2f8d3cb451dc7bc95",
+      "publicDownloadVerified": true,
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/document-studio-0.8.9-preview-history.bundle"
+    },
+    {
+      "name": "document-studio-0.8.9-preview-source.zip",
+      "bytes": 8552919,
+      "sha256": "804fe5330de86a4608afb33345fe242a1813a31fc07ea1a9a45ed33b5f5f42a4",
+      "publicDownloadVerified": true,
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/document-studio-0.8.9-preview-source.zip"
+    },
+    {
+      "name": "document-studio-0.8.9-preview-verification.zip",
+      "bytes": 5593799,
+      "sha256": "162329d945c3bc474be0ad3600e5555d4d54422eaf16607968ed13c421e2526a",
+      "publicDownloadVerified": true,
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/document-studio-0.8.9-preview-verification.zip"
+    },
+    {
+      "name": "document-studio-0.8.9-preview-work-report.md",
+      "bytes": 20501,
+      "sha256": "78518048c1c90b1e2b0ad76def48b958542bf3164b162e0011efb2391c0360f2",
+      "publicDownloadVerified": true,
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/document-studio-0.8.9-preview-work-report.md"
+    },
+    {
+      "name": "document-studio-0.8.9-preview-x86_64.apk",
+      "bytes": 441792987,
+      "sha256": "0d8e78a3ed7cc9765acb76254f2bd27ff88f6239ce70f4e8852085e4a669620e",
+      "publicDownloadVerified": true,
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/document-studio-0.8.9-preview-x86_64.apk"
+    }
+  ],
+  "previousReleasePreserved": true,
+  "previousRelease": {
+    "releaseId": 426498150,
+    "tagCommit": "82ebfd658f0c653b7ffa37ad1b64720b727d8707",
+    "assets": [
+      {
+        "id": 684556351,
+        "name": "document-studio-0.8.8-preview-apk-metadata.json",
+        "size": 1116,
+        "digest": "sha256:6f7eebacc21a8e4c11911800129d4994af82832e82ebdabb381e1e1cdbde48e3"
+      },
+      {
+        "id": 684556337,
+        "name": "document-studio-0.8.8-preview-arm64-v8a.apk",
+        "size": 429805261,
+        "digest": "sha256:27e57435f7f9b7dec13a3104fc979a10c7fbb2a3278353006a48142c87dacdb9"
+      },
+      {
+        "id": 684556348,
+        "name": "document-studio-0.8.8-preview-changes.patch",
+        "size": 198118,
+        "digest": "sha256:00339bd52b6dfa4b3141ca7842ab276420aec24f0ecb3780bc88125dc9c26048"
+      },
+      {
+        "id": 684556378,
+        "name": "document-studio-0.8.8-preview-history.bundle",
+        "size": 8969992,
+        "digest": "sha256:6937050087af47e7f494e731d2b17d1be649096d5aa9853b32f627ce4947b0e7"
+      },
+      {
+        "id": 684556381,
+        "name": "document-studio-0.8.8-preview-source.zip",
+        "size": 8507734,
+        "digest": "sha256:12ae526ae753bcc437635f032ccb2d34485472fab91831e994251b85824879ac"
+      },
+      {
+        "id": 684556379,
+        "name": "document-studio-0.8.8-preview-verification.zip",
+        "size": 4543565,
+        "digest": "sha256:482966ef90af8496021fef85ce68d8013cd203554a96198be1403d88ce32ad6e"
+      },
+      {
+        "id": 684556387,
+        "name": "document-studio-0.8.8-preview-work-report.md",
+        "size": 16123,
+        "digest": "sha256:176f302f2fc5fa3ab2688e93ff58a5dd47945661360bf94cccfdc38587307b2e"
+      },
+      {
+        "id": 684556412,
+        "name": "document-studio-0.8.8-preview-x86_64.apk",
+        "size": 441691751,
+        "digest": "sha256:9ab80633d8c76fc66b489857b0a451a17f37703cc554a4cd92e564ee3f413eb9"
+      },
+      {
+        "id": 684556349,
+        "name": "README.txt",
+        "size": 3688,
+        "digest": "sha256:bc34d5e3cd0dbbbaf9ef42cc7f286f43302bd5de8f546d2eae7beb5145917845"
+      },
+      {
+        "id": 684556352,
+        "name": "SHA256SUMS",
+        "size": 960,
+        "digest": "sha256:93116c2c0e71de525c3ab3d44bb426c3f5e2e85703793eb86597de164ca21616"
+      }
+    ]
+  },
+  "mainUnchanged": "ec785811be646e4ef0fcf79156864ddaf43de94c",
+  "apkRebuilt": false,
+  "apkResigned": false,
+  "updatedMetadataOnly": [
+    "README.txt",
+    "SHA256SUMS"
+  ],
+  "finalizationRun": 40723932436,
+  "checkedAtUtc": "2026-10-28T16:14:24Z",
+  "focusedReadingRetry": {
+    "run": 40719645440,
+    "attempt": 2,
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
+}
