@@ -10,6 +10,8 @@ Android 35 x86_64 **39건**, 단위 **148건**, JavaScript **28건**, 실제 엔
 
 [실제 변경 파일·형식별 범위·남은 제한](docs/WORKSPACE_TOOLS_RESULTS.md) · [이전 글꼴·7종 편집 보완](docs/EDITOR_COMPLETION_RESULTS.md)
 
+[공개 다운로드·해시·이전 배포 보존 확인서](docs/releases/0.8.7-preview-download-verification.json) — 10개 자산 확인 완료.
+
 <details>
 <summary>0.8.6 및 이전 구현·배포 기록</summary>
 
