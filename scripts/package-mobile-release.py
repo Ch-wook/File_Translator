@@ -147,7 +147,7 @@ metadata={'commit':sha,'physicalDeviceTested':False,'apks':apks}
 (out/(name+'-apk-metadata.json')).write_text(json.dumps(metadata,indent=2))
 (ci/'apk-engine-assets.json').write_text(json.dumps(engine_assets,indent=2))
 summary={'commit':sha,'version':'0.8.8-preview','applicationId':pkg,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],
-         'androidTests':android,'signatureConversionVerified':True,'unitTests':reports,'installation':install,'mobileEngineTests':mobile,'originalBrowserScenarios':len(old_browser),'javascriptTests':28,'independentPartialFormattingParser':True,'physicalDeviceTested':False,'nativeCalc':calc_result,'additionalBundledFontFamilies':6,'apks':apks}
+         'androidTests':android,'signatureConversionVerified':True,'signatureEngineTests':signatures,'unitTests':reports,'installation':install,'mobileEngineTests':mobile,'originalBrowserScenarios':len(old_browser),'javascriptTests':28,'independentPartialFormattingParser':True,'physicalDeviceTested':False,'nativeCalc':calc_result,'additionalBundledFontFamilies':6,'apks':apks}
 (ci/'summary.json').write_text(json.dumps(summary,indent=2))
 with zipfile.ZipFile(out/(name+'-verification.zip'),'w',zipfile.ZIP_DEFLATED) as z:
     for folder in ('artifacts/open-fixtures','artifacts/ci','artifacts/mobile-install','artifacts/hangul-mobile','artifacts/signature-conversion','artifacts/mobile-ui','artifacts/native-android','artifacts/document-engines',

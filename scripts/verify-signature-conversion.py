@@ -8,12 +8,27 @@ results=json.loads((root/'signature-results.json').read_text())
 assert len(results)==2 and {r['format'] for r in results}=={'hwp','hwpx'}
 for r in results:
  assert r['signatureTouch'] and r['tableTextPreserved'] and r['tableStructurePreserved'] and r['savedAndReopened']
+ colorSeen=False
  for i in range(r['pages']):
   before=Image.open(root/f"{r['format']}-before-{i}.png").convert('RGB')
   after=Image.open(root/f"{r['format']}-after-{i}.png").convert('RGB')
   assert before.size==after.size
+  def blue_pixels(image):
+   w,h=image.size
+   return {(i%w,i//w) for i,(r,g,b) in enumerate(image.getdata()) if abs(r-20)<18 and abs(g-88)<18 and abs(b-189)<18}
+  a=blue_pixels(before);b=blue_pixels(after)
+  if a:
+   colorSeen=True
+   assert len(a)>10 and len(b)>10
+   assert abs(len(a)-len(b))/max(len(a),len(b))<.08,('signature area changed',len(a),len(b))
+   center=lambda points:(sum(x for x,y in points)/len(points),sum(y for x,y in points)/len(points))
+   ac,bc=center(a),center(b)
+   assert abs(ac[0]-bc[0])<2 and abs(ac[1]-bc[1])<2,('signature moved',ac,bc)
+   near=sum(any((x+dx,y+dy) in b for dx in (-1,0,1) for dy in (-1,0,1)) for x,y in a)
+   assert near/len(a)>.95,('signature shape changed',near/len(a))
   mean=sum(ImageStat.Stat(ImageChops.difference(before,after)).mean)/3
   assert mean<5,('saved page changed',r['format'],i,mean)
+ assert colorSeen,('missing visible signature',r['format'])
 with zipfile.ZipFile(root/'signature.hwpx') as z:
  assert z.testzip() is None
  sections=[ET.fromstring(z.read(n)) for n in z.namelist() if n.startswith('Contents/section') and n.endswith('.xml')]

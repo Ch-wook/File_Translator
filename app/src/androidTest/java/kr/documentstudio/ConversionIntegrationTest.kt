@@ -39,13 +39,16 @@ class ConversionIntegrationTest {
         val original=File(dir,"layout."+ext);instrumentation.context.assets.open("conversion/layout."+ext).use {input->original.outputStream().use {input.copyTo(it)}}
         val hash=ConversionFiles.digest(original);val repo=DocumentRepository(context);val source=repo.open(uri(original),"UTF-8");val working=repo.prepareOffice(source)
         context.startActivity(Intent().setClassName(context.packageName,"org.libreoffice.androidlib.StudioOfficeActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("sessionId",source.id).putExtra("workingPath",working.absolutePath).putExtra("displayName",source.name).putExtra("originalUri",uri(original).toString()))
+        var completed=false
         try {
             await("Actual native document must load",120000){probe("state")?.getBoolean("ready")==true}
             await("Mobile PDF conversion menu must exist"){device.findObject(By.desc("문서 메뉴"))!=null || device.findObject(By.text("문서 메뉴"))!=null}
             NativeUiActions.tap(device,context.packageName,"문서 메뉴")
-            await("PDF conversion action must be visible",10000){device.findObject(By.text("PDF로 변환"))!=null || device.findObject(By.desc("PDF로 변환"))!=null};device.pressBack()
+            await("PDF conversion action must be visible",10000){device.findObject(By.text("PDF로 변환"))!=null || device.findObject(By.desc("PDF로 변환"))!=null}
             val pdf=File(dir,"result.pdf").apply {writeBytes(byteArrayOf())};probe("convert-pdf",uri(pdf).toString())
-            await("Native filter must save and read back PDF",120000){device.findObject(By.text("PDF 변환 완료"))!=null}
+            var exportError: String?=null
+            await("Native filter must save and read back PDF",60000){exportError=probe("pdf-state")?.getString("error");device.findObject(By.text("PDF 변환 완료"))!=null || !exportError.isNullOrBlank()}
+            assertTrue("Native PDF filter failure: "+exportError,exportError.isNullOrBlank())
             val info=PdfEngine.inspect(pdf);assertEquals(pages,info.pages)
             PDDocument.load(pdf).use {doc->val text=PDFTextStripper().getText(doc);for(token in tokens)assertTrue("PDF must preserve "+token,text.contains(token))
                 if(ext=="pptx"){var previous=-1;for(i in 1..10){val next=text.indexOf("TEST_SLIDE_%02d".format(i));assertTrue(next>previous);previous=next};val box=doc.getPage(0).mediaBox;assertEquals(16.0/9.0,(box.width/box.height).toDouble(),.02)}
@@ -54,7 +57,14 @@ class ConversionIntegrationTest {
             assertEquals(hash,ConversionFiles.digest(original))
             File(output,ext+".json").writeText(JSONObject().put("pages",pages).put("tokensVerified",true).put("originalUnchanged",true).put("nativeFilter",true).toString(2))
             NativeUiActions.tap(device,context.packageName,"닫기")
-        }finally{runCatching {probe("close")};await("Office process must exit",30000){device.executeShellCommand("pidof "+context.packageName+":office").trim().isEmpty()};runCatching {repo.acceptOffice(source)}}
+            completed=true
+        }finally{
+            runCatching {probe("close")}
+            val deadline=SystemClock.uptimeMillis()+10000
+            while(SystemClock.uptimeMillis()<deadline && device.executeShellCommand("pidof "+context.packageName+":office").trim().isNotEmpty())SystemClock.sleep(100)
+            if(device.executeShellCommand("pidof "+context.packageName+":office").trim().isNotEmpty()){device.executeShellCommand("am kill "+context.packageName);if(completed)error("Successful PDF host must close cleanly")}
+            runCatching {repo.acceptOffice(source)}
+        }
     }
     @Test fun hwpxSignatureAndLayoutPdf()=runBlocking {
         val repo=DocumentRepository(context);val s=repo.create(Format.HWPX);val working=repo.prepareOffice(s);val original=ConversionFiles.digest(s.base)
@@ -82,10 +92,21 @@ class ConversionIntegrationTest {
             await("Signature must become native document picture"){eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.objects().some(o=>o.type==='image')")=="true"}
             eval("window.documentStudioHost.checkpoint()")
             await("Signed HWPX must be durably saved"){java.util.zip.ZipFile(working).use {z->z.entries().asSequence().any {it.name.startsWith("BinData/") && it.name.endsWith(".png")}}}
+            eval("(async()=>{const e=document.getElementById('engine').contentWindow.rhwpStudio.documentStudio;const r=await fetch('/document');await e.open(new Uint8Array(await r.arrayBuffer()),'signed.hwpx');await e.setEditing(true);window.__signatureReopened=e.mobile.objects().some(o=>o.type==='image');})()")
+            await("Persisted signed HWPX must reopen in the real engine"){eval("window.__signatureReopened")=="true"}
+            await("Signature checkpoint must finish"){eval("document.getElementById('save').disabled")=="false"}
             val pdf=File(context.cacheDir,"tests/signed-hwpx.pdf").apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}
             context.contentResolver.call(provider,"pdf-target",uri(pdf).toString(),null)
             eval("window.documentStudioHost.writePdf()")
-            await("Native PDF bridge must save signed page",90000){device.findObject(By.text("PDF 변환 완료"))!=null}
+            var failureStatus=""
+            await("Native PDF bridge must save signed page",60000){
+                val raw=eval("JSON.stringify({text:document.getElementById('status').textContent,error:document.getElementById('status').dataset.error})")
+                val decoded=org.json.JSONTokener(raw ?: "null").nextValue()
+                val state=if(decoded is String)JSONObject(decoded) else JSONObject()
+                if(state.optString("error")=="true")failureStatus=state.optString("text")
+                device.findObject(By.text("PDF 변환 완료"))!=null || failureStatus.isNotBlank()
+            }
+            assertTrue("HWPX PDF bridge failure: "+failureStatus,failureStatus.isBlank())
             assertTrue(PdfEngine.inspect(pdf).pages>=1);assertEquals(original,ConversionFiles.digest(s.base))
             val bitmap=PdfEngine.render(pdf,0,600,800)
             try{
@@ -93,7 +114,7 @@ class ConversionIntegrationTest {
                 assertTrue("Signed PDF must visibly contain the blue signature strokes",blue>10)
                 File(output,"signed-hwpx.png").outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}}finally{bitmap.recycle()}
             File(output,"signed.hwpx").writeBytes(working.readBytes());File(output,"signed.pdf").writeBytes(pdf.readBytes())
-            File(output,"signature.json").writeText(JSONObject().put("nativeTouchSignature",true).put("embeddedPng",true).put("nativePdfSaved",true).put("originalUnchanged",true).toString(2))
+            File(output,"signature.json").writeText(JSONObject().put("nativeTouchSignature",true).put("embeddedPng",true).put("nativePdfSaved",true).put("engineReopenedBeforePdf",true).put("originalUnchanged",true).toString(2))
         }finally {runCatching {context.contentResolver.call(provider,"close",null,null)};await("Hangul process must exit",30000){device.executeShellCommand("pidof "+context.packageName+":hangul").trim().isEmpty()}}
     }
     @Test fun textMarkdownAndPdfConversions()=runBlocking {

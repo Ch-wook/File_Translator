@@ -1986,12 +1986,15 @@ public class LOActivity extends AppCompatActivity {
     }
 
     private boolean studioPdfBusy;
+    private volatile String studioPdfError;
     /** Direct native PDF filter; no print UI, original ownership or screenshot conversion. */
     private void convertStudioPdf(Uri destination) {
         if(studioPdfBusy)return;
         if(destination.toString().equals(getIntent().getStringExtra("originalUri"))){
             Toast.makeText(this,"원본과 다른 파일을 선택하세요.",Toast.LENGTH_LONG).show();return;
         }
+        onPdfConversionStarted();
+        studioPdfError=null;
         studioPdfBusy=true;
         final android.app.ProgressDialog progress=new android.app.ProgressDialog(this);
         progress.setMessage("PDF 변환 중 · 전체 문서 레이아웃 처리");progress.setCancelable(false);
@@ -2034,6 +2037,7 @@ public class LOActivity extends AppCompatActivity {
                     }).setNegativeButton("닫기",null).show();
                 });
             }catch(Exception failure){
+                studioPdfError=String.valueOf(failure.getMessage());
                 if(backed && backup!=null)try(InputStream input=new FileInputStream(backup);OutputStream out=getContentResolver().openOutputStream(destination,"rwt")){if(out!=null)studioCopyStream(input,out);}catch(Exception ignored){}
                 runOnUiThread(()->Toast.makeText(this,"PDF 변환 실패: "+failure.getMessage(),Toast.LENGTH_LONG).show());
             }finally{
@@ -2048,6 +2052,7 @@ public class LOActivity extends AppCompatActivity {
         return android.util.Base64.encodeToString(digest.digest(),android.util.Base64.NO_WRAP);
     }
     @JavascriptInterface public boolean isStudioConversionOnly(){return getIntent().getBooleanExtra("conversionOnly",false);}
+    protected void onPdfConversionStarted() { }
     protected void onPdfConversionCompleted(Uri destination) { }
     private static void studioCopyStream(InputStream input,OutputStream out) throws java.io.IOException {byte[] b=new byte[65536];int n;while((n=input.read(b))!=-1)out.write(b,0,n);}
     private void initiateSaveAs(String optionsString) {
@@ -2059,6 +2064,7 @@ public class LOActivity extends AppCompatActivity {
                 optionsMap.put(keyValue[0], keyValue[1]);
         }
         String format = optionsMap.get("format");
+        if("pdf".equals(format))onPdfConversionStarted();
         String mime = getMimeForFormat(format);
         if (format != null && mime != null) {
             String filename = optionsMap.get("name");

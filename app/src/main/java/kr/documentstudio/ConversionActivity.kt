@@ -82,8 +82,8 @@ class ConversionActivity: ComponentActivity() {
             Text(model.source?.name ?: "파일을 선택하세요.")
             if(model.source==null){Text("텍스트 인코딩");Row {for(value in listOf("UTF-8","MS949"))TextButton({model.encoding=value}){Text((if(model.encoding==value)"✓ " else "")+value)}}}
             model.source?.let {s->
-                val engineAvailable=s.format !in DocumentRepository.visualFormats || s.format in listOf(Format.HWP,Format.HWPX) || android.os.Build.VERSION.SDK_INT>=30
-                if(!engineAvailable)Text("이 문서의 PDF 변환은 Android 11 이상에서 지원합니다.")
+                val engineAvailable=s.readOnlyReason==null && (s.format !in DocumentRepository.visualFormats || s.format in listOf(Format.HWP,Format.HWPX) || android.os.Build.VERSION.SDK_INT>=30)
+                if(s.readOnlyReason!=null)Text(s.readOnlyReason ?: "보호된 문서는 변환할 수 없습니다.") else if(!engineAvailable)Text("이 문서의 PDF 변환은 Android 11 이상에서 지원합니다.")
                 Text("결과 형식")
                 Row(Modifier.fillMaxWidth()){for(t in PortableConversions.targets(s.format))FilterChip(model.target==t,{model.target=t},label={Text(t.uppercase())},enabled=!model.busy && engineAvailable)}
                 if(s.format==Format.PDF && model.target.endsWith("zip")){

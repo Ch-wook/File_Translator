@@ -12,6 +12,7 @@ import java.nio.channels.FileLock;
 public final class StudioOfficeActivity extends LOActivity {
     private File working;
     private String conversionUri;
+    @Override protected void onPdfConversionStarted(){conversionUri=null;}
     @Override protected void onPdfConversionCompleted(Uri uri){conversionUri=uri.toString();}
     private RandomAccessFile lockFile;
     private FileLock lock;
