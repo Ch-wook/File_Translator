@@ -4,7 +4,7 @@ import hashlib,json,os,pathlib,re,shutil,struct,subprocess,urllib.request,zipfil
 root=pathlib.Path.cwd();out=root/'artifacts/delivery';out.mkdir(parents=True,exist_ok=True)
 ci=root/'artifacts/ci';ci.mkdir(parents=True,exist_ok=True)
 tools=pathlib.Path(os.environ['ANDROID_HOME'])/'build-tools/35.0.0'
-name='document-studio-0.8.8-preview';pkg='kr.documentstudio.convertpreview';sha=os.environ.get('STUDIO_APK_BUILD_SHA',os.environ['GITHUB_SHA'])
+name='document-studio-0.8.9-preview';pkg='kr.documentstudio.readingpreview';sha=os.environ.get('STUDIO_APK_BUILD_SHA',os.environ['GITHUB_SHA'])
 # Recovery may add only delivery metadata; the preserved app code must be identical.
 source_sha=os.environ['GITHUB_SHA']
 if sha!=source_sha:
@@ -35,7 +35,7 @@ for abi in ('arm64-v8a','x86_64'):
     (ci/(abi+'-manifest.txt')).write_text(manifest)
     xml=subprocess.check_output([str(tools/'aapt2'),'dump','xmltree',str(apk),'--file','AndroidManifest.xml'],text=True)
     (ci/(abi+'-manifest-tree.txt')).write_text(xml)
-    assert "name='"+pkg+"'" in manifest and "versionCode='18'" in manifest and "versionName='0.8.8-preview'" in manifest
+    assert "name='"+pkg+"'" in manifest and "versionCode='19'" in manifest and "versionName='0.8.9-preview'" in manifest
     assert 'testOnly' not in xml and 'KoreanImeFixture' not in xml,xml
     permissions=subprocess.check_output([str(tools/'aapt2'),'dump','permissions',str(apk)],text=True)
     assert 'android.permission.INTERNET' not in permissions
@@ -76,13 +76,13 @@ for abi in ('arm64-v8a','x86_64'):
         assert z.read('assets/unpack/user/fonts/NotoSansKR.ttf')==(root/'app/src/main/assets/fonts/NotoSansKR.ttf').read_bytes()
         assert z.read('assets/dist/studio-policy.js')==(root/'officeruntime/src/main/assets/dist/studio-policy.js').read_bytes()
     filename=name+'-'+abi+'.apk';shutil.copy2(apk,out/filename)
-    apks.append({'file':filename,'applicationId':pkg,'versionCode':18,'versionName':'0.8.8-preview','abi':abi,'bytes':apk.stat().st_size,
+    apks.append({'file':filename,'applicationId':pkg,'versionCode':19,'versionName':'0.8.9-preview','abi':abi,'bytes':apk.stat().st_size,
                  'sha256':digest(apk),'certificateSHA256':cert[0],'elf16k':True,'testOnly':False})
 assert apks[0]['certificateSHA256']==apks[1]['certificateSHA256']
 # Refuse a future incompatible update to this preview identity.
 releases=json.loads(subprocess.check_output(['gh','api','repos/Ch-wook/File_Translator/releases?per_page=50'],text=True))
 for release in releases:
-    if release['draft'] or release['tag_name']=='v0.8.8-preview':continue
+    if release['draft'] or release['tag_name']=='v0.8.9-preview':continue
     for asset in release.get('assets',[]):
         if not asset['name'].endswith('-apk-metadata.json'):continue
         with urllib.request.urlopen(asset['browser_download_url'],timeout=60) as response: previous=json.load(response)
@@ -90,9 +90,9 @@ for release in releases:
             if old['applicationId']==pkg:
                 assert old['certificateSHA256']==apks[0]['certificateSHA256'],'Signing key differs from an existing preview. Configure the original secure STUDIO_KEYSTORE; do not publish an incompatible update.'
 android=json.loads((ci/'android-summary.json').read_text())
-assert os.environ['EMULATOR_OUTCOME']=='success' and android=={'tests':44,'failures':0,'errors':0,'skipped':0},android
+assert os.environ['EMULATOR_OUTCOME']=='success' and android=={'tests':51,'failures':0,'errors':0,'skipped':0},android
 install=json.loads((root/'artifacts/mobile-install/summary.json').read_text())
-assert install['cleanInstallWithoutTestFlag'] and install['coexistsWith087'] and install['priorApkHashUnchanged'] and install['priorPrivateDataPreserved'] and install['sameSignerReinstallPreservedPrivateData']
+assert install['cleanInstallWithoutTestFlag'] and install['coexistsWith088'] and install['priorApkHashUnchanged'] and install['priorPrivateDataPreserved'] and install['sameSignerReinstallPreservedPrivateData']
 mobile=json.loads((root/'artifacts/hangul-mobile/mobile-engine-results.json').read_text())
 assert {r['format'] for r in mobile}=={'hwp','hwpx'} and len(mobile)==2,mobile
 for r in mobile:
@@ -152,7 +152,7 @@ assert len(signatures)==2 and all(r['savedAndReopened'] and r['tableStructurePre
 metadata={'commit':sha,'sourceArchiveCommit':source_sha,'physicalDeviceTested':False,'apks':apks}
 (out/(name+'-apk-metadata.json')).write_text(json.dumps(metadata,indent=2))
 (ci/'apk-engine-assets.json').write_text(json.dumps(engine_assets,indent=2))
-summary={'commit':sha,'sourceArchiveCommit':source_sha,'version':'0.8.8-preview','applicationId':pkg,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],
+summary={'commit':sha,'sourceArchiveCommit':source_sha,'version':'0.8.9-preview','applicationId':pkg,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],
          'androidTests':android,'signatureConversionVerified':True,'signatureEngineTests':signatures,'unitTests':reports,'installation':install,'mobileEngineTests':mobile,'originalBrowserScenarios':len(old_browser),'javascriptTests':28,'independentPartialFormattingParser':True,'physicalDeviceTested':False,'nativeCalc':calc_result,'additionalBundledFontFamilies':6,'apks':apks}
 (ci/'summary.json').write_text(json.dumps(summary,indent=2))
 with zipfile.ZipFile(out/(name+'-verification.zip'),'w',zipfile.ZIP_DEFLATED) as z:
@@ -160,12 +160,12 @@ with zipfile.ZipFile(out/(name+'-verification.zip'),'w',zipfile.ZIP_DEFLATED) as
                    'core/build/test-results','officeruntime/build/test-results','app/build/test-results','app/build/outputs/androidTest-results','app/build/reports','core/build/visual-fixtures'):
         for p in (root/folder).rglob('*'):
             if p.is_file():z.write(p,p.relative_to(root))
-(out/'README.txt').write_text("""문서 스튜디오 서명·변환 0.8.8-preview
+(out/'README.txt').write_text("""문서 스튜디오 읽기 개선 0.8.9-preview
 
-휴대폰: document-studio-0.8.8-preview-arm64-v8a.apk
+휴대폰: document-studio-0.8.9-preview-arm64-v8a.apk
 x86_64 APK는 해당 아키텍처와 에뮬레이터용입니다. Android 10+ 64비트, Office는 Android 11+입니다.
 
-기존 서명키가 없어 별도 프리뷰 ID kr.documentstudio.convertpreview로 제공합니다. 기존 0.8.7 앱과 문서를 삭제하지 마세요. 같은 프로젝트의 개선 빌드이며 앱 이름은 '문서 스튜디오 서명·변환'입니다. 기존 앱의 비공개 작업 복구본은 자동 이관하지 않습니다. 기존 앱에서 다른 이름으로 저장한 문서를 새 앱에서 열 수 있습니다.
+기존 서명키가 없어 별도 프리뷰 ID kr.documentstudio.readingpreview로 제공합니다. 기존 0.8.8 앱과 문서를 삭제하지 마세요. 같은 프로젝트의 개선 빌드이며 앱 이름은 '문서 스튜디오 읽기 개선'입니다. 기존 앱의 비공개 작업 복구본은 자동 이관하지 않습니다. 기존 앱에서 다른 이름으로 저장한 문서를 새 앱에서 열 수 있습니다.
 
 나눔고딕(NanumGothic)·나눔명조(NanumMyeongjo)·고운돋움·고운바탕·Lato·Cousine의 실제 글꼴 파일과 OFL 라이선스를 추가했습니다. 엔진이 실제 제공하는 글꼴만 목록에 표시합니다. 검색·미리보기·최근·즐겨찾기를 제공합니다. 맑은 고딕·Arial 등 별도 배포 권한이 없는 글꼴을 포함한 것으로 표시하지 않습니다.
 
@@ -175,7 +175,7 @@ TXT·Markdown 글꼴은 화면 표시 설정이며 파일 서식이 아닙니다
 
 원본과 작업 복사본을 분리합니다. 자동 저장은 작업 복구본 보존이며 외부 원본 저장 완료와 다릅니다. 원본 반영은 저장 동작과 성공 확인이 필요합니다.
 
-Android 35 x86_64 에뮬레이터에서 44개 테스트와 기존 앱 보존 설치·동일 APK 재설치를 검증합니다. Word 선택 서식의 독립 적용, Excel 실제 붙여넣기·15개 수식 결과·셀 서식·새 시트, PowerPoint 슬라이드 추가와 텍스트 서식, PDF 주석·이미지·필기, Markdown·TXT 저장과 재열기를 포함합니다. HWP/HWPX는 실제 브라우저 엔진, 독립 파서, Android 입력 테스트를 수행합니다.
+Android 35 x86_64 에뮬레이터에서 51개 테스트와 기존 앱 보존 설치·동일 APK 재설치를 검증합니다. Word 선택 서식의 독립 적용, Excel 실제 붙여넣기·15개 수식 결과·셀 서식·새 시트, PowerPoint 슬라이드 추가와 텍스트 서식, PDF 주석·이미지·필기, Markdown·TXT 저장과 재열기를 포함합니다. HWP/HWPX는 실제 브라우저 엔진, 독립 파서, Android 입력 테스트를 수행합니다.
 
 실제 ARM64 휴대폰과 삼성/Gboard 키보드는 미검증입니다. ARM64 APK는 빌드·서명·패키지·16KiB ELF/ZIP 정렬·자산 검사를 수행합니다. 모든 고급 기능이나 모든 기존 문서의 무손실 저장을 보장한 결과가 아닙니다. 추가 변경: 로컬 파일 변환·실제 엔진 PDF·투명 PNG 자필 서명 및 문서 삽입. 한글 PDF는 페이지 이미지 방식이며 검색/선택/링크는 미지원입니다. OCR·직접 벡터 필기·고급 상호 변환은 미지원입니다. 이전 변경: PowerPoint 슬라이드 목록·이동·삭제 확인, Excel 셀 입력 완료·취소와 숨겨진 시트/마지막 표시 시트 보호. 상세 범위는 docs/SIGNATURE_CONVERSION_RESULTS.md와 verification.zip을 확인하세요.
 

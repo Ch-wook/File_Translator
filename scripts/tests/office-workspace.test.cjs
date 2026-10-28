@@ -17,6 +17,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
   w.setInterval = f => { tick=f; return 1; }; w.clearInterval = () => {};
   w.setTimeout = f => { const id=++serial;timeouts.set(id,f);return id; };
   w.clearTimeout = id => timeouts.delete(id);
+  w.requestAnimationFrame=f=>{const id=++serial;timeouts.set(id,()=>f(0));return id;};w.cancelAnimationFrame=w.clearTimeout;
   w.COOLMessageHandler = {
     requestStudioEdit: () => {grants++;return grant && permission === 'edit';},
     getStudioViewState: () => JSON.stringify(savedView || {}),
@@ -77,13 +78,13 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
   w.eval(fs.readFileSync(path.join(__dirname,'../../shared/editor-ui/dist/studio-editor-ui.js'),'utf8'));
   w.eval(source);tick();flush();tick();flush();
   const button = label => [...w.document.querySelectorAll('button')].find(b=>b.getAttribute('aria-label')===label || b.textContent===label);
-  const click = label => {const b=button(label);assert.ok(b,`Missing ${label}`);b.click();if(label==='편집하기' || label==='보기로 전환') flush();return b;};
+  const click = label => {const b=button(label);assert.ok(b,`Missing ${label}`);b.click();flush();return b;};
   return {
-    w,commands,states,keys,mobile,persisted,tick,click,button,flush,viewport,
+    w,commands,states,keys,mobile,persisted,tick:()=>{tick();listeners.commandstatechanged?.({});flush();},sample:()=>{tick();flush();},click,button,flush,viewport,
     requests:()=>requested,grants:()=>grants,resizes:()=>layoutResizes,nativeRestores:()=>nativeRestores,nativeCursor,userEvent:name=>userEvents[name]?.({isTrusted:true,target:w.document.body}),close:()=>w.close(),
-    select:value=>{selected=value;tick();},
-    edit:value=>{editing=value;listeners.updatepermission?.();},
-    changed:()=>listeners.commandstatechanged?.({commandName:'.uno:ModifiedStatus',state:'true'})
+    select:value=>{selected=value;listeners.contextchange?.({});flush();},
+    edit:value=>{editing=value;listeners.updatepermission?.();flush();},
+    changed:()=>{listeners.commandstatechanged?.({commandName:'.uno:ModifiedStatus',state:'true'});flush();}
   };
 }
 

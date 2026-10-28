@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: mobile-release-088-${{ github.sha }}
+  group: mobile-release-089-${{ github.sha }}
   cancel-in-progress: false
 jobs:
   verify:
@@ -132,8 +132,8 @@ jobs:
         continue-on-error: true
         env:
           STUDIO_ABI: x86_64
-          STUDIO_PACKAGE: kr.documentstudio.convertpreview
-          MODE_TEST_CLASSES: kr.documentstudio.ConversionIntegrationTest,kr.documentstudio.PdfAnnotationsTest,kr.documentstudio.PdfImageEditingTest,kr.documentstudio.PdfInkAppearanceTest,kr.documentstudio.PdfMarkupUiTest,kr.documentstudio.MarkdownUiTest,kr.documentstudio.CommonMobileUiTest,kr.documentstudio.NativeOfficeFontTest,kr.documentstudio.DocumentOpenRegressionTest,kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest
+          STUDIO_PACKAGE: kr.documentstudio.readingpreview
+          MODE_TEST_CLASSES: kr.documentstudio.ReadingUxTest,kr.documentstudio.DocumentTreeTest,kr.documentstudio.ConversionIntegrationTest,kr.documentstudio.PdfAnnotationsTest,kr.documentstudio.PdfImageEditingTest,kr.documentstudio.PdfInkAppearanceTest,kr.documentstudio.PdfMarkupUiTest,kr.documentstudio.MarkdownUiTest,kr.documentstudio.CommonMobileUiTest,kr.documentstudio.NativeOfficeFontTest,kr.documentstudio.DocumentOpenRegressionTest,kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest
           STUDIO_STORE_PASSWORD: ${{ secrets.STUDIO_STORE_PASSWORD }}
           STUDIO_KEY_ALIAS: ${{ secrets.STUDIO_KEY_ALIAS }}
           STUDIO_KEY_PASSWORD: ${{ secrets.STUDIO_KEY_PASSWORD }}
@@ -150,6 +150,7 @@ jobs:
       - name: Verify ABI packages, signatures, all test results and exact source
         env:
           EMULATOR_OUTCOME: ${{ steps.android.outcome }}
+          GH_TOKEN: ${{ github.token }}
         run: python3 scripts/package-mobile-release.py
       - uses: actions/upload-artifact@v4
         with:

@@ -87,10 +87,15 @@ class DocumentRepository(private val context: Context) {
             val format = FormatDetector.detect(incoming,name,runCatching { context.contentResolver.getType(uri) }.getOrNull(),encoding)
             val old = existing?.let { restoreInternal(it.id) }
             val hash = digest(incoming)
+            if(old!=null && old.sourceHash==hash && old.format==format) {
+                // We verified the provider bytes. Reuse the already restored model
+                // rather than rewriting the baseline and parsing the same file twice.
+                remember(old);return@io old
+            }
             val strokes = if(format==Format.PDF) PdfEngine.importOwned(incoming) else old?.edits?.strokes ?: emptyList()
             val layers = if(format==Format.PDF) PdfEngine.importLayers(incoming) else old?.edits?.layers ?: listOf(InkLayer())
             if(format==Format.PDF) { PdfEngine.inspect(incoming); PdfEngine.cleanOwned(incoming) }
-            val base = File(dir,"base.bin"); atomic(base,incoming.readBytes())
+            val base = File(dir,"base.bin"); atomicCopy(incoming,base)
             val s = build(id,name,format,uri.toString(),hash,base,encoding).let {
                 val edits = it.edits.copy(strokes=strokes,layers=layers,paper=old?.edits?.paper ?: Paper.BLANK); it.copy(edits=edits,saved=edits)
             }
@@ -308,7 +313,7 @@ class DocumentRepository(private val context: Context) {
         require(!File(dir,"office-pending.json").exists()) {"이 문서의 정밀 편집 복구본을 먼저 다시 열어 주세요."}
         checkpointInternal(s)
         val working=File(dir,"office-${UUID.randomUUID()}.${s.format.extension}")
-        if(s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty()) atomic(working,s.base.readBytes())
+        if(s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty()) atomicCopy(s.base,working)
         else if(s.pack!=null) s.pack.write(working,s.edits) else s.legacy!!.write(working,s.edits)
         require(FormatDetector.detect(working,s.name)==s.format)
         atomic(File(dir,"office-pending.json"),JSONObject().apply {
@@ -394,7 +399,7 @@ class DocumentRepository(private val context: Context) {
             return s.copy(recoveryWarning="승인된 편집 표시가 없는 작업 파일을 보관했습니다. 원본과 이전 작업은 변경하지 않았습니다.").also {remember(it)}
         }
         require(FormatDetector.detect(working,s.name)==s.format) {"정밀 편집 결과 형식이 일치하지 않습니다. 이전 복구본과 작업 파일을 보존했습니다."}
-        val next=File(dir,"${UUID.randomUUID()}.bin"); atomic(next,working.readBytes())
+        val next=File(dir,"${UUID.randomUUID()}.bin"); atomicCopy(working,next)
         val parsed=build(s.id,s.name,s.format,s.uri,s.sourceHash,next)
         // Stable sheet names survive engine part renumbering. Other anchors stay
         // available as separate ink pages even if their original section was removed.
@@ -488,6 +493,11 @@ class DocumentRepository(private val context: Context) {
         private fun digestStream(input: java.io.InputStream): String {
             val md=MessageDigest.getInstance("SHA-256"); val bytes=ByteArray(64*1024)
             while(true) { val n=input.read(bytes); if(n<0) break; md.update(bytes,0,n) }; return md.digest().joinToString("") { "%02x".format(it) }
+        }
+        fun atomicCopy(source: File,target: File) {
+            target.parentFile?.mkdirs();val af=AtomicFile(target);val out=af.startWrite()
+            try {source.inputStream().use {it.copyTo(out,64*1024)};af.finishWrite(out)}
+            catch(e: Exception) {af.failWrite(out);throw e}
         }
         fun atomic(file: File,bytes: ByteArray) {
             file.parentFile?.mkdirs(); val af=AtomicFile(file); val out=af.startWrite()

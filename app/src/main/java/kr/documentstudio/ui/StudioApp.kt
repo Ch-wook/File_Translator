@@ -336,7 +336,10 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
         if(kotlin.math.abs(view.textSize/fontContext.resources.displayMetrics.scaledDensity-fontSize)>.01f)view.textSize=fontSize
         if(view.isEnabled==busy)view.isEnabled=!busy
         if(view.wrapLines!=wrap){view.wrapLines=wrap;view.setHorizontallyScrolling(!wrap)}
-        if(view.isTextSelectable!=readOnly){view.tag=true;view.setTextIsSelectable(readOnly);view.tag=false}
+        if(view.isTextSelectable!=readOnly){
+            val a=view.selectionStart.coerceIn(0,view.length());val b=view.selectionEnd.coerceIn(0,view.length());val x=view.scrollX;val y=view.scrollY
+            view.tag=true;view.setTextIsSelectable(readOnly);view.tag=false;view.setSelection(a,b);view.scrollTo(x,y)
+        }
         val desiredKeyListener=if(readOnly) null else inputKeyListener
         if(view.keyListener !== desiredKeyListener) {
             val start=view.selectionStart.coerceIn(0,view.length());val end=view.selectionEnd.coerceIn(0,view.length())
