@@ -180,6 +180,7 @@
     const text=JSON.stringify(value);
     if (text!==lastViewport) {bridge()?.saveStudioViewState?.(text);lastViewport=text;}
   }
+  policy.flushView=persistViewport;
   function rememberViewport() {
     clearTimeout(persistTimer); persistTimer=setTimeout(persistViewport,250);
   }

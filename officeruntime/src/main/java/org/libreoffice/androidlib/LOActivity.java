@@ -1383,7 +1383,24 @@ public class LOActivity extends AppCompatActivity {
                     && !studioEditEverAuthorized && !officeModified && !officeApprovedChanges
                     && !officeSaveInFlight && !studioPdfBusy) {
                 onOfficeLifecycle("readonly-close-sealed");
-                runOnUiThread(() -> { mProgressDialog.dismiss(); onOfficeClosed(); finish(); });
+                runOnUiThread(() -> {
+                    java.util.concurrent.atomic.AtomicBoolean completed = new java.util.concurrent.atomic.AtomicBoolean();
+                    Runnable complete = () -> {
+                        if (completed.compareAndSet(false, true)) {
+                            mProgressDialog.dismiss(); onOfficeClosed(); finish();
+                        }
+                    };
+                    // System Back must capture the last scroll too. A dead renderer
+                    // cannot hold an unchanged viewer open indefinitely.
+                    getMainHandler().postDelayed(complete, 250);
+                    try {
+                        mWebView.evaluateJavascript("window.studioOffice?.flushView?.()", ignored -> {
+                            getMainHandler().removeCallbacks(complete); complete.run();
+                        });
+                    } catch (RuntimeException failure) {
+                        getMainHandler().removeCallbacks(complete); complete.run();
+                    }
+                });
                 return;
             }
             onOfficeLifecycle("sending-native-bye");
