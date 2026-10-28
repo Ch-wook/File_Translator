@@ -1,0 +1,29 @@
+// Local handwritten signatures. Pixels become native document pictures, never a screen overlay.
+export function openSignature({editor,native,message}) {
+ const token=editor.mobile.capture(),root=document.createElement('section');root.className='studio-signature';root.setAttribute('role','dialog');root.setAttribute('aria-label','자필 서명 작성');
+ const top=document.createElement('header'),canvas=document.createElement('canvas'),tools=document.createElement('div'),list=document.createElement('div');
+ canvas.width=1200;canvas.height=700;canvas.setAttribute('aria-label','서명 입력 공간');canvas.style.touchAction='none';
+ const ctx=canvas.getContext('2d');let strokes=[],history=[],redo=[],active=null,color='#000000',width=5,eraser=false,pen=false;
+ const close=()=>root.remove();
+ function button(label,fn,parent=tools){const b=document.createElement('button');b.textContent=label;b.type='button';b.onclick=fn;parent.append(b);return b;}
+ button('취소',close,top);const title=document.createElement('strong');title.textContent='자필 서명 작성';top.append(title);
+ button('초기화',()=>{if(confirm('작성한 서명을 모두 지울까요?')){history.push(structuredClone(strokes));strokes=[];redo=[];draw();}},top);
+ function draw(){ctx.clearRect(0,0,1200,700);ctx.lineCap=ctx.lineJoin='round';for(const s of strokes){for(let i=0;i<s.points.length;i++){const a=s.points[Math.max(0,i-1)],b=s.points[i];ctx.strokeStyle=s.color;ctx.lineWidth=s.width*Math.max(.3,(a.p+b.p)/2);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x+.01,b.y+.01);ctx.stroke();}}}
+ function point(e){const r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)*1200/r.width,y:(e.clientY-r.top)*700/r.height,p:e.pointerType==='pen'?Math.min(2,Math.max(.2,e.pressure*2)):1};}
+ canvas.onpointerdown=e=>{if(active||e.button>0||e.pointerType==='touch'&&pen)return;e.preventDefault();if(e.pointerType==='pen')pen=true;canvas.setPointerCapture(e.pointerId);active={id:e.pointerId,erase:eraser,before:structuredClone(strokes)};history.push(structuredClone(strokes));if(history.length>60)history.shift();redo=[];if(!eraser){strokes.push({color,width,points:[point(e)]});redo=[];}};
+ canvas.onpointermove=e=>{if(active?.id!==e.pointerId)return;e.preventDefault();for(const sample of e.getCoalescedEvents?.()||[e]){const p=point(sample);if(active.erase)strokes=strokes.filter(s=>!s.points.some(q=>Math.hypot(p.x-q.x,p.y-q.y)<22));else strokes.at(-1).points.push(p);}draw();};
+ function end(e,cancel=false){if(active?.id!==e.pointerId)return;if(cancel){strokes=active.before;history.pop();}active=null;if(e.pointerType==='pen')pen=false;draw();}
+ canvas.onpointerup=e=>end(e);canvas.onpointercancel=e=>end(e,true);canvas.onlostpointercapture=e=>{if(active?.id===e.pointerId)end(e,true);};
+ function png(){if(!strokes.length)throw Error('서명을 먼저 작성하세요.');const pts=strokes.flatMap(s=>s.points),pad=20;const x=Math.max(0,Math.floor(pts.reduce((m,p)=>Math.min(m,p.x),1200)-pad)),y=Math.max(0,Math.floor(pts.reduce((m,p)=>Math.min(m,p.y),700)-pad));const w=Math.min(1200-x,Math.ceil(pts.reduce((m,p)=>Math.max(m,p.x),0)-x+pad)),h=Math.min(700-y,Math.ceil(pts.reduce((m,p)=>Math.max(m,p.y),0)-y+pad));const out=document.createElement('canvas');out.width=w;out.height=h;out.getContext('2d').drawImage(canvas,x,y,w,h,0,0,w,h);return {url:out.toDataURL('image/png'),w,h};}
+ button('완료',async()=>{try{const p=png();await editor.placeSignature(p.url,p.w,p.h,token);close();message('서명을 넣을 문서 위치를 누르세요. 그림 도구에서 이동·크기·회전을 조절할 수 있습니다.');}catch(e){message(e.message,true);}},top);
+ for(const [name,c] of [['검정','#000000'],['파랑','#1458bd'],['빨강','#c82828']])button(name,()=>{color=c;eraser=false;});
+ const custom=document.createElement('input');custom.type='color';custom.setAttribute('aria-label','펜 색상');custom.oninput=()=>{color=custom.value;eraser=false;};tools.append(custom);
+ const size=document.createElement('input');size.type='range';size.min='1';size.max='20';size.value='5';size.setAttribute('aria-label','펜 굵기');size.oninput=()=>width=Number(size.value);tools.append(size);
+ button('펜',()=>eraser=false);button('획 지우개',()=>eraser=true);button('실행 취소',()=>{if(history.length){redo.push(structuredClone(strokes));strokes=history.pop();draw();}});button('다시 실행',()=>{if(redo.length){history.push(structuredClone(strokes));strokes=redo.pop();draw();}});
+ const note=document.createElement('p');note.textContent='투명 PNG로 문서에 삽입합니다. 인증서 전자서명이 아닙니다. 서명은 이 기기 앱 내부에만 보관합니다.';
+ let library=[];try{library=JSON.parse(native?.readSignatures?.()||'[]');}catch{}
+ function persist(){if(!native?.writeSignatures?.(JSON.stringify(library)))throw Error('서명 보관에 실패했습니다.');}
+ function render(){list.replaceChildren();for(const s of library){const row=document.createElement('div'),img=document.createElement('img');img.src=s.png;img.alt=s.name;img.width=120;row.append(img);button(s.name,async()=>{try{await editor.placeSignature(s.png,s.w,s.h,token);close();message('서명을 넣을 위치를 누르세요.');}catch(e){message(e.message,true);}},row);button('수정',()=>{history.push(structuredClone(strokes));strokes=structuredClone(s.strokes||[]);redo=[];draw();},row);button('삭제',()=>{if(confirm('보관한 서명을 삭제할까요?')){library=library.filter(v=>v.id!==s.id);try{persist();render();}catch(e){message(e.message,true);}}},row);list.append(row);}}
+ button('내 서명에 저장',()=>{try{if(library.length>=20)throw Error('최대 20개까지 보관합니다.');const p=png(),name=prompt('서명 이름','내 서명');if(!name)return;library.push({id:crypto.randomUUID(),name:name.slice(0,80),png:p.url,w:p.w,h:p.h,strokes:structuredClone(strokes)});persist();render();}catch(e){message(e.message,true);}});
+ root.append(top,canvas,tools,note,list);document.body.append(root);render();
+}

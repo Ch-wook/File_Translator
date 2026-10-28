@@ -13,7 +13,7 @@ def run(*args,**kwargs): subprocess.run(args,check=True,**kwargs)
 def digest(path):
     with path.open('rb') as stream: return hashlib.file_digest(stream,'sha256').hexdigest()
 def prepare():
-    inputs=[ROOT/'web/hangul'/name for name in ['index.html','host.css','host.js','engine-adapter.ts','host-readonly.ts','patch-engine.py','studio-mobile.ts','studio-touch.ts','studio-ime-history.ts','studio-table-position.ts','mobile-tools.js']]
+    inputs=[ROOT/'web/hangul'/name for name in ['index.html','host.css','host.js','engine-adapter.ts','host-readonly.ts','patch-engine.py','studio-mobile.ts','studio-touch.ts','studio-ime-history.ts','studio-table-position.ts','mobile-tools.js','signature.js']]
     shared=list((ROOT/'shared/editor-ui/dist').glob('*'))
     buildInputs=inputs+shared+[ROOT/'web/hangul/engine-lock.json',Path(__file__)]
     stamp=hashlib.sha256((COMMIT+''.join(digest(p) for p in buildInputs)).encode()).hexdigest()

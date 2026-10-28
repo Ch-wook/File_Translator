@@ -1096,6 +1096,9 @@ public class LOActivity extends AppCompatActivity {
             Meaning that we will switch to the copied (saved-as) document in the bg
             this way we don't need to reload the activity.
         */
+        if(requestCode==REQUEST_SAVEAS_PDF && intent!=null && intent.getData()!=null){
+            convertStudioPdf(intent.getData());return;
+        }
         boolean requestCopy = false;
         if (requestCode == REQUEST_COPY) {
             requestCopy = true;
@@ -1683,6 +1686,9 @@ public class LOActivity extends AppCompatActivity {
             officeSaveInFlight = true;
         }
         switch (command) {
+            case "DOCUMENT_STUDIO_CONVERT_PDF":
+                runOnUiThread(() -> initiateSaveAs("format=pdf"));
+                return false;
             case "DOCUMENT_STUDIO_SAVE_AND_CLOSE":
                 studioSaveOriginal = officeApprovedChanges || officeSavedApproved;
                 runOnUiThread(this::finishWithProgress);
@@ -1978,6 +1984,68 @@ public class LOActivity extends AppCompatActivity {
         startActivityForResult(intent, REQUEST_EXPORT_FILE);
     }
 
+    private boolean studioPdfBusy;
+    /** Direct native PDF filter; no print UI, original ownership or screenshot conversion. */
+    private void convertStudioPdf(Uri destination) {
+        if(studioPdfBusy)return;
+        if(destination.toString().equals(getIntent().getStringExtra("originalUri"))){
+            Toast.makeText(this,"원본과 다른 파일을 선택하세요.",Toast.LENGTH_LONG).show();return;
+        }
+        studioPdfBusy=true;
+        final android.app.ProgressDialog progress=new android.app.ProgressDialog(this);
+        progress.setMessage("PDF 변환 중 · 전체 문서 레이아웃 처리");progress.setCancelable(false);progress.show();
+        mWebView.setEnabled(false);
+        new Thread(() -> {
+            File stage=null,backup=null,check=null;boolean backed=false;
+            try {
+                stage=File.createTempFile("studio-pdf-",".pdf",getCacheDir());
+                saveAs(stage.toURI().toString(),"pdf",null);
+                if(stage.length()<10 || stage.length()>128L*1024*1024)throw new java.io.IOException("PDF 파일을 만들지 못했습니다.");
+                int pages;
+                try(android.os.ParcelFileDescriptor fd=android.os.ParcelFileDescriptor.open(stage,android.os.ParcelFileDescriptor.MODE_READ_ONLY);
+                    android.graphics.pdf.PdfRenderer renderer=new android.graphics.pdf.PdfRenderer(fd)){
+                    pages=renderer.getPageCount();if(pages<1)throw new java.io.IOException("PDF 페이지가 없습니다.");
+                    try(android.graphics.pdf.PdfRenderer.Page page=renderer.openPage(0)){
+                        android.graphics.Bitmap bitmap=android.graphics.Bitmap.createBitmap(128,128,android.graphics.Bitmap.Config.ARGB_8888);
+                        try{page.render(bitmap,null,null,android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);}finally{bitmap.recycle();}
+                    }
+                }
+                backup=File.createTempFile("studio-output-backup-",".bin",getCacheDir());
+                try(InputStream input=getContentResolver().openInputStream(destination);OutputStream out=new FileOutputStream(backup)){
+                    if(input!=null){studioCopyStream(input,out);backed=true;}
+                }catch(java.io.FileNotFoundException ignored){}
+                try(InputStream input=new FileInputStream(stage);OutputStream out=getContentResolver().openOutputStream(destination,"rwt")){
+                    if(out==null)throw new java.io.IOException("결과 파일 쓰기 실패");studioCopyStream(input,out);
+                }
+                check=File.createTempFile("studio-pdf-readback-",".pdf",getCacheDir());
+                try(InputStream input=getContentResolver().openInputStream(destination);OutputStream out=new FileOutputStream(check)){
+                    if(input==null)throw new java.io.IOException("저장 결과 읽기 실패");studioCopyStream(input,out);
+                }
+                if(!studioFileDigest(stage).equals(studioFileDigest(check)))throw new java.io.IOException("저장 결과 검증 실패");
+                final int count=pages;runOnUiThread(()->{
+                    onPdfConversionCompleted(destination);
+                    new AlertDialog.Builder(this).setTitle("PDF 변환 완료").setMessage(count+"쪽 PDF를 저장하고 다시 읽어 검증했습니다.").setPositiveButton("결과 열기",(d,w)->{
+                        Intent view=new Intent(Intent.ACTION_VIEW).setDataAndType(destination,"application/pdf").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        view.setPackage(getPackageName());startActivity(view);
+                    }).setNegativeButton("닫기",null).show();
+                });
+            }catch(Exception failure){
+                if(backed && backup!=null)try(InputStream input=new FileInputStream(backup);OutputStream out=getContentResolver().openOutputStream(destination,"rwt")){if(out!=null)studioCopyStream(input,out);}catch(Exception ignored){}
+                runOnUiThread(()->Toast.makeText(this,"PDF 변환 실패: "+failure.getMessage(),Toast.LENGTH_LONG).show());
+            }finally{
+                if(stage!=null)stage.delete();if(backup!=null)backup.delete();if(check!=null)check.delete();
+                runOnUiThread(()->{studioPdfBusy=false;if(mWebView!=null)mWebView.setEnabled(true);if(!isFinishing())progress.dismiss();});
+            }
+        },"studio-pdf-conversion").start();
+    }
+    private static String studioFileDigest(File file) throws Exception {
+        java.security.MessageDigest digest=java.security.MessageDigest.getInstance("SHA-256");
+        try(InputStream in=new FileInputStream(file)){byte[] buffer=new byte[65536];int n;while((n=in.read(buffer))!=-1)digest.update(buffer,0,n);}
+        return android.util.Base64.encodeToString(digest.digest(),android.util.Base64.NO_WRAP);
+    }
+    @JavascriptInterface public boolean isStudioConversionOnly(){return getIntent().getBooleanExtra("conversionOnly",false);}
+    protected void onPdfConversionCompleted(Uri destination) { }
+    private static void studioCopyStream(InputStream input,OutputStream out) throws java.io.IOException {byte[] b=new byte[65536];int n;while((n=input.read(b))!=-1)out.write(b,0,n);}
     private void initiateSaveAs(String optionsString) {
         Map<String, String> optionsMap = new HashMap<>();
         String[] options = optionsString.split(" ");

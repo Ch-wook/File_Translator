@@ -11,6 +11,8 @@ import java.nio.channels.FileLock;
 /** Hosts only a validated private working copy; provider originals are never passed here. */
 public final class StudioOfficeActivity extends LOActivity {
     private File working;
+    private String conversionUri;
+    @Override protected void onPdfConversionCompleted(Uri uri){conversionUri=uri.toString();}
     private RandomAccessFile lockFile;
     private FileLock lock;
     private String sessionId;
@@ -68,7 +70,7 @@ public final class StudioOfficeActivity extends LOActivity {
         try {
             File marker = new File(working.getPath() + ".closed");
             try (FileOutputStream out = new FileOutputStream(marker)) { out.write(1); out.getFD().sync(); }
-            setResult(RESULT_OK, new Intent().putExtra("sessionId", sessionId).putExtra("saveOriginal", shouldSaveOriginal() && hasApprovedOfficeOutput()));
+            setResult(RESULT_OK, new Intent().putExtra("sessionId", sessionId).putExtra("conversionUri",conversionUri).putExtra("saveOriginal", shouldSaveOriginal() && hasApprovedOfficeOutput()));
         } catch (Exception failure) {
             setResult(RESULT_CANCELED, new Intent().putExtra("sessionId", sessionId));
         }

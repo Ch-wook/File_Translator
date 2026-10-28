@@ -394,6 +394,11 @@
     bottom.append(sheet,cellActions,tabs);
     const lower=document.getElementById('toolbar-down');if(lower)lower.before(bottom);else document.body.append(bottom);
     UI.popup(more,()=>[
+      {label:'PDF로 변환',disabled:modeTransition,action:async()=>{
+        try{flushSettings();if(editable()&&app.file?.textCursor?.visible){app.dispatcher?.dispatch('acceptformula');await new Promise(r=>setTimeout(r,200));}
+          window.postMobileMessage('DOCUMENT_STUDIO_CONVERT_PDF');
+        }catch(error){UI.toast(error.message,true);}
+      }},
       {label:'슬라이드 목록',hidden:map().getDocType()!=='presentation',action:()=>openSheet('슬라이드 목록')},
       {label:editable()?'읽기 모드로 전환':'편집하기',hidden:!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit',disabled:modeTransition||!initialViewportRestored,action:()=>editable()?map().setPermission('readonly'):map()._switchToEditMode()},
       {label:editable()?'찾기·바꾸기':'찾기',disabled:!editable()&&!searchService(),action:()=>editable()?uno('SearchDialog'):openSheet('찾기')},
@@ -415,7 +420,7 @@
     app.events.on('contextchange',event=>{contextName=String(event.detail?.context||event.context||'');update();});
     app.events.on('updatepermission',()=>{update();refreshLayout();if(modeTransition)restore(transitionViewport,undefined,transitionGeneration);});
     map().on('moveend zoomend updateparts',rememberViewport);
-    try{const saved=JSON.parse(bridge()?.getStudioViewState?.()||'{}');restore(saved,()=>{if(validViewport(saved))holdViewport(snapshot());initialViewportRestored=true;update();persistViewport();});}catch(ignore){initialViewportRestored=true;}
+    try{const saved=JSON.parse(bridge()?.getStudioViewState?.()||'{}');restore(saved,()=>{if(validViewport(saved))holdViewport(snapshot());initialViewportRestored=true;update();persistViewport();if(bridge()?.isStudioConversionOnly?.())setTimeout(()=>window.postMobileMessage('DOCUMENT_STUDIO_CONVERT_PDF'),300);});}catch(ignore){initialViewportRestored=true;}
     render();policy.ready=true;return true;
   }
   const timer=setInterval(() => {

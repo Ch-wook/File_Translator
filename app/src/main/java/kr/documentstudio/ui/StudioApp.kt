@@ -106,7 +106,7 @@ fun StudioApp(vm: EditorViewModel) {
     val office=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {result -> vm.finishOffice(result.data?.getStringExtra("sessionId"),result.data?.getBooleanExtra("saveOriginal",false)==true,result.data?.getStringExtra("error"))}
     val launchOffice: (String,OpenIntent)->Unit = {id,intentMode -> vm.openOffice(id,intentMode) {s,file ->
         office.launch(Intent(context,if(s.format in setOf(Format.HWP,Format.HWPX)) HangulEditorActivity::class.java else org.libreoffice.androidlib.StudioOfficeActivity::class.java)
-            .putExtra("sessionId",s.id).putExtra("workingPath",file.absolutePath).putExtra("displayName",s.name).putExtra("openIntent",intentMode.name))
+            .putExtra("sessionId",s.id).putExtra("workingPath",file.absolutePath).putExtra("displayName",s.name).putExtra("originalUri",s.uri).putExtra("openIntent",intentMode.name))
     }}
     val openOffice: (String)->Unit = {id -> launchOffice(id,OpenIntent.VIEW)}
     val documentLaunchLifecycle=LocalLifecycleOwner.current.lifecycle
@@ -180,6 +180,7 @@ fun StudioApp(vm: EditorViewModel) {
                                 else {splitLeft=s.id;splitRight=state.tabs.last {it.id!=s.id && it.format !in DocumentRepository.visualFormats}.id}
                             })
                             if(s.recoveryWarning!=null) DropdownMenuItem(text={Text("정밀 편집 복구본 보관 후 다시 시작")},onClick={menu=false;vm.archiveOfficeRecovery()})
+                            DropdownMenuItem(text={Text("파일 변환")},onClick={menu=false;vm.prepareConversion {id->context.startActivity(Intent(context,ConversionActivity::class.java).putExtra("sessionId",id))}})
                             DropdownMenuItem(text={Text("다른 이름으로 저장")},onClick={menu=false;saveAs()})
                             if(s.format !in EditorPolicy.visualFormats) DropdownMenuItem(text={Text("필기 포함 PDF 내보내기")},onClick={menu=false;pendingPdfId=s.id;pdf.launch(s.name.substringBeforeLast('.')+"-필기.pdf")})
                             DropdownMenuItem(text={Text("문서·필기 암호화 백업")},onClick={menu=false;encryptedDialogId=s.id})

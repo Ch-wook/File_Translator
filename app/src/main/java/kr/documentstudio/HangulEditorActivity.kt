@@ -45,6 +45,13 @@ class HangulEditorActivity: ComponentActivity() {
     private val bridge=Bridge()
     private var fileResult: ValueCallback<Array<Uri>>?=null
     private val imagePicker=registerForActivityResult(ActivityResultContracts.OpenDocument()) {uri->fileResult?.onReceiveValue(uri?.let {arrayOf(it)});fileResult=null}
+    private var pdfSession: kr.documentstudio.data.RasterPdfSession?=null
+    private var pdfFile: File?=null
+    private var pdfUri: Uri?=null
+    private var convertedUri: String?=null
+    private val pdfPicker=registerForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) {uri->
+        if(uri!=null){pdfUri=uri;browser.evaluateJavascript("window.documentStudioHost.writePdf()",null)}
+    }
     companion object {private const val ORIGIN="https://hangul.documentstudio.local";private var profile=false;private val activeHosts=java.util.concurrent.atomic.AtomicInteger()}
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -122,6 +129,31 @@ class HangulEditorActivity: ComponentActivity() {
         return task.get(3,java.util.concurrent.TimeUnit.SECONDS)
     }
     inner class Bridge {
+        @JavascriptInterface fun readSignatures(): String = runCatching {
+            val file=File(filesDir,"signatures.json");if(file.isFile && file.length()<=4*1024*1024) AtomicFile(file).openRead().use {it.bufferedReader().readText()} else "[]"
+        }.getOrDefault("[]")
+        @JavascriptInterface fun writeSignatures(value: String): Boolean = runCatching {
+            require(ready && editAllowed && value.toByteArray().size<=4*1024*1024)
+            val entries=org.json.JSONArray(value);require(entries.length()<=20)
+            for(i in 0 until entries.length()){val s=entries.getJSONObject(i);require(s.getString("png").startsWith("data:image/png;base64,") && s.getString("name").length<=80)}
+            val file=AtomicFile(File(filesDir,"signatures.json"));val out=file.startWrite()
+            try{out.write(value.toByteArray());file.finishWrite(out)}catch(e:Exception){file.failWrite(out);throw e};true
+        }.getOrDefault(false)
+        @JavascriptInterface fun requestPdf(){if(ready && loadError==null)runOnUiThread {pdfPicker.launch(intent.getStringExtra("displayName")?.substringBeforeLast('.')+".pdf")}}
+        @JavascriptInterface fun beginPdf(count: Int): Boolean = runCatching {
+            require(ready && loadError==null && pdfUri!=null);abortPdf()
+            val file=File.createTempFile("hangul-conversion-",".pdf",cacheDir);pdfFile=file;pdfSession=kr.documentstudio.data.RasterPdfSession(file,count);true
+        }.getOrDefault(false)
+        @JavascriptInterface fun pdfPage(json: String): Boolean = runCatching {requireNotNull(pdfSession).page(json);true}.getOrDefault(false)
+        @JavascriptInterface fun finishPdf(): String = try {
+            val pages=requireNotNull(pdfSession).finish();val uri=requireNotNull(pdfUri)
+            kr.documentstudio.data.ConversionFiles.publish(this@HangulEditorActivity,requireNotNull(pdfFile),uri,intent.getStringExtra("originalUri"))
+            convertedUri=uri.toString();abortPdf()
+            runOnUiThread {AlertDialog.Builder(this@HangulEditorActivity).setTitle("PDF 변환 완료").setMessage("${pages}쪽 PDF를 저장하고 다시 읽어 검증했습니다.").setPositiveButton("결과 열기"){_,_->startActivity(Intent(this@HangulEditorActivity,MainActivity::class.java).setAction(Intent.ACTION_VIEW).setDataAndType(uri,"application/pdf"))}.setNegativeButton("닫기",null).show()}
+            JSONObject().put("ok",true).toString()
+        }catch(e:Exception){abortPdf();JSONObject().put("ok",false).put("error",e.message).toString()}
+        @JavascriptInterface fun abortPdf(){runCatching {pdfSession?.close()};pdfSession=null;pdfFile?.delete();pdfFile=null}
+
         @JavascriptInterface fun writeClipboard(value: String): Boolean = runCatching {
             require(ready && editAllowed && loadError==null && value.length<=2*1024*1024)
             val payload=JSONObject(value);val text=payload.optString("text");val html=payload.optString("html")
@@ -146,7 +178,7 @@ class HangulEditorActivity: ComponentActivity() {
 
         @JavascriptInterface fun describe(): String {
             val meta=JSONObject().put("name",intent.getStringExtra("displayName") ?: working.name)
-                .put("format",extension).put("openIntent",if(readOnlyReason==null && intent.getStringExtra("openIntent")=="EDIT") "EDIT" else "VIEW")
+                .put("format",extension).put("conversionOnly",intent.getBooleanExtra("conversionOnly",false)).put("openIntent",if(readOnlyReason==null && intent.getStringExtra("openIntent")=="EDIT") "EDIT" else "VIEW")
                 .put("readOnlyReason",readOnlyReason ?: JSONObject.NULL)
             runCatching {
                 val file=File(working.parentFile,"hangul-view-state.json")
@@ -209,11 +241,13 @@ class HangulEditorActivity: ComponentActivity() {
             editAllowed=false
             val changed=File(working.path+".edited").isFile
             val result=Intent().putExtra("sessionId",sessionId).putExtra("saveOriginal",saveOriginal && changed && readOnlyReason==null).putExtra("edited",changed)
+            convertedUri?.let {result.putExtra("conversionUri",it)}
             loadError?.let {result.putExtra("error",it)}
             setResult(if(loadError==null) Activity.RESULT_OK else Activity.RESULT_CANCELED,result);finish()
         }}
     }
     override fun onDestroy() {
+        bridge.abortPdf()
         bridge.abortWrite();fileResult?.onReceiveValue(null);fileResult=null
         if(::browser.isInitialized) {browser.removeJavascriptInterface("DocumentStudio");browser.destroy()}
         runCatching {lock?.release();lockFile?.close()}

@@ -53,6 +53,8 @@ fun WorkspaceHome(state: UiState,vm: EditorViewModel,new: ()->Unit,open: ()->Uni
                 }
                 repeat(columns-formats.size) {Spacer(Modifier.weight(1f))}
             }}
+            item {val context=androidx.compose.ui.platform.LocalContext.current
+                OutlinedButton({context.startActivity(android.content.Intent(context,ConversionActivity::class.java))},enabled=!state.busy,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) {Icon(Icons.Default.Transform,null);Spacer(Modifier.width(8.dp));Text("파일 변환")}}
             item {TextButton(folder,enabled=!state.busy) {Icon(Icons.Default.DriveFolderUpload,null);Spacer(Modifier.width(8.dp));Text("폴더 탐색·파일 검색")}}
             item {
                 Row(verticalAlignment=Alignment.CenterVertically) {

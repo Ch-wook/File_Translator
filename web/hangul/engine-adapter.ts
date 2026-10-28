@@ -60,6 +60,20 @@ Object.assign((window as any).rhwpStudio, {
       if (artifact.contentLoss.count!==0) throw new Error(`보존할 수 없는 문서 요소 ${artifact.contentLoss.count}개가 감지되어 저장을 중단했습니다.`);
       return artifact;
     },
+    async placeSignature(url: string, width: number, height: number, token: any) {
+      if(!studioIsEditing())throw new Error('편집하기를 먼저 선택하세요.');
+      await studioFinishInput();studioMobile.restore(token);
+      if(!url.startsWith('data:image/png;base64,')||url.length>4*1024*1024)throw new Error('서명 이미지가 올바르지 않습니다.');
+      const bytes=Uint8Array.from(atob(url.split(',')[1]),c=>c.charCodeAt(0));
+      inputHandler!.enterImagePlacementMode(bytes,'png',width,height,'자필서명.png');
+    },
+    pdfPage(index: number) {
+      if(!Number.isInteger(index)||index<0||index>=wasm.pageCount)throw new Error('잘못된 페이지입니다.');
+      const info=wasm.getPageInfo(index),scale=Math.min(2,Math.sqrt(10000000/(info.width*info.height)));
+      const canvas=document.createElement('canvas');canvas.width=Math.ceil(info.width*scale);canvas.height=Math.ceil(info.height*scale);
+      wasm.renderPageToCanvas(index,canvas,scale);
+      return {width:info.width*.75,height:info.height*.75,png:canvas.toDataURL('image/png').split(',')[1]};
+    },
     dirty: () => documentState.isDirty(),
     acknowledge: () => completeHostSave(),
     info: () => ({pages:wasm.pageCount, format:wasm.getSourceFormat()}),

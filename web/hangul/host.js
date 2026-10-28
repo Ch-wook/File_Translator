@@ -1,3 +1,4 @@
+import { openSignature } from './signature.js';
 import { createMobileTools } from './mobile-tools.js';
 // Same-origin offline host. Document bytes stay in the application.
 const native=window.DocumentStudio,UI=window.StudioEditorUI;
@@ -83,7 +84,20 @@ async function close(saveOriginal){
   persistView();native.closeEditor(Boolean(saveOriginal&&edited));
  }catch(error){message(String(error.message||error),true);}
 }
-window.documentStudioHost={
+async function convertPdf(){
+ if(!ready||pending||switching)return;
+ if(!confirm('전체 페이지를 원본 레이아웃으로 PDF 변환합니다. 한글 PDF는 페이지 이미지 방식이며 텍스트 선택·검색·링크는 보존되지 않습니다. 현재 편집 내용도 포함합니다.'))return;
+ try{if(editing){await mobileUI.flush();await editor.finishInput();if(!await checkpoint())return;}native.requestPdf();}
+ catch(error){message(error.message,true);}
+}
+async function writePdf(){
+ pending=true;update();
+ try{const count=editor.info().pages;if(!native.beginPdf(count))throw Error('PDF를 준비하지 못했습니다.');
+  for(let i=0;i<count;i++){message('PDF 변환 중 · '+(i+1)+' / '+count+'쪽');await new Promise(r=>setTimeout(r,0));const page=editor.pdfPage(i);if(!native.pdfPage(JSON.stringify(page)))throw Error('페이지 변환에 실패했습니다.');}
+  const result=JSON.parse(native.finishPdf());if(!result.ok)throw Error(result.error||'PDF 검증 실패');message('PDF 변환 완료 · '+count+'쪽');
+ }catch(error){native.abortPdf();message(error.message,true);}finally{pending=false;update();}
+}
+window.documentStudioHost={writePdf,convertPdf,signature:()=>openSignature({editor,native,message}),
  changed(){if(!ready||!editing)return;revision++;message('수정됨 · 작업 복사본 저장 대기');clearTimeout(timer);timer=setTimeout(checkpoint,1200);update();},
  toolsChanged(){if(ready)update();},
  checkpoint,
@@ -107,6 +121,8 @@ UI.popup(more,()=>[
  {label:'화면 너비에 맞춤',disabled:!ready,action:()=>editor.command('view:zoom-fit-width')},
  {label:rulers?'눈금자 숨기기':'눈금자 표시',disabled:!ready,action:()=>{rulers=!rulers;editor.setRulers(rulers);}},
  {label:toolsVisible?'도구 접기':'도구 펼치기',hidden:!editing,action:()=>{toolsVisible=!toolsVisible;update();}},
+ {label:'서명/필기',hidden:!editing,disabled:pending||switching,action:()=>openSignature({editor,native,message})},
+ {label:'PDF로 변환',disabled:!ready||pending||switching,action:()=>convertPdf()},
  {separator:true},
  {label:pending?'저장 중…':savedRevision<revision?'자동 저장 대기':'작업 복사본 저장됨',disabled:true},
  {label:readOnlyReason||'',hidden:!readOnlyReason,disabled:true},
@@ -130,6 +146,7 @@ async function start(){
  if(meta.viewState&&Number.isFinite(Number(meta.viewState.zoom)))await editor.restoreView(meta.viewState);
  else await editor.command('view:zoom-fit-width');
  ready=true;renderTools();native.loaded();
+ if(meta.conversionOnly)setTimeout(convertPdf,100);
  if(readOnlyReason)message(`${info.pages}쪽 · 읽기 전용 · ${readOnlyReason}`);
  else if(meta.openIntent==='EDIT')await setEditing(true);
  else message(`${info.pages}쪽 · 원본 보기 · 편집하기를 선택해 수정하세요.`);

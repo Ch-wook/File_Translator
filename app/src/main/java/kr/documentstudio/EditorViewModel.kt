@@ -265,6 +265,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         replace(repository.save(s,uri))
         message(if(s.format==Format.PDF) "PDF 표준 Ink 주석을 포함하여 저장했습니다." else "원본 형식으로 저장했습니다. 필기는 앱 내부 별도 데이터에 보존됩니다.")
     }
+    fun prepareConversion(launch: (String)->Unit) = action { document(null)?.let { launch(it.id) } }
     fun exportPdf(uri: Uri,sessionId: String?=null) = action { document(sessionId)?.let { repository.exportPdf(it,uri); message(if(it.format==Format.PPTX) "기본 슬라이드 개체와 필기 PDF를 내보냈습니다. 마스터·테마·SmartArt·그룹은 재현하지 않습니다." else if(it.format==Format.PDF) "PDF와 필기를 내보냈습니다." else "본문·필기 PDF를 내보냈습니다. 오피스 원본 배치와 다를 수 있습니다.") } }
     fun backup(uri: Uri,sessionId: String?=null) = action { document(sessionId)?.let { repository.exportBackup(it,uri); message("문서 원본과 편집·필기 복구 데이터를 ZIP으로 백업했습니다.") } }
     fun prepareEncryptedBackup(id: String,password: CharArray): Boolean {
