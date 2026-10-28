@@ -41,7 +41,12 @@ class NativeReadingPerformanceTest {
             context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("sessionId",s.id).putExtra("workingPath",working.path).putExtra("displayName",s.name))
             var completed=false
             try{
-                waitFor(150000){eval(if(hangul)"document.body.dataset.state==='READING'&&!document.getElementById('mode').disabled" else "studioOffice.ready&&!document.getElementById('studio-office-edit').disabled")=="true"}
+                waitFor(150000){
+                    NativeUiActions.refresh()
+                    device.findObject(androidx.test.uiautomator.By.pkg(context.packageName).text("편집하기").enabled(true))!=null ||
+                        device.findObject(androidx.test.uiautomator.By.pkg(context.packageName).desc("편집하기").enabled(true))!=null
+                }
+                waitFor(10000){eval(if(hangul)"document.body.dataset.state==='READING'&&!document.getElementById('mode').disabled" else "studioOffice.ready&&!document.getElementById('studio-office-edit').disabled")=="true"}
                 val open=(SystemClock.elapsedRealtimeNanos()-start)/1e6
                 eval("(function(){window.__readingMutations=0;window.__readingObserver=new MutationObserver(r=>window.__readingMutations+=r.length);window.__readingObserver.observe(document.querySelector('header'),{subtree:true,attributes:true,childList:true,characterData:true});})()")
                 SystemClock.sleep(2000)

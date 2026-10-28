@@ -28,11 +28,13 @@ private val readerSlots=Semaphore(2)
 /** Only composed pages own bitmaps. Leaving the lazy viewport releases them. */
 @Composable
 fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolean,horizontal: Boolean=false,
-                        onVisiblePage: (Int)->Unit,onEditPage: ((Int)->Unit)?) {
+                        onVisiblePage: (Int)->Unit,onEditPage: ((Int)->Unit)?,initialZoom: Float=1f,onZoomChanged: (Float)->Unit={}) {
     val count=s.pdf!!.pages
     val list=rememberLazyListState(page.coerceIn(0,count-1))
     val pager=rememberPagerState(initialPage=page.coerceIn(0,count-1),pageCount={count})
-    var zoom by rememberSaveable {mutableFloatStateOf(1f)}
+    var zoom by rememberSaveable {mutableFloatStateOf(initialZoom.coerceIn(1f,3f))}
+    val zoomChanged by rememberUpdatedState(onZoomChanged)
+    LaunchedEffect(zoom){zoomChanged(zoom)}
     val visiblePage by rememberUpdatedState(onVisiblePage)
     LaunchedEffect(s.base,navigationRequest,horizontal) {if(horizontal) pager.scrollToPage(page.coerceIn(0,count-1)) else list.scrollToItem(page.coerceIn(0,count-1))}
     LaunchedEffect(list,pager,count,horizontal) {snapshotFlow {if(horizontal) pager.currentPage else list.firstVisibleItemIndex}.collect {visiblePage(it.coerceIn(0,count-1))}}

@@ -32,7 +32,10 @@ jobs:
           packages: platform-tools
       - name: Tools and baseline source
         run: |
-          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+          for attempt in 1 2 3; do
+            if sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"; then break; fi
+            test "$attempt" -lt 3
+          done
           git worktree add /tmp/studio-reading-baseline "$BASELINE_SHA"
           cp app/src/androidTest/java/kr/documentstudio/*ReadingPerformanceTest.kt /tmp/studio-reading-baseline/app/src/androidTest/java/kr/documentstudio/
           mkdir -p artifacts/reading-performance/apks

@@ -60,6 +60,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
         reader?.settings={panel="보기 설정"}
     }
     DisposableEffect(s.id) {onDispose {readerPreferences.edit().putInt(s.id+":page",page).putFloat(s.id+":zoom",pdfController.zoom).apply()}}
+    LaunchedEffect(readingZoom){kotlinx.coroutines.delay(350);readerPreferences.edit().putFloat(s.id+":zoom",readingZoom).apply()}
     LaunchedEffect(s.base) {navigate(page)}
     LaunchedEffect(editing) {panel=null;if(!editing)ink=false;if(s.format==Format.MD)preview=!editing}
     val imageSelected=pdfController.selected is PdfImagePlacement
@@ -79,8 +80,8 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
         Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFFE8ECF3))) {
             when {
                 editing && ink->DrawingPage(s,null,page,settings,vm,busy)
-                s.format==Format.PDF && !editing && continuous->PdfContinuousReader(s,page,navigationRequest,busy,onVisiblePage=updatePage,onEditPage=null)
-                s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController,initialZoom=readingZoom)
+                s.format==Format.PDF && !editing && continuous->PdfContinuousReader(s,page,navigationRequest,busy,onVisiblePage=updatePage,onEditPage=null,initialZoom=readingZoom,onZoomChanged={readingZoom=it;pdfController.zoom=it})
+                s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController,initialZoom=readingZoom,onZoomChanged={readingZoom=it})
                 preview && s.format==Format.MD->MarkdownPreview(s.edits.text,busy || !editing,vm::text,viewportKey=s.id,dark=dark)
                 else->NativeTextEditor(s.edits.text,displaySize,busy,wrap,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont,showLineNumbers=lineNumbers,viewportKey=s.id,dark=dark)
             }

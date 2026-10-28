@@ -171,7 +171,7 @@ class PdfObjectCanvas(context: Context): FrameLayout(context) {
 }
 
 @Composable
-fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readOnly: Boolean=true,controller: PdfEditorController?=null,initialZoom: Float=1f) {
+fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readOnly: Boolean=true,controller: PdfEditorController?=null,initialZoom: Float=1f,onZoomChanged: (Float)->Unit={}) {
     val scope=rememberCoroutineScope()
     val verticalPosition=rememberScrollState()
     val horizontalPosition=rememberScrollState()
@@ -184,6 +184,8 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
     var previewJob by remember {mutableStateOf<Job?>(null)}
     var previewRevision by remember {mutableIntStateOf(0)}
     var zoom by rememberSaveable {mutableFloatStateOf(initialZoom.coerceIn(.25f,3f))}
+    val zoomChanged by rememberUpdatedState(onZoomChanged)
+    LaunchedEffect(zoom){zoomChanged(zoom)}
     val owned=remember(s.base,page) {mutableSetOf<Bitmap>()}
     fun display(image: Bitmap) {val old=bitmap;bitmap=image;canvas?.bitmap=image;canvas?.invalidate();owned+=image;if(old!==image) {owned.remove(old);canvas?.post {old?.recycle()} ?: old?.recycle()}}
     suspend fun render(values: Map<String,String>,change: DocumentChange?=null): Triple<Bitmap,List<PdfBodyRun>,List<PdfImagePlacement>> {
