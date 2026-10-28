@@ -28,6 +28,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     private val histories=mutableMapOf<String,History<Session>>()
     private val checkpointed=mutableMapOf<String,Session>()
     private val settingsMutex=Mutex()
+    private val checkpointMutex=Mutex()
     private var settingsChanged=false
     private var checkpointJob: Job?=null
     private var lastTextEdit=0L
@@ -53,13 +54,13 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 // Preserve pending input even when the requested operation fails.
-                flushInternal()
+                flushInternal(refresh=false)
                 block()
                 refreshRecents()
             }
             catch(e: CancellationException) {throw e}
             catch(e: BackupPasswordRequired) {mutable.value=mutable.value.copy(lockedBackupUri=e.uri.toString(),message=null)}
-            catch(e: Exception) { mutable.value.active?.let {setPresentation(it,PresentationState.ERROR)};message(e.message ?: "작업에 실패했습니다.") }
+            catch(e: Exception) { mutable.value.active?.takeIf {mutable.value.presentation(it)==PresentationState.LOADING}?.let {setPresentation(it,PresentationState.ERROR)};message(e.message ?: "작업에 실패했습니다.") }
             finally { mutable.value=mutable.value.copy(busy=officeActive!=null) }
         }
     }
@@ -146,7 +147,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     fun home() { if(mutable.value.busy) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=null,officeLaunch=null) }
     fun select(id: String) { if(mutable.value.busy || mutable.value.tabs.none {it.id==id}) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=id) }
     fun close(id: String) = action {
-        mutable.value.tabs.firstOrNull { it.id==id }?.let { repository.checkpoint(it) }
+        // action() already flushed the latest snapshot; do not serialize it twice.
         histories.remove(id)
         checkpointed.remove(id)
         val tabs=mutable.value.tabs.filter { it.id!=id }
@@ -262,7 +263,8 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     fun redo(sessionId: String?=null) { if(mutable.value.busy) return; val s=document(sessionId) ?: return; if(!canEdit(s.id)) return; replace(restoreSnapshot(histories.getValue(s.id).redo(s),s)); lastTextEdit=0; scheduleCheckpoint() }
     fun save(uri: Uri,sessionId: String?=null) = action {
         val s=document(sessionId) ?: return@action
-        replace(repository.save(s,uri))
+        val saved=repository.save(s,uri)
+        replace(saved);checkpointed[s.id]=saved
         message(if(s.format==Format.PDF) "PDF 표준 Ink 주석을 포함하여 저장했습니다." else "원본 형식으로 저장했습니다. 필기는 앱 내부 별도 데이터에 보존됩니다.")
     }
     fun prepareConversion(launch: (String)->Unit) = action { document(null)?.let { launch(it.id) } }
@@ -304,14 +306,16 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         checkpointJob?.cancel()
         checkpointJob=viewModelScope.launch { delay(700); recoverySafely() }
     }
-    private suspend fun flushInternal() {
-        mutable.value.tabs.forEach { session ->
+    private suspend fun flushInternal(refresh: Boolean=true) = checkpointMutex.withLock {
+        var changed=false
+        mutable.value.tabs.forEach {session ->
             if(checkpointed[session.id]!=session) {
                 repository.checkpoint(session)
                 checkpointed[session.id]=session
+                changed=true
             }
         }
-        refreshRecents()
+        if(refresh && changed) refreshRecents()
     }
     private suspend fun refreshRecents() {
         // Read the flow after IO: copy(recents=repository.recents()) captures its

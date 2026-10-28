@@ -206,7 +206,12 @@ class DocumentRepository(private val context: Context) {
             put("baseFile",s.base.name);put("revision",s.revision);put("savedRevision",s.savedRevision)
             put("edits",StateCodec.encode(s.edits)); put("saved",StateCodec.encode(s.saved))
         }
-        atomic(File(s.base.parentFile,"state.json"),json.toString().toByteArray()); remember(s)
+        val stateFile=File(s.base.parentFile,"state.json")
+        val bytes=json.toString().toByteArray()
+        // All repository instances share this transaction lock. Compare the actual
+        // durable bytes rather than caching a stale Session from another Activity.
+        if(index.isFile && runCatching {AtomicFile(stateFile).openRead().use {it.readBytes()}.contentEquals(bytes)}.getOrDefault(false)) return
+        atomic(stateFile,bytes); remember(s)
     }
     suspend fun save(s: Session, destination: Uri): Session = io {
         require(s.readOnlyReason==null || (s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty())) {s.readOnlyReason ?: "읽기 전용 문서입니다."}

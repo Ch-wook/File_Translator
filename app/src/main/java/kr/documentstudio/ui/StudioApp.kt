@@ -71,6 +71,11 @@ fun StudioApp(vm: EditorViewModel) {
     val context=LocalContext.current
     val focus=LocalFocusManager.current
     val view=LocalView.current
+    val reader=remember(state.active) {ReaderActions()}
+    var fullScreen by rememberSaveable(state.active) {mutableStateOf(false)}
+    var info by remember {mutableStateOf(false)}
+    val editing=state.active?.let {state.presentation(it).allowsMutation}==true
+    LaunchedEffect(editing) {if(editing)fullScreen=false}
     var newDialog by remember { mutableStateOf(false) }
     var settingsDialog by remember { mutableStateOf(false) }
     var splitLeft by rememberSaveable {mutableStateOf<String?>(null)}
@@ -157,19 +162,29 @@ fun StudioApp(vm: EditorViewModel) {
         Scaffold(topBar={
             if(state.session==null) TopAppBar(title={ Text("문서 스튜디오",fontWeight=FontWeight.Bold) },actions={
                 IconButton(onClick={settingsDialog=true}) { Icon(Icons.Default.Settings,"설정") }
-            }) else {
+            }) else if(!fullScreen || editing) {
                 val s=state.session!!
                 TopAppBar(modifier=Modifier.statusBarsPadding().height(48.dp).testTag("mobile-editor-header"),windowInsets=WindowInsets(0,0,0,0),expandedHeight=48.dp,
                     title={Text(s.name,maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleSmall)},
                     navigationIcon={ IconButton(onClick={if(state.presentation(s.id).allowsMutation) vm.readDocument() else vm.home()},enabled=!state.busy) { Icon(Icons.AutoMirrored.Filled.ArrowBack,if(state.presentation(s.id).allowsMutation) "보기로" else "홈") } },actions={
+                        if(editing) {
                         IconButton(onClick={vm.undo()},enabled=!state.busy && vm.canUndo(s.id)) { Icon(Icons.AutoMirrored.Filled.Undo,"실행 취소") }
                         IconButton(onClick={vm.redo()},enabled=!state.busy && vm.canRedo(s.id)) { Icon(Icons.AutoMirrored.Filled.Redo,"다시 실행") }
                         IconButton(onClick=save,enabled=!state.busy && s.dirty) { Icon(Icons.Default.Save,"저장") }
+                        } else {
+                            IconButton(onClick={reader.search()},enabled=!state.busy) {Icon(Icons.Default.Search,"문서 검색")}
+                            IconButton(onClick={vm.beginEditing()},enabled=!state.busy && state.presentation(s.id)!=PresentationState.READ_ONLY,modifier=Modifier.testTag("edit-document")) {Icon(Icons.Default.Edit,"편집하기")}
+                        }
                         var menu by remember { mutableStateOf(false) }
                         IconButton(onClick={menu=true},enabled=!state.busy) { Icon(Icons.Default.MoreVert,"문서 메뉴") }
                         DropdownMenu(expanded=menu,onDismissRequest={menu=false}) {
+                            if(!editing) {
+                                DropdownMenuItem(text={Text("전체 화면 보기")},onClick={menu=false;fullScreen=true})
+                                DropdownMenuItem(text={Text("보기 설정")},onClick={menu=false;reader.settings()})
+                            }
+                            DropdownMenuItem(text={Text("파일 정보")},onClick={menu=false;info=true})
                             DropdownMenuItem(text={Text(if(state.presentation(s.id).allowsMutation) "읽기 모드로 전환" else "편집하기")},enabled=state.presentation(s.id)!=PresentationState.READ_ONLY,onClick={menu=false;if(state.presentation(s.id).allowsMutation) vm.readDocument() else vm.beginEditing()})
-                            DropdownMenuItem(text={Text(if(s.dirty) "미저장 변경 · 작업 복사본 보호 중" else "저장됨")},enabled=false,onClick={})
+                            DropdownMenuItem(text={Text(if(s.dirty) "원본에 미저장 · 기기에 복구본 자동 보관" else "원본 파일에 저장됨")},enabled=false,onClick={})
                             state.tabs.filter {it.id!=s.id}.forEach {other->DropdownMenuItem(text={Text(other.name,maxLines=1,overflow=TextOverflow.Ellipsis)},onClick={menu=false;selectTab(other.id)})}
                             DropdownMenuItem(text={Text("새 문서")},onClick={menu=false;newDialog=true})
                             DropdownMenuItem(text={Text("파일 열기")},onClick={menu=false;open.launch(arrayOf("*/*"))})
@@ -215,12 +230,14 @@ fun StudioApp(vm: EditorViewModel) {
                             Row {TextButton({vm.select(left.id)},enabled=!state.busy) {Text("왼쪽 문서")};TextButton({vm.select(right.id)},enabled=!state.busy) {Text("오른쪽 문서")};Text("좁은 창 · 선택한 문서 표시",style=MaterialTheme.typography.labelSmall)}
                             EditorPane(if(state.active==left.id) left else right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),if(state.active==left.id) "왼쪽" else "오른쪽")
                         }
-                    } else EditorPane(state.session!!,state,vm,openOffice,false,Modifier.weight(1f).fillMaxWidth())
+                    } else EditorPane(state.session!!,state,vm,openOffice,false,Modifier.weight(1f).fillMaxWidth(),reader=reader)
                 }
             }
+            if(fullScreen && !editing && state.session!=null) IconButton({fullScreen=false},Modifier.align(Alignment.TopEnd).padding(8.dp).background(Color.White.copy(alpha=.9f),RoundedCornerShape(8.dp))) {Icon(Icons.Default.MoreVert,"메뉴 표시")}
             SnackbarHost(snackbar,Modifier.align(Alignment.TopCenter).padding(horizontal=8.dp,vertical=6.dp))
             }
         }
+        if(info && state.session!=null) AlertDialog(onDismissRequest={info=false},title={Text("파일 정보")},text={val s=state.session!!;Text(s.name+"\n"+s.format.extension.uppercase()+" · "+s.base.length()/1024+" KiB\n"+if(s.dirty)"원본에 저장되지 않은 변경이 있습니다." else "원본 파일에 저장됨")},confirmButton={TextButton({info=false}){Text("닫기")}})
         if(newDialog) NewDocumentDialog(state.busy,{newDialog=false;vm.create(it,visual=true)}) {newDialog=false}
         if(state.lockedBackupUri!=null) key(state.lockedBackupUri) {BackupPasswordDialog(false,state.busy,state.message,vm::unlockBackup,vm::cancelBackupUnlock)}
         encryptedDialogId?.let {id->BackupPasswordDialog(true,state.busy,onConfirm={password->
@@ -234,7 +251,7 @@ fun StudioApp(vm: EditorViewModel) {
 }
 
 @Composable
-private fun EditorPane(s: Session,state: UiState,model: EditorViewModel,openOffice: (String)->Unit,split: Boolean,modifier: Modifier,label: String="") {
+private fun EditorPane(s: Session,state: UiState,model: EditorViewModel,openOffice: (String)->Unit,split: Boolean,modifier: Modifier,label: String="",reader: ReaderActions?=null) {
     val actions=remember(model,s.id) {model.documentActions(s.id)}
     Column(modifier.then(if(split) Modifier.border(if(state.active==s.id) 2.dp else 1.dp,if(state.active==s.id) Green else Color.LightGray) else Modifier)
         .onFocusChanged {if(it.hasFocus && state.active!=s.id) actions.focus()}.focusGroup()
@@ -245,7 +262,7 @@ private fun EditorPane(s: Session,state: UiState,model: EditorViewModel,openOffi
             IconButton({model.undo(s.id)},enabled=!state.busy && model.canUndo(s.id)) {Icon(Icons.AutoMirrored.Filled.Undo,"$label 실행 취소")}
             IconButton({model.redo(s.id)},enabled=!state.busy && model.canRedo(s.id)) {Icon(Icons.AutoMirrored.Filled.Redo,"$label 다시 실행")}
         }
-        key(s.id) {FormatWorkspace(s,state.settings,actions,state.busy,presentation=state.presentation(s.id)) {openOffice(s.id)}}
+        key(s.id) {FormatWorkspace(s,state.settings,actions,state.busy,presentation=state.presentation(s.id),reader=reader) {openOffice(s.id)}}
     }
 }
 
@@ -290,8 +307,9 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
 }
 
 @Composable
-internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false,readOnly: Boolean=true,controller: NativeEditorController?=null,showToolbar: Boolean=true,fontFamily: String="고정폭",showLineNumbers: Boolean=true) {
+internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false,readOnly: Boolean=true,controller: NativeEditorController?=null,showToolbar: Boolean=true,fontFamily: String="고정폭",showLineNumbers: Boolean=true,viewportKey: String?=null) {
     val fontContext=LocalContext.current
+    val scrollPreferences=remember {fontContext.getSharedPreferences("reading-position",0)}
     val desiredFace=remember(fontFamily,fontContext) {EditorFonts.face(fontContext,fontFamily)}
     val onChange by rememberUpdatedState(change)
     val onFocused by rememberUpdatedState(focused)
@@ -315,7 +333,10 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
     }.also {editor=it;it.onSelectionUpdate={a,b->if(controller?.editor===it)controller?.selectionChanged(a,b)};inputKeyListener=it.keyListener} },update={view ->
         if(view.showLineNumbers!=showLineNumbers){val x=view.scrollX;val y=view.scrollY;view.showLineNumbers=showLineNumbers;view.setPadding(if(showLineNumbers)92 else 24,24,28,24);view.scrollTo(x,y);view.invalidate()}
         if(view.typeface!=desiredFace) {val a=view.selectionStart.coerceIn(0,view.length());val b=view.selectionEnd.coerceIn(0,view.length());val x=view.scrollX;val y=view.scrollY;view.typeface=desiredFace;view.setSelection(a,b);view.scrollTo(x,y)}
-        view.textSize=fontSize;view.isEnabled=!busy;view.setHorizontallyScrolling(!wrap)
+        if(kotlin.math.abs(view.textSize/fontContext.resources.displayMetrics.scaledDensity-fontSize)>.01f)view.textSize=fontSize
+        if(view.isEnabled==busy)view.isEnabled=!busy
+        if(view.wrapLines!=wrap){view.wrapLines=wrap;view.setHorizontallyScrolling(!wrap)}
+        if(view.isTextSelectable!=readOnly){view.tag=true;view.setTextIsSelectable(readOnly);view.tag=false}
         val desiredKeyListener=if(readOnly) null else inputKeyListener
         if(view.keyListener !== desiredKeyListener) {
             val start=view.selectionStart.coerceIn(0,view.length());val end=view.selectionEnd.coerceIn(0,view.length())
@@ -324,21 +345,24 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
             view.setSelection(start,end);view.scrollTo(x,y)
         }
         view.showSoftInputOnFocus=!readOnly;view.isCursorVisible=!readOnly
-        if(readOnly && view.hasFocus()) {view.clearFocus();(view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(view.windowToken,0)}
-        if(view.isFocusable==readOnly) view.isFocusable=!readOnly
-        if(view.isFocusableInTouchMode==readOnly) view.isFocusableInTouchMode=!readOnly
+        
+        view.isFocusable=true;view.isFocusableInTouchMode=true
         if(view.text.toString()!=text) {
             val start=view.selectionStart.coerceIn(0,text.length);val end=view.selectionEnd.coerceIn(0,text.length)
             val x=view.scrollX;val y=view.scrollY
             view.tag=true;view.setText(text);view.setSelection(start,end);view.tag=false;view.scrollTo(x,y)
         }
+        if(controller?.editor!==view && viewportKey!=null) {
+            val y=scrollPreferences.getInt(viewportKey+":textY",0);val x=scrollPreferences.getInt(viewportKey+":textX",0)
+            view.post {view.scrollTo(x,y)}
+        }
         controller?.attach(view)
-    },onRelease={view->controller?.detach(view)},modifier=Modifier.fillMaxWidth().weight(1f))
+    },onRelease={view->if(viewportKey!=null)scrollPreferences.edit().putInt(viewportKey+":textY",view.scrollY).putInt(viewportKey+":textX",view.scrollX).apply();controller?.detach(view)},modifier=Modifier.fillMaxWidth().weight(1f))
 }
 }
 
 @Composable
-internal fun SearchDialog(s: Session,vm: DocumentActions,controller: NativeEditorController?=null,close: ()->Unit) {
+internal fun SearchDialog(s: Session,vm: DocumentActions,controller: NativeEditorController?=null,readOnly: Boolean=false,close: ()->Unit) {
     var find by remember {mutableStateOf("")};var replacement by remember {mutableStateOf("")}
     var current by remember {mutableIntStateOf(-1)}
     val matches=remember(s.edits.text,find) {buildList {var from=0;if(find.isNotEmpty())while(true) {val next=s.edits.text.indexOf(find,from);if(next<0)break;add(next);from=next+find.length}}}
@@ -347,10 +371,10 @@ internal fun SearchDialog(s: Session,vm: DocumentActions,controller: NativeEdito
         OutlinedTextField(find,{find=it;current=-1},label={Text("찾을 문자열")},singleLine=true)
         Text("일치 ${matches.size}개"+if(current in matches.indices)" · ${current+1} / ${matches.size}" else "",modifier=Modifier.padding(vertical=8.dp))
         Row {TextButton({move(true)},enabled=matches.isNotEmpty()){Text("이전 결과")};TextButton({move(false)},enabled=matches.isNotEmpty()){Text("다음 결과")}}
-        OutlinedTextField(replacement,{replacement=it},label={Text("바꿀 문자열")},singleLine=true)
-        TextButton({
+        if(!readOnly) OutlinedTextField(replacement,{replacement=it},label={Text("바꿀 문자열")},singleLine=true)
+        if(!readOnly) TextButton({
             if(current !in matches.indices)move(false)
             if(current in matches.indices){val a=matches[current];val value=s.edits.text.replaceRange(a,a+find.length,replacement);if(controller!=null)controller.replace(value,a,a+replacement.length) else vm.text(value);current=-1}
         },enabled=find.isNotEmpty() && matches.isNotEmpty()){Text("바꾸기")}
-    }},confirmButton={TextButton(onClick={val value=s.edits.text.replace(find,replacement);if(controller!=null)controller.replace(value,0,0) else vm.text(value);current=-1},enabled=find.isNotEmpty() && matches.isNotEmpty()){Text("모두 바꾸기")}},dismissButton={TextButton(onClick=close){Text("닫기")}})
+    }},confirmButton={if(!readOnly)TextButton(onClick={val value=s.edits.text.replace(find,replacement);if(controller!=null)controller.replace(value,0,0) else vm.text(value);current=-1},enabled=find.isNotEmpty() && matches.isNotEmpty()){Text("모두 바꾸기")}},dismissButton={TextButton(onClick=close){Text("닫기")}})
 }

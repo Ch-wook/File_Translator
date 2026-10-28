@@ -10,10 +10,17 @@ let readOnlyReason=null,conversionOnly=false;
 let editor,format,ready=false,editing=false,pending=false,switching=false,timer,revision=0,savedRevision=0,edited=false,activeGroup='글자';
 const panel=document.getElementById('mobile-panel'),dock=document.getElementById('edit-dock');
 const undo=document.getElementById('undo'),redo=document.getElementById('redo');
+const search=document.getElementById('search');
+const reader=UI.readingChrome({header:document.querySelector('header'),editable:()=>editing,
+ capture:()=>ready?editor.captureView():null,restore:view=>editor.restoreView(view),
+ canToggle:()=>ready&&!switching&&!pending&&!editor.hasSelection()});
 const mobileUI=createMobileTools({groups,tools,panel,getEditor:()=>editor,isEditable:()=>ready&&editing&&!switching,message,
  layoutChanged:view=>{if(ready) requestAnimationFrame(()=>editor.restoreView(view).catch(error=>message(String(error.message),true)));}});
 function message(text,error=false){status.textContent=text;status.dataset.error=String(error);document.getElementById('discard').hidden=!error;}
-function update(){
+let updateFrame=0;
+function update(){if(!updateFrame)updateFrame=requestAnimationFrame(()=>{updateFrame=0;updateNow();});}
+function updateNow(){
+ reader.sync();search.hidden=!ready||editing;
  document.body.dataset.state=!ready?'LOADING':readOnlyReason?'READ_ONLY':editing?'EDITING':'READING';
  mode.hidden=Boolean(readOnlyReason)||editing||conversionOnly;
  document.getElementById('readonly-badge').hidden=!readOnlyReason;
@@ -70,7 +77,7 @@ async function setEditing(value){
   }
   // Apply host tool/status layout before restoring the engine's document position.
   // Showing the mobile toolbar resizes the iframe after the engine mode changes.
-  update();await editor.restoreView(view);persistView();
+  updateNow();await editor.restoreView(view);persistView();
  }catch(error){message(String(error.message||error),true);}
  finally{switching=false;update();}
 }
@@ -125,11 +132,13 @@ window.documentStudioHost={writePdf,convertPdf,signature:()=>openSignature({edit
  async back(){if(editing)await setEditing(false);else await close(false);},
 };
 UI.iconButton(document.getElementById('back'),'작업 화면','back',()=>window.documentStudioHost.back());
+UI.iconButton(search,'찾기','search',()=>editor.command('edit:find'));
 UI.iconButton(undo,'실행 취소','undo',()=>mobileUI.history('undo'));
 UI.iconButton(redo,'다시 실행','redo',()=>mobileUI.history('redo'));
 UI.iconButton(save,'저장 후 닫기','done',()=>close(true));
 const more=UI.iconButton(document.getElementById('more'),'문서 메뉴','more');
 UI.popup(more,()=>[
+ {label:reader.fullscreen?'메뉴 표시':'전체 화면 보기',hidden:editing,action:()=>reader.toggle()},
  {label:editing?'읽기 모드로 전환':'편집하기',hidden:Boolean(readOnlyReason)||conversionOnly,disabled:!ready||pending||switching,action:()=>setEditing(!editing)},
  {label:'찾기'+(editing?'·바꾸기':''),disabled:!ready,action:()=>editing?mobileUI.showSearch():editor.command('edit:find')},
  {label:'확대 '+(ready?Math.round(editor.captureView().zoom*100)+'%':''),disabled:!ready,action:()=>editor.command('view:zoom-in')},
@@ -161,7 +170,7 @@ async function start(){
  if(info.format!==format||info.pages<1)throw new Error('원본 문서의 형식 또는 페이지를 확인할 수 없습니다.');
  if(meta.viewState&&Number.isFinite(Number(meta.viewState.zoom)))await editor.restoreView(meta.viewState);
  else await editor.command('view:zoom-fit-width');
- ready=true;renderTools();native.loaded();
+ ready=true;reader.bind(frame.contentDocument);renderTools();native.loaded();
  if(meta.conversionOnly)setTimeout(convertPdf,100);
  if(readOnlyReason)message(`${info.pages}쪽 · 읽기 전용 · ${readOnlyReason}`);
  else if(meta.openIntent==='EDIT')await setEditing(true);

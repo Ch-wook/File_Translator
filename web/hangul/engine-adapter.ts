@@ -46,6 +46,7 @@ Object.assign((window as any).rhwpStudio, {
       return studioIsEditing();
     },
     isEditing: studioIsEditing,
+    hasSelection:()=>inputHandler?.hasSelection() ?? false,
     captureView: studioCaptureView,
     restoreView: studioRestoreView,
     finishInput: studioFinishInput,

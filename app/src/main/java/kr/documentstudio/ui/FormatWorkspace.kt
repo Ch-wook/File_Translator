@@ -23,14 +23,18 @@ import kr.documentstudio.core.*
 import kr.documentstudio.data.*
 
 @Composable
-fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Boolean,presentation: PresentationState=PresentationState.READING,openOffice: ()->Unit) {
+fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Boolean,presentation: PresentationState=PresentationState.READING,reader: ReaderActions?=null,openOffice: ()->Unit) {
     if(s.format in EditorPolicy.visualFormats) {VisualDocumentWorkspace(s,settings,vm,busy,presentation,openOffice);return}
     val family=WorkspaceFamily.of(s.format)
     val editing=presentation.allowsMutation
     var panel by rememberSaveable(s.id) {mutableStateOf<String?>(null)}
-    var preview by rememberSaveable(s.id) {mutableStateOf(false)}
+    var preview by rememberSaveable(s.id) {mutableStateOf(s.format==Format.MD)}
     var ink by rememberSaveable(s.id) {mutableStateOf(false)}
-    var page by rememberSaveable(s.id) {mutableIntStateOf(0)}
+    val readerContext=LocalContext.current
+    val readerPreferences=remember {readerContext.getSharedPreferences("reading-position",0)}
+    var page by rememberSaveable(s.id) {mutableIntStateOf(readerPreferences.getInt(s.id+":page",0))}
+    var readingZoom by rememberSaveable(s.id) {mutableFloatStateOf(readerPreferences.getFloat(s.id+":zoom",1f))}
+    var continuous by rememberSaveable(s.id) {mutableStateOf(false)}
     var search by remember {mutableStateOf(false)}
     var encoding by remember {mutableStateOf(false)}
     var ocr by remember {mutableStateOf(false)}
@@ -47,9 +51,14 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     var favorites by remember {mutableStateOf(preferences.getStringSet("favorites",emptySet())!!.toSet())}
     var fontCategory by rememberSaveable {mutableStateOf("전체")}
     var wrap by rememberSaveable {mutableStateOf(preferences.getBoolean("wrap",settings.wrapLines))}
-    val navigate: (Int)->Unit={page=it.coerceIn(0,((s.pdf?.pages ?: 1)-1).coerceAtLeast(0))}
+    val navigate: (Int)->Unit={page=it.coerceIn(0,((s.pdf?.pages ?: 1)-1).coerceAtLeast(0));readerPreferences.edit().putInt(s.id+":page",page).apply()}
+    SideEffect {
+        reader?.search={if(s.format==Format.PDF)panel="PDF 검색" else {preview=false;search=true}}
+        reader?.settings={panel="보기 설정"}
+    }
+    DisposableEffect(s.id) {onDispose {readerPreferences.edit().putInt(s.id+":page",page).putFloat(s.id+":zoom",pdfController.zoom).apply()}}
     LaunchedEffect(s.base) {navigate(page)}
-    LaunchedEffect(editing) {panel=null;if(!editing)ink=false}
+    LaunchedEffect(editing) {panel=null;if(!editing)ink=false;if(s.format==Format.MD)preview=!editing}
     val imageSelected=pdfController.selected is PdfImagePlacement
     LaunchedEffect(imageSelected) {if(panel!=null)panel=if(imageSelected) "그림" else "글자"}
     fun choose(value: String){
@@ -67,12 +76,11 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
         Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFFE8ECF3))) {
             when {
                 editing && ink->DrawingPage(s,null,page,settings,vm,busy)
-                s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController)
-                preview && s.format==Format.MD->MarkdownPreview(s.edits.text,busy || !editing,vm::text)
-                else->NativeTextEditor(s.edits.text,displaySize,busy,wrap,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont,showLineNumbers=lineNumbers)
+                s.format==Format.PDF && !editing && continuous->PdfContinuousReader(s,page,0,busy,onVisiblePage=navigate,onEditPage=null)
+                s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController,initialZoom=readingZoom)
+                preview && s.format==Format.MD->MarkdownPreview(s.edits.text,busy || !editing,vm::text,viewportKey=s.id)
+                else->NativeTextEditor(s.edits.text,displaySize,busy,wrap,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont,showLineNumbers=lineNumbers,viewportKey=s.id)
             }
-            if(!editing) FilledTonalButton({vm.beginEditing()},enabled=!busy && presentation!=PresentationState.READ_ONLY && presentation!=PresentationState.ERROR,
-                modifier=Modifier.align(Alignment.BottomEnd).padding(12.dp).testTag("edit-document")) {Icon(Icons.Default.Edit,null);Text("편집하기")}
         }
         if(panel!=null) MobileEditorSheet(if(fontList)"보기 글꼴" else if(s.format==Format.TXT && panel=="글자")"보기 설정" else panel!!,sheetLimit,{panel=null;fontList=false;if(editing&&s.format!=Format.PDF)textController.focus()}) {
           when(panel) {
@@ -146,6 +154,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                     Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(lineNumbers,{lineNumbers=it;preferences.edit().putBoolean("lineNumbers",it).apply()});Text("줄 번호")}
                     Text("${textStats.first}자 · ${textStats.second}줄",style=MaterialTheme.typography.bodySmall)
                 } else {
+                    if(!editing) Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(continuous,{continuous=it});Text("연속 페이지 보기")}
                     Row(verticalAlignment=Alignment.CenterVertically) {Tool("이전 페이지"){navigate(page-1)};Text("${page+1} / ${s.pdf!!.pages}");Tool("다음 페이지"){navigate(page+1)}}
                     Row(verticalAlignment=Alignment.CenterVertically) {Tool("축소"){pdfController.setZoom(pdfController.zoom-.25f)};Text("${(pdfController.zoom*100).toInt()}%");Tool("확대"){pdfController.setZoom(pdfController.zoom+.25f)};Tool("너비 맞춤"){pdfController.setZoom(1f)}}
                     Tool("PDF 검색"){panel="PDF 검색"}
@@ -164,10 +173,10 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
             }
             val selected=if(s.format==Format.MD && preview)"미리보기" else when(panel) {"글자"->if(s.format==Format.TXT)"보기" else if(s.format==Format.PDF)"텍스트" else "글자";"문단"->"목록";"그림"->"이미지";else->panel}
             MobileEditorDock(items,selected,!busy,::choose)
-        } else MobileEditorDock(listOf(MobileDockItem("보기 설정",Icons.Default.Tune)),panel,!busy,::choose)
+        }
       }
     }
-    if(search) SearchDialog(s,vm,textController){search=false}
+    if(search) SearchDialog(s,vm,textController,readOnly=!editing){search=false}
     if(ocr) OcrDialog(s,null,page,vm){ocr=false}
     if(encoding && s.textContent!=null)EncodingDialog(s,vm){encoding=false}
 }

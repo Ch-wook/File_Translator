@@ -30,3 +30,8 @@
 .studio-ui-dock button[aria-selected=true]{background:#eaf0fa!important}
 
 .studio-ui-font-row{display:flex;align-items:center;min-width:0}.studio-ui-font-row .studio-ui-font-option{flex:1;min-width:0;width:auto}.studio-ui-font-star{flex:none;width:44px;height:44px;border:0;border-radius:7px;background:transparent;color:var(--studio-accent);font-size:22px}.studio-ui-font-filters{display:flex;gap:4px;overflow:auto;padding:5px 0}.studio-ui-font-filters button{flex:none;min-height:40px;padding:4px 9px;border:0;border-radius:7px;background:#f0f3f8;color:inherit;font:12px system-ui}.studio-ui-font-filters button[aria-pressed=true]{background:#dbe7fc;color:var(--studio-accent)}
+
+html[data-studio-fullscreen=true] .studio-ui-header{display:none!important}
+html[data-studio-fullscreen=true] #toolbar-wrapper{min-height:0!important}
+.studio-reader-reveal{position:fixed;right:8px;top:max(8px,env(safe-area-inset-top));z-index:60;background:#fffc;box-shadow:0 2px 8px #0002}
+.studio-reader-reveal[hidden]{display:none!important}

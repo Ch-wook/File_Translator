@@ -170,7 +170,7 @@ class PdfObjectCanvas(context: Context): FrameLayout(context) {
 }
 
 @Composable
-fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readOnly: Boolean=true,controller: PdfEditorController?=null) {
+fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readOnly: Boolean=true,controller: PdfEditorController?=null,initialZoom: Float=1f) {
     val scope=rememberCoroutineScope()
     val verticalPosition=rememberScrollState()
     val horizontalPosition=rememberScrollState()
@@ -182,15 +182,15 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
     var failure by remember(s.base,page) {mutableStateOf<String?>(null)}
     var previewJob by remember {mutableStateOf<Job?>(null)}
     var previewRevision by remember {mutableIntStateOf(0)}
-    var zoom by rememberSaveable {mutableFloatStateOf(1f)}
+    var zoom by rememberSaveable {mutableFloatStateOf(initialZoom.coerceIn(1f,3f))}
     val owned=remember(s.base,page) {mutableSetOf<Bitmap>()}
     fun display(image: Bitmap) {val old=bitmap;bitmap=image;canvas?.bitmap=image;canvas?.invalidate();owned+=image;if(old!==image) {owned.remove(old);canvas?.post {old?.recycle()} ?: old?.recycle()}}
     suspend fun render(values: Map<String,String>,change: DocumentChange?=null): Triple<Bitmap,List<PdfBodyRun>,List<PdfImagePlacement>> {
         var produced: Bitmap?=null
         try {return withContext(Dispatchers.IO) {
             if(change==null && values.isEmpty() && s.edits.strokes.isEmpty()) {
-                val text=PdfBodyText.runs(s.base,page).filter {it.bounds!=null}
-                val graphics=PdfImages.list(s.base,page)
+                val text=if(readOnly) emptyList() else PdfBodyText.runs(s.base,page).filter {it.bounds!=null}
+                val graphics=if(readOnly) emptyList() else PdfImages.list(s.base,page)
                 val image=PdfEngine.render(s.base,page);produced=image
                 return@withContext Triple(image,text,graphics)
             }
@@ -199,7 +199,7 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
             try {
                 PdfEngine.write(s.base,file,s.edits.strokes,false,values,s.edits.layers)
                 val source=if(change!=null) {PdfEngine.change(file,changed,change);changed} else file
-                val text=PdfBodyText.runs(source,page).filter {it.bounds!=null};val graphics=PdfImages.list(source,page)
+                val text=if(readOnly) emptyList() else PdfBodyText.runs(source,page).filter {it.bounds!=null};val graphics=if(readOnly) emptyList() else PdfImages.list(source,page)
                 val image=PdfEngine.render(source,page);produced=image
                 Triple(image,text,graphics)
             } finally {file.delete();changed.delete()}
@@ -234,7 +234,15 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
             catch(e: Exception) {failure=e.message ?: "이미지 편집 결과를 표시하지 못했습니다."}
         }
     }
-    LaunchedEffect(readOnly) {if(readOnly) {canvas?.clearSelection(false);resetPreview()}}
+    LaunchedEffect(readOnly,s.base,page) {
+        if(readOnly) canvas?.clearSelection(false)
+        else if(s.edits.values.isEmpty() && s.edits.strokes.isEmpty()) {
+            try {
+                val metadata=withContext(Dispatchers.IO) {PdfBodyText.runs(s.base,page).filter {it.bounds!=null} to PdfImages.list(s.base,page)}
+                runs=metadata.first;images=metadata.second
+            } catch(e: CancellationException) {throw e} catch(e: Exception) {failure=e.message}
+        } else resetPreview()
+    }
     Column(Modifier.fillMaxSize().testTag("pdf-direct-editor")) {
         SideEffect {
             controller?.selected=selected;controller?.zoom=zoom;controller?.setZoom={zoom=it.coerceIn(1f,3f)}

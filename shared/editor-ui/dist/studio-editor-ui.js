@@ -76,5 +76,32 @@
  }
  function flushFields(root){let changed=0;for(const input of root.querySelectorAll('input'))if(input.studioCommit){const result=input.studioCommit();if(result<0)throw new Error('입력한 서식 값의 범위를 확인하세요.');changed+=result;}return changed;}
 
- global.StudioEditorUI={svg,retain,iconButton,dockButton,sheet,popup,fontPicker,toast,field,flushFields};
+
+ // Shared reading chrome. Only an unconsumed short single tap may toggle it.
+ function readingChrome({header,editable,capture,restore,layout,canToggle=()=>true}){
+   let full=false,down=null,root=null;
+   const reveal=iconButton('studio-reader-reveal','메뉴 표시','more',()=>set(false));
+   reveal.classList.add('studio-reader-reveal');reveal.hidden=true;document.body.append(reveal);
+   function set(value){
+     if(value&&editable())return;
+     const view=capture?.();full=Boolean(value);document.documentElement.dataset.studioFullscreen=String(full);reveal.hidden=!full;
+     layout?.();requestAnimationFrame(()=>{if(view)restore?.(view);});
+   }
+   function start(e){down=e.isPrimary!==false&&e.button===0?{x:e.clientX,y:e.clientY,time:e.timeStamp,id:e.pointerId}:null;}
+   function end(e){
+     const p=down;down=null;
+     if(!p||p.id!==e.pointerId||editable()||e.defaultPrevented||e.timeStamp-p.time>220||Math.hypot(e.clientX-p.x,e.clientY-p.y)>8)return;
+     if(e.target?.closest?.('a,button,input,textarea,select,[contenteditable=true],[role=button],[role=menu],.studio-ui-popup,.studio-ui-sheet'))return;
+     const selected=root?.getSelection?.()||root?.ownerDocument?.getSelection?.();
+     if(selected&&!selected.isCollapsed||!canToggle())return;
+     set(!full);
+   }
+   function bind(next){if(root===next)return;unbind();root=next;root?.addEventListener('pointerdown',start,{passive:true});root?.addEventListener('pointerup',end);root?.addEventListener('pointercancel',cancel);}
+   function cancel(){down=null;}
+   function unbind(){root?.removeEventListener('pointerdown',start);root?.removeEventListener('pointerup',end);root?.removeEventListener('pointercancel',cancel);root=null;}
+   window.addEventListener('pagehide',()=>{unbind();reveal.remove();},{once:true});
+   return {set,toggle:()=>set(!full),bind,sync:()=>{if(editable()&&full)set(false);},get fullscreen(){return full;}};
+ }
+
+ global.StudioEditorUI={readingChrome,svg,retain,iconButton,dockButton,sheet,popup,fontPicker,toast,field,flushFields};
 })(window);

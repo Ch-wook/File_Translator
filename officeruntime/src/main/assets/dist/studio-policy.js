@@ -29,7 +29,7 @@
   let attempts = 0;
   const UI=window.StudioEditorUI;
   let bar,actions,hint,tabs,modeButton,modeLabel,saveButton,header,bottom,sheet,undoButton,redoButton,cellActions,picker,groupOpen=false,fontList=false,contextName='',previousContext='',partsSignature='';
-  let transitionViewport, persistTimer, lastViewport='';
+  let transitionViewport, persistTimer, lastViewport='',reader,updateFrame=0,viewSampler;
   let activeTab = '글자';
   let modeTransition=false, transitionGeneration=0, ownedNativeRestore=null;
   const restoreTrace=[];
@@ -256,7 +256,10 @@
       const b=UI.dockButton(label,icon,()=>{if(groupOpen&&activeTab===label)closeSheet();else openSheet(label);});b.setAttribute('aria-selected',String(groupOpen&&activeTab===label));tabs.append(b);
     }
   }
-  function update(){
+  function update(){if(!updateFrame)updateFrame=requestAnimationFrame(()=>{updateFrame=0;updateNow();});}
+  function updateNow(){
+    reader?.sync();
+    if(initialViewportRestored&&!policy.initialIntentHandled){policy.initialIntentHandled=true;if(policy.modeSupported&&new URLSearchParams(location.search).get('studioopen')==='EDIT')queueMicrotask(()=>map()._switchToEditMode());}
     if(!bar)return;const editing=editable(),object=objectSelected();
     bar.dataset.editing=String(editing);const searching=groupOpen&&(activeTab==='찾기'||activeTab==='슬라이드 목록');bottom.hidden=!editing&&!searching;sheet.hidden=!groupOpen||(!editing&&!searching);tabs.hidden=!editing;
     if(cellActions){const hidden=!(editing&&!modeTransition&&map().getDocType()==='spreadsheet'&&(window.app?.file?.textCursor?.visible||map().formulabar?.hasFocus?.()||map().formulabar?.isInEditMode?.()));if(cellActions.hidden!==hidden){cellActions.hidden=hidden;refreshLayout();}}
@@ -266,6 +269,7 @@
     modeButton.disabled=modeTransition||!initialViewportRestored;
     saveButton.hidden=!editing&&!policy.changed;saveButton.disabled=modeTransition||!policy.changed;
     undoButton.hidden=redoButton.hidden=!editing;
+    const search=header.querySelector('#studio-office-search');if(search)search.hidden=editing||!searchService();
     for(const {b,item}of controls){const value=item.name&&state(item.name);b.disabled=!editing||modeTransition||(item.needsObject&&!object)||value==='disabled';if(value==='true'||value==='false')b.setAttribute('aria-pressed',value);else b.removeAttribute('aria-pressed');}
     undoButton.disabled=!editing||modeTransition||state('Undo')==='disabled';redoButton.disabled=!editing||modeTransition||state('Redo')==='disabled';
     const back=header.querySelector('#studio-office-back');back.setAttribute('aria-label',editing?'보기로 전환':'돌아가기');back.disabled=modeTransition||!initialViewportRestored;
@@ -386,7 +390,8 @@
     redoButton=UI.iconButton('studio-office-redo','다시 실행','redo',()=>{releaseViewportPin();uno('Redo');});
     modeButton=document.createElement('button');modeButton.id='studio-office-edit';modeButton.className='studio-office-action';modeButton.textContent='편집하기';modeButton.onclick=()=>{map()._switchToEditMode();update();};UI.retain(modeButton);
     saveButton=UI.iconButton('studio-office-save','저장 후 닫기','done',()=>{void saveAndClose();});
-    const more=UI.iconButton('studio-office-more','문서 메뉴','more');header.append(back,title,undoButton,redoButton,modeButton,saveButton,more);bar.append(header);
+    const search=UI.iconButton('studio-office-search','찾기','search',()=>openSheet('찾기'));
+    const more=UI.iconButton('studio-office-more','문서 메뉴','more');header.append(back,title,undoButton,redoButton,search,modeButton,saveButton,more);bar.append(header);
     modeLabel=document.createElement('span');modeLabel.id='studio-office-mode-label';hint=document.createElement('div');hint.id='studio-office-hint';hint.setAttribute('aria-live','polite');bar.append(modeLabel,hint);
     bottom=document.createElement('section');bottom.id='studio-office-bottom';bottom.setAttribute('aria-label','모바일 편집 도구');
     sheet=document.createElement('section');sheet.id='studio-office-sheet';sheet.hidden=true;UI.sheet(sheet,'글자',closeSheet);
@@ -396,7 +401,9 @@
     button('셀 입력 취소',()=>{if(editable())app.dispatcher?.dispatch('cancelformula');},cellActions);
     bottom.append(sheet,cellActions,tabs);
     const lower=document.getElementById('toolbar-down');if(lower)lower.before(bottom);else document.body.append(bottom);
+    reader=UI.readingChrome({header,editable,capture:snapshot,restore,layout:refreshLayout,canToggle:()=>!modeTransition&&!objectSelected()&&!app.file?.textCursor?.visible});reader.bind(document);
     UI.popup(more,()=>[
+      {label:reader.fullscreen?'메뉴 표시':'전체 화면 보기',hidden:editable(),action:()=>reader.toggle()},
       {label:'PDF로 변환',disabled:modeTransition,action:async()=>{
         try{if(conversionComposing)throw Error('한글 조합 입력을 마친 뒤 변환하세요.');flushSettings();
           if(editable()&&map().getDocType()==='spreadsheet'&&app.file?.textCursor?.visible){
@@ -427,7 +434,8 @@
     map().on('commandstatechanged',event=>{if(event.commandName==='.uno:ModifiedStatus'&&String(event.state)==='true'&&policy.wasAuthorized)policy.changed=true;update();});
     app.events.on('contextchange',event=>{contextName=String(event.detail?.context||event.context||'');update();});
     app.events.on('updatepermission',()=>{update();refreshLayout();if(modeTransition)restore(transitionViewport,undefined,transitionGeneration);});
-    map().on('moveend zoomend updateparts',rememberViewport);
+    map().on('moveend zoomend updateparts',()=>{rememberViewport();update();});
+    for(const name of ['pointerup','input','keyup','compositionend'])document.addEventListener(name,()=>{if(editable())update();},{passive:true});
     try{const saved=JSON.parse(bridge()?.getStudioViewState?.()||'{}');restore(saved,()=>{if(validViewport(saved))holdViewport(snapshot());initialViewportRestored=true;update();persistViewport();if(bridge()?.isStudioConversionOnly?.())setTimeout(()=>window.postMobileMessage('DOCUMENT_STUDIO_CONVERT_PDF'),300);});}catch(ignore){initialViewportRestored=true;}
     render();policy.ready=true;return true;
   }
@@ -436,14 +444,19 @@
     if(window.app && app.LOUtil) app.LOUtil.isAIAssistantAvailable=()=>false;
     if(map() && map().wopi) {map().wopi.DisableAISettings=true;map().isAIConfigured=false;}
     if(map() && map()._docLoaded) {
-      if(!bar) mount(); else update();
+      if(!bar) mount();
       // Only an explicit host EDIT launch may enter editing without a toolbar tap.
       if(bar && initialViewportRestored && !policy.initialIntentHandled) {
         policy.initialIntentHandled=true;
         if(policy.modeSupported && new URLSearchParams(location.search).get('studioopen')==='EDIT') map()._switchToEditMode();
       }
     }
-    if(policy.ready && attempts%5===0) persistViewport();
+    if(policy.ready) {
+      clearInterval(timer);
+      // A cheap coordinate sampler covers layout scrolls that emit no map event.
+      // It never rebuilds tools, and runs only while this document is visible.
+      viewSampler=setInterval(()=>{if(document.visibilityState==='visible'){persistViewport();if(editable())update();}},1000);
+    }
     } catch(error) {
       // Keep bounded local diagnostics when an upstream UI API prevents mounting.
       // No document text is read, serialized or sent to a logging service.
@@ -454,5 +467,5 @@
     }
     if(++attempts>=300 && !policy.ready) clearInterval(timer);
   },200);
-  window.addEventListener('pagehide',()=>{persistViewport();clearInterval(timer);clearTimeout(persistTimer);},{once:true});
+  window.addEventListener('pagehide',()=>{persistViewport();clearInterval(timer);clearInterval(viewSampler);cancelAnimationFrame(updateFrame);clearTimeout(persistTimer);},{once:true});
 })();

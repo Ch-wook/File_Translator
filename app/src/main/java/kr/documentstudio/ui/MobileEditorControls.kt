@@ -19,6 +19,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kr.documentstudio.core.MarkdownEditing
 
+/** Commands are attached by the active native workspace; reading never opens editing tools. */
+class ReaderActions {
+    var search: ()->Unit={}
+    var settings: ()->Unit={}
+}
 /** Shared compact chrome for the existing native PDF/TXT/Markdown workspaces. */
 data class MobileDockItem(val title: String,val icon: ImageVector)
 @Composable

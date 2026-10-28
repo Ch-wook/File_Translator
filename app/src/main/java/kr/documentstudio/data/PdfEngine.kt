@@ -77,7 +77,11 @@ object PdfEngine {
             }}
         }
     }
-    fun displaySize(file: File,index: Int): Pair<Float,Float> = PDDocument.load(file).use {doc->val page=doc.getPage(index);val r=page.cropBox;if(((page.rotation%360)+360)%360 in listOf(90,270)) r.height to r.width else r.width to r.height}
+    /** Native page dimensions already include CropBox and rotation; no PDFBox document parse. */
+    fun displaySize(file: File,index: Int): Pair<Float,Float> =
+        ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY).use {fd->
+            PdfRenderer(fd).use {renderer->renderer.openPage(index).use {page->page.width.toFloat() to page.height.toFloat()}}
+        }
     fun write(base: File, destination: File, strokes: List<Stroke>, ordinaryCopy: Boolean,values: Map<String,String> = emptyMap(),layers: List<InkLayer> = listOf(InkLayer())) {
         InkLayers.validate(layers)
         require(strokes.all {s->layers.any {it.id==s.layerId}})
