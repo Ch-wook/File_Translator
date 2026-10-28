@@ -16,9 +16,9 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_SHA: 639c154264a3b2652186a5c601ababc1e5a6f0a3
-      VERIFIED_RUN: '40727333800'
-      PERFORMANCE_RUN: '40727333774'
+      VERIFIED_SHA: efb242066777846081704672a1e4e109450822a5
+      VERIFIED_RUN: '40732104236'
+      PERFORMANCE_RUN: '40732103967'
       PREVIEW_TAG: v0.8.10-preview
     steps:
       - uses: actions/checkout@v4

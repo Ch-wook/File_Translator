@@ -1,0 +1,191 @@
+{
+  "commit": "efb242066777846081704672a1e4e109450822a5",
+  "sourceArchiveCommit": "efb242066777846081704672a1e4e109450822a5",
+  "version": "0.8.10-preview",
+  "applicationId": "kr.documentstudio.performancepreview",
+  "androidEmulatorOutcome": "success",
+  "androidTests": {
+    "tests": 54,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "signatureConversionVerified": true,
+  "signatureEngineTests": [
+    {
+      "format": "hwp",
+      "signatureTouch": true,
+      "visibleSignatureErrors": true,
+      "pdfCancellation": true,
+      "exportMutationLocked": true,
+      "tableTextPreserved": true,
+      "tableStructurePreserved": true,
+      "pages": 1,
+      "savedAndReopened": true
+    },
+    {
+      "format": "hwpx",
+      "signatureTouch": true,
+      "visibleSignatureErrors": true,
+      "pdfCancellation": true,
+      "exportMutationLocked": true,
+      "tableTextPreserved": true,
+      "tableStructurePreserved": true,
+      "pages": 1,
+      "savedAndReopened": true
+    }
+  ],
+  "unitTests": {
+    "core": {
+      "tests": 127,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "officeruntime": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "app": {
+      "tests": 24,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "installation": {
+    "package": "kr.documentstudio.performancepreview",
+    "installedABI": "x86_64",
+    "cleanInstallWithoutTestFlag": true,
+    "launch": true,
+    "coexistsWith089": true,
+    "priorApkHashUnchanged": true,
+    "priorPrivateDataPreserved": true,
+    "sameSignerReinstallPreservedPrivateData": true,
+    "physicalDeviceTested": false
+  },
+  "mobileEngineTests": [
+    {
+      "format": "hwp",
+      "phone": true,
+      "partialSelection": true,
+      "font": "Noto Sans KR",
+      "structure": {
+        "anchoredParagraphEnterUndo": true,
+        "paragraphScope": true,
+        "characterOnlyFormatCopy": true,
+        "nativeMultiParagraphNumbering": true,
+        "findReplaceOneAndAll": true,
+        "futureTypingFormat": true,
+        "atomicImeSelectionUndo": true,
+        "atomicDirectInputUndo": true,
+        "tableRowsColumns": true,
+        "mergeSplitCycles": 3,
+        "cellScopedTextFormat": true,
+        "imageFilePicker": true,
+        "imageTouchPlacement": true,
+        "imageTouchResize": true,
+        "imageUndo": true,
+        "longPressSelection": true,
+        "touchSelectionHandles": true
+      },
+      "combinedCharacterFormatting": true,
+      "spacingMetrics": {
+        "base": 20.65625,
+        "spaced": 24.828125,
+        "narrow": 16.53125
+      },
+      "unselectedPreserved": true,
+      "clipboardRichAndPlain": true,
+      "atomicPasteUndoRedo": true,
+      "pendingFormatSaved": true,
+      "freshSelectionTarget": true,
+      "autosave": true,
+      "savedAndReopened": true,
+      "bytes": 5632
+    },
+    {
+      "format": "hwpx",
+      "phone": true,
+      "partialSelection": true,
+      "font": "Noto Sans KR",
+      "structure": {
+        "anchoredParagraphEnterUndo": true,
+        "paragraphScope": true,
+        "characterOnlyFormatCopy": true,
+        "nativeMultiParagraphNumbering": true,
+        "findReplaceOneAndAll": true,
+        "futureTypingFormat": true,
+        "atomicImeSelectionUndo": true,
+        "atomicDirectInputUndo": true,
+        "tableRowsColumns": true,
+        "mergeSplitCycles": 3,
+        "cellScopedTextFormat": true,
+        "imageFilePicker": true,
+        "imageTouchPlacement": true,
+        "imageTouchResize": true,
+        "imageUndo": true,
+        "longPressSelection": true,
+        "touchSelectionHandles": true
+      },
+      "combinedCharacterFormatting": true,
+      "spacingMetrics": {
+        "base": 20.65625,
+        "spaced": 24.828125,
+        "narrow": 16.53125
+      },
+      "unselectedPreserved": true,
+      "clipboardRichAndPlain": true,
+      "atomicPasteUndoRedo": true,
+      "pendingFormatSaved": true,
+      "freshSelectionTarget": true,
+      "autosave": true,
+      "savedAndReopened": true,
+      "bytes": 9509
+    }
+  ],
+  "originalBrowserScenarios": 5,
+  "javascriptTests": 28,
+  "independentPartialFormattingParser": true,
+  "physicalDeviceTested": false,
+  "nativeCalc": {
+    "nativePaste": true,
+    "nativeCellFontBoldSize": true,
+    "nativeFormulaResults": 15,
+    "nativeNewSheet": true,
+    "providerSaved": true,
+    "parserReopened": true,
+    "engineReopened": true,
+    "originalProtected": true,
+    "physicalDeviceTested": false
+  },
+  "additionalBundledFontFamilies": 6,
+  "apks": [
+    {
+      "file": "document-studio-0.8.10-preview-arm64-v8a.apk",
+      "applicationId": "kr.documentstudio.performancepreview",
+      "versionCode": 20,
+      "versionName": "0.8.10-preview",
+      "abi": "arm64-v8a",
+      "bytes": 429939265,
+      "sha256": "e4ab5b2b5ca20792753e65fa40295944b0dfe556e815c35dee9575aabff41999",
+      "certificateSHA256": "20f58d03611e7e92ca281dbc46dfbf87efb79bd8dcc49addbeddbc9432abc37a",
+      "elf16k": true,
+      "testOnly": false
+    },
+    {
+      "file": "document-studio-0.8.10-preview-x86_64.apk",
+      "applicationId": "kr.documentstudio.performancepreview",
+      "versionCode": 20,
+      "versionName": "0.8.10-preview",
+      "abi": "x86_64",
+      "bytes": 441825755,
+      "sha256": "16e53cd798c099179876064edb85ff4a19f6b1158adb44b59141a1390edab336",
+      "certificateSHA256": "20f58d03611e7e92ca281dbc46dfbf87efb79bd8dcc49addbeddbc9432abc37a",
+      "elf16k": true,
+      "testOnly": false
+    }
+  ]
+}

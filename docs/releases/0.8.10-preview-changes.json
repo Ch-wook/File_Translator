@@ -1,12 +1,30 @@
 {
   "baseCommit": "0faea43c3395e4e9e26757f621842650a59da0ce",
-  "appBuildCommit": "639c154264a3b2652186a5c601ababc1e5a6f0a3",
+  "appBuildCommit": "efb242066777846081704672a1e4e109450822a5",
   "files": [
     {
       "path": ".github/workflows/mobile-release.yml",
       "status": "modified",
       "additions": 2,
       "deletions": 2
+    },
+    {
+      "path": ".github/workflows/optimization-metadata.yml",
+      "status": "added",
+      "additions": 34,
+      "deletions": 0
+    },
+    {
+      "path": ".github/workflows/optimization-publication-check.yml",
+      "status": "added",
+      "additions": 35,
+      "deletions": 0
+    },
+    {
+      "path": ".github/workflows/publish-optimization-preview.yml",
+      "status": "added",
+      "additions": 294,
+      "deletions": 0
     },
     {
       "path": ".github/workflows/reading-performance.yml",
@@ -27,6 +45,12 @@
       "deletions": 3
     },
     {
+      "path": "app/src/androidTest/java/kr/documentstudio/NativeHangulEditingTest.kt",
+      "status": "modified",
+      "additions": 11,
+      "deletions": 3
+    },
+    {
       "path": "app/src/androidTest/java/kr/documentstudio/ReadingPerformanceTest.kt",
       "status": "modified",
       "additions": 46,
@@ -35,7 +59,7 @@
     {
       "path": "app/src/androidTest/java/kr/documentstudio/ReadingUxTest.kt",
       "status": "modified",
-      "additions": 56,
+      "additions": 61,
       "deletions": 1
     },
     {
@@ -77,8 +101,8 @@
     {
       "path": "app/src/main/java/kr/documentstudio/ui/PdfContinuousReader.kt",
       "status": "modified",
-      "additions": 36,
-      "deletions": 15
+      "additions": 40,
+      "deletions": 16
     },
     {
       "path": "app/src/main/java/kr/documentstudio/ui/StudioApp.kt",
@@ -96,6 +120,18 @@
       "path": "docs/ADDITIONAL_OPTIMIZATION_RESULTS.md",
       "status": "added",
       "additions": 11,
+      "deletions": 0
+    },
+    {
+      "path": "docs/releases/0.8.10-preview-changes.json",
+      "status": "added",
+      "additions": 120,
+      "deletions": 0
+    },
+    {
+      "path": "docs/releases/0.8.10-preview-performance.json",
+      "status": "added",
+      "additions": 591,
       "deletions": 0
     },
     {

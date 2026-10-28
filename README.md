@@ -1,3 +1,18 @@
+# 문서 스튜디오 0.8.10-preview
+
+기존 편집·서명·로컬 변환을 유지하면서 **텍스트 처리·PDF 메모리·읽기 위치 복원**을 추가 개선한 개발 서명 프리뷰입니다.
+
+[휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.10-preview/document-studio-0.8.10-preview-arm64-v8a.apk) · [전체 소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.10-preview/document-studio-0.8.10-preview-source.zip) · [작업 보고서·최종 측정값](docs/ADDITIONAL_OPTIMIZATION_RESULTS.md) · [Release·해시·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.10-preview)
+
+같은 Android35 에뮬레이터에서 메뉴 열기364→235ms,516KB TXT 전환145→124ms,PDF 표시 비트맵12.1→5.4MB를 기록했습니다. 일반 TXT 전환은 약167ms로 같고 앱 전체 메모리가55% 감소한 결과는 아닙니다. [느려진 항목·원시 값·조건·남은 제한](docs/ADDITIONAL_OPTIMIZATION_RESULTS.md)을 함께 확인하세요.
+
+Android 회귀54건, 단위153건, JavaScript28건, 실제 엔진 브라우저9개 시나리오·독립 저장/재열기 검사 통과. 별도 읽기 UI6건도 통과했으며54건과 중복 합산하지 않습니다. 실제 ARM64 휴대폰·삼성/Gboard·S펜·60fps·장시간 최대 메모리는 미검증입니다.
+
+휴대폰용 APK는 약429.9MB입니다. 기존 서명키를 사용할 수 없어 사용자 선택대로 **문서 스튜디오 추가 개선**(`kr.documentstudio.performancepreview`)을 별도 설치합니다. 기존 앱·작업 복구본을 삭제하지 마세요. 파일로 저장한 문서를 새 앱에서 열 수 있고 비공개 데이터는 자동 이관하지 않습니다. Android10+ 64비트, Office11+입니다.
+
+<details>
+<summary>0.8.9 및 이전 구현·배포 기록</summary>
+
 # 문서 스튜디오 0.8.9-preview
 
 읽기 화면에서 편집 도구를 숨기고 검색·편집·전체 화면으로 문서 영역을 넓혔습니다. 중복 체크포인트·재파싱·Office 도구 갱신과 수정 없이 닫을 때의 대기를 줄였습니다. 기존 편집·글꼴·서명·파일 변환·원본 보호 기능은 유지합니다.
@@ -151,6 +166,8 @@ node scripts/tests/hangul-mobile.cjs
 [사용 안내](docs/USER_GUIDE.md) · [한글 엔진 출처](web/hangul/PROVENANCE.md) · [Office 엔진 출처](officeruntime/PROVENANCE.md) · [오픈소스 고지](docs/THIRD_PARTY.md)
 
 0.7.0 이하 문서와 테스트 수는 과거 기록입니다. 이번 버전의 실기기 검증 결과로 합산하지 않습니다.
+
+</details>
 
 </details>
 
