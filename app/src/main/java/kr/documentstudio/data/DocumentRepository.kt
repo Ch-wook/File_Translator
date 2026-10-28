@@ -28,6 +28,7 @@ class BackupPasswordRequired(val uri: Uri): IllegalArgumentException("암호화 
 class DocumentRepository(private val context: Context) {
     private val root = File(context.filesDir, "documents").apply { mkdirs() }
     private val index = File(root, "index.json")
+    private val providerWrites=ProviderWrites(context)
     private data class CheckpointStamp(val key: Any,val modified: java.nio.file.attribute.FileTime,val size: Long)
     private data class CheckpointSnapshot(val session: java.lang.ref.WeakReference<Session>,val stamp: CheckpointStamp)
     private val checkpointSnapshots=java.util.LinkedHashMap<String,CheckpointSnapshot>(4,.75f,true)
@@ -201,9 +202,11 @@ class DocumentRepository(private val context: Context) {
         val s = build(id,j.getString("name"),Format.valueOf(j.getString("format")),j.optString("uri").takeIf { it.isNotEmpty() },
             j.optString("sourceHash").takeIf { it.isNotEmpty() },File(dir,j.optString("baseFile","base.bin").also {require(it.matches(Regex("[a-zA-Z0-9.-]+")) && !it.contains(".."))}),j.optString("encoding","UTF-8"))
         val restored=s.copy(edits=StateCodec.decode(j.getJSONObject("edits")),saved=StateCodec.decode(j.getJSONObject("saved")),revision=j.optLong("revision"),savedRevision=j.optLong("savedRevision"))
-        return if(File(dir,"office-pending.json").exists()) try {acceptOfficeInternal(restored)} catch(e: Exception) {
-            restored.copy(recoveryWarning="이전 작업 복구본을 열었습니다. 정밀 편집 파일도 보존했습니다: ${e.message}")
+        val accepted=if(File(dir,"office-pending.json").exists()) try {acceptOfficeInternal(restored)} catch(e: Exception) {
+            restored.copy(recoveryWarning="정밀 편집이 끝났는지 확인하지 못해 이전 작업과 복구 파일을 보존했습니다.")
         } else restored
+        return if(providerWrites.list(id).any {it.phase in setOf("PREPARED","WRITING","VERIFIED","RECOVERY_REQUIRED")})
+            accepted.copy(recoveryWarning="중단된 저장 기록이 있습니다. 저장 복구에서 이전 파일과 편집 결과를 확인하세요.") else accepted
     }
     private fun build(id: String,name: String,format: Format,uri: String?,hash: String?,base: File,encoding: String="UTF-8"): Session {
         val text = if(format in listOf(Format.TXT,Format.MD)) TextContent.decode(base.readBytes(),encoding) else null
@@ -244,7 +247,7 @@ class DocumentRepository(private val context: Context) {
         require(!replacing || s.pdf?.archival != true) { "PDF/A 검증기를 제공하지 않습니다. 일반 PDF로 다른 이름으로 저장하세요." }
         val dir = s.base.parentFile!!; val stage = File(dir,"validated.bin"); val backup = File(dir,"provider-backup.bin")
         checkpointInternal(s)
-        if(s.format in visualFormats && s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty()) atomic(stage,s.base.readBytes())
+        if(s.format in visualFormats && s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty()) atomicCopy(s.base,stage)
         else when(s.format) {
             Format.TXT,Format.MD -> atomic(stage,s.textContent!!.encode(s.edits.text)).also { TextContent.decode(stage.readBytes(),s.textContent.charset) }
             Format.PDF -> PdfEngine.write(s.base,stage,s.edits.strokes,s.pdf!!.archival,s.edits.values,s.edits.layers)
@@ -252,24 +255,12 @@ class DocumentRepository(private val context: Context) {
             else -> s.pack!!.write(stage,s.edits)
         }
         val expected = digest(stage)
-        // Backup and compare the provider's current bytes before the first truncate.
-        copyUri(destination,backup)
-        if(replacing) require(digest(backup)==s.sourceHash) { "외부에서 원본 파일이 변경되었습니다. 다른 이름으로 저장하세요." }
-        try {
-            context.contentResolver.openOutputStream(destination,"rwt")?.use { out -> stage.inputStream().use { it.copyTo(out) } } ?: error("쓰기 권한이 없습니다. 다른 이름으로 저장하세요.")
-            require(digestUri(destination)==expected) { "제공자에 저장된 내용의 검증에 실패했습니다." }
-        } catch (e: Exception) {
-            val rolledBack = runCatching {
-                context.contentResolver.openOutputStream(destination,"rwt")?.use { out -> backup.inputStream().use { it.copyTo(out) } } ?: error("복원 실패")
-                require(digestUri(destination)==digest(backup))
-            }.isSuccess
-            error(if(rolledBack) "저장에 실패하여 원본을 복원했습니다. 작업 복구본도 보존했습니다. ${e.message}" else "저장과 제공자 복원에 실패했습니다. 앱 내부 원본 백업과 작업 복구본을 보존했습니다. ${e.message}")
-        }
+        val receipt=providerWrites.publish(s.id,stage,destination,if(replacing)s.sourceHash else null,s.name,s.format.mime,backup)
         // Keep the imported baseline and edit commands so Undo also works across a save.
         val newBase=if(s.format==Format.PDF) File(dir,"${UUID.randomUUID()}.bin").also {atomic(it,stage.readBytes());PdfEngine.cleanOwned(it)} else s.base
         val result = s.copy(name=displayName(destination),uri=destination.toString(),sourceHash=expected,saved=s.edits,
             pdf=s.pdf?.copy(archival=false),base=newBase,savedRevision=s.revision)
-        checkpointInternal(result); stage.delete(); result
+        checkpointInternal(result); providerWrites.finish(receipt,listOf(dir,root));stage.delete(); result
     }
     suspend fun exportPdf(s: Session, destination: Uri) = io {
         require(destination.toString()!=s.uri) { "PDF 내보내기는 원본과 다른 파일을 선택하세요." }
@@ -508,18 +499,19 @@ class DocumentRepository(private val context: Context) {
         val visualFormats=EditorPolicy.visualFormats
         val officeFormats=setOf(Format.DOCX,Format.DOC,Format.XLSX,Format.XLS,Format.PPTX,Format.PPT)
         fun digest(file: File): String = file.inputStream().use { digestStream(it) }
+        internal fun digestStreamForRecovery(input: java.io.InputStream): String = digestStream(input)
         private fun digestStream(input: java.io.InputStream): String {
             val md=MessageDigest.getInstance("SHA-256"); val bytes=ByteArray(64*1024)
             while(true) { val n=input.read(bytes); if(n<0) break; md.update(bytes,0,n) }; return md.digest().joinToString("") { "%02x".format(it) }
         }
         fun atomicCopy(source: File,target: File) {
             target.parentFile?.mkdirs();val af=AtomicFile(target);val out=af.startWrite()
-            try {source.inputStream().use {it.copyTo(out,64*1024)};af.finishWrite(out)}
+            try {source.inputStream().use {it.copyTo(out,64*1024)};out.fd.sync();af.finishWrite(out)}
             catch(e: Exception) {af.failWrite(out);throw e}
         }
         fun atomic(file: File,bytes: ByteArray) {
             file.parentFile?.mkdirs(); val af=AtomicFile(file); val out=af.startWrite()
-            try { out.write(bytes); af.finishWrite(out) } catch(e: Exception) { af.failWrite(out); throw e }
+            try { out.write(bytes);out.fd.sync(); af.finishWrite(out) } catch(e: Exception) { af.failWrite(out); throw e }
         }
     }
 }
