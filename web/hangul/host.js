@@ -91,11 +91,11 @@ async function convertPdf(){
  catch(error){message(error.message,true);}
 }
 async function writePdf(){
- pending=true;update();
+ pending=true;update();let cancelled=false;const cancel=document.createElement('button');cancel.textContent='변환 취소';cancel.onclick=()=>{cancelled=true;};status.after(cancel);
  try{const count=editor.info().pages;if(!native.beginPdf(count))throw Error('PDF를 준비하지 못했습니다.');
-  for(let i=0;i<count;i++){message('PDF 변환 중 · '+(i+1)+' / '+count+'쪽');await new Promise(r=>setTimeout(r,0));const page=editor.pdfPage(i);if(!native.pdfPage(JSON.stringify(page)))throw Error('페이지 변환에 실패했습니다.');}
+  for(let i=0;i<count;i++){if(cancelled)throw Error('PDF 변환을 취소했습니다.');message('PDF 변환 중 · '+(i+1)+' / '+count+'쪽');await new Promise(r=>setTimeout(r,0));const page=editor.pdfPage(i);if(!native.pdfPage(JSON.stringify(page)))throw Error('페이지 변환에 실패했습니다.');}
   const result=JSON.parse(native.finishPdf());if(!result.ok)throw Error(result.error||'PDF 검증 실패');message('PDF 변환 완료 · '+count+'쪽');
- }catch(error){native.abortPdf();message(error.message,true);}finally{pending=false;update();}
+ }catch(error){native.abortPdf();message(error.message,true);}finally{cancel.remove();pending=false;update();}
 }
 window.documentStudioHost={writePdf,convertPdf,signature:()=>openSignature({editor,native,message}),
  changed(){if(!ready||!editing)return;revision++;message('수정됨 · 작업 복사본 저장 대기');clearTimeout(timer);timer=setTimeout(checkpoint,1200);update();},

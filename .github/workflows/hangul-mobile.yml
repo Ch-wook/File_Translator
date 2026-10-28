@@ -72,6 +72,8 @@ jobs:
           (cd ../.. && ./gradlew :core:inspectTableSave --configure-on-demand --max-workers=2 --console=plain) 2>&1 | tee ../../artifacts/ci/table-save-records.log
           node hangul-mobile.cjs 2>&1 | tee ../../artifacts/ci/hangul-mobile.log
           node signature-conversion.cjs 2>&1 | tee ../../artifacts/ci/signature-conversion.log
+          pip install Pillow
+          (cd ../.. && python3 scripts/verify-signature-conversion.py)
       - name: Independent saved-file parser checks
         run: |
           ./gradlew :core:verifyVisualRoundTrip :core:verifyMobileRoundTrip --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/roundtrip.log

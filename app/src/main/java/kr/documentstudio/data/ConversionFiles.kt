@@ -13,7 +13,7 @@ import java.security.MessageDigest
 
 /** Validate before touching a selected output; verify provider readback and restore on failure. */
 object ConversionFiles {
-    fun digest(file: File): String = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") {"%02x".format(it)}
+    fun digest(file: File): String {val digest=MessageDigest.getInstance("SHA-256");file.inputStream().use {input->val buffer=ByteArray(65536);while(true){val count=input.read(buffer);if(count<0)break;digest.update(buffer,0,count)}};return digest.digest().joinToString("") {"%02x".format(it)}}
     fun publish(context: Context,stage: File,uri: Uri,original: String?=null) {
         require(uri.toString()!=original) {"원본과 다른 파일을 선택하세요."}
         require(stage.length() in 1..128L*1024*1024) {"결과 파일 크기가 올바르지 않습니다."}
