@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: mobile-release-087-${{ github.sha }}
+  group: mobile-release-088-${{ github.sha }}
   cancel-in-progress: false
 jobs:
   verify:
@@ -65,6 +65,8 @@ jobs:
       - name: Real offline engine, TypeScript and fixtures
         run: |
           python3 scripts/prepare-open-fixtures.py
+          pip install python-pptx python-docx openpyxl Pillow
+          python3 scripts/prepare-conversion-fixtures.py
           ./gradlew :app:help :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/fixtures.log
           python3 scripts/prepare-hangul-engine.py 2>&1 | tee artifacts/ci/hangul-prepare.log
       - name: Reproduce old metadata failure, verify host regressions and compile Android tests
@@ -80,6 +82,8 @@ jobs:
           TABLE_SAVE_DIAGNOSTIC=1 node scripts/tests/hangul-mobile.cjs 2>&1 | tee artifacts/ci/table-save-browser.log
           ./gradlew :core:inspectTableSave --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/table-save-records.log
           node scripts/tests/hangul-mobile.cjs 2>&1 | tee artifacts/ci/hangul-mobile.log
+          node scripts/tests/signature-conversion.cjs 2>&1 | tee artifacts/ci/signature-conversion.log
+          python3 scripts/verify-signature-conversion.py
           ./gradlew :core:verifyVisualRoundTrip :core:verifyMobileRoundTrip --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/roundtrip.log
       - name: Configured private signing key, if available
         env:
@@ -128,8 +132,8 @@ jobs:
         continue-on-error: true
         env:
           STUDIO_ABI: x86_64
-          STUDIO_PACKAGE: kr.documentstudio.workspacepreview
-          MODE_TEST_CLASSES: kr.documentstudio.PdfAnnotationsTest,kr.documentstudio.PdfImageEditingTest,kr.documentstudio.PdfInkAppearanceTest,kr.documentstudio.PdfMarkupUiTest,kr.documentstudio.MarkdownUiTest,kr.documentstudio.CommonMobileUiTest,kr.documentstudio.NativeOfficeFontTest,kr.documentstudio.DocumentOpenRegressionTest,kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest
+          STUDIO_PACKAGE: kr.documentstudio.convertpreview
+          MODE_TEST_CLASSES: kr.documentstudio.ConversionIntegrationTest,kr.documentstudio.PdfAnnotationsTest,kr.documentstudio.PdfImageEditingTest,kr.documentstudio.PdfInkAppearanceTest,kr.documentstudio.PdfMarkupUiTest,kr.documentstudio.MarkdownUiTest,kr.documentstudio.CommonMobileUiTest,kr.documentstudio.NativeOfficeFontTest,kr.documentstudio.DocumentOpenRegressionTest,kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest
           STUDIO_STORE_PASSWORD: ${{ secrets.STUDIO_STORE_PASSWORD }}
           STUDIO_KEY_ALIAS: ${{ secrets.STUDIO_KEY_ALIAS }}
           STUDIO_KEY_PASSWORD: ${{ secrets.STUDIO_KEY_PASSWORD }}
@@ -171,6 +175,7 @@ jobs:
             artifacts/open-fixtures/
             artifacts/mobile-install/
             artifacts/hangul-mobile/
+            artifacts/signature-conversion/
             artifacts/mobile-ui/
             artifacts/document-engines/
             artifacts/native-android/

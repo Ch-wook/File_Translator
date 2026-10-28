@@ -45,3 +45,7 @@ VIEW intentionally prevents document hit/drag starts to protect objects. Full to
 The repository includes policy tests, Android bridge tests and actual Rhwp/Chromium scenarios for explicit editing, mode transitions, Korean text, undo/redo, save/reopen, read-only input/command/drag denial and zero document writes on close. Their presence is not evidence that a particular build passed: use the matching GitHub Actions run and packaged test reports for executed results. Chromium touch emulation and Robolectric do not establish physical Android System WebView/IME, pen, gesture or native storage-provider behavior. No physical Android-device validation was performed during this source reimplementation.
 
 See the current support matrix and the matching build report before distributing as a production-compatible editor.
+
+## Handwritten signatures and PDF conversion
+
+The host signature panel emits a transparent PNG and uses the native InputHandler image-placement path. Document text, cell/image anchors, transforms, undo and serialization remain engine-owned. Reusable signature vectors and PNGs stay in app-private AtomicFile storage. The initial PDF converter renders every full engine page at its document dimensions into Android PdfDocument; this is a raster PDF, not viewport capture and not searchable/selectable text. Unsupported advanced conversions remain absent from the target list.

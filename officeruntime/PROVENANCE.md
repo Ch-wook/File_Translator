@@ -70,3 +70,7 @@ to their respective owners; this independent application is not endorsed by them
 `src/test/java/org/libreoffice/androidlib/OfficeEditPolicyTest.java`입니다.
 실행 결과는 배포 검증 기록을 확인해야 합니다. 정책 단위 검사는 실제 Android의 네이티브 Office,
 한국어 IME·터치/개체 조작·저장/재열기 종합 검증을 대신하지 않습니다.
+
+## Local document conversion
+
+The mobile host exposes the existing native PDF saveAs filter through a compact document menu. It writes a private staging PDF, validates pages with Android PdfRenderer, then copies to a user-selected URI and verifies readback. The existing document remains owned by its original working copy. No print or print-preview UI is added. The Java host changes remain included here under the upstream MPL-2.0 file headers.

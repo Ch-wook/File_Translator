@@ -3,6 +3,9 @@
   if (window.studioOffice) return;
   const policy = window.studioOffice = { ready: false, authorized: false, wasAuthorized: false, modeSupported: false, changed: false, initialIntentHandled: false };
   const bridge = () => window.COOLMessageHandler;
+  let conversionComposing=false;
+  document.addEventListener('compositionstart',()=>conversionComposing=true,true);
+  document.addEventListener('compositionend',()=>conversionComposing=false,true);
   window.enableMacrosExecution = false;
   const style = document.createElement('style');
   style.textContent = `
@@ -395,7 +398,12 @@
     const lower=document.getElementById('toolbar-down');if(lower)lower.before(bottom);else document.body.append(bottom);
     UI.popup(more,()=>[
       {label:'PDF로 변환',disabled:modeTransition,action:async()=>{
-        try{flushSettings();if(editable()&&app.file?.textCursor?.visible){app.dispatcher?.dispatch('acceptformula');await new Promise(r=>setTimeout(r,200));}
+        try{if(conversionComposing)throw Error('한글 조합 입력을 마친 뒤 변환하세요.');flushSettings();
+          if(editable()&&map().getDocType()==='spreadsheet'&&app.file?.textCursor?.visible){
+            app.dispatcher?.dispatch('acceptformula');const deadline=Date.now()+3000;
+            while(app.file?.textCursor?.visible&&Date.now()<deadline)await new Promise(r=>setTimeout(r,40));
+            if(app.file?.textCursor?.visible)throw Error('셀 입력을 완료한 뒤 다시 변환하세요.');
+          }
           window.postMobileMessage('DOCUMENT_STUDIO_CONVERT_PDF');
         }catch(error){UI.toast(error.message,true);}
       }},

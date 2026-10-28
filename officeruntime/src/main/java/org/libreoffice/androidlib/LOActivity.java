@@ -1993,7 +1993,9 @@ public class LOActivity extends AppCompatActivity {
         }
         studioPdfBusy=true;
         final android.app.ProgressDialog progress=new android.app.ProgressDialog(this);
-        progress.setMessage("PDF 변환 중 · 전체 문서 레이아웃 처리");progress.setCancelable(false);progress.show();
+        progress.setMessage("PDF 변환 중 · 전체 문서 레이아웃 처리");progress.setCancelable(false);
+        final java.util.concurrent.atomic.AtomicBoolean cancelled=new java.util.concurrent.atomic.AtomicBoolean(false);
+        progress.setButton(android.content.DialogInterface.BUTTON_NEGATIVE,"변환 취소",(dialog,which)->cancelled.set(true));progress.show();
         mWebView.setEnabled(false);
         new Thread(() -> {
             File stage=null,backup=null,check=null;boolean backed=false;
@@ -2010,6 +2012,7 @@ public class LOActivity extends AppCompatActivity {
                         try{page.render(bitmap,null,null,android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);}finally{bitmap.recycle();}
                     }
                 }
+                if(cancelled.get())throw new java.io.IOException("변환을 취소했습니다.");
                 backup=File.createTempFile("studio-output-backup-",".bin",getCacheDir());
                 try(InputStream input=getContentResolver().openInputStream(destination);OutputStream out=new FileOutputStream(backup)){
                     if(input!=null){studioCopyStream(input,out);backed=true;}

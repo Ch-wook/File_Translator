@@ -12,11 +12,11 @@
 - Markdown→HTML/TXT, TXT→HTML/MD, 기존 검증된 HWP→HWPX 재사용.
 - HWP/HWPX 자필 서명: 전용 터치 패널, 펜 색/굵기·압력·획 지우기·undo/redo·초기화 확인, 투명 PNG, native 그림 위치 지정·이동·크기/회전 도구, 기기 내부 서명 보관/재사용/수정/삭제.
 - 편집기의 최신 문서 데이터를 변환한다. 메인에서 여는 변환은 선택한 파일/작업 복구본을 명시적으로 사용하며 원본 저장 성공과 혼동하지 않는다.
-- 서버 사용 및 새 SDK 없음. 앱 INTERNET 권한 없음. Rhwp MIT, 기존 Collabora/LibreOffice 고지·라이선스, Android·CommonMark 및 PDFBox 기존 의존성을 사용한다. 유료 한컴 SDK/API는 도입하지 않았다.
+- 서버 사용 및 새 SDK 없음. 앱 INTERNET 권한 없음. Rhwp MIT, Collabora/LibreOffice MPL-2.0 및 구성요소별 기존 고지, AndroidX Apache-2.0, CommonMark BSD-2-Clause, PDFBox Android Apache-2.0 의존성을 사용한다. 유료 한컴 SDK/API는 도입하지 않았다.
 
 ## 검증 상태
 
-새로운 변환·서명 검사는 진행 중이다. 실행 결과를 확인하기 전에는 완료로 계산하지 않는다.
+브라우저 실행 [40653387077](https://github.com/Ch-wook/File_Translator/actions/runs/40653387077) 성공: 기존 JavaScript 28건·Rhwp 회귀, HWP/HWPX 두 서명 시나리오, 독립 PNG/ZIP/XML 및 저장 전후 페이지 이미지 검사 통과. 새 Android 변환 검사는 진행 중이며 실행 결과를 확인하기 전에는 완료로 계산하지 않는다.
 첫 빌드의 Provider manifest 충돌은 변환 전용 Provider 클래스로 분리했다. 서명 선택 보존의 TypeScript private cursor 접근은 명시적 어댑터 캐스트로 수정한다.
 
 합성 샘플: 표·그림·도형·배경이 있는 10장 PPTX, 머리말/꼬리말·표·그림이 있는 2페이지 DOCX, 수식·병합·배경·여러 시트 XLSX.
@@ -28,3 +28,7 @@
 문서 위 직접 벡터 필기 모드·부분 획 분할 지우기·고급 표 셀 반응형 서명 위치 고정은 이번 서명 PNG와 별개로 남아 있다. 서명은 native 그림 문서 좌표로 저장한다.
 Office 선택 슬라이드/시트/셀 범위 및 PDF 품질/페이지 맞춤의 새 상세 옵션, 일괄 변환, OCR, DOCX↔HWPX 및 편집 가능한 PDF→DOCX/PPTX/HWPX는 미지원이다. 선택 목록에 가짜 지원으로 표시하지 않는다.
 인쇄·인쇄 미리보기 UI는 추가하지 않았다. 자필 이미지는 인증서 기반 전자서명이 아니다.
+
+## 출처·관련 자료
+
+[Office 고정 바이너리·소스와 MPL 고지](../officeruntime/PROVENANCE.md), [Rhwp 고정 소스·MIT·폰트](../web/hangul/PROVENANCE.md), [기존 라이선스 목록](THIRD_PARTY.md), [HWP→HWPX Apache-2.0 출처](HANGUL_CONVERTER_PROVENANCE.md). 한컴 유료 SDK나 서버 API의 이용 권한을 가정하지 않았다. 한컴 공식 규격/변환 지원표는 향후 상호 변환의 검토 자료이며 현재 엔진이 모든 형식을 HWPX로 변환한다고 해석하지 않는다.

@@ -50,7 +50,7 @@ class ConversionIntegrationTest {
             PDDocument.load(pdf).use {doc->val text=PDFTextStripper().getText(doc);for(token in tokens)assertTrue("PDF must preserve "+token,text.contains(token))
                 if(ext=="pptx"){var previous=-1;for(i in 1..10){val next=text.indexOf("TEST_SLIDE_%02d".format(i));assertTrue(next>previous);previous=next};val box=doc.getPage(0).mediaBox;assertEquals(16.0/9.0,(box.width/box.height).toDouble(),.02)}
             }
-            val bitmap=PdfEngine.render(pdf,0,600,600);try{assertTrue(bitmap.width>0);bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,File(output,ext+"-page1.png").outputStream())}finally{bitmap.recycle()}
+            val bitmap=PdfEngine.render(pdf,0,600,600);try{assertTrue(bitmap.width>0);File(output,ext+"-page1.png").outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}}finally{bitmap.recycle()}
             assertEquals(hash,ConversionFiles.digest(original))
             File(output,ext+".json").writeText(JSONObject().put("pages",pages).put("tokensVerified",true).put("originalUnchanged",true).put("nativeFilter",true).toString(2))
             device.findObject(By.text("닫기"))?.click()
@@ -67,6 +67,7 @@ class ConversionIntegrationTest {
             await("Signature panel visible"){device.findObject(By.desc("서명 입력 공간"))!=null}
             val area=device.findObject(By.desc("서명 입력 공간")).visibleBounds
             device.swipe(area.left+30,area.centerY(),area.right-30,area.centerY()-40,24)
+            device.findObject(By.text("파랑")).click()
             device.swipe(area.left+60,area.centerY()-25,area.right-60,area.centerY()+40,24)
             device.findObject(By.text("완료")).click()
             await("Native picture placement must be active"){eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.state().placement")=="true"}
@@ -81,7 +82,10 @@ class ConversionIntegrationTest {
             await("Native PDF bridge must save signed page",90000){device.findObject(By.text("PDF 변환 완료"))!=null}
             assertTrue(PdfEngine.inspect(pdf).pages>=1);assertEquals(original,ConversionFiles.digest(s.base))
             val bitmap=PdfEngine.render(pdf,0,600,800)
-            try{File(output,"signed-hwpx.png").outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}}finally{bitmap.recycle()}
+            try{
+                var blue=0;for(y in 0 until bitmap.height)for(x in 0 until bitmap.width){val pixel=bitmap.getPixel(x,y);if(android.graphics.Color.blue(pixel)>android.graphics.Color.red(pixel)+60 && android.graphics.Color.blue(pixel)>100)blue++}
+                assertTrue("Signed PDF must visibly contain the blue signature strokes",blue>10)
+                File(output,"signed-hwpx.png").outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}}finally{bitmap.recycle()}
             File(output,"signed.hwpx").writeBytes(working.readBytes());File(output,"signed.pdf").writeBytes(pdf.readBytes())
             File(output,"signature.json").writeText(JSONObject().put("nativeTouchSignature",true).put("embeddedPng",true).put("nativePdfSaved",true).put("originalUnchanged",true).toString(2))
         }finally {runCatching {context.contentResolver.call(provider,"close",null,null)};await("Hangul process must exit",30000){device.executeShellCommand("pidof "+context.packageName+":hangul").trim().isEmpty()}}
