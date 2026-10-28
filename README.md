@@ -1,3 +1,18 @@
+# 문서 스튜디오 0.8.7-preview
+
+기존 7종 편집기를 유지하면서 **PowerPoint 슬라이드 목록·이동·삭제 보호**, **Excel 셀 입력 완료·취소와 숨김 시트 보호**를 보완했습니다.
+
+[휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.7-preview/document-studio-0.8.7-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.7-preview/document-studio-0.8.7-preview-source.zip) · [작업 보고서](docs/WORKSPACE_TOOLS_RESULTS.md) · [Release·검증 자료·SHA256SUMS](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.7-preview)
+
+휴대폰에서는 ARM64 APK(약 429.6 MB)를 설치합니다. 기존 서명키가 없어 사용자 선택대로 **문서 스튜디오 작업 도구**(`kr.documentstudio.workspacepreview`)를 별도 설치합니다. 기존 0.8.6 앱·작업 복구본을 삭제하지 마세요. 기존 앱에서 파일로 저장한 문서를 새 앱에서 열 수 있습니다.
+
+Android 35 x86_64 **39건**, 단위 **148건**, JavaScript **28건**, 실제 엔진 브라우저 7개 시나리오와 저장/재열기 파서 검사를 통과했습니다. 설치·기존 앱/데이터 보존·재설치 및 APK 서명·정렬·자산도 확인했습니다. 실제 ARM64 휴대폰·삼성 키보드·Gboard 검증과 고급 편집 기능 일부는 남아 있습니다. 자동 저장은 작업 복구본이며 원본 저장 성공과 구분합니다.
+
+[실제 변경 파일·형식별 범위·남은 제한](docs/WORKSPACE_TOOLS_RESULTS.md) · [이전 글꼴·7종 편집 보완](docs/EDITOR_COMPLETION_RESULTS.md)
+
+<details>
+<summary>0.8.6 및 이전 구현·배포 기록</summary>
+
 # 문서 스튜디오 0.8.6-preview
 
 기존 Word·Excel·PowerPoint·한글·PDF·Markdown·TXT 편집기에 실제 글꼴과 형식별 도구, 서식·선택·저장 처리를 보완한 개발 서명 프리뷰입니다.
@@ -96,5 +111,7 @@ node scripts/tests/hangul-mobile.cjs
 [사용 안내](docs/USER_GUIDE.md) · [한글 엔진 출처](web/hangul/PROVENANCE.md) · [Office 엔진 출처](officeruntime/PROVENANCE.md) · [오픈소스 고지](docs/THIRD_PARTY.md)
 
 0.7.0 이하 문서와 테스트 수는 과거 기록입니다. 이번 버전의 실기기 검증 결과로 합산하지 않습니다.
+
+</details>
 
 </details>
