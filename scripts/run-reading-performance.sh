@@ -46,7 +46,7 @@ metrics={}
 for group,key in [('repository','openMs'),('repository','checkpointMs'),('repository','unchangedOriginalSaveMs'),('repository','pdfGeometryMs'),('repository','pdfPageRenderMs'),('text-ui','modeDriverRoundTripMs'),('text-ui','menuDriverRoundTripMs')]:
     values={label:med(label,group,key) for label in data}
     metrics[key]=values|{'changePercent':round((values['candidate']/values['baseline']-1)*100,1)}
-startup={label:[int(re.search(r'TotalTime:\\s*(\\d+)',p.read_text()).group(1)) for p in (root/label).glob('startup-*.txt')] for label in data}
+startup={label:[int(re.search(r'TotalTime:\s*(\d+)',p.read_text()).group(1)) for p in (root/label).glob('startup-*.txt')] for label in data}
 result={'activityLaunchTotalTimeMs':startup,'apkSha256':{p.name:hashlib.file_digest(p.open('rb'),'sha256').hexdigest() for p in (root/'apks').glob('*.apk')},'baselineCommit':os.environ['BASELINE_SHA'],'candidateCommit':os.environ['GITHUB_SHA'],'environment':'same Android 35 x86_64 Pixel 7 emulator, SwiftShader, 3072 MiB; sequential baseline then candidate; not physical phone','nativeSamplesPerFormat':1,'textUiMeasurement':'includes Compose test idling; not raw input-to-first-frame','metrics':metrics,'records':data}
 (root/'comparison.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
 print('READING_PERFORMANCE_COMPARISON',json.dumps(result,ensure_ascii=False))
