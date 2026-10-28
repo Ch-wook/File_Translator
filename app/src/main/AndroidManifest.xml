@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.INTERNET" tools:node="remove"/>
     <application android:name=".StudioApplication" android:theme="@style/AppTheme" android:label="문서 스튜디오 작업 도구" android:icon="@drawable/ic_app" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:supportsRtl="true" android:usesCleartextTraffic="false">
         <activity android:name=".ConversionActivity" android:exported="false" android:resizeableActivity="true"/>
-        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.conversionfiles" android:exported="false" android:grantUriPermissions="true">
+        <provider android:name=".ConversionFileProvider" android:authorities="${applicationId}.conversionfiles" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/conversion_paths"/>
         </provider>
         <activity android:name=".HangulEditorActivity" android:exported="false" android:process=":hangul" android:resizeableActivity="true" android:windowSoftInputMode="adjustResize"/>
