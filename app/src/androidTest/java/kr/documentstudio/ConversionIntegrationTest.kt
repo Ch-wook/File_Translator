@@ -55,8 +55,24 @@ class ConversionIntegrationTest {
             }
             val bitmap=PdfEngine.render(pdf,0,600,600);try{assertTrue(bitmap.width>0);File(output,ext+"-page1.png").outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}}finally{bitmap.recycle()}
             assertEquals(hash,ConversionFiles.digest(original))
-            File(output,ext+".json").writeText(JSONObject().put("pages",pages).put("tokensVerified",true).put("originalUnchanged",true).put("nativeFilter",true).toString(2))
+            File(output,ext+".pdf").writeBytes(pdf.readBytes())
             NativeUiActions.tap(device,context.packageName,"닫기")
+            var latestEditVerified=false
+            if(ext=="pptx"){
+                probe("eval","app.map._switchToEditMode()")
+                await("PPTX editing must be explicitly enabled"){probe("state")?.getBoolean("editing")==true}
+                probe("uno",".uno:InsertPage")
+                await("Native slide edit must be applied"){org.json.JSONTokener(probe("eval","app.map.getNumberOfParts()")!!.getString("result")!!).nextValue().toString()=="11"}
+                val editedPdf=File(dir,"edited-result.pdf").apply {writeBytes(byteArrayOf())}
+                probe("convert-pdf",uri(editedPdf).toString());exportError=null
+                await("PDF must use the latest native edit",60000){exportError=probe("pdf-state")?.getString("error");device.findObject(By.text("PDF 변환 완료"))!=null || !exportError.isNullOrBlank()}
+                assertTrue("Edited PDF filter failure: "+exportError,exportError.isNullOrBlank())
+                assertEquals(11,PdfEngine.inspect(editedPdf).pages)
+                assertEquals(hash,ConversionFiles.digest(original))
+                File(output,"pptx-edited.pdf").writeBytes(editedPdf.readBytes())
+                NativeUiActions.tap(device,context.packageName,"닫기");latestEditVerified=true
+            }
+            File(output,ext+".json").writeText(JSONObject().put("pages",pages).put("tokensVerified",true).put("originalUnchanged",true).put("nativeFilter",true).apply {if(ext=="pptx")put("latestEditVerified",latestEditVerified)}.toString(2))
             completed=true
         }finally{
             runCatching {probe("close")}
