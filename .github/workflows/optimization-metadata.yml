@@ -1,0 +1,34 @@
+name: Check additional optimization metadata
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+  actions: write
+jobs:
+  check:
+    if: contains(github.event.head_commit.message, '[optimization-metadata]')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stop only superseded pre-release runs and check delivery scripts
+        run: |
+          python3 - <<'PY'
+          import ast,json,pathlib,subprocess
+          repo='Ch-wook/File_Translator'
+          for run in (40727193628,40727193303):
+              info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{run}']))
+              assert info['head_sha']=='eaa41958b4139b0e7166302057e49a3f870191fa'
+              assert info['head_branch']=='codex/hangul-mobile-editing' and info['event']=='push'
+              if info['status'] in ('queued','in_progress'):
+                  subprocess.run(['gh','api',f'repos/{repo}/actions/runs/{run}/cancel','--method','POST'],check=True)
+          for name in ('scripts/package-mobile-release.py','scripts/test-mobile-installation.py','scripts/summarize-reading-evidence.py'):
+              ast.parse(pathlib.Path(name).read_text())
+          script=pathlib.Path('scripts/run-reading-performance.sh').read_text()
+          ast.parse(script.split("python3 - <<'PY'\n")[-1].rsplit('\nPY',1)[0])
+          package=pathlib.Path('scripts/package-mobile-release.py').read_text()
+          assert "'tests':54" in package and 'coexistsWith089' in package and "versionCode='20'" in package
+          print('ADDITIONAL_OPTIMIZATION_METADATA_OK')
+          PY
