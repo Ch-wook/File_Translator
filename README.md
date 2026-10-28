@@ -14,6 +14,8 @@ PPTX·DOCX·XLSX는 기존 Office 엔진의 PDF 필터, HWP/HWPX는 전체 페�
 
 기존 서명키가 없어 사용자 선택에 따라 **문서 스튜디오 서명·변환**(`kr.documentstudio.convertpreview`)을 별도 설치합니다. 기존 앱과 비공개 작업 복구본을 삭제하지 마세요. 기존 앱에서 파일로 저장한 문서를 새 앱에서 열 수 있습니다. Android 10+ 64비트이며 Office 변환은 Android 11+입니다. 문서·서명은 외부 서버에 업로드하지 않습니다.
 
+[공개 다운로드·해시·이전 배포 보존 확인서](docs/releases/0.8.8-preview-download-verification.json) — 10개 자산 확인 완료.
+
 <details>
 <summary>0.8.7 및 이전 구현·배포 기록</summary>
 
