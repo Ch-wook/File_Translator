@@ -327,7 +327,7 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
         gravity=android.view.Gravity.TOP or android.view.Gravity.START
         setBackgroundColor(AndroidColor.WHITE);setPadding(92,24,28,24)
         inputType=android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-        typeface=android.graphics.Typeface.MONOSPACE; setHorizontallyScrolling(false)
+        typeface=android.graphics.Typeface.MONOSPACE;setTextIsSelectable(true);setHorizontallyScrolling(false)
         addTextChangedListener(object: TextWatcher {
             override fun beforeTextChanged(s: CharSequence?,start: Int,count: Int,after: Int) {}
             override fun onTextChanged(s: CharSequence?,start: Int,before: Int,count: Int) { if(tag!=true && acceptsInput) onChange(s.toString()) }
@@ -342,10 +342,7 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
         if(kotlin.math.abs(view.textSize/fontContext.resources.displayMetrics.scaledDensity-fontSize)>.01f)view.textSize=fontSize
         if(view.isEnabled==busy)view.isEnabled=!busy
         if(view.wrapLines!=wrap){view.wrapLines=wrap;view.setHorizontallyScrolling(!wrap)}
-        if(view.isTextSelectable!=readOnly){
-            val a=view.selectionStart.coerceIn(0,view.length());val b=view.selectionEnd.coerceIn(0,view.length());val x=view.scrollX;val y=view.scrollY
-            view.tag=true;view.setTextIsSelectable(readOnly);view.tag=false;view.setSelection(a,b);view.scrollTo(x,y)
-        }
+
         val desiredKeyListener=if(readOnly) null else inputKeyListener
         if(view.keyListener !== desiredKeyListener) {
             val start=view.selectionStart.coerceIn(0,view.length());val end=view.selectionEnd.coerceIn(0,view.length())

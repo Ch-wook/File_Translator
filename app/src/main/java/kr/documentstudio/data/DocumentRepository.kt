@@ -28,6 +28,17 @@ class BackupPasswordRequired(val uri: Uri): IllegalArgumentException("암호화 
 class DocumentRepository(private val context: Context) {
     private val root = File(context.filesDir, "documents").apply { mkdirs() }
     private val index = File(root, "index.json")
+    private data class CheckpointStamp(val key: Any,val modified: java.nio.file.attribute.FileTime,val size: Long)
+    private data class CheckpointSnapshot(val session: java.lang.ref.WeakReference<Session>,val stamp: CheckpointStamp)
+    private val checkpointSnapshots=java.util.LinkedHashMap<String,CheckpointSnapshot>(4,.75f,true)
+    private fun checkpointStamp(file: File): CheckpointStamp? = try {
+        val attributes=java.nio.file.Files.readAttributes(file.toPath(),java.nio.file.attribute.BasicFileAttributes::class.java,java.nio.file.LinkOption.NOFOLLOW_LINKS)
+        if(!attributes.isRegularFile) null else attributes.fileKey()?.let {CheckpointStamp(it,attributes.lastModifiedTime(),attributes.size())}
+    } catch(_: Exception) {null}
+    private fun rememberCheckpoint(s: Session,file: File) {
+        checkpointStamp(file)?.let {checkpointSnapshots[file.path]=CheckpointSnapshot(java.lang.ref.WeakReference(s),it)}
+        while(checkpointSnapshots.size>4)checkpointSnapshots.remove(checkpointSnapshots.keys.first())
+    }
     // Activities and recovery tests may own different repository instances.
     // They still share one index and must serialize the complete transaction.
     private val mutex = repositoryMutex
@@ -205,18 +216,25 @@ class DocumentRepository(private val context: Context) {
     }
     suspend fun checkpoint(s: Session) = io { checkpointInternal(s) }
     private fun checkpointInternal(s: Session) {
+        val stateFile=File(s.base.parentFile,"state.json")
+        val cached=checkpointSnapshots[stateFile.path]
+        // Sessions are immutable snapshots, as required by Undo and the ViewModel.
+        // Check the actual inode, nanosecond modification time and length so a
+        // different repository instance or process cannot make this cache stale.
+        if(index.isFile && cached!=null && cached.session.get()==s && cached.stamp==checkpointStamp(stateFile)) return
         val json = JSONObject().apply {
             put("version",1); put("id",s.id); put("name",s.name); put("format",s.format.name); put("uri",s.uri ?: "")
             put("sourceHash",s.sourceHash ?: ""); put("encoding",s.textContent?.charset ?: "UTF-8")
             put("baseFile",s.base.name);put("revision",s.revision);put("savedRevision",s.savedRevision)
             put("edits",StateCodec.encode(s.edits)); put("saved",StateCodec.encode(s.saved))
         }
-        val stateFile=File(s.base.parentFile,"state.json")
         val bytes=json.toString().toByteArray()
         // All repository instances share this transaction lock. Compare the actual
         // durable bytes rather than caching a stale Session from another Activity.
-        if(index.isFile && runCatching {AtomicFile(stateFile).openRead().use {it.readBytes()}.contentEquals(bytes)}.getOrDefault(false)) return
-        atomic(stateFile,bytes); remember(s)
+        if(index.isFile && runCatching {AtomicFile(stateFile).openRead().use {it.readBytes()}.contentEquals(bytes)}.getOrDefault(false)) {
+            rememberCheckpoint(s,stateFile);return
+        }
+        atomic(stateFile,bytes);remember(s);rememberCheckpoint(s,stateFile)
     }
     suspend fun save(s: Session, destination: Uri): Session = io {
         require(s.readOnlyReason==null || (s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty())) {s.readOnlyReason ?: "읽기 전용 문서입니다."}

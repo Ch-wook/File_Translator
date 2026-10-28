@@ -12,7 +12,7 @@
 | Office 위치 보존 | 맵 이벤트가 없는 레이아웃 이동도 존재 | 위치 좌표 보정용 1초 샘플러 유지; 숨긴 문서에서는 실행하지 않음; 문서 전체 파싱이나 도구 재구성 없음 |
 | 한글 호스트 | 연속 엔진 이벤트마다 즉시 도구 상태 갱신 | 프레임 단위 병합; 기존 편집 보호·IME·안전한 저장 유지 |
 | 포커스 | 같은 문서를 터치해도 select→flush 경로 실행 | 활성 문서는 문서 전환/복구 저장 요청 생략; 입력 취소 그룹 구분 유지 |
-| 복구 저장 | 작업 전/후 최근 목록 중복 읽기; 닫을 때 중복 체크포인트 | 작업당 최근 목록 갱신 통합; 체크포인트 직렬화 락; 동일 디스크 상태는 fsync·목록 쓰기 생략 |
+| 복구 저장 | 작업 전/후 최근 목록 중복 읽기; 닫을 때 중복 체크포인트 | 작업당 최근 목록 갱신 통합; 체크포인트 직렬화 락; 동일 디스크 상태는 fsync·목록 쓰기 생략; 약한 참조 4개 한도의 캐시를 inode·나노초 수정 시각·크기로 검증하여 반복 JSON 생성도 생략 |
 | 재열기 | 원본 바이트가 같아도 기존 모델 파싱 뒤 기준 파일 재복사와 재파싱 | 원본 해시·형식 일치를 확인한 경우 복원한 모델 재사용 |
 | 큰 파일 복사 | readBytes로 전체 배열을 만든 뒤 작업 파일 쓰기 | AtomicFile에 64KiB 스트리밍 복사; 원본/작업 파일 분리 유지 |
 | PDF | 읽기 중 편집용 문자열·이미지 목록 분석; 초기 읽기 효과에서 중복 렌더링 | 읽기는 페이지 렌더만; 편집 진입 시 메타데이터 준비; 모드 전환만으로 기존 비트맵 재생성 방지 |
@@ -67,7 +67,7 @@ Word 재배치 읽기·제목 탐색, PPT 썸네일 선행 준비·스와이프,
 
 구현: `EditorViewModel.kt`, `data/DocumentRepository.kt`, `data/DocumentTree.kt`, `data/PdfEngine.kt`, `ui/StudioApp.kt`, `FormatWorkspace.kt`, `MobileEditorControls.kt`, `LineNumberEditText.kt`, `MarkdownPreview.kt`, `PdfCanvasEditor.kt`, `PdfNavigation.kt`, `DocumentTools.kt`, `FolderBrowser.kt`, `WorkspaceHome.kt`; 한글 `host.js/index.html/engine-adapter.ts`; Office `studio-policy.js`; 공유 `shared/editor-ui/dist/*`.
 
-검증: `ReadingUxTest.kt`, `ReadingPerformanceTest.kt`, `NativeReadingPerformanceTest.kt`, `DocumentTreeTest.kt`, `scripts/tests/office-workspace.test.cjs`, `scripts/run-reading-performance.sh`; 빌드·설치·패키징 workflow와 0.8.9 프리뷰 식별 정보.
+검증: `ReadingUxTest.kt`, `ReadingPerformanceTest.kt`, `NativeReadingPerformanceTest.kt`, `DocumentTreeTest.kt`, `VisualWorkingCopyTest.kt`, `scripts/tests/office-workspace.test.cjs`, `scripts/run-reading-performance.sh`; 빌드·설치·패키징 workflow와 0.8.9 프리뷰 식별 정보.
 
 ## 배포
 

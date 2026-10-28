@@ -34,7 +34,17 @@ class ReadingUxTest {
     }
     @Test fun textReadingHidesEditingControlsAndFullscreenKeepsSelectionAndBytes(){
         compose.runOnUiThread {vm.create(Format.TXT)};ready()
-        compose.onNodeWithTag("edit-document").performClick();compose.runOnUiThread {vm.text("읽기 전용 선택 한글")};compose.waitForIdle()
+        compose.onNodeWithTag("edit-document").performClick();compose.waitForIdle()
+        compose.runOnUiThread {
+            val input=find(compose.activity.window.decorView,EditText::class.java)!!
+            input.requestFocus()
+            val connection=checkNotNull(input.onCreateInputConnection(android.view.inputmethod.EditorInfo()))
+            assertTrue(connection.commitText("읽기 전용 선택 ",1))
+            for(value in listOf("ㅎ","하","한","한글"))assertTrue(connection.setComposingText(value,1))
+            assertTrue(connection.finishComposingText())
+            assertEquals("읽기 전용 선택 한글",input.text.toString())
+        }
+        compose.waitForIdle();assertEquals("읽기 전용 선택 한글",vm.state.value.session!!.edits.text)
         val original=save("txt");val hash=DocumentRepository.digest(original)
         compose.runOnUiThread {vm.readDocument()};compose.waitForIdle()
         compose.onNodeWithTag("mobile-editor-dock").assertDoesNotExist()

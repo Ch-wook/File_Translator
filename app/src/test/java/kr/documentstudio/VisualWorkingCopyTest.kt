@@ -72,6 +72,29 @@ class VisualWorkingCopyTest {
             assertFalse(File(working.parentFile,"office-pending.json").exists())
         }
     }
+    @Test fun checkpointCacheInvalidatesAfterAnotherRepositoryReplacesTheState()=runBlocking {
+        val first=DocumentRepository(context);val second=DocumentRepository(context)
+        val s=first.create(Format.TXT)
+        val alpha=s.copy(edits=s.edits.copy(text="alpha"))
+        first.checkpoint(alpha)
+        val bravo=s.copy(edits=s.edits.copy(text="bravo"))
+        second.checkpoint(bravo)
+        assertEquals("bravo",second.restore(s.id).edits.text)
+        first.checkpoint(alpha)
+        assertEquals("alpha",second.restore(s.id).edits.text)
+        assertEquals("",s.base.readText())
+    }
+    @Test fun checkpointRecreatesMissingDurableStateAndLeavesEqualBytesUntouched()=runBlocking {
+        val repo=DocumentRepository(context);val s=repo.create(Format.TXT).let {it.copy(edits=it.edits.copy(text="최신 한글"))}
+        repo.checkpoint(s)
+        val state=File(s.base.parentFile,"state.json")
+        assertTrue(state.setLastModified(1000))
+        repo.checkpoint(s);repo.checkpoint(s)
+        assertEquals(1000L,state.lastModified())
+        assertTrue(state.delete())
+        repo.checkpoint(s)
+        assertEquals("최신 한글",repo.restore(s.id).edits.text)
+    }
     @Test fun untouchedSaveLeavesProviderBytesAndModificationTimeAlone()=runBlocking {
         val repo=DocumentRepository(context);val created=repo.create(Format.DOCX)
         val destination=File.createTempFile("view-save-",".docx",context.cacheDir)
