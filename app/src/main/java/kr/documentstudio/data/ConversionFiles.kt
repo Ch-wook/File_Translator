@@ -12,20 +12,11 @@ import java.security.MessageDigest
 object ConversionFiles {
     fun digest(file: File): String {val digest=MessageDigest.getInstance("SHA-256");file.inputStream().use {input->val buffer=ByteArray(65536);while(true){val count=input.read(buffer);if(count<0)break;digest.update(buffer,0,count)}};return digest.digest().joinToString("") {"%02x".format(it)}}
     fun publish(context: Context,stage: File,uri: Uri,original: String?=null) {
-        require(uri.toString()!=original) {"원본과 다른 파일을 선택하세요."}
+        require(!DocumentUris.same(uri.toString(),original)) {"원본과 다른 파일을 선택하세요."}
         require(stage.length() in 1..128L*1024*1024) {"결과 파일 크기가 올바르지 않습니다."}
-        val backup=File.createTempFile("conversion-backup-",".bin",context.cacheDir)
-        val readback=File.createTempFile("conversion-check-",".bin",context.cacheDir)
-        var backed=false
-        try {
-            try {context.contentResolver.openInputStream(uri)?.use {input->backup.outputStream().use {input.copyTo(it)}};backed=true} catch(_:java.io.FileNotFoundException) {}
-            context.contentResolver.openOutputStream(uri,"rwt")?.use {out->stage.inputStream().use {it.copyTo(out)}} ?: error("결과 파일을 기록할 수 없습니다.")
-            context.contentResolver.openInputStream(uri)?.use {input->readback.outputStream().use {input.copyTo(it)}} ?: error("저장 결과를 다시 읽을 수 없습니다.")
-            require(digest(stage)==digest(readback)) {"저장 결과 검증에 실패했습니다."}
-        } catch(e:Exception) {
-            if(backed)runCatching {context.contentResolver.openOutputStream(uri,"rwt")?.use {out->backup.inputStream().use {it.copyTo(out)}}}
-            throw e
-        } finally {backup.delete();readback.delete()}
+        val writes=ProviderWrites(context)
+        val receipt=writes.publish("conversion:"+stage.name,stage,uri,name=stage.name,mime="application/octet-stream")
+        writes.finish(receipt)
     }
 }
 

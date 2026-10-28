@@ -15,7 +15,7 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.UUID
 
-data class Recent(val id: String, val name: String, val uri: String?, val modified: Long, val dirty: Boolean, val favorite: Boolean)
+data class Recent(val id: String, val name: String, val uri: String?, val modified: Long, val dirty: Boolean, val favorite: Boolean,val hidden: Boolean=false)
 data class Session(val id: String, val name: String, val format: Format, val uri: String?, val sourceHash: String?,
     val base: File, val textContent: TextContent?, val pack: PackageDocument?, val pdf: PdfInfo?, val edits: Edits, val saved: Edits,
     val legacy: LegacyDocument? = null, val revision: Long=0, val savedRevision: Long=0,val recoveryWarning: String?=null,val readOnlyReason: String?=null) {
@@ -44,17 +44,18 @@ class DocumentRepository(private val context: Context) {
     // They still share one index and must serialize the complete transaction.
     private val mutex = repositoryMutex
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { mutex.withLock { block() } }
-    suspend fun recents(): List<Recent> = io { readIndex() }
+    suspend fun recents(includeHidden: Boolean=false): List<Recent> = io { readIndex().filter {includeHidden || !it.hidden} }
+    suspend fun hideRecent(id: String,hidden: Boolean) = io {writeIndex(readIndex().map {if(it.id==id)it.copy(hidden=hidden) else it})}
     suspend fun cleanupTemporary(active: Set<File>): CleanupResult = io {TemporaryFiles.cleanup(context.cacheDir,root,active)}
     private fun readIndex(): List<Recent> {
         if(!index.exists()) return emptyList()
         val list = JSONArray(AtomicFile(index).openRead().use { it.bufferedReader().readText() })
         return (0 until list.length()).map { i -> list.getJSONObject(i).let { j ->
-            Recent(j.getString("id"), j.getString("name"), j.optString("uri").takeIf { it.isNotEmpty() }, j.getLong("modified"), j.getBoolean("dirty"), j.optBoolean("favorite"))
+            Recent(j.getString("id"), j.getString("name"), j.optString("uri").takeIf { it.isNotEmpty() }, j.getLong("modified"), j.getBoolean("dirty"), j.optBoolean("favorite"),j.optBoolean("hidden"))
         } }
     }
     private fun writeIndex(rows: List<Recent>) = atomic(index, JSONArray().apply { rows.forEach { r -> put(JSONObject().apply {
-        put("id",r.id); put("name",r.name); put("uri",r.uri ?: ""); put("modified",r.modified); put("dirty",r.dirty); put("favorite",r.favorite)
+        put("id",r.id); put("name",r.name); put("uri",r.uri ?: ""); put("modified",r.modified); put("dirty",r.dirty); put("favorite",r.favorite);put("hidden",r.hidden)
     }) } }.toString().toByteArray())
     suspend fun favorite(id: String) = io { writeIndex(readIndex().map { if(it.id==id) it.copy(favorite=!it.favorite) else it }) }
     private fun remember(session: Session) {
@@ -76,24 +77,25 @@ class DocumentRepository(private val context: Context) {
         val s = build(id,"새 문서.${format.extension}",format,null,null,base)
         checkpointInternal(s); s
     }
-    suspend fun open(uri: Uri, encoding: String = "UTF-8",password: CharArray?=null): Session = io {
-        val existing = readIndex().firstOrNull { it.uri == uri.toString() }
-        if(existing!=null && (existing.dirty || File(File(root,existing.id),"office-pending.json").exists())) return@io restoreInternal(existing.id)
+    suspend fun open(uri: Uri, encoding: String = "UTF-8",password: CharArray?=null): Session = io {openInternal(uri,encoding,password)}
+    private fun openInternal(uri: Uri,encoding: String,password: CharArray?): Session {
+        val existing = readIndex().firstOrNull {DocumentUris.same(it.uri,uri.toString())}
+        if(existing!=null && (existing.dirty || File(File(root,existing.id),"office-pending.json").exists())) return restoreInternal(existing.id)
         val name = displayName(uri)
         val id = existing?.id ?: UUID.randomUUID().toString()
         val dir = File(root,id).apply { mkdirs() }
         val incoming = File(dir,"incoming.bin")
         val unlocked=File(dir,"backup-unlock-${UUID.randomUUID()}.zip")
-        try {
+        return try {
             copyUri(uri,incoming)
             if(EncryptedBackup.isEncrypted(incoming)) {
                 if(password==null) throw BackupPasswordRequired(uri)
                 EncryptedBackup.decrypt(incoming,unlocked,password)
-                return@io java.util.zip.ZipFile(unlocked).use {importBackup(it)}
+                return java.util.zip.ZipFile(unlocked).use {importBackup(it)}
             }
             if(name.endsWith(".zip",ignoreCase=true)) {
                 java.util.zip.ZipFile(incoming).use {zip ->
-                    if(zip.getEntry("base.bin")!=null && zip.getEntry("state.json")!=null) return@io importBackup(zip)
+                    if(zip.getEntry("base.bin")!=null && zip.getEntry("state.json")!=null) return importBackup(zip)
                 }
             }
             val format = FormatDetector.detect(incoming,name,runCatching { context.contentResolver.getType(uri) }.getOrNull(),encoding)
@@ -102,12 +104,12 @@ class DocumentRepository(private val context: Context) {
             if(old!=null && old.sourceHash==hash && old.format==format) {
                 // We verified the provider bytes. Reuse the already restored model
                 // rather than rewriting the baseline and parsing the same file twice.
-                remember(old);return@io old
+                remember(old);return old
             }
-            val strokes = if(format==Format.PDF) PdfEngine.importOwned(incoming) else old?.edits?.strokes ?: emptyList()
-            val layers = if(format==Format.PDF) PdfEngine.importLayers(incoming) else old?.edits?.layers ?: listOf(InkLayer())
+            val strokes = if(format==Format.PDF) PdfEngine.importOwned(incoming) else old?.takeIf {it.format==format}?.edits?.strokes ?: emptyList()
+            val layers = if(format==Format.PDF) PdfEngine.importLayers(incoming) else old?.takeIf {it.format==format}?.edits?.layers ?: listOf(InkLayer())
             if(format==Format.PDF) { PdfEngine.inspect(incoming); PdfEngine.cleanOwned(incoming) }
-            val base = File(dir,"base.bin"); atomicCopy(incoming,base)
+            val base = File(dir,"${UUID.randomUUID()}.bin"); atomicCopy(incoming,base)
             val s = build(id,name,format,uri.toString(),hash,base,encoding).let {
                 val edits = it.edits.copy(strokes=strokes,layers=layers,paper=old?.edits?.paper ?: Paper.BLANK); it.copy(edits=edits,saved=edits)
             }
@@ -115,6 +117,26 @@ class DocumentRepository(private val context: Context) {
         } finally { incoming.delete();unlocked.delete() }
     }
     suspend fun restore(id: String): Session = io { restoreInternal(id).also { remember(it) } }
+    /** Clean recents must check the provider; unsaved and native working copies win. */
+    suspend fun reopenRecent(id: String,encoding: String="UTF-8"): Session = io {
+        val cached=restoreInternal(id)
+        val pending=File(cached.base.parentFile,"office-pending.json").exists()
+        if(cached.dirty || pending || providerWrites.list(id).isNotEmpty() || cached.uri==null)
+            return@io cached.also {remember(it)}
+        try {openInternal(Uri.parse(cached.uri),encoding,null)}
+        catch(_: SecurityException){cached.copy(recoveryWarning="원본 접근 권한이 없어 기기의 마지막 사본을 열었습니다. 파일을 다시 선택하거나 다른 이름으로 저장하세요.").also {remember(it)}}
+        catch(_: java.io.FileNotFoundException){cached.copy(recoveryWarning="원본 파일을 찾지 못해 기기의 마지막 사본을 열었습니다. 파일 위치를 확인하거나 다른 이름으로 저장하세요.").also {remember(it)}}
+    }
+    suspend fun saveRecoveries(): List<SaveRecovery> = io {providerWrites.list()}
+    suspend fun damagedSaveRecords(): Int = io {providerWrites.damagedCount()}
+    suspend fun discardSaveRecovery(id: String) = io {providerWrites.discard(id)}
+    suspend fun exportSaveRecovery(id: String,original: Boolean,destination: Uri) = io {
+        val row=providerWrites.list().firstOrNull {it.id==id} ?: error("복구 기록을 찾지 못했습니다.")
+        require(!DocumentUris.same(row.uri,destination.toString())) {"복구 사본은 원본과 다른 새 파일에 보관하세요."}
+        val receipt=providerWrites.publish("recovery-export:$id:$original",providerWrites.snapshot(id,original),destination,
+            name=row.name,mime=row.mime)
+        providerWrites.finish(receipt)
+    }
     suspend fun convertHangul(source: Session): Session = io {
         require(source.format==Format.HWP) {"HWP 문서에서 변환해 주세요."}
         require(source.readOnlyReason==null) {source.readOnlyReason ?: "읽기 전용 문서는 변환하지 않습니다."}
@@ -241,7 +263,7 @@ class DocumentRepository(private val context: Context) {
     }
     suspend fun save(s: Session, destination: Uri): Session = io {
         require(s.readOnlyReason==null || (s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty())) {s.readOnlyReason ?: "읽기 전용 문서입니다."}
-        val replacing = s.uri == destination.toString()
+        val replacing = DocumentUris.same(s.uri,destination.toString())
         // Reading or pressing Save without changes never rewrites the provider file.
         if(replacing && !s.dirty) return@io s
         require(!replacing || s.pdf?.archival != true) { "PDF/A 검증기를 제공하지 않습니다. 일반 PDF로 다른 이름으로 저장하세요." }
@@ -263,21 +285,18 @@ class DocumentRepository(private val context: Context) {
         checkpointInternal(result);java.io.RandomAccessFile(result.base,"rw").use {it.fd.sync()};providerWrites.finish(receipt,listOf(dir,root));stage.delete(); result
     }
     suspend fun exportPdf(s: Session, destination: Uri) = io {
-        require(destination.toString()!=s.uri) { "PDF 내보내기는 원본과 다른 파일을 선택하세요." }
+        require(!DocumentUris.same(s.uri,destination.toString())) { "PDF 내보내기는 원본과 다른 파일을 선택하세요." }
+        checkpointInternal(s)
         val stage = File(s.base.parentFile,"export.pdf")
-        if(s.format==Format.PDF) PdfEngine.write(s.base,stage,s.edits.strokes,s.pdf!!.archival,s.edits.values,s.edits.layers) else ExportEngine.document(s,stage)
-        val backup = File(s.base.parentFile,"export-backup.bin")
-        copyUri(destination,backup)
         try {
-            context.contentResolver.openOutputStream(destination,"rwt")?.use { out -> stage.inputStream().use { it.copyTo(out) } } ?: error("PDF 쓰기 실패")
-            require(digestUri(destination)==digest(stage)) { "내보내기 검증 실패" }
-        } catch(e: Exception) {
-            runCatching { context.contentResolver.openOutputStream(destination,"rwt")?.use { out -> backup.inputStream().use { it.copyTo(out) } } }
-            throw e
-        } finally { stage.delete() }
+            if(s.format==Format.PDF) PdfEngine.write(s.base,stage,s.edits.strokes,s.pdf!!.archival,s.edits.values,s.edits.layers) else ExportEngine.document(s,stage)
+            PdfEngine.inspect(stage)
+            val receipt=providerWrites.publish("pdf-export:"+s.id,stage,destination,name=s.name.substringBeforeLast('.')+".pdf",mime="application/pdf")
+            providerWrites.finish(receipt)
+        } finally {stage.delete()}
     }
     suspend fun exportBackup(s: Session, destination: Uri,password: CharArray?=null) = io {
-        require(destination.toString()!=s.uri) {"백업은 원본과 다른 파일을 선택하세요."}
+        require(!DocumentUris.same(s.uri,destination.toString())) {"백업은 원본과 다른 파일을 선택하세요."}
         checkpointInternal(s)
         val stage=File(s.base.parentFile,"backup-export-${UUID.randomUUID()}.zip")
         val encrypted=File(s.base.parentFile,"backup-encrypted-${UUID.randomUUID()}.dsbackup")
@@ -301,14 +320,8 @@ class DocumentRepository(private val context: Context) {
         require(stage.length()<=128L*1024*1024) {"다시 가져올 수 있는 백업은 최대 128 MiB입니다."}
         java.util.zip.ZipFile(stage).use {zip->require(zip.getEntry("base.bin")!=null && zip.getEntry("state.json")!=null)}
         val payload=if(password!=null) encrypted.also {EncryptedBackup.encrypt(stage,it,password)} else stage
-        val previous=File(s.base.parentFile,"backup-destination.bin");copyUri(destination,previous)
-        try {
-            context.contentResolver.openOutputStream(destination,"rwt")?.use {out->payload.inputStream().use {it.copyTo(out)}} ?: error("백업 쓰기 실패")
-            require(digestUri(destination)==digest(payload)) {"백업 저장 검증 실패"}
-        } catch(e: Exception) {
-            val restored=runCatching {context.contentResolver.openOutputStream(destination,"rwt")!!.use {out->previous.inputStream().use {it.copyTo(out)}};require(digestUri(destination)==digest(previous))}.isSuccess
-            error(if(restored) "백업 저장에 실패하여 대상 파일을 복원했습니다." else "백업 저장·복원이 실패했습니다. 앱 내부 복구 데이터를 보존했습니다.")
-        }
+        val receipt=providerWrites.publish("backup-export:"+s.id,payload,destination,name=s.name.substringBeforeLast('.')+if(password!=null) ".dsbackup" else ".zip",mime="application/octet-stream")
+        providerWrites.finish(receipt)
         } finally {stage.delete();encrypted.delete()}
     }
     suspend fun printable(s: Session): File = io {

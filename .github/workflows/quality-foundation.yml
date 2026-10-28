@@ -57,7 +57,9 @@ jobs:
           counts={k:sum(int(r.get(k,0)) for r in roots) for k in ('tests','failures','errors','skipped')}
           recovery=[r for r in roots if r.get('name','').endswith('ProviderWriteRecoveryTest')]
           assert len(recovery)==1 and int(recovery[0].get('tests'))==7
-          assert counts['tests']>=31 and counts['failures']==counts['errors']==counts['skipped']==0,counts
+          assert counts['tests']>=42 and counts['failures']==counts['errors']==counts['skipped']==0,counts
+          for name,count in [('SignatureStoreTest',6),('RecentSourceSafetyTest',5)]:
+              selected=[r for r in roots if r.get('name','').endswith(name)];assert len(selected)==1 and int(selected[0].get('tests'))==count
           print('QUALITY_FOUNDATION_VERIFIED',json.dumps(counts))
           PY
       - uses: actions/upload-artifact@v4

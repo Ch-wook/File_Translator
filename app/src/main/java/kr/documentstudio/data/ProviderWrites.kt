@@ -78,7 +78,7 @@ class ProviderWrites(private val context: Context) {
         require(owner.length<=256 && uri.toString().length<=8192 && uri.scheme in setOf("content","file"))
         require(payload.isFile && payload.length() in 0..LIMIT)
         val after=DocumentRepository.digest(payload)
-        val previous=listLocked().filter {it.uri==uri.toString() && active(it)}
+        val previous=listLocked().filter {DocumentUris.same(it.uri,uri.toString()) && active(it)}
         if(previous.isNotEmpty()) {
             if(previous.size!=1)throw SaveRecoveryRequired()
             val r=previous.single();val receipt=WriteReceipt(r,directory(r.id))

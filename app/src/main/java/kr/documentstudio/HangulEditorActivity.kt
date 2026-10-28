@@ -129,15 +129,11 @@ class HangulEditorActivity: ComponentActivity() {
         return task.get(3,java.util.concurrent.TimeUnit.SECONDS)
     }
     inner class Bridge {
-        @JavascriptInterface fun readSignatures(): String = runCatching {
-            val file=File(filesDir,"signatures.json");if(file.isFile && file.length()<=4*1024*1024) AtomicFile(file).openRead().use {it.bufferedReader().readText()} else "[]"
-        }.getOrDefault("[]")
+        @JavascriptInterface fun readSignatures(): String = try {kr.documentstudio.data.SignatureStore(this@HangulEditorActivity).read()}
+        catch(_:Exception){JSONObject().put("error","서명 보관함을 확인하지 못했습니다. 기존 자료는 보존했습니다. 저장 복구에서 확인하세요.").toString()}
         @JavascriptInterface fun writeSignatures(value: String): Boolean = runCatching {
-            require(ready && editAllowed && value.toByteArray().size<=4*1024*1024)
-            val entries=org.json.JSONArray(value);require(entries.length()<=20)
-            for(i in 0 until entries.length()){val s=entries.getJSONObject(i);require(s.getString("png").startsWith("data:image/png;base64,") && s.getString("name").length<=80)}
-            val file=AtomicFile(File(filesDir,"signatures.json"));val out=file.startWrite()
-            try{out.write(value.toByteArray());file.finishWrite(out)}catch(e:Exception){file.failWrite(out);throw e};true
+            require(ready && editAllowed)
+            kr.documentstudio.data.SignatureStore(this@HangulEditorActivity).write(value);true
         }.getOrDefault(false)
         @JavascriptInterface fun requestPdf(){if(ready && loadError==null && readOnlyReason==null)runOnUiThread {convertedUri=null;pdfPicker.launch(intent.getStringExtra("displayName")?.substringBeforeLast('.')+".pdf")}}
         @JavascriptInterface fun beginPdf(count: Int): Boolean = runCatching {
