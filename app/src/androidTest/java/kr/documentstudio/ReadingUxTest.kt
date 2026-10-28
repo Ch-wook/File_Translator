@@ -93,6 +93,11 @@ class ReadingUxTest {
         compose.onNodeWithTag("pdf-continuous-toggle").performScrollTo().performClick()
         compose.onNodeWithContentDescription("설정 닫기").performClick()
         compose.onNodeWithContentDescription("PDF 연속 페이지 목록").performScrollToIndex(60)
+        for(scale in listOf(2f,1f,3f,1f)) {
+            compose.onNode(hasSetProgressAction()).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress){it(scale)}
+            compose.waitForIdle();android.os.SystemClock.sleep(400);compose.waitForIdle()
+            compose.onNodeWithContentDescription("PDF 연속 페이지 목록").assertExists()
+        }
         compose.waitUntil(15000){compose.activity.getSharedPreferences("reading-position",0).getInt(id+":page",-1)==60}
         compose.onNodeWithContentDescription("PDF 연속 페이지 목록").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy){it(0f,133f)}
         compose.waitForIdle()

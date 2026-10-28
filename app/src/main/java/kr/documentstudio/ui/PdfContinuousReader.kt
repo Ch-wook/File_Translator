@@ -82,7 +82,6 @@ private fun ContinuousPage(s: Session,index: Int,busy: Boolean,edit: (()->Unit)?
     var failure by remember(s.base,index,retry) {mutableStateOf<String?>(null)}
     val ink=remember(s.edits.strokes,index) {s.edits.strokes.filter {it.anchor=="pdf:$index"}}
     var bitmap by remember(s.base,index) {mutableStateOf<Bitmap?>(null)}
-    val view=androidx.compose.ui.platform.LocalView.current
     val owned=remember(s.base,index) {mutableSetOf<Bitmap>()}
     DisposableEffect(s.base,index) {onDispose {owned.forEach {it.recycle()};owned.clear()}}
     LaunchedEffect(s.base,index,s.edits.values,ink,retry,rasterWidth) {
@@ -96,9 +95,10 @@ private fun ContinuousPage(s: Session,index: Int,busy: Boolean,edit: (()->Unit)?
                     ink.forEach {drawStroke(canvas,it,image.width.toFloat(),image.height.toFloat())}
                 }
             }
-            val image=produced!!;val old=bitmap
+            val image=produced!!
+            // Ownership transfers to the composed Image. Recycle its predecessor only
+            // after Compose has actually removed that image, never from a posted task.
             owned+=image;bitmap=image;produced=null
-            if(old!==image){owned.remove(old);view.post {old?.recycle()}}
         } catch(e: CancellationException) {produced?.recycle();throw e}
         catch(e: Exception) {produced?.recycle();failure=e.message ?: "페이지를 표시하지 못했습니다."}
     }
@@ -107,7 +107,10 @@ private fun ContinuousPage(s: Session,index: Int,busy: Boolean,edit: (()->Unit)?
             Text("${index+1} 페이지",modifier=Modifier.weight(1f),style=MaterialTheme.typography.labelMedium)
             if(edit!=null) TextButton(edit,enabled=!busy) {Text("${index+1}페이지 필기")}
         }
-        bitmap?.let {Image(it.asImageBitmap(),"연속 보기 ${index+1}페이지",modifier=Modifier.fillMaxWidth().aspectRatio(it.width.toFloat()/it.height))}
+        bitmap?.let {image->
+            DisposableEffect(image) {onDispose {owned.remove(image);image.recycle()}}
+            Image(image.asImageBitmap(),"연속 보기 ${index+1}페이지",modifier=Modifier.fillMaxWidth().aspectRatio(image.width.toFloat()/image.height))
+        }
             ?: Box(Modifier.fillMaxWidth().aspectRatio(595f/842f),contentAlignment=Alignment.Center) {
                 if(failure==null) CircularProgressIndicator()
                 else Column(Modifier.padding(16.dp),horizontalAlignment=Alignment.CenterHorizontally) {
