@@ -82,6 +82,8 @@ jobs:
         if: always()
         with:
           name: reading-performance-${{ github.sha }}
-          path: artifacts/reading-performance/
+          path: |
+            artifacts/reading-performance/
+            !artifacts/reading-performance/apks/**
           if-no-files-found: error
           compression-level: 0

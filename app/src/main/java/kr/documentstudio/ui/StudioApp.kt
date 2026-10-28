@@ -51,6 +51,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -233,7 +235,10 @@ fun StudioApp(vm: EditorViewModel) {
                     } else EditorPane(state.session!!,state,vm,openOffice,false,Modifier.weight(1f).fillMaxWidth(),reader=reader)
                 }
             }
-            if(fullScreen && !editing && state.session!=null) IconButton({fullScreen=false},Modifier.align(Alignment.TopEnd).padding(8.dp).background(Color.White.copy(alpha=.9f),RoundedCornerShape(8.dp))) {Icon(Icons.Default.MoreVert,"메뉴 표시")}
+            if(fullScreen && !editing && state.session!=null) Popup(alignment=Alignment.TopEnd,
+                properties=PopupProperties(focusable=false,dismissOnBackPress=false,dismissOnClickOutside=false)) {
+                IconButton({fullScreen=false},Modifier.padding(8.dp).background(Color.White.copy(alpha=.9f),RoundedCornerShape(8.dp))) {Icon(Icons.Default.MoreVert,"메뉴 표시")}
+            }
             SnackbarHost(snackbar,Modifier.align(Alignment.TopCenter).padding(horizontal=8.dp,vertical=6.dp))
             }
         }
