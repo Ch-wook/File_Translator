@@ -187,6 +187,7 @@ class HangulEditorActivity: ComponentActivity() {
             return meta.toString()
         }
         @Synchronized @JavascriptInterface fun setEditing(value: Boolean): Boolean {
+            if(value && intent.getBooleanExtra("conversionOnly",false))return false
             if(!ready || output!=null || loadError!=null || (value && readOnlyReason!=null)) return false
             editAllowed=value
             return true

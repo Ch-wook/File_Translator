@@ -27,7 +27,7 @@ class ConversionIntegrationTest {
     private val instrumentation=InstrumentationRegistry.getInstrumentation()
     private val device=UiDevice.getInstance(instrumentation)
     private val output get()=File(context.getExternalFilesDir(null),"native-conversion").apply {mkdirs()}
-    private fun await(label: String,timeout: Long=60000,condition: ()->Boolean){val end=SystemClock.uptimeMillis()+timeout;while(SystemClock.uptimeMillis()<end){if(runCatching(condition).getOrDefault(false))return;SystemClock.sleep(200)};device.takeScreenshot(File(output,"failure.png"));error(label)}
+    private fun await(label: String,timeout: Long=60000,condition: ()->Boolean){val end=SystemClock.uptimeMillis()+timeout;while(SystemClock.uptimeMillis()<end){NativeUiActions.refresh();if(runCatching(condition).getOrDefault(false))return;SystemClock.sleep(200)};device.takeScreenshot(File(output,"failure.png"));device.dumpWindowHierarchy(File(output,"failure.xml"));error(label)}
     private fun probe(method: String,arg: String?=null)=context.contentResolver.acquireUnstableContentProviderClient(Uri.parse("content://"+context.packageName+".officeprobe")).use {requireNotNull(it).call(method,arg,null)}
     private fun uri(file: File)=FileProvider.getUriForFile(context,context.packageName+if(file.canonicalPath.startsWith(File(context.cacheDir,"conversions").canonicalPath+"/"))".conversionfiles" else ".testfiles",file)
     @Test fun pptxTenSlidesToPdf(){nativePdf("pptx",10,listOf("TEST_SLIDE_01","TEST_SLIDE_10","TABLE"))}
@@ -41,9 +41,9 @@ class ConversionIntegrationTest {
         context.startActivity(Intent().setClassName(context.packageName,"org.libreoffice.androidlib.StudioOfficeActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("sessionId",source.id).putExtra("workingPath",working.absolutePath).putExtra("displayName",source.name).putExtra("originalUri",uri(original).toString()))
         try {
             await("Actual native document must load",120000){probe("state")?.getBoolean("ready")==true}
-            await("Mobile PDF conversion menu must exist"){device.findObject(By.desc("문서 메뉴"))!=null}
-            device.findObject(By.desc("문서 메뉴")).click()
-            assertTrue(device.wait(Until.hasObject(By.text("PDF로 변환")),10000));device.pressBack()
+            await("Mobile PDF conversion menu must exist"){device.findObject(By.desc("문서 메뉴"))!=null || device.findObject(By.text("문서 메뉴"))!=null}
+            NativeUiActions.tap(device,context.packageName,"문서 메뉴")
+            await("PDF conversion action must be visible",10000){device.findObject(By.text("PDF로 변환"))!=null || device.findObject(By.desc("PDF로 변환"))!=null};device.pressBack()
             val pdf=File(dir,"result.pdf").apply {writeBytes(byteArrayOf())};probe("convert-pdf",uri(pdf).toString())
             await("Native filter must save and read back PDF",120000){device.findObject(By.text("PDF 변환 완료"))!=null}
             val info=PdfEngine.inspect(pdf);assertEquals(pages,info.pages)
@@ -53,7 +53,7 @@ class ConversionIntegrationTest {
             val bitmap=PdfEngine.render(pdf,0,600,600);try{assertTrue(bitmap.width>0);File(output,ext+"-page1.png").outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}}finally{bitmap.recycle()}
             assertEquals(hash,ConversionFiles.digest(original))
             File(output,ext+".json").writeText(JSONObject().put("pages",pages).put("tokensVerified",true).put("originalUnchanged",true).put("nativeFilter",true).toString(2))
-            device.findObject(By.text("닫기"))?.click()
+            NativeUiActions.tap(device,context.packageName,"닫기")
         }finally{runCatching {probe("close")};await("Office process must exit",30000){device.executeShellCommand("pidof "+context.packageName+":office").trim().isEmpty()};runCatching {repo.acceptOffice(source)}}
     }
     @Test fun hwpxSignatureAndLayoutPdf()=runBlocking {
@@ -64,12 +64,18 @@ class ConversionIntegrationTest {
         try {
             await("HWPX editor must load",120000){eval("document.body.dataset.state")?.contains("EDITING")==true}
             eval("window.documentStudioHost.signature()")
-            await("Signature panel visible"){device.findObject(By.desc("서명 입력 공간"))!=null}
-            val area=device.findObject(By.desc("서명 입력 공간")).visibleBounds
+            var area=android.graphics.Rect()
+            await("Signature panel visible"){
+                val raw=eval("JSON.stringify((function(){const e=document.querySelector('.studio-signature canvas');if(!e)return {};const r=e.getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height,vw:innerWidth};})())")
+                val first=org.json.JSONTokener(raw ?: "null").nextValue()
+                val json=if(first is String)JSONObject(first) else JSONObject()
+                val geo=context.contentResolver.call(provider,"geometry",null,null)!!
+                if(json.optDouble("w")>0){val scale=geo.getInt("width")/json.getDouble("vw");area=android.graphics.Rect(geo.getInt("left")+(json.getDouble("x")*scale).toInt(),geo.getInt("top")+(json.getDouble("y")*scale).toInt(),geo.getInt("left")+((json.getDouble("x")+json.getDouble("w"))*scale).toInt(),geo.getInt("top")+((json.getDouble("y")+json.getDouble("h"))*scale).toInt());true}else false
+            }
             device.swipe(area.left+30,area.centerY(),area.right-30,area.centerY()-40,24)
-            device.findObject(By.text("파랑")).click()
+            NativeUiActions.tap(device,context.packageName,"파랑")
             device.swipe(area.left+60,area.centerY()-25,area.right-60,area.centerY()+40,24)
-            device.findObject(By.text("완료")).click()
+            NativeUiActions.tap(device,context.packageName,"완료")
             await("Native picture placement must be active"){eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.state().placement")=="true"}
             val web=device.findObject(By.clazz("android.webkit.WebView")).visibleBounds
             device.swipe(web.centerX()-80,web.top+150,web.centerX()+80,web.top+220,24)

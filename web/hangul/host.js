@@ -6,7 +6,7 @@ let rulers=false,toolsVisible=true;
 const frame=document.getElementById('engine'), status=document.getElementById('status');
 const save=document.getElementById('save'), mode=document.getElementById('mode');
 const tools=document.getElementById('tools'), groups=document.getElementById('groups');
-let readOnlyReason=null;
+let readOnlyReason=null,conversionOnly=false;
 let editor,format,ready=false,editing=false,pending=false,switching=false,timer,revision=0,savedRevision=0,edited=false,activeGroup='글자';
 const panel=document.getElementById('mobile-panel'),dock=document.getElementById('edit-dock');
 const undo=document.getElementById('undo'),redo=document.getElementById('redo');
@@ -15,7 +15,7 @@ const mobileUI=createMobileTools({groups,tools,panel,getEditor:()=>editor,isEdit
 function message(text,error=false){status.textContent=text;status.dataset.error=String(error);document.getElementById('discard').hidden=!error;}
 function update(){
  document.body.dataset.state=!ready?'LOADING':readOnlyReason?'READ_ONLY':editing?'EDITING':'READING';
- mode.hidden=Boolean(readOnlyReason)||editing;
+ mode.hidden=Boolean(readOnlyReason)||editing||conversionOnly;
  document.getElementById('readonly-badge').hidden=!readOnlyReason;
  mode.textContent=editing?'보기로':'편집하기';mode.disabled=!ready||pending||switching;
  mode.setAttribute('aria-pressed',String(editing));save.hidden=!editing;save.disabled=!ready||pending||switching;
@@ -53,7 +53,7 @@ async function checkpoint(){
  finally{pending=false;update();if(savedRevision===saving&&revision>savedRevision&&editing){clearTimeout(timer);timer=setTimeout(checkpoint,300);}}
 }
 async function setEditing(value){
- if(!ready||pending||switching||editing===value||readOnlyReason)return;
+ if(!ready||pending||switching||editing===value||readOnlyReason||conversionOnly)return;
  const view=editor.captureView();
  switching=true;clearTimeout(timer);update();
  try{
@@ -130,7 +130,7 @@ UI.iconButton(redo,'다시 실행','redo',()=>mobileUI.history('redo'));
 UI.iconButton(save,'저장 후 닫기','done',()=>close(true));
 const more=UI.iconButton(document.getElementById('more'),'문서 메뉴','more');
 UI.popup(more,()=>[
- {label:editing?'읽기 모드로 전환':'편집하기',hidden:Boolean(readOnlyReason),disabled:!ready||pending||switching,action:()=>setEditing(!editing)},
+ {label:editing?'읽기 모드로 전환':'편집하기',hidden:Boolean(readOnlyReason)||conversionOnly,disabled:!ready||pending||switching,action:()=>setEditing(!editing)},
  {label:'찾기'+(editing?'·바꾸기':''),disabled:!ready,action:()=>editing?mobileUI.showSearch():editor.command('edit:find')},
  {label:'확대 '+(ready?Math.round(editor.captureView().zoom*100)+'%':''),disabled:!ready,action:()=>editor.command('view:zoom-in')},
  {label:'축소',disabled:!ready,action:()=>editor.command('view:zoom-out')},
@@ -149,7 +149,7 @@ document.getElementById('discard').onclick=()=>native.requestDiscard();
 mode.onclick=()=>setEditing(true);
 async function start(){
  if(!native){message('앱의 문서 연결을 찾지 못했습니다.',true);return;}
- const meta=JSON.parse(native.describe());format=meta.format;readOnlyReason=meta.readOnlyReason||null;
+ const meta=JSON.parse(native.describe());format=meta.format;readOnlyReason=meta.readOnlyReason||null;conversionOnly=meta.conversionOnly===true;
  document.getElementById('title').textContent=meta.name;
  for(let attempt=0;attempt<600;attempt++){
   editor=frame.contentWindow?.rhwpStudio?.documentStudio;if(editor)break;

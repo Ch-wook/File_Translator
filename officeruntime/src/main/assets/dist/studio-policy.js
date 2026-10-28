@@ -262,7 +262,7 @@
     if(cellActions){const hidden=!(editing&&!modeTransition&&map().getDocType()==='spreadsheet'&&(window.app?.file?.textCursor?.visible||map().formulabar?.hasFocus?.()||map().formulabar?.isInEditMode?.()));if(cellActions.hidden!==hidden){cellActions.hidden=hidden;refreshLayout();}}
     modeLabel.textContent=editing?'편집 중':'원본 보기';
     modeButton.textContent='편집하기';modeButton.setAttribute('aria-label','편집하기');
-    modeButton.hidden=editing||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit';
+    modeButton.hidden=Boolean(bridge()?.isStudioConversionOnly?.())||editing||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit';
     modeButton.disabled=modeTransition||!initialViewportRestored;
     saveButton.hidden=!editing&&!policy.changed;saveButton.disabled=modeTransition||!policy.changed;
     undoButton.hidden=redoButton.hidden=!editing;
@@ -408,7 +408,7 @@
         }catch(error){UI.toast(error.message,true);}
       }},
       {label:'슬라이드 목록',hidden:map().getDocType()!=='presentation',action:()=>openSheet('슬라이드 목록')},
-      {label:editable()?'읽기 모드로 전환':'편집하기',hidden:!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit',disabled:modeTransition||!initialViewportRestored,action:()=>editable()?map().setPermission('readonly'):map()._switchToEditMode()},
+      {label:editable()?'읽기 모드로 전환':'편집하기',hidden:Boolean(bridge()?.isStudioConversionOnly?.())||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit',disabled:modeTransition||!initialViewportRestored,action:()=>editable()?map().setPermission('readonly'):map()._switchToEditMode()},
       {label:editable()?'찾기·바꾸기':'찾기',disabled:!editable()&&!searchService(),action:()=>editable()?uno('SearchDialog'):openSheet('찾기')},
       {label:'확대 '+Math.round((map().getZoomScale?.(map().getZoom(),10)||1)*100)+'%',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(map().getZoom()+1);}},
       {label:'축소',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(Math.max(0,map().getZoom()-1));}},
