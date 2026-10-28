@@ -1,3 +1,22 @@
+# 문서 스튜디오 0.8.8-preview
+
+기존 편집기에 **자필 서명 삽입·보관**과 **기기 내 파일 변환**을 추가한 개발 서명 프리뷰입니다. 메인 화면의 파일 변환 카드와 편집기의 더보기 메뉴에서 시작합니다.
+
+[휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.8-preview/document-studio-0.8.8-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.8-preview/document-studio-0.8.8-preview-source.zip) · [작업 보고서](docs/SIGNATURE_CONVERSION_RESULTS.md) · [Release·검증 자료·SHA256SUMS](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.8-preview)
+
+PPTX·DOCX·XLSX는 기존 Office 엔진의 PDF 필터, HWP/HWPX는 전체 페이지 렌더링을 사용합니다. TXT·Markdown PDF, PDF 페이지 PNG/JPG ZIP·텍스트 추출, Markdown HTML/TXT, TXT HTML/MD 및 기존 HWP→HWPX를 제공합니다. 실제 선택 가능한 경로만 표시하며 원본을 덮어쓰지 않습니다.
+
+한글 문서에서 편집하기 → 더보기 → 서명/필기로 들어가 손가락이나 펜으로 작성합니다. 투명 PNG를 실제 문서 그림으로 삽입하고 기존 그림 도구로 위치·크기를 조절합니다. 서명은 앱 내부에 저장·재사용할 수 있습니다. 인증서 기반 전자서명은 아닙니다.
+
+한글 PDF는 페이지 이미지 방식이며 텍스트 선택·검색·링크가 보존되지 않습니다. Markdown PDF는 기본 서식 범위이며 복잡한 표·원격 이미지 배치는 미지원입니다. OCR, 편집 가능한 PDF→Word, DOCX↔HWPX, 일괄 변환과 문서 위 직접 벡터 필기는 아직 지원하지 않습니다.
+
+검증: Android 35 x86_64 **44건**, 단위 **148건**, JavaScript **28건**, 브라우저 실제 엔진 9개 시나리오와 독립 파일 검사 통과. 설치·기존 앱/개인 데이터 보존·서명·16KiB 정렬도 확인했습니다. 익명 API 403으로 중단된 마지막 패키징은 보존된 동일 APK로 복구했으며 재빌드하지 않았습니다. 실제 ARM64 휴대폰·S펜 하드웨어 검증은 미완료입니다.
+
+기존 서명키가 없어 사용자 선택에 따라 **문서 스튜디오 서명·변환**(`kr.documentstudio.convertpreview`)을 별도 설치합니다. 기존 앱과 비공개 작업 복구본을 삭제하지 마세요. 기존 앱에서 파일로 저장한 문서를 새 앱에서 열 수 있습니다. Android 10+ 64비트이며 Office 변환은 Android 11+입니다. 문서·서명은 외부 서버에 업로드하지 않습니다.
+
+<details>
+<summary>0.8.7 및 이전 구현·배포 기록</summary>
+
 # 문서 스튜디오 0.8.7-preview
 
 기존 7종 편집기를 유지하면서 **PowerPoint 슬라이드 목록·이동·삭제 보호**, **Excel 셀 입력 완료·취소와 숨김 시트 보호**를 보완했습니다.
@@ -113,6 +132,8 @@ node scripts/tests/hangul-mobile.cjs
 [사용 안내](docs/USER_GUIDE.md) · [한글 엔진 출처](web/hangul/PROVENANCE.md) · [Office 엔진 출처](officeruntime/PROVENANCE.md) · [오픈소스 고지](docs/THIRD_PARTY.md)
 
 0.7.0 이하 문서와 테스트 수는 과거 기록입니다. 이번 버전의 실기기 검증 결과로 합산하지 않습니다.
+
+</details>
 
 </details>
 
