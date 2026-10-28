@@ -2,9 +2,6 @@ package kr.documentstudio.data
 
 import android.content.Context
 import android.graphics.BitmapFactory
-import android.graphics.Color
-import android.graphics.RectF
-import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.util.Base64
 import org.json.JSONObject
@@ -34,23 +31,32 @@ object ConversionFiles {
 
 /** Complete page images from the layout engine, not screenshots of its visible viewport. */
 class RasterPdfSession(private val file: File,private val count: Int): java.io.Closeable {
-    private val pdf=PdfDocument()
+    private val pdf=com.tom_roush.pdfbox.pdmodel.PDDocument(com.tom_roush.pdfbox.io.MemoryUsageSetting.setupTempFileOnly().setTempDir(file.parentFile))
     private var pages=0
+    private var inputBytes=0L
     init {require(count in 1..300)}
     fun page(json: String) {
         require(pages<count && json.length<=24*1024*1024)
         val data=JSONObject(json);val width=data.getDouble("width");val height=data.getDouble("height")
         require(width.isFinite() && height.isFinite() && width in 1.0..3000.0 && height in 1.0..3000.0)
         val bytes=Base64.decode(data.getString("png"),Base64.DEFAULT)
+        inputBytes+=bytes.size;require(inputBytes<=100L*1024*1024) {"페이지 이미지가 너무 큽니다. 문서를 나누어 변환하세요."}
         val opts=BitmapFactory.Options().apply {inJustDecodeBounds=true};BitmapFactory.decodeByteArray(bytes,0,bytes.size,opts)
         require(opts.outWidth>0 && opts.outHeight>0 && opts.outWidth.toLong()*opts.outHeight<=12000000)
         val bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.size) ?: error("페이지 이미지를 읽지 못했습니다.")
-        try {val page=pdf.startPage(PdfDocument.PageInfo.Builder(kotlin.math.ceil(width).toInt(),kotlin.math.ceil(height).toInt(),++pages).create())
-            page.canvas.drawColor(Color.WHITE);page.canvas.drawBitmap(bitmap,null,RectF(0f,0f,width.toFloat(),height.toFloat()),android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG));pdf.finishPage(page)
+        try {
+            val page=com.tom_roush.pdfbox.pdmodel.PDPage(com.tom_roush.pdfbox.pdmodel.common.PDRectangle(width.toFloat(),height.toFloat()))
+            pdf.addPage(page)
+            val image=com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory.createFromImage(pdf,bitmap)
+            com.tom_roush.pdfbox.pdmodel.PDPageContentStream(pdf,page).use {out->
+                out.setNonStrokingColor(255,255,255);out.addRect(0f,0f,width.toFloat(),height.toFloat());out.fill()
+                out.drawImage(image,0f,0f,width.toFloat(),height.toFloat())
+            }
+            pages++
         } finally {bitmap.recycle()}
     }
     fun finish(): Int {
-        require(pages==count);file.outputStream().use {pdf.writeTo(it)}
+        require(pages==count);pdf.save(file)
         val info=PdfEngine.inspect(file);require(info.pages==count) {"PDF 페이지 수가 일치하지 않습니다."}
         return count
     }

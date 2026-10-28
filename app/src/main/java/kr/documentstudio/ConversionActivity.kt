@@ -82,8 +82,10 @@ class ConversionActivity: ComponentActivity() {
             Text(model.source?.name ?: "파일을 선택하세요.")
             if(model.source==null){Text("텍스트 인코딩");Row {for(value in listOf("UTF-8","MS949"))TextButton({model.encoding=value}){Text((if(model.encoding==value)"✓ " else "")+value)}}}
             model.source?.let {s->
+                val engineAvailable=s.format !in DocumentRepository.visualFormats || s.format in listOf(Format.HWP,Format.HWPX) || android.os.Build.VERSION.SDK_INT>=30
+                if(!engineAvailable)Text("이 문서의 PDF 변환은 Android 11 이상에서 지원합니다.")
                 Text("결과 형식")
-                Row(Modifier.fillMaxWidth()){for(t in PortableConversions.targets(s.format))FilterChip(model.target==t,{model.target=t},label={Text(t.uppercase())},enabled=!model.busy)}
+                Row(Modifier.fillMaxWidth()){for(t in PortableConversions.targets(s.format))FilterChip(model.target==t,{model.target=t},label={Text(t.uppercase())},enabled=!model.busy && engineAvailable)}
                 if(s.format==Format.PDF && model.target.endsWith("zip")){
                     OutlinedTextField(model.pageSpec,{model.pageSpec=it},label={Text("페이지 · 비우면 전체, 예: 1,3-5")},enabled=!model.busy)
                     Row{for(value in listOf(72,144,216))TextButton({model.dpi=value},enabled=!model.busy){Text((if(model.dpi==value)"✓ " else "")+value+" dpi")}}
@@ -93,7 +95,7 @@ class ConversionActivity: ComponentActivity() {
                 if(s.format==Format.MD)Text("PDF는 기본 제목·강조·목록·코드 서식을 지원합니다. 원격 이미지는 내려받지 않으며 복잡한 표·HTML 배치는 보장하지 않습니다. HTML 변환은 표 구조를 유지합니다.")
                 if(s.format in listOf(Format.HWP,Format.HWPX))Text("한글 PDF는 전체 페이지 이미지 방식입니다. 텍스트 선택·검색·링크는 유지되지 않습니다.")
                 if(s.format==Format.XLSX)Text("현재 문서에 저장된 페이지·시트 출력 설정을 사용합니다. 넓은 시트의 맞춤 설정은 문서 엔진에서 확인하세요.")
-                Button({startConversion()},enabled=!model.busy && model.target.isNotEmpty()){Text("변환 시작 · "+model.target.uppercase())}
+                Button({startConversion()},enabled=!model.busy && engineAvailable && model.target.isNotEmpty()){Text("변환 시작 · "+model.target.uppercase())}
             }
             if(model.busy){LinearProgressIndicator(Modifier.fillMaxWidth());TextButton({model.cancel()}){Text("취소")}}
             Text(model.status)
