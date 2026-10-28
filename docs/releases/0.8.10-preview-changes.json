@@ -1,0 +1,120 @@
+{
+  "baseCommit": "0faea43c3395e4e9e26757f621842650a59da0ce",
+  "appBuildCommit": "639c154264a3b2652186a5c601ababc1e5a6f0a3",
+  "files": [
+    {
+      "path": ".github/workflows/mobile-release.yml",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": ".github/workflows/reading-performance.yml",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": ".github/workflows/reading-ui-focused.yml",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "app/build.gradle.kts",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 3
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/ReadingPerformanceTest.kt",
+      "status": "modified",
+      "additions": 46,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/ReadingUxTest.kt",
+      "status": "modified",
+      "additions": 56,
+      "deletions": 1
+    },
+    {
+      "path": "app/src/main/AndroidManifest.xml",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/PdfEngine.kt",
+      "status": "modified",
+      "additions": 17,
+      "deletions": 3
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/PdfRasterBudget.kt",
+      "status": "added",
+      "additions": 16,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/FormatWorkspace.kt",
+      "status": "modified",
+      "additions": 8,
+      "deletions": 7
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/LineNumberEditText.kt",
+      "status": "modified",
+      "additions": 18,
+      "deletions": 3
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/PdfCanvasEditor.kt",
+      "status": "modified",
+      "additions": 23,
+      "deletions": 4
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/PdfContinuousReader.kt",
+      "status": "modified",
+      "additions": 36,
+      "deletions": 15
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/StudioApp.kt",
+      "status": "modified",
+      "additions": 21,
+      "deletions": 10
+    },
+    {
+      "path": "app/src/test/java/kr/documentstudio/ReadingOptimizationTest.kt",
+      "status": "added",
+      "additions": 43,
+      "deletions": 0
+    },
+    {
+      "path": "docs/ADDITIONAL_OPTIMIZATION_RESULTS.md",
+      "status": "added",
+      "additions": 11,
+      "deletions": 0
+    },
+    {
+      "path": "scripts/package-mobile-release.py",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 9
+    },
+    {
+      "path": "scripts/run-reading-performance.sh",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 3
+    },
+    {
+      "path": "scripts/test-mobile-installation.py",
+      "status": "modified",
+      "additions": 12,
+      "deletions": 12
+    }
+  ]
+}
