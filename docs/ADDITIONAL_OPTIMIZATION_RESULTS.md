@@ -111,3 +111,12 @@ x86_64 APK: **441825755bytes**, SHA-256 `16e53cd798c099179876064edb85ff4a19f6b11
 서명 인증서 SHA-256: `20f58d03611e7e92ca281dbc46dfbf87efb79bd8dcc49addbeddbc9432abc37a`.
 
 배포 APK는 이 전체 검증 작업의 바이트를 재빌드/재서명하지 않고 사용합니다. 태그에는 문서·CI만 추가하며 앱 소스 동일성을 검사합니다. 소스ZIP·0.8.9 기준 바이너리 패치·Git bundle·검증 ZIP·보고서·메타데이터·SHA256SUMS를 함께 게시하고 공개 다운로드로 크기/해시를 확인합니다. 배포 후 확인서는 docs/releases/0.8.10-preview-download-verification.json에 추가합니다.
+
+
+## 배포 완료 확인 — 2026-10-28 22:56 UTC
+
+[v0.8.10-preview](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.10-preview)를 공개 프리릴리스로 게시했습니다. 앱 빌드 `efb242066777846081704672a1e4e109450822a5`, 태그/소스 ZIP `22fe345dbea767ff10745bfd09d1918950e84746`이며 앱 코드 차이가 없는 문서·CI 변경만 포함함을 검사했습니다.
+
+APK2개·전체 소스ZIP·바이너리 패치·Git bundle·검증ZIP·보고서·APK메타데이터·README·SHA256SUMS 등10개 자산의 공개 다운로드·크기·SHA256 검증이 모두 통과했습니다. APK를 다시 빌드/서명하지 않았고 기존0.8.9 태그와10개 자산도 유지했습니다. [공개 확인 JSON](https://github.com/Ch-wook/File_Translator/blob/codex/document-engines/docs/releases/0.8.10-preview-download-verification.json), [게시/다운로드 검증 실행](https://github.com/Ch-wook/File_Translator/actions/runs/40783398181).
+
+이 완료 문단과 공개 확인 JSON은 태그 뒤의 문서 전용 커밋에 추가합니다. 다운로드 소스 ZIP은 위 태그의 바이트를 정확히 담고 있습니다. main은 `ec785811be646e4ef0fcf79156864ddaf43de94c`을 유지하며, 작업 브랜치만 lease 검사·fast-forward로 갱신했습니다.

@@ -10,6 +10,8 @@ Android 회귀54건, 단위153건, JavaScript28건, 실제 엔진 브라우저9�
 
 휴대폰용 APK는 약429.9MB입니다. 기존 서명키를 사용할 수 없어 사용자 선택대로 **문서 스튜디오 추가 개선**(`kr.documentstudio.performancepreview`)을 별도 설치합니다. 기존 앱·작업 복구본을 삭제하지 마세요. 파일로 저장한 문서를 새 앱에서 열 수 있고 비공개 데이터는 자동 이관하지 않습니다. Android10+ 64비트, Office11+입니다.
 
+[공개 다운로드·해시·기존 배포 보존 확인서](docs/releases/0.8.10-preview-download-verification.json) — 10개 자산 확인 완료.
+
 <details>
 <summary>0.8.9 및 이전 구현·배포 기록</summary>
 
