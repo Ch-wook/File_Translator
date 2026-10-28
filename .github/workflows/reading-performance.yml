@@ -34,7 +34,7 @@ jobs:
         run: |
           sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
           git worktree add /tmp/studio-reading-baseline "$BASELINE_SHA"
-          cp app/src/androidTest/java/kr/documentstudio/ReadingPerformanceTest.kt /tmp/studio-reading-baseline/app/src/androidTest/java/kr/documentstudio/
+          cp app/src/androidTest/java/kr/documentstudio/*ReadingPerformanceTest.kt /tmp/studio-reading-baseline/app/src/androidTest/java/kr/documentstudio/
           mkdir -p artifacts/reading-performance/apks
           chmod +x gradlew /tmp/studio-reading-baseline/gradlew
       - uses: actions/cache@v4

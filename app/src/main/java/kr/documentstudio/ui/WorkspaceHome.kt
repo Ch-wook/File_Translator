@@ -31,6 +31,8 @@ fun WorkspaceHome(state: UiState,vm: EditorViewModel,new: ()->Unit,open: ()->Uni
     var filter by rememberSaveable {mutableStateOf<String?>(null)}
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val columns=if(maxWidth>=600.dp) 4 else 3
+        val dates=remember {DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT)}
+        val rows=remember(state.recents,favorites,query,filter) {state.recents.filter {r -> (!favorites || r.favorite) && r.name.contains(query,true) && (filter==null || Format.entries.firstOrNull {it.extension.equals(r.name.substringAfterLast('.'),true)}?.let {WorkspaceFamily.of(it).name==filter}==true)}}
         LazyColumn(Modifier.fillMaxSize().widthIn(max=1200.dp).align(Alignment.TopCenter),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
             item {
                 Text("무엇을 만들까요?",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold)
@@ -67,7 +69,6 @@ fun WorkspaceHome(state: UiState,vm: EditorViewModel,new: ()->Unit,open: ()->Uni
                     WorkspaceFamily.entries.forEach {f->FilterChip(filter==f.name,{filter=if(filter==f.name) null else f.name},label={Text(f.title)})}
                 }
             }
-            val rows=state.recents.filter {r -> (!favorites || r.favorite) && r.name.contains(query,true) && (filter==null || Format.entries.firstOrNull {it.extension.equals(r.name.substringAfterLast('.'),true)}?.let {WorkspaceFamily.of(it).name==filter}==true)}
             if(rows.isEmpty()) item {Column(Modifier.fillMaxWidth().padding(vertical=28.dp),horizontalAlignment=Alignment.CenterHorizontally) {
                 Icon(Icons.Default.FolderOpen,null,tint=Color(0xFF9CA8BA),modifier=Modifier.size(36.dp))
                 Text(if(query.isNotBlank() || filter!=null || favorites) "조건에 맞는 문서가 없습니다." else "아직 최근 문서가 없습니다.",color=Color(0xFF647084),modifier=Modifier.padding(top=10.dp))
@@ -79,7 +80,7 @@ fun WorkspaceHome(state: UiState,vm: EditorViewModel,new: ()->Unit,open: ()->Uni
                         FormatBadge(format)
                         Column(Modifier.weight(1f)) {
                             Text(r.name,maxLines=1,overflow=TextOverflow.Ellipsis,fontWeight=FontWeight.Medium)
-                            Text((if(r.dirty) "수정 내용 복구 가능 · " else "")+DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(Date(r.modified)),style=MaterialTheme.typography.bodySmall,color=Color(0xFF6D7786),modifier=Modifier.padding(top=3.dp))
+                            Text((if(r.dirty) "수정 내용 복구 가능 · " else "")+remember(r.modified){dates.format(Date(r.modified))},style=MaterialTheme.typography.bodySmall,color=Color(0xFF6D7786),modifier=Modifier.padding(top=3.dp))
                         }
                         IconButton({vm.favorite(r.id)},enabled=!state.busy) {Icon(if(r.favorite) Icons.Default.Star else Icons.Default.StarBorder,"즐겨찾기",tint=if(r.favorite) Color(0xFFD59628) else Color(0xFF8490A2))}
                     }

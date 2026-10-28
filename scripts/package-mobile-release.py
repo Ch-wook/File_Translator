@@ -90,7 +90,7 @@ for release in releases:
             if old['applicationId']==pkg:
                 assert old['certificateSHA256']==apks[0]['certificateSHA256'],'Signing key differs from an existing preview. Configure the original secure STUDIO_KEYSTORE; do not publish an incompatible update.'
 android=json.loads((ci/'android-summary.json').read_text())
-assert os.environ['EMULATOR_OUTCOME']=='success' and android=={'tests':51,'failures':0,'errors':0,'skipped':0},android
+assert os.environ['EMULATOR_OUTCOME']=='success' and android=={'tests':52,'failures':0,'errors':0,'skipped':0},android
 install=json.loads((root/'artifacts/mobile-install/summary.json').read_text())
 assert install['cleanInstallWithoutTestFlag'] and install['coexistsWith088'] and install['priorApkHashUnchanged'] and install['priorPrivateDataPreserved'] and install['sameSignerReinstallPreservedPrivateData']
 mobile=json.loads((root/'artifacts/hangul-mobile/mobile-engine-results.json').read_text())
@@ -175,7 +175,7 @@ TXT·Markdown 글꼴은 화면 표시 설정이며 파일 서식이 아닙니다
 
 원본과 작업 복사본을 분리합니다. 자동 저장은 작업 복구본 보존이며 외부 원본 저장 완료와 다릅니다. 원본 반영은 저장 동작과 성공 확인이 필요합니다.
 
-Android 35 x86_64 에뮬레이터에서 51개 테스트와 기존 앱 보존 설치·동일 APK 재설치를 검증합니다. Word 선택 서식의 독립 적용, Excel 실제 붙여넣기·15개 수식 결과·셀 서식·새 시트, PowerPoint 슬라이드 추가와 텍스트 서식, PDF 주석·이미지·필기, Markdown·TXT 저장과 재열기를 포함합니다. HWP/HWPX는 실제 브라우저 엔진, 독립 파서, Android 입력 테스트를 수행합니다.
+Android 35 x86_64 에뮬레이터에서 52개 테스트와 기존 앱 보존 설치·동일 APK 재설치를 검증합니다. Word 선택 서식의 독립 적용, Excel 실제 붙여넣기·15개 수식 결과·셀 서식·새 시트, PowerPoint 슬라이드 추가와 텍스트 서식, PDF 주석·이미지·필기, Markdown·TXT 저장과 재열기를 포함합니다. HWP/HWPX는 실제 브라우저 엔진, 독립 파서, Android 입력 테스트를 수행합니다.
 
 실제 ARM64 휴대폰과 삼성/Gboard 키보드는 미검증입니다. ARM64 APK는 빌드·서명·패키지·16KiB ELF/ZIP 정렬·자산 검사를 수행합니다. 모든 고급 기능이나 모든 기존 문서의 무손실 저장을 보장한 결과가 아닙니다. 추가 변경: 로컬 파일 변환·실제 엔진 PDF·투명 PNG 자필 서명 및 문서 삽입. 한글 PDF는 페이지 이미지 방식이며 검색/선택/링크는 미지원입니다. OCR·직접 벡터 필기·고급 상호 변환은 미지원입니다. 이전 변경: PowerPoint 슬라이드 목록·이동·삭제 확인, Excel 셀 입력 완료·취소와 숨겨진 시트/마지막 표시 시트 보호. 상세 범위는 docs/SIGNATURE_CONVERSION_RESULTS.md와 verification.zip을 확인하세요.
 

@@ -145,7 +145,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         lastTextEdit=0;mutable.value=mutable.value.copy(active=id);setPresentation(s.id,if(s.readOnlyReason==null) PresentationState.READING else PresentationState.READ_ONLY);requestVisual(s,visual)
     }
     fun home() { if(mutable.value.busy) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=null,officeLaunch=null) }
-    fun select(id: String) { if(mutable.value.busy || mutable.value.tabs.none {it.id==id}) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=id) }
+    fun select(id: String) { if(mutable.value.busy || mutable.value.tabs.none {it.id==id}) return; if(mutable.value.active==id){lastTextEdit=0;return}; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=id) }
     fun close(id: String) = action {
         // action() already flushed the latest snapshot; do not serialize it twice.
         histories.remove(id)

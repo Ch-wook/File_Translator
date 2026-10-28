@@ -257,25 +257,27 @@
     }
   }
   function update(){if(!updateFrame)updateFrame=requestAnimationFrame(()=>{updateFrame=0;updateNow();});}
+  function sync(node,key,value){if(node&&node[key]!==value)node[key]=value;}
+  function attribute(node,name,value){if(node.getAttribute(name)!==String(value))node.setAttribute(name,String(value));}
   function updateNow(){
     reader?.sync();
     if(initialViewportRestored&&!policy.initialIntentHandled){policy.initialIntentHandled=true;if(policy.modeSupported&&new URLSearchParams(location.search).get('studioopen')==='EDIT')setTimeout(()=>map()._switchToEditMode(),0);}
     if(!bar)return;const editing=editable(),object=objectSelected();
-    bar.dataset.editing=String(editing);const searching=groupOpen&&(activeTab==='찾기'||activeTab==='슬라이드 목록');bottom.hidden=!editing&&!searching;sheet.hidden=!groupOpen||(!editing&&!searching);tabs.hidden=!editing;
+    sync(bar.dataset,'editing',String(editing));const searching=groupOpen&&(activeTab==='찾기'||activeTab==='슬라이드 목록');sync(bottom,'hidden',!editing&&!searching);sync(sheet,'hidden',!groupOpen||(!editing&&!searching));sync(tabs,'hidden',!editing);
     if(cellActions){const hidden=!(editing&&!modeTransition&&map().getDocType()==='spreadsheet'&&(window.app?.file?.textCursor?.visible||map().formulabar?.hasFocus?.()||map().formulabar?.isInEditMode?.()));if(cellActions.hidden!==hidden){cellActions.hidden=hidden;refreshLayout();}}
-    modeLabel.textContent=editing?'편집 중':'원본 보기';
-    modeButton.textContent='편집하기';modeButton.setAttribute('aria-label','편집하기');
-    modeButton.hidden=Boolean(bridge()?.isStudioConversionOnly?.())||editing||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit';
-    modeButton.disabled=modeTransition||!initialViewportRestored;
-    saveButton.hidden=!editing&&!policy.changed;saveButton.disabled=modeTransition||!policy.changed;
-    undoButton.hidden=redoButton.hidden=!editing;
-    const search=header.querySelector('#studio-office-search');if(search)search.hidden=editing||!searchService();
-    for(const {b,item}of controls){const value=item.name&&state(item.name);b.disabled=!editing||modeTransition||(item.needsObject&&!object)||value==='disabled';if(value==='true'||value==='false')b.setAttribute('aria-pressed',value);else b.removeAttribute('aria-pressed');}
-    undoButton.disabled=!editing||modeTransition||state('Undo')==='disabled';redoButton.disabled=!editing||modeTransition||state('Redo')==='disabled';
-    const back=header.querySelector('#studio-office-back');back.setAttribute('aria-label',editing?'보기로 전환':'돌아가기');back.disabled=modeTransition||!initialViewportRestored;
+    sync(modeLabel,'textContent',editing?'편집 중':'원본 보기');
+    attribute(modeButton,'aria-label','편집하기');
+    sync(modeButton,'hidden',Boolean(bridge()?.isStudioConversionOnly?.())||editing||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit');
+    sync(modeButton,'disabled',modeTransition||!initialViewportRestored);
+    sync(saveButton,'hidden',!editing&&!policy.changed);sync(saveButton,'disabled',modeTransition||!policy.changed);
+    sync(undoButton,'hidden',!editing);sync(redoButton,'hidden',!editing);
+    const search=header.querySelector('#studio-office-search');sync(search,'hidden',editing||!searchService());
+    for(const {b,item}of controls){const value=item.name&&state(item.name);sync(b,'disabled',Boolean(!editing||modeTransition||(item.needsObject&&!object)||value==='disabled'));if(value==='true'||value==='false')attribute(b,'aria-pressed',value);else if(b.hasAttribute('aria-pressed'))b.removeAttribute('aria-pressed');}
+    sync(undoButton,'disabled',!editing||modeTransition||state('Undo')==='disabled');sync(redoButton,'disabled',!editing||modeTransition||state('Redo')==='disabled');
+    const back=header.querySelector('#studio-office-back');attribute(back,'aria-label',editing?'보기로 전환':'돌아가기');sync(back,'disabled',modeTransition||!initialViewportRestored);
     const input=actions.querySelector('[aria-label="크기(pt)"]');if(input&&document.activeElement!==input){const value=state('FontHeight');if(value!==undefined&&Number.isFinite(Number(value))){input.value=Number(value)>0?value:'';input.placeholder=Number(value)>0?'':'혼합';}}
-    const font=actions.querySelector('[data-current-font]');if(font){const name=state('CharFontName')===undefined?'문서 글꼴':state('CharFontName')||'혼합 글꼴';font.textContent=name+(fonts().includes(name)?'':' · 대체 표시')+' ▾';font.setAttribute('aria-label','글꼴 선택');font.setAttribute('aria-description','현재 글꼴: '+name);}
-    hint.textContent=editing?'편집 중':'원본 보기';
+    const font=actions.querySelector('[data-current-font]');if(font){const name=state('CharFontName')===undefined?'문서 글꼴':state('CharFontName')||'혼합 글꼴';sync(font,'textContent',name+(fonts().includes(name)?'':' · 대체 표시')+' ▾');attribute(font,'aria-label','글꼴 선택');attribute(font,'aria-description','현재 글꼴: '+name);}
+    sync(hint,'textContent',editing?'편집 중':'원본 보기');
     const signature=JSON.stringify([map().getNumberOfParts?.(),map().getCurrentPartNumber?.(),map()._docLayer?._partNames,window.app?.calc?.getHiddenPartNameArray?.()]);
     if(signature!==partsSignature){partsSignature=signature;if(groupOpen&&['시트','슬라이드','슬라이드 목록'].includes(activeTab)){render();return;}}
     const context=currentContext();if(context!==previousContext){previousContext=context;if(groupOpen&&['그림','표','셀'].includes(activeTab))closeSheet();renderDock();}

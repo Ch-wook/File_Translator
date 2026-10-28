@@ -63,6 +63,27 @@ class ReadingUxTest {
         compose.runOnUiThread {assertSame(canvas,find(compose.activity.window.decorView,PdfObjectCanvas::class.java));assertSame(bitmap,canvas.bitmap)}
         assertEquals(hash,DocumentRepository.digest(vm.state.value.session!!.base))
     }
+    @Test fun longPdfJumpScrollAndReopenKeepsLastPageWithoutSaving(){
+        val file=File(compose.activity.cacheDir,"tests/reading-long-${UUID.randomUUID()}.pdf").apply {parentFile!!.mkdirs()}
+        com.tom_roush.pdfbox.pdmodel.PDDocument().use {doc->repeat(80){doc.addPage(com.tom_roush.pdfbox.pdmodel.PDPage())};doc.save(file)}
+        val uri=FileProvider.getUriForFile(compose.activity,compose.activity.packageName+".testfiles",file)
+        val hash=DocumentRepository.digest(file)
+        compose.runOnUiThread {vm.open(uri)};ready()
+        val id=vm.state.value.session!!.id
+        compose.onNodeWithContentDescription("문서 메뉴").performClick();compose.onNodeWithText("보기 설정").performClick()
+        compose.onNodeWithText("페이지 번호").performScrollTo().performTextReplacement("41")
+        compose.onNodeWithText("이동").performScrollTo().performClick()
+        compose.waitUntil(30000){var found=false;compose.runOnUiThread {found=find(compose.activity.window.decorView,PdfObjectCanvas::class.java)?.page==40};found}
+        compose.onNodeWithContentDescription("문서 메뉴").performClick();compose.onNodeWithText("보기 설정").performClick()
+        compose.onNodeWithTag("pdf-continuous-toggle").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("설정 닫기").performClick()
+        compose.onNodeWithContentDescription("PDF 연속 페이지 목록").performScrollToIndex(60)
+        compose.waitUntil(15000){compose.activity.getSharedPreferences("reading-position",0).getInt(id+":page",-1)==60}
+        compose.runOnUiThread {vm.home()};compose.waitForIdle()
+        compose.runOnUiThread {vm.restore(id)};ready()
+        compose.waitUntil(30000){var found=false;compose.runOnUiThread {found=find(compose.activity.window.decorView,PdfObjectCanvas::class.java)?.page==60};found}
+        assertFalse(vm.state.value.session!!.dirty);assertEquals(hash,DocumentRepository.digest(file))
+    }
     @Test fun markdownStartsFormattedAndSaveFailureKeepsEditableRecovery(){
         compose.runOnUiThread {vm.create(Format.MD)};ready()
         compose.waitUntil(15000){var found=false;compose.runOnUiThread {found=find(compose.activity.window.decorView,WebView::class.java)!=null};found}
