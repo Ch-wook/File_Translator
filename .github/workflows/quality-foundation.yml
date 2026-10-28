@@ -39,6 +39,15 @@ jobs:
           chmod +x gradlew
           python3 scripts/prepare-open-fixtures.py
           ./gradlew :core:prepareVisualFixtures :app:testDebugUnitTest --max-workers=2 --console=plain
+      - name: Show complete unit failure diagnostics
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import pathlib,xml.etree.ElementTree as E
+          for p in pathlib.Path('app/build/test-results').rglob('TEST-*.xml'):
+              for case in E.parse(p).getroot().iter('testcase'):
+                  for f in list(case.findall('failure'))+list(case.findall('error')):print('QUALITY_UNIT_FAILURE',case.attrib,(f.text or '')[:18000])
+          PY
       - name: Require all app unit tests and recovery cases
         run: |
           python3 - <<'PY'

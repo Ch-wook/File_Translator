@@ -55,8 +55,9 @@ class ProviderWrites(private val context: Context) {
         java.io.RandomAccessFile(File(root,"writes.lock"),"rw").use {file->file.channel.lock().use {block()}}
     }
     private fun syncDirectory(dir: File) {
-        val fd=android.system.Os.open(dir.path,android.system.OsConstants.O_RDONLY,0)
-        try {android.system.Os.fsync(fd)} finally {android.system.Os.close(fd)}
+        // NIO uses the real filesystem in both Android and the JVM storage tests.
+        // Opening a directory through Robolectric's Os.open emulation rejects it.
+        java.nio.channels.FileChannel.open(dir.toPath(),java.nio.file.StandardOpenOption.READ).use {it.force(true)}
     }
     private fun active(r: SaveRecovery)=r.phase in setOf("PREPARED","WRITING","VERIFIED","RECOVERY_REQUIRED")
     private fun digest(uri: Uri): String=context.contentResolver.openInputStream(uri)?.use {DocumentRepository.digestStreamForRecovery(it)}
