@@ -56,9 +56,10 @@ class NativeReadingPerformanceTest {
                 File(output,"${format.extension}-memory.txt").writeText(memory)
                 device.takeScreenshot(File(output,"${format.extension}-view.png"))
                 val close=timed {
-                    eval(if(hangul)"documentStudioHost.returnToWorkspace()" else "window.postMobileMessage('BYE')")
+                    runCatching {eval(if(hangul)"documentStudioHost.returnToWorkspace()" else "window.postMobileMessage('BYE')")}
                     waitFor(20000){device.executeShellCommand("pidof ${context.packageName}:${if(hangul)"hangul" else "office"}").trim().isEmpty()}
                     if(!hangul)runBlocking {assertFalse(repo.completeOfficeClose(s))}
+                    assertTrue("Durable close protocol must complete, not an unexpected process crash",File(working.path+".closed").isFile)
                 }
                 assertEquals(hash,DocumentRepository.digest(working));assertFalse(File(working.path+".edited").exists())
                 repo.acceptOffice(s);completed=true

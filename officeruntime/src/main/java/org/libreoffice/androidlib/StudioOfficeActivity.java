@@ -77,6 +77,18 @@ public final class StudioOfficeActivity extends LOActivity {
         }
     }
 
+    @Override protected void onPristineViewerClosed() {
+        // Called only after LOActivity proves that this successfully loaded reader
+        // never authorized editing and durably seals its private working bytes.
+        // Finish sends the result through ActivityTaskManager before the isolated
+        // process exits. Ending it here avoids WebView/window teardown waiting for
+        // the still-running native kit. Kernel cleanup releases the document lock;
+        // the parent still verifies that lock and the sealed hash before adoption.
+        onOfficeClosed();
+        finish();
+        android.os.Process.killProcess(android.os.Process.myPid());
+    }
+
     @Override protected void onDestroy() {
         onOfficeLifecycle("activity-destroyed");
         super.onDestroy();

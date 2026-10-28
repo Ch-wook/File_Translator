@@ -1260,6 +1260,7 @@ public class LOActivity extends AppCompatActivity {
     private boolean studioSaveOriginal;
     protected boolean shouldSaveOriginal() { return studioSaveOriginal; }
     protected void onOfficeClosed() { }
+    protected void onPristineViewerClosed() { mProgressDialog.dismiss(); onOfficeClosed(); finish(); }
     protected void onOfficeBeforeClose() throws IOException { }
     protected void onOfficeLifecycle(String stage) { }
     protected void onOfficeSaved() throws IOException { }
@@ -1387,7 +1388,7 @@ public class LOActivity extends AppCompatActivity {
                     java.util.concurrent.atomic.AtomicBoolean completed = new java.util.concurrent.atomic.AtomicBoolean();
                     Runnable complete = () -> {
                         if (completed.compareAndSet(false, true)) {
-                            mProgressDialog.dismiss(); onOfficeClosed(); finish();
+                            onPristineViewerClosed();
                         }
                     };
                     // System Back must capture the last scroll too. A dead renderer
