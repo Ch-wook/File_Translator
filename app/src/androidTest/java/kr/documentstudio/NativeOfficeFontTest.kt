@@ -202,6 +202,15 @@ class NativeOfficeFontTest {
             (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Calc replacement","7"))
             tap("시트");tap("더보기");tap("붙여넣기");SystemClock.sleep(400)
             tap("설정 닫기");go("A1");waitFor("Real paste changes the native cell"){eval("app.map._docLayer._lastFormula")=="7"}
+            eval("app.map._textInput._sendText('999')")
+            waitFor("Native cell edit controls are visible"){eval("document.querySelector('[aria-label=\"셀 입력\"]').hidden===false")=="true"}
+            tap("셀 입력 취소");go("B1");SystemClock.sleep(200);go("A1")
+            waitFor("Cancel preserves the previous cell value"){eval("app.map._docLayer._lastFormula")=="7"}
+            eval("app.map._textInput._sendText('7')")
+            waitFor("Native input can be explicitly accepted"){eval("document.querySelector('[aria-label=\"셀 입력\"]').hidden===false")=="true"}
+            tap("셀 입력 완료");go("B1");SystemClock.sleep(200);go("A1")
+            waitFor("Accept stores the current cell value"){eval("app.map._docLayer._lastFormula")=="7"}
+
             tap("서식");tap("글꼴 선택");tap("NanumGothic");tap("18");tap("굵게")
             tap("수식");tap("전체 다시 계산")
             tap("시트");tap("새 시트")

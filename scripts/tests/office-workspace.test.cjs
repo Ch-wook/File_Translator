@@ -214,3 +214,25 @@ test('Calc sheets use the actual native part API and require explicit deletion c
   const count=s.commands.length;s.click('현재 시트 삭제');assert.equal(s.commands.length,count);s.click('시트 삭제 확인');assert.deepEqual(s.commands.at(-1),{name:'deleteSheet',index:2});
  }finally{s.close();}
 });
+
+test('Impress navigation is available in VIEW without mutation and editing retains slide selection',()=>{
+ const s=workspace('presentation');try{
+  s.click('문서 메뉴');s.click('슬라이드 목록');s.click('슬라이드 1');assert.equal(s.viewport().part,0);assert.equal(s.commands.length,0);assert.equal(s.w.studioOffice.changed,false);
+  s.click('설정 닫기');s.click('편집하기');s.click('슬라이드');s.click('슬라이드 2');assert.equal(s.viewport().part,1);
+  s.click('슬라이드 삭제');assert.equal(s.commands.length,0);s.click('슬라이드 삭제 확인');assert.equal(s.commands.at(-1).name,'.uno:DeletePage');
+ }finally{s.close();}
+});
+test('hidden Calc sheets are not offered as visible tabs and the last visible sheet is protected',()=>{
+ const s=workspace('spreadsheet');try{
+  s.w.app.calc={getHiddenPartNameArray:()=>['HIDDEN_A','HIDDEN_B'],getHiddenPartCount:()=>2};s.w.app.map._docLayer._partNames=['HIDDEN_A','HIDDEN_B','VISIBLE'];
+  s.click('편집하기');s.click('시트');assert.equal(s.button('HIDDEN_A'),undefined);assert.ok(s.button('VISIBLE'));assert.equal(s.button('현재 시트 삭제').disabled,true);
+ }finally{s.close();}
+});
+test('Calc pending edit controls use the actual dispatcher and disappear in VIEW',()=>{
+ const s=workspace('spreadsheet');try{
+  const actions=[];s.w.app.dispatcher={dispatch:id=>actions.push(id)};s.w.app.file={textCursor:{visible:true}};
+  s.click('편집하기');s.tick();assert.equal(s.w.document.querySelector('[aria-label="셀 입력"]').hidden,false);
+  s.click('셀 입력 완료');s.click('셀 입력 취소');assert.deepEqual(actions,['acceptformula','cancelformula']);
+  s.click('보기로 전환');assert.equal(s.w.document.querySelector('[aria-label="셀 입력"]').hidden,true);
+ }finally{s.close();}
+});

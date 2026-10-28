@@ -25,7 +25,7 @@
   document.head.appendChild(style);
   let attempts = 0;
   const UI=window.StudioEditorUI;
-  let bar,actions,hint,tabs,modeButton,modeLabel,saveButton,header,bottom,sheet,undoButton,redoButton,picker,groupOpen=false,fontList=false,contextName='',previousContext='',partsSignature='';
+  let bar,actions,hint,tabs,modeButton,modeLabel,saveButton,header,bottom,sheet,undoButton,redoButton,cellActions,picker,groupOpen=false,fontList=false,contextName='',previousContext='',partsSignature='';
   let transitionViewport, persistTimer, lastViewport='';
   let activeTab = '글자';
   let modeTransition=false, transitionGeneration=0, ownedNativeRestore=null;
@@ -255,7 +255,8 @@
   }
   function update(){
     if(!bar)return;const editing=editable(),object=objectSelected();
-    bar.dataset.editing=String(editing);const searching=groupOpen&&activeTab==='찾기';bottom.hidden=!editing&&!searching;sheet.hidden=!groupOpen||(!editing&&!searching);tabs.hidden=!editing;
+    bar.dataset.editing=String(editing);const searching=groupOpen&&(activeTab==='찾기'||activeTab==='슬라이드 목록');bottom.hidden=!editing&&!searching;sheet.hidden=!groupOpen||(!editing&&!searching);tabs.hidden=!editing;
+    if(cellActions)cellActions.hidden=!(editing&&map().getDocType()==='spreadsheet'&&(window.app?.file?.textCursor?.visible||map().formulabar?.hasFocus?.()||map().formulabar?.isInEditMode?.()));
     modeLabel.textContent=editing?'편집 중':'원본 보기';
     modeButton.textContent='편집하기';modeButton.setAttribute('aria-label','편집하기');
     modeButton.hidden=editing||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit';
@@ -268,9 +269,9 @@
     const input=actions.querySelector('[aria-label="크기(pt)"]');if(input&&document.activeElement!==input){const value=state('FontHeight');if(value!==undefined&&Number.isFinite(Number(value))){input.value=Number(value)>0?value:'';input.placeholder=Number(value)>0?'':'혼합';}}
     const font=actions.querySelector('[data-current-font]');if(font){const name=state('CharFontName')===undefined?'문서 글꼴':state('CharFontName')||'혼합 글꼴';font.textContent=name+(fonts().includes(name)?'':' · 대체 표시')+' ▾';font.setAttribute('aria-label','글꼴 선택');font.setAttribute('aria-description','현재 글꼴: '+name);}
     hint.textContent=editing?'편집 중':'원본 보기';
-    const signature=JSON.stringify([map().getNumberOfParts?.(),map().getCurrentPartNumber?.(),map()._docLayer?._partNames]);
-    if(signature!==partsSignature){partsSignature=signature;if(groupOpen&&activeTab==='시트'){render();return;}}
-    const context=currentContext();if(context!==previousContext){previousContext=context;if(groupOpen&&['그림','표','셀','슬라이드'].includes(activeTab))closeSheet();renderDock();}
+    const signature=JSON.stringify([map().getNumberOfParts?.(),map().getCurrentPartNumber?.(),map()._docLayer?._partNames,window.app?.calc?.getHiddenPartNameArray?.()]);
+    if(signature!==partsSignature){partsSignature=signature;if(groupOpen&&['시트','슬라이드','슬라이드 목록'].includes(activeTab)){render();return;}}
+    const context=currentContext();if(context!==previousContext){previousContext=context;if(groupOpen&&['그림','표','셀'].includes(activeTab))closeSheet();renderDock();}
   }
   function row(){const r=document.createElement('div');r.className='studio-ui-fields';actions.append(r);return r;}
   function numeric(label,value,apply,options={}){const input=UI.field(row(),label,value,v=>{if(editable()&&!modeTransition){releaseViewportPin();apply(v);}},{min:1,max:4096,...options});input.disabled=!editable();return input;}
@@ -322,13 +323,13 @@
       const help=document.createElement('p');help.textContent='선택한 셀의 수식은 엔진 수식 입력줄 또는 함수 마법사에서 편집합니다. 계산은 LibreOffice가 수행합니다.';actions.append(help);
       button('더보기',()=>openSheet('더보기'));
     }else if(activeTab==='시트'){
-      const count=map().getNumberOfParts?.()||0,current=map().getCurrentPartNumber?.()||0;
-      for(let part=0;part<count;part++){const b=button(map()._docLayer?._partNames?.[part]||('시트 '+(part+1)),()=>{map().setPart(part);render();});b.setAttribute('aria-pressed',String(part===current));}
+      const count=map().getNumberOfParts?.()||0,current=map().getCurrentPartNumber?.()||0,hidden=new Set(window.app?.calc?.getHiddenPartNameArray?.()||[]);
+      for(let part=0;part<count;part++){if(hidden.has(map()._docLayer?._partNames?.[part]))continue;const b=button(map()._docLayer?._partNames?.[part]||('시트 '+(part+1)),()=>{map().setPart(part);render();});b.setAttribute('aria-pressed',String(part===current));}
       add({label:'새 시트',run:()=>{if(editable()&&typeof map().insertPage==='function')map().insertPage(count);}});
       add(command('시트 복제','DuplicateSheet'));add(command('행·열 고정','FreezePanes'));
       const rename=row(),input=document.createElement('input');input.type='text';input.value=map()._docLayer?._partNames?.[current]||'';input.setAttribute('aria-label','시트 이름');input.maxLength=31;rename.append(input);
       button('시트 이름 적용',()=>{if(!editable())return;const name=input.value.trim(),existing=map()._docLayer?._partNames||[];if(!name||/[\\/:*?\[\]]/.test(name)||existing.some((n,i)=>i!==current&&n.toLocaleLowerCase()===name.toLocaleLowerCase())){UI.toast('중복되거나 사용할 수 없는 시트 이름입니다.',true);return;}map().renamePage(name,current);},rename);
-      const del=button('현재 시트 삭제',()=>{if(!editable())return;const confirm=row(),note=document.createElement('span');note.textContent='선택한 시트와 내용을 삭제할까요?';confirm.append(note);button('시트 삭제 확인',()=>{if(!editable()||map().getCurrentPartNumber()!==current||map().getNumberOfParts()<=1){UI.toast('삭제할 시트를 다시 선택하세요.',true);return;}map().deletePage(current);render();},confirm);});del.disabled=count<=1;
+      const del=button('현재 시트 삭제',()=>{if(!editable())return;const confirm=row(),note=document.createElement('span');note.textContent='선택한 시트와 내용을 삭제할까요?';confirm.append(note);button('시트 삭제 확인',()=>{if(!editable()||map().getCurrentPartNumber()!==current||map().getNumberOfParts()-(window.app?.calc?.getHiddenPartCount?.()||0)<=1){UI.toast('삭제할 시트를 다시 선택하세요.',true);return;}map().deletePage(current);render();},confirm);});del.disabled=count-hidden.size<=1;
       button('더보기',()=>openSheet('더보기'));
     }else if(activeTab==='도형'){
       for(const [label,name]of [['텍스트 상자','Text'],['사각형','BasicShapes.rectangle'],['타원','BasicShapes.ellipse']])add(command(label,name));
@@ -346,8 +347,14 @@
       for(const [label,name]of [['텍스트 상자','Text'],['사각형','BasicShapes.rectangle'],['타원','BasicShapes.ellipse'],['하이퍼링크','HyperlinkDialog'],['특수문자','InsertSymbol']])add(command(label,name));
       if(family==='text')add(command('표 삽입','InsertTable'));
       if(family==='presentation')add(command('새 슬라이드','InsertPage'));
-    }else if(activeTab==='슬라이드'){
-      for(const [label,name]of [['새 슬라이드','InsertPage'],['슬라이드 복제','DuplicatePage'],['슬라이드 삭제','DeletePage']])add(command(label,name));
+    }else if(activeTab==='슬라이드'||activeTab==='슬라이드 목록'){
+      const count=map().getNumberOfParts?.()||0,current=map().getCurrentPartNumber?.()||0;
+      const list=row();list.setAttribute('aria-label','슬라이드 목록');
+      for(let part=0;part<count;part++){const b=button('슬라이드 '+(part+1),()=>{if(modeTransition)return;map().setPart(part);if(editable()){map().deselectAll?.();map().selectPart?.(part,1,false);}render();},list);b.setAttribute('aria-pressed',String(part===current));}
+      if(activeTab==='슬라이드'&&editable()){
+        add(command('새 슬라이드','InsertPage'));add(command('슬라이드 복제','DuplicatePage'));
+        const del=button('슬라이드 삭제',()=>{if(!editable()||map().getNumberOfParts()<=1)return;const confirm=row();button('슬라이드 삭제 확인',()=>{if(editable()&&map().getCurrentPartNumber()===current&&map().getNumberOfParts()>1)uno('DeletePage');},confirm);});del.disabled=count<=1;
+      }
     }else{
       for(const [label,name]of [['잘라내기','Cut'],['복사','Copy'],['붙여넣기','Paste'],['서식 없이 붙여넣기','PasteUnformatted'],['전체 선택','SelectAll'],['찾기·바꾸기','SearchDialog'],['글자 모양','FontDialog']])add(command(label,name));
       button(family==='presentation'?'슬라이드 도구':family==='spreadsheet'?'셀 도구':'표 도구',()=>openSheet(family==='presentation'?'슬라이드':family==='spreadsheet'?'셀':'표'));
@@ -381,9 +388,13 @@
     bottom=document.createElement('section');bottom.id='studio-office-bottom';bottom.setAttribute('aria-label','모바일 편집 도구');
     sheet=document.createElement('section');sheet.id='studio-office-sheet';sheet.hidden=true;UI.sheet(sheet,'글자',closeSheet);
     actions=document.createElement('div');actions.id='studio-office-actions';actions.setAttribute('role','toolbar');sheet.append(actions);
-    tabs=document.createElement('div');tabs.id='studio-office-tabs';tabs.className='studio-ui-dock';tabs.setAttribute('role','toolbar');tabs.setAttribute('aria-label','편집 도구');bottom.append(sheet,tabs);
+    tabs=document.createElement('div');tabs.id='studio-office-tabs';tabs.className='studio-ui-dock';tabs.setAttribute('role','toolbar');tabs.setAttribute('aria-label','편집 도구');cellActions=document.createElement('div');cellActions.className='studio-ui-fields';cellActions.hidden=true;cellActions.setAttribute('aria-label','셀 입력');
+    button('셀 입력 완료',()=>{if(editable())app.dispatcher?.dispatch('acceptformula');},cellActions);
+    button('셀 입력 취소',()=>{if(editable())app.dispatcher?.dispatch('cancelformula');},cellActions);
+    bottom.append(sheet,cellActions,tabs);
     const lower=document.getElementById('toolbar-down');if(lower)lower.before(bottom);else document.body.append(bottom);
     UI.popup(more,()=>[
+      {label:'슬라이드 목록',hidden:map().getDocType()!=='presentation',action:()=>openSheet('슬라이드 목록')},
       {label:editable()?'읽기 모드로 전환':'편집하기',hidden:!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit',disabled:modeTransition||!initialViewportRestored,action:()=>editable()?map().setPermission('readonly'):map()._switchToEditMode()},
       {label:editable()?'찾기·바꾸기':'찾기',disabled:!editable()&&!searchService(),action:()=>editable()?uno('SearchDialog'):openSheet('찾기')},
       {label:'확대 '+Math.round((map().getZoomScale?.(map().getZoom(),10)||1)*100)+'%',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(map().getZoom()+1);}},

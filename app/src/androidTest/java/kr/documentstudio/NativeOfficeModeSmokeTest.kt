@@ -154,6 +154,9 @@ class NativeOfficeModeSmokeTest {
                     tap("글자");tap("글꼴 선택");tap("NanumGothic");tap("18")
                     if(eval("app.map.stateChangeHandler.getItemValue('.uno:Bold')")!="true")tap("굵게")
                     tap("설정 닫기");tap("슬라이드");tap("새 슬라이드")
+                    await("The inserted slide is available",10000){eval("app.map.getNumberOfParts()")=="2"}
+                    tap("슬라이드 1");await("Slide list navigates to the original slide",10000){eval("app.map.getCurrentPartNumber()")=="0"}
+                    tap("슬라이드 2");await("Slide list navigates to the new slide",10000){eval("app.map.getCurrentPartNumber()")=="1"}
                 }
                 else -> error("Unexpected roundtrip format")
             }
