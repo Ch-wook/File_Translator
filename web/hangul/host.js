@@ -95,7 +95,7 @@ async function writePdf(){
  try{if(editing){await mobileUI.flush();await editor.finishInput();if(!await checkpoint())return;}}
  catch(error){message(error.message,true);return;}
  const restoreEditing=editing,view=editor.captureView();pending=true;switching=true;update();
- let cancelled=false;const cancel=document.createElement('button');cancel.textContent='변환 취소';cancel.onclick=()=>{cancelled=true;};status.after(cancel);
+ status.parentElement.dataset.operation='pdf';let cancelled=false;const cancel=document.createElement('button');cancel.textContent='변환 취소';cancel.onclick=()=>{cancelled=true;};status.after(cancel);
  try{
   // Freeze mutations in the actual engine for a consistent multi-page export.
   if(restoreEditing)await editor.setEditing(false);
@@ -107,10 +107,10 @@ async function writePdf(){
   }
   if(cancelled)throw Error('PDF 변환을 취소했습니다.');
   const result=JSON.parse(native.finishPdf());if(!result.ok)throw Error(result.error||'PDF 검증 실패');message('PDF 변환 완료 · '+count+'쪽');
- }catch(error){native.abortPdf();message(error.message,true);}
+ }catch(error){native.abortPdf();message(error.message,!cancelled);document.getElementById('discard').hidden=true;}
  finally{
   try{if(restoreEditing)await editor.setEditing(true);}catch(error){message(error.message,true);}
-  cancel.remove();pending=false;switching=false;update();await editor.restoreView(view);
+  cancel.remove();delete status.parentElement.dataset.operation;pending=false;switching=false;update();await editor.restoreView(view);
  }
 }
 window.documentStudioHost={writePdf,convertPdf,signature:()=>openSignature({editor,native,message}),

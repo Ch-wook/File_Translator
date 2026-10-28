@@ -3,9 +3,11 @@ export function openSignature({editor,native,message}) {
  const token=editor.mobile.capture(),root=document.createElement('section');root.className='studio-signature';root.setAttribute('role','dialog');root.setAttribute('aria-label','자필 서명 작성');
  const top=document.createElement('header'),canvas=document.createElement('canvas'),tools=document.createElement('div'),list=document.createElement('div');
  canvas.width=1200;canvas.height=700;canvas.setAttribute('aria-label','서명 입력 공간');canvas.style.touchAction='none';
+ const feedback=document.createElement('p');feedback.hidden=true;feedback.setAttribute('role','alert');feedback.style.color='#a23025';
+ const relay=message;message=(text,error=false)=>{if(error&&root.isConnected){feedback.textContent=String(text);feedback.hidden=false;feedback.scrollIntoView({block:'nearest'});}else relay(text,error);};
  const ctx=canvas.getContext('2d');let strokes=[],history=[],redo=[],active=null,color='#000000',width=5,eraser=false,pen=false;
  const close=()=>root.remove();
- function button(label,fn,parent=tools){const b=document.createElement('button');b.textContent=label;b.type='button';b.onclick=fn;parent.append(b);return b;}
+ function button(label,fn,parent=tools){const b=document.createElement('button');b.textContent=label;b.type='button';b.onclick=()=>{if(active)return;feedback.hidden=true;fn();};parent.append(b);return b;}
  button('취소',close,top);const title=document.createElement('strong');title.textContent='자필 서명 작성';top.append(title);
  button('초기화',()=>{if(confirm('작성한 서명을 모두 지울까요?')){history.push(structuredClone(strokes));strokes=[];redo=[];draw();}},top);
  function draw(){ctx.clearRect(0,0,1200,700);ctx.lineCap=ctx.lineJoin='round';for(const s of strokes){for(let i=0;i<s.points.length;i++){const a=s.points[Math.max(0,i-1)],b=s.points[i];ctx.strokeStyle=s.color;ctx.lineWidth=s.width*Math.max(.3,(a.p+b.p)/2);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x+.01,b.y+.01);ctx.stroke();}}}
@@ -25,5 +27,5 @@ export function openSignature({editor,native,message}) {
  function persist(){if(!native?.writeSignatures?.(JSON.stringify(library)))throw Error('서명 보관에 실패했습니다.');}
  function render(){list.replaceChildren();for(const s of library){const row=document.createElement('div'),img=document.createElement('img');img.src=s.png;img.alt=s.name;img.width=120;row.append(img);button(s.name,async()=>{try{await editor.placeSignature(s.png,s.w,s.h,token);close();message('서명을 넣을 위치를 누르세요.');}catch(e){message(e.message,true);}},row);button('수정',()=>{history.push(structuredClone(strokes));strokes=structuredClone(s.strokes||[]);redo=[];draw();},row);button('삭제',()=>{if(confirm('보관한 서명을 삭제할까요?')){library=library.filter(v=>v.id!==s.id);try{persist();render();}catch(e){message(e.message,true);}}},row);list.append(row);}}
  button('내 서명에 저장',()=>{try{if(library.length>=20)throw Error('최대 20개까지 보관합니다.');const p=png(),name=prompt('서명 이름','내 서명');if(!name)return;library.push({id:crypto.randomUUID(),name:name.slice(0,80),png:p.url,w:p.w,h:p.h,strokes:structuredClone(strokes)});persist();render();}catch(e){message(e.message,true);}});
- root.append(top,canvas,tools,note,list);document.body.append(root);render();
+ root.append(top,feedback,canvas,tools,note,list);document.body.append(root);render();
 }

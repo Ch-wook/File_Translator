@@ -18,3 +18,5 @@ body[data-state=LOADING] #status-row,body[data-state=ERROR] #status-row,#status-
 .studio-signature header,.studio-signature>div{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.studio-signature strong{flex:1}
 .studio-signature canvas{width:100%;flex:1;min-height:200px;max-height:60vh;border:1px solid #aab4bd;background:#fff}
 .studio-signature button{min-height:44px;padding:6px 12px}.studio-signature img{object-fit:contain}
+
+#status-row[data-operation=pdf]{display:flex;align-items:center;flex-wrap:wrap}

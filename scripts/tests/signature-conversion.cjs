@@ -40,6 +40,8 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   const insertion=await frame.locator('.caret').filter({visible:true}).first().boundingBox();assert.ok(insertion);
   await page.evaluate(()=>window.documentStudioHost.signature());
   const panel=page.locator('.studio-signature canvas');await panel.waitFor();
+  await page.locator('.studio-signature').getByRole('button',{name:'완료',exact:true}).click();
+  await page.locator('.studio-signature').getByRole('alert').filter({hasText:'서명을 먼저 작성하세요.'}).waitFor({state:'visible'});
   const box=await panel.boundingBox(),cdp=await context.newCDPSession(page);
   const touch=(type,x,y)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'?[]:[{x,y,id:1,radiusX:2,radiusY:2,force:1}]});
   const draw=async(a,b)=>{await touch('touchStart',a.x,a.y);for(let i=1;i<=12;i++)await touch('touchMove',a.x+(b.x-a.x)*i/12,a.y+(b.y-a.y)*i/12);await touch('touchEnd');};
@@ -67,8 +69,21 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   assert.equal(afterPages.length,beforePages.length);
   for(const [i,p] of afterPages.entries())fs.writeFileSync(path.join(out,format+'-after-'+i+'.png'),Buffer.from(p.png,'base64'));
   fs.writeFileSync(path.join(out,format+'-pages.json'),JSON.stringify(afterPages.map(({width,height})=>({width,height}))));
+  await frame.evaluate(()=>window.rhwpStudio.documentStudio.setEditing(true));
+  await page.evaluate(()=>{
+    window.__pdfAborted=false;window.__pdfFinished=false;
+    Object.assign(window.DocumentStudio,{beginPdf:()=>true,pdfPage:()=>true,finishPdf:()=>{window.__pdfFinished=true;return JSON.stringify({ok:true});},abortPdf:()=>window.__pdfAborted=true});
+    const original=window.setTimeout.bind(window);window.__originalTimeout=original;window.setTimeout=(fn,delay,...args)=>original(fn,delay===0?1000:delay,...args);
+    window.__pdfTask=window.documentStudioHost.writePdf();
+  });
+  const cancel=page.getByRole('button',{name:'변환 취소',exact:true});await cancel.waitFor({state:'visible'});
+  await assert.rejects(call('plainText','PDF_EXPORT_MUTATION'));
+  await cancel.click();await page.waitForFunction(()=>window.__pdfAborted&&!document.getElementById('save').disabled);
+  assert.equal(await page.evaluate(()=>window.__pdfFinished),false);assert.equal(await call('count','PDF_EXPORT_MUTATION'),0);
+  assert.equal(await frame.evaluate(()=>window.rhwpStudio.documentStudio.isEditing()),true);
+  await page.evaluate(()=>window.setTimeout=window.__originalTimeout);
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-  results.push({format,signatureTouch:true,tableTextPreserved:true,tableStructurePreserved:true,pages:afterPages.length,savedAndReopened:true});
+  results.push({format,signatureTouch:true,visibleSignatureErrors:true,pdfCancellation:true,exportMutationLocked:true,tableTextPreserved:true,tableStructurePreserved:true,pages:afterPages.length,savedAndReopened:true});
   await context.close();
  }
  fs.writeFileSync(path.join(out,'signature-results.json'),JSON.stringify(results,null,2));console.log('SIGNATURE_RESULTS',JSON.stringify(results));
