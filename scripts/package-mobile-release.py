@@ -4,7 +4,13 @@ import hashlib,json,os,pathlib,re,shutil,struct,subprocess,urllib.request,zipfil
 root=pathlib.Path.cwd();out=root/'artifacts/delivery';out.mkdir(parents=True,exist_ok=True)
 ci=root/'artifacts/ci';ci.mkdir(parents=True,exist_ok=True)
 tools=pathlib.Path(os.environ['ANDROID_HOME'])/'build-tools/35.0.0'
-name='document-studio-0.8.8-preview';pkg='kr.documentstudio.convertpreview';sha=os.environ['GITHUB_SHA']
+name='document-studio-0.8.8-preview';pkg='kr.documentstudio.convertpreview';sha=os.environ.get('STUDIO_APK_BUILD_SHA',os.environ['GITHUB_SHA'])
+# Recovery may add only delivery metadata; the preserved app code must be identical.
+source_sha=os.environ['GITHUB_SHA']
+if sha!=source_sha:
+    subprocess.run(['git','merge-base','--is-ancestor',sha,'HEAD'],check=True)
+    changes=subprocess.check_output(['git','diff','--name-only',sha,'HEAD'],text=True).splitlines()
+    assert all(p=='README.md' or p=='scripts/package-mobile-release.py' or p.startswith(('docs/','.github/workflows/')) for p in changes),changes
 def digest(path):
     with path.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
 def elf_alignments(z,entry):
@@ -74,7 +80,7 @@ for abi in ('arm64-v8a','x86_64'):
                  'sha256':digest(apk),'certificateSHA256':cert[0],'elf16k':True,'testOnly':False})
 assert apks[0]['certificateSHA256']==apks[1]['certificateSHA256']
 # Refuse a future incompatible update to this preview identity.
-with urllib.request.urlopen('https://api.github.com/repos/Ch-wook/File_Translator/releases?per_page=50',timeout=60) as response: releases=json.load(response)
+releases=json.loads(subprocess.check_output(['gh','api','repos/Ch-wook/File_Translator/releases?per_page=50'],text=True))
 for release in releases:
     if release['draft'] or release['tag_name']=='v0.8.8-preview':continue
     for asset in release.get('assets',[]):
@@ -143,10 +149,10 @@ for filename in ('pptx.json','docx.json','xlsx.json','portable.json','signature.
     assert all(value is True or key=='pages' for key,value in proof.items()),proof
 signatures=json.loads((root/'artifacts/signature-conversion/signature-results.json').read_text())
 assert len(signatures)==2 and all(r['savedAndReopened'] and r['tableStructurePreserved'] for r in signatures)
-metadata={'commit':sha,'physicalDeviceTested':False,'apks':apks}
+metadata={'commit':sha,'sourceArchiveCommit':source_sha,'physicalDeviceTested':False,'apks':apks}
 (out/(name+'-apk-metadata.json')).write_text(json.dumps(metadata,indent=2))
 (ci/'apk-engine-assets.json').write_text(json.dumps(engine_assets,indent=2))
-summary={'commit':sha,'version':'0.8.8-preview','applicationId':pkg,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],
+summary={'commit':sha,'sourceArchiveCommit':source_sha,'version':'0.8.8-preview','applicationId':pkg,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],
          'androidTests':android,'signatureConversionVerified':True,'signatureEngineTests':signatures,'unitTests':reports,'installation':install,'mobileEngineTests':mobile,'originalBrowserScenarios':len(old_browser),'javascriptTests':28,'independentPartialFormattingParser':True,'physicalDeviceTested':False,'nativeCalc':calc_result,'additionalBundledFontFamilies':6,'apks':apks}
 (ci/'summary.json').write_text(json.dumps(summary,indent=2))
 with zipfile.ZipFile(out/(name+'-verification.zip'),'w',zipfile.ZIP_DEFLATED) as z:
