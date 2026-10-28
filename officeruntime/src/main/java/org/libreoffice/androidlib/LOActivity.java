@@ -2032,8 +2032,7 @@ public class LOActivity extends AppCompatActivity {
                 final int count=pages;runOnUiThread(()->{
                     onPdfConversionCompleted(destination);
                     new AlertDialog.Builder(this).setTitle("PDF 변환 완료").setMessage(count+"쪽 PDF를 저장하고 다시 읽어 검증했습니다.").setPositiveButton("결과 열기",(d,w)->{
-                        Intent view=new Intent(Intent.ACTION_VIEW).setDataAndType(destination,"application/pdf").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                        view.setPackage(getPackageName());startActivity(view);
+                        Intent view=new Intent().setClassName(getPackageName(),"kr.documentstudio.ConversionPreviewActivity").setData(destination).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(view);
                     }).setNegativeButton("닫기",null).show();
                 });
             }catch(Exception failure){

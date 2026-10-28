@@ -28,7 +28,7 @@ private val readerSlots=Semaphore(2)
 /** Only composed pages own bitmaps. Leaving the lazy viewport releases them. */
 @Composable
 fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolean,horizontal: Boolean=false,
-                        onVisiblePage: (Int)->Unit,onEditPage: (Int)->Unit) {
+                        onVisiblePage: (Int)->Unit,onEditPage: ((Int)->Unit)?) {
     val count=s.pdf!!.pages
     val list=rememberLazyListState(page.coerceIn(0,count-1))
     val pager=rememberPagerState(initialPage=page.coerceIn(0,count-1),pageCount={count})
@@ -40,18 +40,18 @@ fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolea
         Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("${if(horizontal) "가로 보기" else "연속 보기"} ${(zoom*100).toInt()}%",style=MaterialTheme.typography.labelSmall)
             Slider(zoom,{zoom=it},valueRange=1f..3f,enabled=!busy,modifier=Modifier.weight(1f))
-            TextButton({onEditPage((if(horizontal) pager.currentPage else list.firstVisibleItemIndex).coerceIn(0,count-1))},enabled=!busy) {Text("현재 페이지 필기")}
+            if(onEditPage!=null) TextButton({onEditPage.invoke((if(horizontal) pager.currentPage else list.firstVisibleItemIndex).coerceIn(0,count-1))},enabled=!busy) {Text("현재 페이지 필기")}
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().background(Color(0xFFE5E5DF))) {
             val pageWidth=maxWidth*zoom
             if(horizontal) HorizontalPager(pager,modifier=Modifier.fillMaxSize().semantics {contentDescription="PDF 가로 페이지 목록"},userScrollEnabled=!busy && zoom==1f) {index ->
                 Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState()).padding(8.dp)) {
-                    Column(Modifier.width((pageWidth-16.dp).coerceAtLeast(1.dp))) {ContinuousPage(s,index,busy) {onEditPage(index)}}
+                    Column(Modifier.width((pageWidth-16.dp).coerceAtLeast(1.dp))) {ContinuousPage(s,index,busy,onEditPage?.let {callback->{callback(index)}})}
                 }
             } else Box(Modifier.fillMaxSize().horizontalScroll(rememberScrollState())) {
                 LazyColumn(Modifier.width(pageWidth).fillMaxHeight().semantics {contentDescription="PDF 연속 페이지 목록"},state=list,
                     contentPadding=PaddingValues(8.dp),verticalArrangement=Arrangement.spacedBy(12.dp),userScrollEnabled=!busy) {
-                    items(count,key={it}) {index -> ContinuousPage(s,index,busy) {onEditPage(index)}}
+                    items(count,key={it}) {index -> ContinuousPage(s,index,busy,onEditPage?.let {callback->{callback(index)}})}
                 }
             }
         }
@@ -60,7 +60,7 @@ fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolea
 }
 
 @Composable
-private fun ContinuousPage(s: Session,index: Int,busy: Boolean,edit: ()->Unit) {
+private fun ContinuousPage(s: Session,index: Int,busy: Boolean,edit: (()->Unit)?) {
     var retry by remember {mutableIntStateOf(0)}
     var failure by remember(s.base,index,retry) {mutableStateOf<String?>(null)}
     val ink=remember(s.edits.strokes,index) {s.edits.strokes.filter {it.anchor=="pdf:$index"}}
@@ -82,7 +82,7 @@ private fun ContinuousPage(s: Session,index: Int,busy: Boolean,edit: ()->Unit) {
     Column(Modifier.fillMaxWidth().background(Color.White).border(1.dp,Color.LightGray)) {
         Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("${index+1} 페이지",modifier=Modifier.weight(1f),style=MaterialTheme.typography.labelMedium)
-            TextButton(edit,enabled=!busy) {Text("${index+1}페이지 필기")}
+            if(edit!=null) TextButton(edit,enabled=!busy) {Text("${index+1}페이지 필기")}
         }
         bitmap?.let {Image(it.asImageBitmap(),"연속 보기 ${index+1}페이지",modifier=Modifier.fillMaxWidth().aspectRatio(it.width.toFloat()/it.height))}
             ?: Box(Modifier.fillMaxWidth().aspectRatio(595f/842f),contentAlignment=Alignment.Center) {

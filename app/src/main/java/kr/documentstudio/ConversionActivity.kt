@@ -111,7 +111,8 @@ class ConversionActivity: ComponentActivity() {
     private fun resultName()=(model.source?.name?.substringBeforeLast('.') ?: "변환결과")+"."+model.target
     private fun resultUri(): Uri=FileProvider.getUriForFile(this,packageName+".conversionfiles",requireNotNull(model.result))
     private fun openResult(){val uri=model.savedUri ?: resultUri();val view=Intent(Intent.ACTION_VIEW).setDataAndType(uri,mime(model.target)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        if(model.target in listOf("pdf","txt","md","hwpx"))view.setClass(this,MainActivity::class.java)
+        if(model.target=="pdf")view.setClass(this,ConversionPreviewActivity::class.java)
+        else if(model.target in listOf("txt","md","hwpx"))view.setClass(this,MainActivity::class.java)
         runCatching {startActivity(view)}.onFailure {model.status="이 결과를 열 수 있는 앱이 없습니다. 저장 또는 공유를 선택하세요."}
     }
     private fun startConversion(){

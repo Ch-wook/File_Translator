@@ -149,7 +149,7 @@ class HangulEditorActivity: ComponentActivity() {
             val pages=requireNotNull(pdfSession).finish();val uri=requireNotNull(pdfUri)
             kr.documentstudio.data.ConversionFiles.publish(this@HangulEditorActivity,requireNotNull(pdfFile),uri,intent.getStringExtra("originalUri"))
             convertedUri=uri.toString();abortPdf()
-            runOnUiThread {AlertDialog.Builder(this@HangulEditorActivity).setTitle("PDF 변환 완료").setMessage("${pages}쪽 PDF를 저장하고 다시 읽어 검증했습니다.").setPositiveButton("결과 열기"){_,_->startActivity(Intent(this@HangulEditorActivity,MainActivity::class.java).setAction(Intent.ACTION_VIEW).setDataAndType(uri,"application/pdf"))}.setNegativeButton("닫기",null).show()}
+            runOnUiThread {AlertDialog.Builder(this@HangulEditorActivity).setTitle("PDF 변환 완료").setMessage("${pages}쪽 PDF를 저장하고 다시 읽어 검증했습니다.").setPositiveButton("결과 열기"){_,_->startActivity(Intent(this@HangulEditorActivity,ConversionPreviewActivity::class.java).setData(uri))}.setNegativeButton("닫기",null).show()}
             JSONObject().put("ok",true).toString()
         }catch(e:Exception){abortPdf();JSONObject().put("ok",false).put("error",e.message).toString()}
         @JavascriptInterface fun abortPdf(){runCatching {pdfSession?.close()};pdfSession=null;pdfFile?.delete();pdfFile=null}

@@ -146,6 +146,10 @@ class ConversionIntegrationTest {
         var md=repo.create(Format.MD);md=md.copy(edits=md.edits.copy(text="# 제목\n\n**굵게**\n\n| A | B |\n|---|---|\n| 1 | 2 |\n"))
         assertTrue(PortableConversions.convert(context,md,"html").readText().contains("<table>"));assertTrue(PdfEngine.inspect(PortableConversions.convert(context,md,"pdf")).pages>=1)
         assertTrue(PortableConversions.convert(context,md,"txt").readText().contains("굵게"));assertEquals(hash,ConversionFiles.digest(txt.base))
+        context.startActivity(Intent(context,ConversionPreviewActivity::class.java).setData(uri(pdf)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        await("Converted PDF preview must render independently"){device.findObject(By.desc("연속 보기 1페이지"))!=null}
+        assertNull(device.findObject(By.text("현재 페이지 필기")))
+        NativeUiActions.tap(device,context.packageName,"닫기")
         File(output,"portable.json").writeText(JSONObject().put("txtPdf",true).put("mdPdfHtmlTxt",true).put("pdfPngJpgTxt",true).put("originalUnchanged",true).toString(2))
     }
 }
