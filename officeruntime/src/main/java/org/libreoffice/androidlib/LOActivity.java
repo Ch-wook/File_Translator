@@ -1380,7 +1380,7 @@ public class LOActivity extends AppCompatActivity {
             // the file lock and ends only this private process in onDestroy().
             // Edited, saving, failed-load and active PDF conversion sessions retain
             // the complete acknowledged-save + native BYE path below.
-            if (this instanceof StudioOfficeActivity && officeLoadFinished && !officeLoadFailed
+            if (this instanceof StudioOfficeActivity && !isStudioConversionOnly() && officeLoadFinished && !officeLoadFailed
                     && !studioEditEverAuthorized && !officeModified && !officeApprovedChanges
                     && !officeSaveInFlight && !studioPdfBusy) {
                 onOfficeLifecycle("readonly-close-sealed");

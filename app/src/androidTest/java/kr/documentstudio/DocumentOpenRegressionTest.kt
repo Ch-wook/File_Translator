@@ -74,6 +74,8 @@ class DocumentOpenRegressionTest {
         assertEquals("true",eval("setTimeout(()=>window.documentStudioHost.returnToWorkspace(),100);true"))
         assertTrue("Native WebView must close",device.wait(Until.gone(By.clazz("android.webkit.WebView").pkg(context.packageName)),20_000))
         device.waitForIdle(1_000)
+        NativeUiActions.refresh()
+        assertNull("The workspace must not show an unconnected search action after native viewing",device.findObject(By.pkg(context.packageName).desc("문서 검색")))
     }
     @Test fun contentUrisWithoutNameOrMimeReachActualHwpAndHwpxOriginalView()=runBlocking {
         val repo=DocumentRepository(context)

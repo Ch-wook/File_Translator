@@ -174,13 +174,13 @@ fun StudioApp(vm: EditorViewModel) {
                         IconButton(onClick={vm.redo()},enabled=!state.busy && vm.canRedo(s.id)) { Icon(Icons.AutoMirrored.Filled.Redo,"다시 실행") }
                         IconButton(onClick=save,enabled=!state.busy && s.dirty) { Icon(Icons.Default.Save,"저장") }
                         } else {
-                            IconButton(onClick={reader.search()},enabled=!state.busy) {Icon(Icons.Default.Search,"문서 검색")}
+                            if(s.format !in DocumentRepository.visualFormats)IconButton(onClick={reader.search()},enabled=!state.busy) {Icon(Icons.Default.Search,"문서 검색")}
                             IconButton(onClick={vm.beginEditing()},enabled=!state.busy && state.presentation(s.id)!=PresentationState.READ_ONLY,modifier=Modifier.testTag("edit-document")) {Icon(Icons.Default.Edit,"편집하기")}
                         }
                         var menu by remember { mutableStateOf(false) }
                         IconButton(onClick={menu=true},enabled=!state.busy) { Icon(Icons.Default.MoreVert,"문서 메뉴") }
                         DropdownMenu(expanded=menu,onDismissRequest={menu=false}) {
-                            if(!editing) {
+                            if(!editing && s.format !in DocumentRepository.visualFormats) {
                                 DropdownMenuItem(text={Text("전체 화면 보기")},onClick={menu=false;fullScreen=true})
                                 DropdownMenuItem(text={Text("보기 설정")},onClick={menu=false;reader.settings()})
                             }
@@ -223,14 +223,14 @@ fun StudioApp(vm: EditorViewModel) {
                     val left=state.tabs.firstOrNull {it.id==splitLeft};val right=state.tabs.firstOrNull {it.id==splitRight}
                     if(left!=null && right!=null) BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                         if(maxWidth>=840.dp) Row(Modifier.fillMaxSize()) {
-                            EditorPane(left,state,vm,openOffice,true,Modifier.weight(1f).fillMaxHeight(),"왼쪽")
-                            EditorPane(right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxHeight(),"오른쪽")
+                            EditorPane(left,state,vm,openOffice,true,Modifier.weight(1f).fillMaxHeight(),"왼쪽",reader=if(state.active==left.id)reader else null)
+                            EditorPane(right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxHeight(),"오른쪽",reader=if(state.active==right.id)reader else null)
                         } else if(maxHeight>=680.dp) Column(Modifier.fillMaxSize()) {
-                            EditorPane(left,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),"왼쪽")
-                            EditorPane(right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),"오른쪽")
+                            EditorPane(left,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),"왼쪽",reader=if(state.active==left.id)reader else null)
+                            EditorPane(right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),"오른쪽",reader=if(state.active==right.id)reader else null)
                         } else Column(Modifier.fillMaxSize()) {
                             Row {TextButton({vm.select(left.id)},enabled=!state.busy) {Text("왼쪽 문서")};TextButton({vm.select(right.id)},enabled=!state.busy) {Text("오른쪽 문서")};Text("좁은 창 · 선택한 문서 표시",style=MaterialTheme.typography.labelSmall)}
-                            EditorPane(if(state.active==left.id) left else right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),if(state.active==left.id) "왼쪽" else "오른쪽")
+                            EditorPane(if(state.active==left.id) left else right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),if(state.active==left.id) "왼쪽" else "오른쪽",reader=reader)
                         }
                     } else EditorPane(state.session!!,state,vm,openOffice,false,Modifier.weight(1f).fillMaxWidth(),reader=reader)
                 }

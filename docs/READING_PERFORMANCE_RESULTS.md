@@ -7,7 +7,7 @@
 
 | 경로 | 확인한 문제 | 수정 |
 |---|---|---|
-| 일반 읽기 화면 | 읽기 중 undo/redo/save 자리와 하단 48dp 보기 도구가 계속 표시됨 | 한 줄 헤더에 검색·편집·더보기; 세부 보기 도구는 필요할 때 표시 |
+| PDF·TXT·MD 읽기 화면 | 읽기 중 undo/redo/save 자리와 하단 48dp 보기 도구가 계속 표시됨 | 한 줄 헤더에 검색·편집·더보기; 세부 보기 도구는 필요할 때 표시 |
 | Office 호스트 | 로드 후에도 200ms마다 도구 상태/DOM/파트 목록 갱신 | 로드 확인 폴링 종료, 엔진 이벤트를 프레임당 한 번으로 묶음; 같은 속성·문자열 재기록 차단 |
 | Office 위치 보존 | 맵 이벤트가 없는 레이아웃 이동도 존재 | 위치 좌표 보정용 1초 샘플러 유지; 숨긴 문서에서는 실행하지 않음; 문서 전체 파싱이나 도구 재구성 없음 |
 | 한글 호스트 | 연속 엔진 이벤트마다 즉시 도구 상태 갱신 | 프레임 단위 병합; 기존 편집 보호·IME·안전한 저장 유지 |
@@ -24,7 +24,7 @@
 | 저장 실패 | 일반 작업 실패가 기존 문서를 ERROR 상태로 바꾸어 편집이 막힘 | 실제 로딩 실패와 저장 실패 구분; 최신 복구본·편집·재시도 유지 |
 
 외부 원본 저장의 충돌 검사·백업·해시 readback·실패 복원은 제거하지 않았습니다.
-변경 없는 문서의 네이티브 원본 저장 차단은 기존 기능으로 유지했습니다. 추가로 실제 편집을 한 번도 허용하지 않은 정상 로드 Office 읽기 세션은 작업 파일 해시를 봉인한 후 해당 전용 프로세스를 종료하여 네이티브 BYE 정리를 기다리지 않습니다. 편집 허용 이력·미저장 변경·저장 작업·PDF 변환 작업·로드 오류가 있으면 기존 저장 확인과 네이티브 종료 경로를 유지합니다.
+변경 없는 문서의 네이티브 원본 저장 차단은 기존 기능으로 유지했습니다. 추가로 실제 편집을 한 번도 허용하지 않은 정상 로드 Office 읽기 세션은 작업 파일 해시를 봉인한 후 해당 전용 프로세스를 종료하여 네이티브 BYE 정리를 기다리지 않습니다. 편집 허용 이력·미저장 변경·저장 작업·PDF 변환 작업·로드 오류 또는 전용 변환 세션이면 기존 저장 확인과 네이티브 종료 경로를 유지합니다.
 
 ## 형식별 화면과 유지 기능
 
@@ -67,7 +67,7 @@ Word 재배치 읽기·제목 탐색, PPT 썸네일 선행 준비·스와이프,
 
 구현: `EditorViewModel.kt`, `data/DocumentRepository.kt`, `data/DocumentTree.kt`, `data/PdfEngine.kt`, `ui/StudioApp.kt`, `FormatWorkspace.kt`, `MobileEditorControls.kt`, `LineNumberEditText.kt`, `MarkdownPreview.kt`, `PdfCanvasEditor.kt`, `PdfNavigation.kt`, `DocumentTools.kt`, `FolderBrowser.kt`, `WorkspaceHome.kt`; 한글 `host.js/index.html/engine-adapter.ts`; Office `studio-policy.js`, `LOActivity.java`; 공유 `shared/editor-ui/dist/*`.
 
-검증: `ReadingUxTest.kt`, `ReadingPerformanceTest.kt`, `NativeReadingPerformanceTest.kt`, `DocumentTreeTest.kt`, `VisualWorkingCopyTest.kt`, `scripts/tests/office-workspace.test.cjs`, `scripts/run-reading-performance.sh`; 빌드·설치·패키징 workflow와 0.8.9 프리뷰 식별 정보.
+검증: `ReadingUxTest.kt`, `ReadingPerformanceTest.kt`, `NativeReadingPerformanceTest.kt`, `DocumentTreeTest.kt`, `VisualWorkingCopyTest.kt`, `DocumentOpenRegressionTest.kt`, `scripts/tests/office-workspace.test.cjs`, `scripts/run-reading-performance.sh`; 빌드·설치·패키징 workflow와 0.8.9 프리뷰 식별 정보.
 
 ## 배포
 
