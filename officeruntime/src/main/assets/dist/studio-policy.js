@@ -256,7 +256,7 @@
   function update(){
     if(!bar)return;const editing=editable(),object=objectSelected();
     bar.dataset.editing=String(editing);const searching=groupOpen&&(activeTab==='찾기'||activeTab==='슬라이드 목록');bottom.hidden=!editing&&!searching;sheet.hidden=!groupOpen||(!editing&&!searching);tabs.hidden=!editing;
-    if(cellActions)cellActions.hidden=!(editing&&map().getDocType()==='spreadsheet'&&(window.app?.file?.textCursor?.visible||map().formulabar?.hasFocus?.()||map().formulabar?.isInEditMode?.()));
+    if(cellActions){const hidden=!(editing&&!modeTransition&&map().getDocType()==='spreadsheet'&&(window.app?.file?.textCursor?.visible||map().formulabar?.hasFocus?.()||map().formulabar?.isInEditMode?.()));if(cellActions.hidden!==hidden){cellActions.hidden=hidden;refreshLayout();}}
     modeLabel.textContent=editing?'편집 중':'원본 보기';
     modeButton.textContent='편집하기';modeButton.setAttribute('aria-label','편집하기');
     modeButton.hidden=editing||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit';
