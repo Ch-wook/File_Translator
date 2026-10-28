@@ -24,7 +24,7 @@
 | 저장 실패 | 일반 작업 실패가 기존 문서를 ERROR 상태로 바꾸어 편집이 막힘 | 실제 로딩 실패와 저장 실패 구분; 최신 복구본·편집·재시도 유지 |
 
 외부 원본 저장의 충돌 검사·백업·해시 readback·실패 복원은 제거하지 않았습니다.
-변경 없는 문서의 네이티브 원본 저장 차단은 기존 기능으로 유지했습니다. 새로 구현한 것으로 계산하지 않습니다.
+변경 없는 문서의 네이티브 원본 저장 차단은 기존 기능으로 유지했습니다. 추가로 실제 편집을 한 번도 허용하지 않은 정상 로드 Office 읽기 세션은 작업 파일 해시를 봉인한 후 해당 전용 프로세스를 종료하여 네이티브 BYE 정리를 기다리지 않습니다. 편집 허용 이력·미저장 변경·저장 작업·PDF 변환 작업·로드 오류가 있으면 기존 저장 확인과 네이티브 종료 경로를 유지합니다.
 
 ## 형식별 화면과 유지 기능
 
@@ -65,7 +65,7 @@ Word 재배치 읽기·제목 탐색, PPT 썸네일 선행 준비·스와이프,
 
 ## 변경 파일
 
-구현: `EditorViewModel.kt`, `data/DocumentRepository.kt`, `data/DocumentTree.kt`, `data/PdfEngine.kt`, `ui/StudioApp.kt`, `FormatWorkspace.kt`, `MobileEditorControls.kt`, `LineNumberEditText.kt`, `MarkdownPreview.kt`, `PdfCanvasEditor.kt`, `PdfNavigation.kt`, `DocumentTools.kt`, `FolderBrowser.kt`, `WorkspaceHome.kt`; 한글 `host.js/index.html/engine-adapter.ts`; Office `studio-policy.js`; 공유 `shared/editor-ui/dist/*`.
+구현: `EditorViewModel.kt`, `data/DocumentRepository.kt`, `data/DocumentTree.kt`, `data/PdfEngine.kt`, `ui/StudioApp.kt`, `FormatWorkspace.kt`, `MobileEditorControls.kt`, `LineNumberEditText.kt`, `MarkdownPreview.kt`, `PdfCanvasEditor.kt`, `PdfNavigation.kt`, `DocumentTools.kt`, `FolderBrowser.kt`, `WorkspaceHome.kt`; 한글 `host.js/index.html/engine-adapter.ts`; Office `studio-policy.js`, `LOActivity.java`; 공유 `shared/editor-ui/dist/*`.
 
 검증: `ReadingUxTest.kt`, `ReadingPerformanceTest.kt`, `NativeReadingPerformanceTest.kt`, `DocumentTreeTest.kt`, `VisualWorkingCopyTest.kt`, `scripts/tests/office-workspace.test.cjs`, `scripts/run-reading-performance.sh`; 빌드·설치·패키징 workflow와 0.8.9 프리뷰 식별 정보.
 

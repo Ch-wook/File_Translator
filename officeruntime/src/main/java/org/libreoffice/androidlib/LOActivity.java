@@ -1372,6 +1372,20 @@ public class LOActivity extends AppCompatActivity {
                 return;
             }
             documentLoaded = false;
+            // This final host owns an isolated process and a private working copy.
+            // A successfully loaded session that NEVER authorized editing has no
+            // document changes to flush. The durable close request above already
+            // seals its bytes. Finish the viewer now; StudioOfficeActivity releases
+            // the file lock and ends only this private process in onDestroy().
+            // Edited, saving, failed-load and active PDF conversion sessions retain
+            // the complete acknowledged-save + native BYE path below.
+            if (this instanceof StudioOfficeActivity && officeLoadFinished && !officeLoadFailed
+                    && !studioEditEverAuthorized && !officeModified && !officeApprovedChanges
+                    && !officeSaveInFlight && !studioPdfBusy) {
+                onOfficeLifecycle("readonly-close-sealed");
+                runOnUiThread(() -> { mProgressDialog.dismiss(); onOfficeClosed(); finish(); });
+                return;
+            }
             onOfficeLifecycle("sending-native-bye");
             postMobileMessageNative("BYE");
             onOfficeLifecycle("native-bye-returned");
