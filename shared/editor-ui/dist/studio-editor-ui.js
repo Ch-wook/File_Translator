@@ -91,7 +91,9 @@
    function end(e){
      const p=down;down=null;
      if(!p||p.id!==e.pointerId||editable()||e.defaultPrevented||e.timeStamp-p.time>220||Math.hypot(e.clientX-p.x,e.clientY-p.y)>8)return;
-     if(e.target?.closest?.('a,button,input,textarea,select,[contenteditable=true],[role=button],[role=menu],.studio-ui-popup,.studio-ui-sheet'))return;
+     // Native canvases handle text links, cells and selection themselves. Only the
+     // surrounding page gutter may auto-hide chrome; explicit fullscreen always works.
+     if(e.target?.closest?.('canvas,img,svg,a,button,input,textarea,select,[contenteditable=true],[role=button],[role=menu],.studio-ui-popup,.studio-ui-sheet'))return;
      const selected=root?.getSelection?.()||root?.ownerDocument?.getSelection?.();
      if(selected&&!selected.isCollapsed||!canToggle())return;
      set(!full);

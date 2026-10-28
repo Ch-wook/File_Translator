@@ -32,6 +32,13 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
     await frameForPinch.evaluate(view=>window.rhwpStudio.documentStudio.restoreView(view),before);
   }
   await pinchCheck();
+  const beforeFull=await frameForPinch.evaluate(()=>window.rhwpStudio.documentStudio.captureView());
+  await page.locator('#more').click();await page.getByRole('menuitem',{name:'전체 화면 보기',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('header').getBoundingClientRect().height===0);
+  assert.equal(await page.locator('#engine').evaluate(e=>e.getBoundingClientRect().height),viewport.height);
+  await page.getByRole('button',{name:'메뉴 표시',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('header').getBoundingClientRect().height===48);
+  await frameForPinch.waitForFunction(view=>{const now=window.rhwpStudio.documentStudio.captureView();return Math.abs(now.zoom-view.zoom)<.0001&&Math.abs(now.scrollTop-view.scrollTop)<2;},beforeFull);
   await page.locator('#mode').click();await page.waitForFunction(()=>document.body.dataset.state==='EDITING'&&!document.getElementById('mode').disabled);
   const metrics=()=>page.evaluate(()=>Object.fromEntries(['header','#status-row','#engine','#groups','#tools','#mobile-panel','#edit-dock','#detail-sheet'].map(key=>{const e=document.querySelector(key),r=e.getBoundingClientRect();return[key,{top:r.top,bottom:r.bottom,height:r.height,width:r.width,hidden:e.hidden}];})));
   await pinchCheck();

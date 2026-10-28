@@ -44,7 +44,12 @@ class ReadingUxTest {
         compose.onNodeWithContentDescription("문서 메뉴").performClick();compose.onNodeWithText("전체 화면 보기").performClick();compose.waitForIdle()
         compose.onNodeWithTag("mobile-editor-header").assertDoesNotExist()
         compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.apply {assertTrue(this.height>height);assertEquals(0,selectionStart);assertEquals(5,selectionEnd)}}
-        compose.onNodeWithContentDescription("메뉴 표시").performClick();compose.onNodeWithContentDescription("문서 검색").performClick()
+        compose.onNodeWithContentDescription("메뉴 표시").performClick();compose.waitForIdle()
+        val evidence=File(compose.activity.getExternalFilesDir(null),"native-reading-ux").apply {mkdirs()}
+        File(evidence,"restored-header.json").writeText(org.json.JSONObject().put("tree",compose.onRoot(useUnmergedTree=true).printToString()).put("editing",vm.state.value.presentation(vm.state.value.session!!.id).allowsMutation).toString())
+        compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.setSelection(0,0)}
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("문서 검색").performClick()
         compose.onNodeWithText("찾을 문자열").performTextInput("한글");compose.onNodeWithText("다음 결과").performClick()
         compose.onNodeWithText("바꿀 문자열").assertDoesNotExist();compose.onNodeWithText("모두 바꾸기").assertDoesNotExist()
         compose.onNodeWithText("닫기").performClick()
