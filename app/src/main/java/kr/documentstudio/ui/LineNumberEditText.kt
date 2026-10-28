@@ -9,6 +9,7 @@ import android.widget.EditText
 class LineNumberEditText(context: Context): EditText(context) {
     var showLineNumbers: Boolean=true
     var wrapLines: Boolean=true
+    var darkPage: Boolean=false
     var onSelectionUpdate: ((Int,Int)->Unit)?=null
     override fun onSelectionChanged(start: Int,end: Int) {
         super.onSelectionChanged(start,end)

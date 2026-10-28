@@ -30,6 +30,7 @@ class PdfEditorController {
     var selected by mutableStateOf<Any?>(null)
     var zoom by mutableFloatStateOf(1f)
     var setZoom: (Float)->Unit={}
+    var fitPage: ()->Unit={}
     var apply: ()->Unit={}
     var cancel: ()->Unit={}
     var deleteImage: ()->Unit={}
@@ -182,7 +183,7 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
     var failure by remember(s.base,page) {mutableStateOf<String?>(null)}
     var previewJob by remember {mutableStateOf<Job?>(null)}
     var previewRevision by remember {mutableIntStateOf(0)}
-    var zoom by rememberSaveable {mutableFloatStateOf(initialZoom.coerceIn(1f,3f))}
+    var zoom by rememberSaveable {mutableFloatStateOf(initialZoom.coerceIn(.25f,3f))}
     val owned=remember(s.base,page) {mutableSetOf<Bitmap>()}
     fun display(image: Bitmap) {val old=bitmap;bitmap=image;canvas?.bitmap=image;canvas?.invalidate();owned+=image;if(old!==image) {owned.remove(old);canvas?.post {old?.recycle()} ?: old?.recycle()}}
     suspend fun render(values: Map<String,String>,change: DocumentChange?=null): Triple<Bitmap,List<PdfBodyRun>,List<PdfImagePlacement>> {
@@ -245,7 +246,7 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
     }
     Column(Modifier.fillMaxSize().testTag("pdf-direct-editor")) {
         SideEffect {
-            controller?.selected=selected;controller?.zoom=zoom;controller?.setZoom={zoom=it.coerceIn(1f,3f)}
+            controller?.selected=selected;controller?.zoom=zoom;controller?.setZoom={zoom=it.coerceIn(.25f,3f)}
             controller?.apply={canvas?.clearSelection()}
             controller?.cancel={
                 val text=selected as? PdfBodyRun
@@ -258,10 +259,11 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val pageWidth=(maxWidth-24.dp).coerceAtLeast(1.dp)
             val image=bitmap
+            SideEffect {controller?.fitPage={if(image!=null)zoom=((maxHeight.value-24).coerceAtLeast(1f)/(pageWidth.value*image.height/image.width)).coerceIn(.25f,3f)}}
             if(image==null) Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {if(failure==null) CircularProgressIndicator() else Text("페이지를 편집 가능한 상태로 표시하지 못했습니다.")}
             else Box(Modifier.fillMaxSize().verticalScroll(verticalPosition).horizontalScroll(horizontalPosition).padding(12.dp)) {
                 AndroidView(factory={context->PdfObjectCanvas(context).also {canvas=it}},update={view->
-                    view.bitmap=image;view.page=page;view.onScale={factor->zoom=(zoom*factor).coerceIn(1f,3f)};view.editable=!busy && !readOnly;view.textRuns=runs;view.images=images;view.onSelection={selected=it}
+                    view.bitmap=image;view.page=page;view.onScale={factor->zoom=(zoom*factor).coerceIn(.25f,3f)};view.editable=!busy && !readOnly;view.textRuns=runs;view.images=images;view.onSelection={selected=it}
                     (view.selection as? PdfBodyRun)?.let {run->
                         val pending=s.edits.values[PdfTextEdits.key(page,run.id)]
                         val value=pending?.let {org.json.JSONObject(it).getString("text")} ?: runs.firstOrNull {it.id==run.id}?.text

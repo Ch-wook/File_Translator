@@ -17,19 +17,19 @@ import org.commonmark.renderer.html.HtmlRenderer
 import org.commonmark.ext.gfm.tables.TablesExtension
 
 @Composable
-fun MarkdownPreview(text: String,busy: Boolean=false,onChange: (String)->Unit={},viewportKey: String?=null) {
+fun MarkdownPreview(text: String,busy: Boolean=false,onChange: (String)->Unit={},viewportKey: String?=null,dark: Boolean=false) {
     val context=androidx.compose.ui.platform.LocalContext.current
     val preferences=remember {context.getSharedPreferences("reading-position",0)}
     val token=remember {java.util.UUID.randomUUID().toString()}
     val latest by rememberUpdatedState(text);val change by rememberUpdatedState(onChange);val disabled by rememberUpdatedState(busy)
     val displayed=remember {arrayOf("")}
-    val html by produceState("",text) {
+    val html by produceState("",text,dark) {
         delay(150)
         value=withContext(Dispatchers.Default) {
             val extensions=listOf(TablesExtension.create())
             val parser=Parser.builder().extensions(extensions).build()
             val renderer=HtmlRenderer.builder().extensions(extensions).escapeHtml(true).sanitizeUrls(true).build()
-            """<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>body{font:16px sans-serif;line-height:1.7;padding:12px;color:#24382f;overflow-wrap:anywhere}code{font-family:monospace}pre{line-height:1.5;background:#f2f2ed;padding:12px;overflow:auto}blockquote{border-left:3px solid #315d54;padding-left:12px}table{border-collapse:collapse;display:block;max-width:100%;overflow-x:auto}td,th{padding:8px;border:1px solid #ccc}a{color:#315d54}img{display:none}</style></head><body>${MarkdownTasks.html(text,token)}</body></html>"""
+            """<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>body{font:16px sans-serif;line-height:1.7;padding:12px;color:${if(dark)"#e7eaf0" else "#24382f"};background:${if(dark)"#1b1e24" else "#fff"};overflow-wrap:anywhere}code{font-family:monospace}pre{line-height:1.5;background:${if(dark)"#303640" else "#f2f2ed"};padding:12px;overflow:auto}blockquote{border-left:3px solid #315d54;padding-left:12px}table{border-collapse:collapse;display:block;max-width:100%;overflow-x:auto}td,th{padding:8px;border:1px solid #ccc}a{color:#315d54}img{display:none}</style></head><body>${MarkdownTasks.html(text,token)}</body></html>"""
         }
     }
     AndroidView(factory={context -> WebView(context).apply {

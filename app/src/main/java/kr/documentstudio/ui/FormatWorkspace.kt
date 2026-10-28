@@ -44,6 +44,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     val preferences=remember {context.getSharedPreferences("editor-display",0)}
     var displayFont by rememberSaveable {mutableStateOf(preferences.getString("font","고정폭") ?: "고정폭")}
     var displaySize by rememberSaveable {mutableFloatStateOf(preferences.getFloat("size",settings.fontSize))}
+    var dark by rememberSaveable {mutableStateOf(preferences.getBoolean("dark",false))}
     var lineNumbers by rememberSaveable {mutableStateOf(preferences.getBoolean("lineNumbers",true))}
     val textStats=remember(s.edits.text){s.edits.text.codePointCount(0,s.edits.text.length) to (1+s.edits.text.count {it=='\n'})}
     var fontList by rememberSaveable {mutableStateOf(false)}
@@ -78,8 +79,8 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                 editing && ink->DrawingPage(s,null,page,settings,vm,busy)
                 s.format==Format.PDF && !editing && continuous->PdfContinuousReader(s,page,0,busy,onVisiblePage=navigate,onEditPage=null)
                 s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController,initialZoom=readingZoom)
-                preview && s.format==Format.MD->MarkdownPreview(s.edits.text,busy || !editing,vm::text,viewportKey=s.id)
-                else->NativeTextEditor(s.edits.text,displaySize,busy,wrap,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont,showLineNumbers=lineNumbers,viewportKey=s.id)
+                preview && s.format==Format.MD->MarkdownPreview(s.edits.text,busy || !editing,vm::text,viewportKey=s.id,dark=dark)
+                else->NativeTextEditor(s.edits.text,displaySize,busy,wrap,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont,showLineNumbers=lineNumbers,viewportKey=s.id,dark=dark)
             }
         }
         if(panel!=null) MobileEditorSheet(if(fontList)"보기 글꼴" else if(s.format==Format.TXT && panel=="글자")"보기 설정" else panel!!,sheetLimit,{panel=null;fontList=false;if(editing&&s.format!=Format.PDF)textController.focus()}) {
@@ -151,12 +152,13 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                     if(editing)Tool("저장 인코딩"){encoding=true}
                     Tool("보기 글꼴·크기"){panel="글자"}
                     Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(wrap,{wrap=it;preferences.edit().putBoolean("wrap",it).apply()});Text("자동 줄바꿈")}
+                    Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(dark,{dark=it;preferences.edit().putBoolean("dark",it).apply()});Text("어두운 보기")}
                     Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(lineNumbers,{lineNumbers=it;preferences.edit().putBoolean("lineNumbers",it).apply()});Text("줄 번호")}
                     Text("${textStats.first}자 · ${textStats.second}줄",style=MaterialTheme.typography.bodySmall)
                 } else {
                     if(!editing) Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(continuous,{continuous=it});Text("연속 페이지 보기")}
                     Row(verticalAlignment=Alignment.CenterVertically) {Tool("이전 페이지"){navigate(page-1)};Text("${page+1} / ${s.pdf!!.pages}");Tool("다음 페이지"){navigate(page+1)}}
-                    Row(verticalAlignment=Alignment.CenterVertically) {Tool("축소"){pdfController.setZoom(pdfController.zoom-.25f)};Text("${(pdfController.zoom*100).toInt()}%");Tool("확대"){pdfController.setZoom(pdfController.zoom+.25f)};Tool("너비 맞춤"){pdfController.setZoom(1f)}}
+                    Row(verticalAlignment=Alignment.CenterVertically) {Tool("축소"){pdfController.setZoom(pdfController.zoom-.25f)};Text("${(pdfController.zoom*100).toInt()}%");Tool("확대"){pdfController.setZoom(pdfController.zoom+.25f)};Tool("너비 맞춤"){pdfController.setZoom(1f)};Tool("전체 페이지 맞춤"){pdfController.fitPage()}}
                     Tool("PDF 검색"){panel="PDF 검색"}
                     if(editing){Row{Tool("페이지 도구"){panel="페이지"};Tool("주석"){panel="주석"}};DocumentTools(s,null,vm,busy,page,navigate,"편집"){ocr=true}}
                 }

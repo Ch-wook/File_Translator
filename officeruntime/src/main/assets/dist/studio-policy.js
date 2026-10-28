@@ -195,7 +195,7 @@
       const generation=beginModeTransition(value);traceRestore('begin-edit',value);
       policy.authorized=true;policy.wasAuthorized=true;
       const result=enter.apply(this,args);traceRestore('edit-returned',value);
-      update();refreshLayout();settleModeTransition(value,generation);return result;
+      updateNow();refreshLayout();settleModeTransition(value,generation);return result;
     };
     const permission=m.setPermission;
     m.setPermission=function(value,...args) {
@@ -206,7 +206,7 @@
       // Upstream commits a pending Calc cell before entering read-only mode.
       // Do not revoke the gate before that commit has reached the native core.
       if (value==='readonly' || value==='view') policy.authorized=false;
-      update();refreshLayout();settleModeTransition(viewport,generation);return result;
+      updateNow();refreshLayout();settleModeTransition(viewport,generation);return result;
     };
     return true;
   }

@@ -143,14 +143,33 @@ fun DocumentTools(s: Session,sec: Section?,vm: DocumentActions,busy: Boolean,pag
 @Composable
 private fun PdfTextAndForms(s: Session,page: Int,vm: DocumentActions,busy: Boolean,navigate: (Int)->Unit,category: String) {
     var bodyEditor by remember {mutableStateOf(false)}
+    var copyPageText by remember {mutableStateOf(false)}
     var imageEditor by remember {mutableStateOf(false)}
     var forms by remember {mutableStateOf(false)};var text by remember {mutableStateOf(false)};var annotations by remember {mutableStateOf(false)};var search by remember {mutableStateOf(false)}
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp)) {
         if(category in listOf("보기","페이지")) PdfNavigationActions(s,page,vm,busy,navigate)
+        if(category=="보기")TextButton({copyPageText=true},enabled=!busy) {Text("페이지 텍스트 복사")}
 
 
         if(category=="주석") TextButton({text=true},enabled=!busy) {Text("텍스트 선택")};if(category=="주석") TextButton({annotations=true},enabled=!busy) {Text("주석 관리")};if(category=="보기") TextButton({search=true},enabled=!busy) {Text("PDF 검색")}
         if(category=="편집") TextButton({forms=true},enabled=!busy && s.pdf!!.forms.isNotEmpty()) {Text("양식 (${s.pdf!!.forms.size})")}
+    }
+    if(copyPageText) {
+        val content by produceState<String?>(null,s.base,page,s.edits.values) {
+            value=withContext(Dispatchers.IO) {
+                runCatching {
+                    if(s.edits.values.isEmpty())PdfEngine.text(s.base,page)
+                    else {
+                        val stage=java.io.File.createTempFile("reading-text-",".pdf",s.base.parentFile)
+                        try {PdfEngine.write(s.base,stage,emptyList(),false,s.edits.values,s.edits.layers);PdfEngine.text(stage,page)} finally {stage.delete()}
+                    }
+                }.getOrElse {it.message ?: "텍스트를 읽지 못했습니다."}
+            }
+        }
+        AlertDialog(onDismissRequest={copyPageText=false},title={Text("페이지 텍스트 · "+(page+1))},text={
+            if(content==null)LinearProgressIndicator()
+            else SelectionContainer {Text(content!!.ifBlank {"텍스트 정보가 없는 페이지입니다. OCR은 별도 기능입니다."},modifier=Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState()))}
+        },confirmButton={TextButton({copyPageText=false}){Text("닫기")}})
     }
     if(forms) AlertDialog(onDismissRequest={forms=false},title={Text("PDF 양식")},text={Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState())) {
         s.pdf!!.forms.forEach {f ->
