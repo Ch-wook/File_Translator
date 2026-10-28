@@ -36,6 +36,7 @@ class NativeHangulEditingTest {
     private val provider get()=Uri.parse("content://"+context.packageName+".hangulprobe")
     private val output get()=File(context.getExternalFilesDir(null),"native-hangul-editing").apply {mkdirs()}
     private var sequence=0
+    private val imeCommands=org.json.JSONArray()
     private fun probe(method: String,arg: String?=null,data: Bundle?=null): Bundle =
         requireNotNull(context.contentResolver.call(provider,method,arg,data))
     private fun value(expression: String): Any? {
@@ -59,7 +60,8 @@ class NativeHangulEditingTest {
         val id=++sequence
         probe("ime",data=Bundle().apply {putString("command",command);putString("text",text);putInt("key",key);putInt("sequence",id)})
         await("The actual Android InputConnection command must be acknowledged: "+command) {imeStatus().optInt("sequence")==id}
-        assertTrue("Android InputConnection must accept "+command,imeStatus().optBoolean("accepted"))
+        val acknowledged=imeStatus();imeCommands.put(acknowledged)
+        assertTrue("Android InputConnection must accept "+command,acknowledged.optBoolean("accepted"))
     }
     private fun imeStatus(): JSONObject=runCatching {
         JSONObject(device.executeShellCommand("run-as "+instrumentation.context.packageName+" cat files/ime-fixture-status.json"))
@@ -155,7 +157,13 @@ class NativeHangulEditingTest {
             assertEquals("Opening and editing the panel must preserve the document range",rangeBefore,mJson("capture()").getJSONObject("range").toString())
             tapVisibleControl("설정 완료")
             probe("show-ime")
+            // A fixture acknowledgement confirms dispatch, not that WebView has
+            // switched away from the numeric field or consumed the arrow key.
+            awaitConnection(1)
             ime("key",key=KeyEvent.KEYCODE_DPAD_RIGHT)
+            await("The document must consume Right and collapse its retained selection before typing") {
+                !mJson("state()").optBoolean("selection") && mCount("IME_START|한국어가가")==1
+            }
             ime("commit"," ABC123")
             await("Typing must continue at the retained document cursor") {mCount("IME_START|한국어 ABC123가가")==1}
             eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('한국어');document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.copy()")
@@ -224,13 +232,13 @@ class NativeHangulEditingTest {
             closed=true
             val evidence=JSONObject().put("format",format.extension).put("actualAndroidInputConnection",true).put("imeFixtureOnlyInTestApk",true)
                 .put("koreanComposition",true).put("repeatedSyllables",true).put("selectedReplacement",true).put("panelSelectionRetained",true)
-                .put("cellKoreanInput",true).put("cellScopedCharacterFormat",true).put("androidHtmlClipboard",true).put("atomicSelectionReplacementUndo",true)
+                .put("panelImeReconnected",true).put("arrowAppliedBeforeTyping",true).put("cellKoreanInput",true).put("cellScopedCharacterFormat",true).put("androidHtmlClipboard",true).put("atomicSelectionReplacementUndo",true)
                 .put("independentParserReopen",true).put("engineReopen",true).put("originalHashBefore",baseline)
                 .put("savedFileHash",originalHash).put("viewport",viewport).put("physicalKeyboardDeviceTested",false)
             File(output,format.extension+"-editing.json").writeText(evidence.toString(2))
         } catch(error: Throwable) {
             runCatching {device.takeScreenshot(File(output,format.extension+"-failure.png"));device.dumpWindowHierarchy(File(output,format.extension+"-failure.xml"))}
-            runCatching {File(output,format.extension+"-failure.json").writeText(JSONObject().put("error",error.toString()).put("cursorText",m("cursorText()")).put("ime",imeStatus()).put("state",mJson("state()")).toString(2))}
+            runCatching {File(output,format.extension+"-failure.json").writeText(JSONObject().put("error",error.toString()).put("cursorText",m("cursorText()")).put("ime",imeStatus()).put("imeCommands",imeCommands).put("state",mJson("state()")).toString(2))}
             throw error
         } finally {
             if(previousIme.isNotBlank() && previousIme!="null")device.executeShellCommand("ime set "+previousIme)
