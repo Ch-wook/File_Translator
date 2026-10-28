@@ -30,9 +30,9 @@ class ConversionIntegrationTest {
     private fun await(label: String,timeout: Long=60000,condition: ()->Boolean){val end=SystemClock.uptimeMillis()+timeout;while(SystemClock.uptimeMillis()<end){if(runCatching(condition).getOrDefault(false))return;SystemClock.sleep(200)};device.takeScreenshot(File(output,"failure.png"));error(label)}
     private fun probe(method: String,arg: String?=null)=context.contentResolver.acquireUnstableContentProviderClient(Uri.parse("content://"+context.packageName+".officeprobe")).use {requireNotNull(it).call(method,arg,null)}
     private fun uri(file: File)=FileProvider.getUriForFile(context,context.packageName+if(file.canonicalPath.startsWith(File(context.cacheDir,"conversions").canonicalPath+"/"))".conversionfiles" else ".testfiles",file)
-    @Test fun pptxTenSlidesToPdf()=nativePdf("pptx",10,listOf("TEST_SLIDE_01","TEST_SLIDE_10","TABLE"))
-    @Test fun docxPagesToPdf()=nativePdf("docx",2,listOf("DOCX_PAGE_ONE","DOCX_PAGE_TWO","HEADER_TEST","FOOTER_TEST","TABLE_TEST"))
-    @Test fun xlsxSheetsToPdf()=nativePdf("xlsx",2,listOf("XLSX_SHEET_ONE","XLSX_SHEET_TWO","42"))
+    @Test fun pptxTenSlidesToPdf(){nativePdf("pptx",10,listOf("TEST_SLIDE_01","TEST_SLIDE_10","TABLE"))}
+    @Test fun docxPagesToPdf(){nativePdf("docx",2,listOf("DOCX_PAGE_ONE","DOCX_PAGE_TWO","HEADER_TEST","FOOTER_TEST","TABLE_TEST"))}
+    @Test fun xlsxSheetsToPdf(){nativePdf("xlsx",2,listOf("XLSX_SHEET_ONE","XLSX_SHEET_TWO","42"))}
     private fun nativePdf(ext: String,pages: Int,tokens: List<String>)=runBlocking {
         device.wakeUp();device.executeShellCommand("am force-stop com.android.launcher3")
         val dir=File(context.cacheDir,"tests/conversion-"+ext).apply {mkdirs()}
