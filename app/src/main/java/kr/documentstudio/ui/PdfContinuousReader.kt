@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.semantics.contentDescription
@@ -28,16 +29,25 @@ private val readerSlots=Semaphore(2)
 /** Only composed pages own bitmaps. Leaving the lazy viewport releases them. */
 @Composable
 fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolean,horizontal: Boolean=false,
-                        onVisiblePage: (Int)->Unit,onEditPage: ((Int)->Unit)?,initialZoom: Float=1f,onZoomChanged: (Float)->Unit={}) {
+                        onVisiblePage: (Int)->Unit,onEditPage: ((Int)->Unit)?,initialZoom: Float=1f,onZoomChanged: (Float)->Unit={},initialOffset: Int=0,onPositionChanged: (Int,Int)->Unit={_,_->}) {
     val count=s.pdf!!.pages
-    val list=rememberLazyListState(page.coerceIn(0,count-1))
+    val list=rememberLazyListState(page.coerceIn(0,count-1),initialOffset.coerceAtLeast(0))
+    var seenNavigation by remember {mutableIntStateOf(navigationRequest)}
     val pager=rememberPagerState(initialPage=page.coerceIn(0,count-1),pageCount={count})
     var zoom by rememberSaveable {mutableFloatStateOf(initialZoom.coerceIn(1f,3f))}
     val zoomChanged by rememberUpdatedState(onZoomChanged)
     LaunchedEffect(zoom){zoomChanged(zoom)}
     val visiblePage by rememberUpdatedState(onVisiblePage)
-    LaunchedEffect(s.base,navigationRequest,horizontal) {if(horizontal) pager.scrollToPage(page.coerceIn(0,count-1)) else list.scrollToItem(page.coerceIn(0,count-1))}
-    LaunchedEffect(list,pager,count,horizontal) {snapshotFlow {if(horizontal) pager.currentPage else list.firstVisibleItemIndex}.collect {visiblePage(it.coerceIn(0,count-1))}}
+    val positionChanged by rememberUpdatedState(onPositionChanged)
+    LaunchedEffect(s.base,navigationRequest,horizontal) {if(seenNavigation!=navigationRequest){if(horizontal)pager.scrollToPage(page.coerceIn(0,count-1)) else list.scrollToItem(page.coerceIn(0,count-1));seenNavigation=navigationRequest}}
+    LaunchedEffect(list,pager,count,horizontal) {
+        var previousPage=-1
+        snapshotFlow {if(horizontal)pager.currentPage to 0 else list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset}.collect {(index,offset)->
+            val current=index.coerceIn(0,count-1)
+            if(previousPage!=current){visiblePage(current);previousPage=current}
+            positionChanged(current,offset)
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("${if(horizontal) "가로 보기" else "연속 보기"} ${(zoom*100).toInt()}%",style=MaterialTheme.typography.labelSmall)
@@ -51,7 +61,7 @@ fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolea
                     Column(Modifier.width((pageWidth-16.dp).coerceAtLeast(1.dp))) {ContinuousPage(s,index,busy,onEditPage?.let {callback->{callback(index)}})}
                 }
             } else Box(Modifier.fillMaxSize().horizontalScroll(rememberScrollState())) {
-                LazyColumn(Modifier.width(pageWidth).fillMaxHeight().semantics {contentDescription="PDF 연속 페이지 목록"},state=list,
+                LazyColumn(Modifier.width(pageWidth).fillMaxHeight().semantics {contentDescription="PDF 연속 페이지 목록";stateDescription="${list.firstVisibleItemIndex}:${list.firstVisibleItemScrollOffset}"},state=list,
                     contentPadding=PaddingValues(8.dp),verticalArrangement=Arrangement.spacedBy(12.dp),userScrollEnabled=!busy) {
                     items(count,key={it}) {index -> ContinuousPage(s,index,busy,onEditPage?.let {callback->{callback(index)}})}
                 }
@@ -63,25 +73,35 @@ fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolea
 
 @Composable
 private fun ContinuousPage(s: Session,index: Int,busy: Boolean,edit: (()->Unit)?) {
+    val density=androidx.compose.ui.platform.LocalDensity.current
+    val width=androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+    var viewportPixels by remember {mutableIntStateOf(with(density){width.dp.roundToPx()})}
+    val rasterWidth=PdfRasterBudget.requestedWidth(viewportPixels.coerceAtLeast(1),1f)
     var retry by remember {mutableIntStateOf(0)}
     var failure by remember(s.base,index,retry) {mutableStateOf<String?>(null)}
     val ink=remember(s.edits.strokes,index) {s.edits.strokes.filter {it.anchor=="pdf:$index"}}
-    val bitmap by key(s.base,index,s.edits.values,ink,retry) {produceState<Bitmap?>(null) {
-        var loaded: Bitmap?=null
+    var bitmap by remember(s.base,index) {mutableStateOf<Bitmap?>(null)}
+    val view=androidx.compose.ui.platform.LocalView.current
+    val owned=remember(s.base,index) {mutableSetOf<Bitmap>()}
+    DisposableEffect(s.base,index) {onDispose {owned.forEach {it.recycle()};owned.clear()}}
+    LaunchedEffect(s.base,index,s.edits.values,ink,retry,rasterWidth) {
+        var produced: Bitmap?=null
         try {
+            if(bitmap!=null)delay(180)
             readerSlots.withPermit {
                 withContext(Dispatchers.IO) {
-                    loaded=PdfEngine.renderWorking(s,index)
-                    val image=loaded!!;val canvas=Canvas(image)
+                    produced=PdfEngine.renderWorking(s,index,rasterWidth)
+                    val image=produced!!;val canvas=Canvas(image)
                     ink.forEach {drawStroke(canvas,it,image.width.toFloat(),image.height.toFloat())}
                 }
             }
-            value=loaded
-            awaitDispose {loaded?.recycle()}
-        } catch(e: CancellationException) {loaded?.recycle();throw e}
-        catch(e: Exception) {loaded?.recycle();failure=e.message ?: "페이지를 표시하지 못했습니다."}
-    }}
-    Column(Modifier.fillMaxWidth().background(Color.White).border(1.dp,Color.LightGray)) {
+            val image=produced!!;val old=bitmap
+            owned+=image;bitmap=image;produced=null
+            if(old!==image){owned.remove(old);view.post {old?.recycle()}}
+        } catch(e: CancellationException) {produced?.recycle();throw e}
+        catch(e: Exception) {produced?.recycle();failure=e.message ?: "페이지를 표시하지 못했습니다."}
+    }
+    Column(Modifier.fillMaxWidth().onSizeChanged {viewportPixels=it.width}.background(Color.White).border(1.dp,Color.LightGray)) {
         Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("${index+1} 페이지",modifier=Modifier.weight(1f),style=MaterialTheme.typography.labelMedium)
             if(edit!=null) TextButton(edit,enabled=!busy) {Text("${index+1}페이지 필기")}

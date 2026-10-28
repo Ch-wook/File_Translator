@@ -30,12 +30,12 @@ data class PdfForm(val name: String,val value: String,val kind: String,val optio
 data class PdfInfo(val pages: Int, val archival: Boolean,val forms: List<PdfForm> = emptyList(),val annotatedPages: Set<Int> = emptySet())
 object PdfEngine {
     /** Reading/drawing must show pending in-place edits as well as the saved base. */
-    fun renderWorking(s: Session,page: Int): android.graphics.Bitmap {
-        if(s.edits.values.isEmpty()) return render(s.base,page,annotationPages=s.pdf?.annotatedPages)
+    fun renderWorking(s: Session,page: Int,viewportWidth: Int?=null): android.graphics.Bitmap {
+        if(s.edits.values.isEmpty()) return if(viewportWidth==null)render(s.base,page,annotationPages=s.pdf?.annotatedPages) else renderForViewport(s.base,page,viewportWidth,2_000_000,s.pdf?.annotatedPages)
         val stage=java.io.File.createTempFile("pdf-working-",".pdf",s.base.parentFile)
         try {
             write(s.base,stage,emptyList(),false,s.edits.values)
-            return render(stage,page)
+            return if(viewportWidth==null)render(stage,page) else renderForViewport(stage,page,viewportWidth,2_000_000)
         } finally {stage.delete()}
     }
 
@@ -63,6 +63,20 @@ object PdfEngine {
                     } catch(failure: Throwable) {it.recycle();throw failure}
                 }
             } }
+        }
+    }
+    /** A bounded viewport raster, also used for sharp read-only zoom without PDFBox reparsing. */
+    fun renderForViewport(file: File,index: Int,requestedWidth: Int,maxPixels: Int=4_000_000,annotationPages: Set<Int>?=null): Bitmap {
+        ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY).use {fd->
+            PdfRenderer(fd).use {renderer->renderer.openPage(index).use {page->
+                val (w,h)=PdfRasterBudget.dimensions(page.width,page.height,requestedWidth,maxPixels)
+                val image=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888)
+                try {
+                    image.eraseColor(Color.WHITE);page.render(image,null,null,PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    if(annotationPages==null || index in annotationPages)PdfAnnotations.overlay(file,index,image)
+                    return image
+                } catch(e: Throwable){image.recycle();throw e}
+            }}
         }
     }
     fun renderAtDpi(file: File,index: Int,dpi: Int): Bitmap {

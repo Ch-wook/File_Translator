@@ -34,7 +34,8 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     val readerPreferences=remember {readerContext.getSharedPreferences("reading-position",0)}
     var page by rememberSaveable(s.id) {mutableIntStateOf(readerPreferences.getInt(s.id+":page",0))}
     var readingZoom by rememberSaveable(s.id) {mutableFloatStateOf(readerPreferences.getFloat(s.id+":zoom",1f))}
-    var continuous by rememberSaveable(s.id) {mutableStateOf(false)}
+    var continuous by rememberSaveable(s.id) {mutableStateOf(readerPreferences.getBoolean(s.id+":continuous",false))}
+    var readingOffset by rememberSaveable(s.id) {mutableIntStateOf(readerPreferences.getInt(s.id+":offset",0).coerceAtLeast(0))}
     var navigationRequest by remember(s.id) {mutableIntStateOf(0)}
     var search by remember {mutableStateOf(false)}
     var encoding by remember {mutableStateOf(false)}
@@ -53,15 +54,15 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     var favorites by remember {mutableStateOf(preferences.getStringSet("favorites",emptySet())!!.toSet())}
     var fontCategory by rememberSaveable {mutableStateOf("전체")}
     var wrap by rememberSaveable {mutableStateOf(preferences.getBoolean("wrap",settings.wrapLines))}
-    val updatePage: (Int)->Unit={page=it.coerceIn(0,((s.pdf?.pages ?: 1)-1).coerceAtLeast(0));readerPreferences.edit().putInt(s.id+":page",page).apply()}
-    val navigate: (Int)->Unit={updatePage(it);navigationRequest++}
+    val updatePage: (Int)->Unit={page=it.coerceIn(0,((s.pdf?.pages ?: 1)-1).coerceAtLeast(0))}
+    val navigate: (Int)->Unit={updatePage(it);readingOffset=0;navigationRequest++}
     SideEffect {
         reader?.search={if(s.format==Format.PDF)panel="PDF 검색" else {preview=false;search=true}}
         reader?.settings={panel="보기 설정"}
     }
-    DisposableEffect(s.id) {onDispose {readerPreferences.edit().putInt(s.id+":page",page).putFloat(s.id+":zoom",pdfController.zoom).apply()}}
-    LaunchedEffect(readingZoom){kotlinx.coroutines.delay(350);readerPreferences.edit().putFloat(s.id+":zoom",readingZoom).apply()}
-    LaunchedEffect(s.base) {navigate(page)}
+    DisposableEffect(s.id) {onDispose {readerPreferences.edit().putInt(s.id+":page",page).putInt(s.id+":offset",readingOffset).putBoolean(s.id+":continuous",continuous).putFloat(s.id+":zoom",pdfController.zoom).apply()}}
+    LaunchedEffect(page,readingOffset,readingZoom,continuous){kotlinx.coroutines.delay(350);readerPreferences.edit().putInt(s.id+":page",page).putInt(s.id+":offset",readingOffset).putBoolean(s.id+":continuous",continuous).putFloat(s.id+":zoom",readingZoom).apply()}
+    LaunchedEffect(s.base) {updatePage(page)}
     LaunchedEffect(editing) {panel=null;if(!editing)ink=false;if(s.format==Format.MD)preview=!editing}
     val imageSelected=pdfController.selected is PdfImagePlacement
     LaunchedEffect(imageSelected) {if(panel!=null)panel=if(imageSelected) "그림" else "글자"}
@@ -80,7 +81,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
         Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFFE8ECF3))) {
             when {
                 editing && ink->DrawingPage(s,null,page,settings,vm,busy)
-                s.format==Format.PDF && !editing && continuous->PdfContinuousReader(s,page,navigationRequest,busy,onVisiblePage=updatePage,onEditPage=null,initialZoom=readingZoom,onZoomChanged={readingZoom=it;pdfController.zoom=it})
+                s.format==Format.PDF && !editing && continuous->PdfContinuousReader(s,page,navigationRequest,busy,onVisiblePage=updatePage,onEditPage=null,initialZoom=readingZoom,onZoomChanged={readingZoom=it;pdfController.zoom=it},initialOffset=readingOffset,onPositionChanged={index,offset->updatePage(index);readingOffset=offset})
                 s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController,initialZoom=readingZoom,onZoomChanged={readingZoom=it})
                 preview && s.format==Format.MD->MarkdownPreview(s.edits.text,busy || !editing,vm::text,viewportKey=s.id,dark=dark)
                 else->NativeTextEditor(s.edits.text,displaySize,busy,wrap,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont,showLineNumbers=lineNumbers,viewportKey=s.id,dark=dark)

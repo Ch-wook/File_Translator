@@ -18,6 +18,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.*
@@ -173,6 +174,9 @@ class PdfObjectCanvas(context: Context): FrameLayout(context) {
 @Composable
 fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readOnly: Boolean=true,controller: PdfEditorController?=null,initialZoom: Float=1f,onZoomChanged: (Float)->Unit={}) {
     val scope=rememberCoroutineScope()
+    val density=androidx.compose.ui.platform.LocalDensity.current
+    val screenWidth=androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+    var viewportPixels by remember {mutableIntStateOf(with(density){screenWidth.dp.roundToPx()})}
     val verticalPosition=rememberScrollState()
     val horizontalPosition=rememberScrollState()
     var canvas by remember(s.id,page) {mutableStateOf<PdfObjectCanvas?>(null)}
@@ -186,15 +190,17 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
     var zoom by rememberSaveable {mutableFloatStateOf(initialZoom.coerceIn(.25f,3f))}
     val zoomChanged by rememberUpdatedState(onZoomChanged)
     LaunchedEffect(zoom){zoomChanged(zoom)}
+    val requestedRaster=PdfRasterBudget.requestedWidth((viewportPixels-with(density){24.dp.roundToPx()}).coerceAtLeast(1),zoom)
+    var renderedRaster by remember(s.base,page) {mutableIntStateOf(0)}
     val owned=remember(s.base,page) {mutableSetOf<Bitmap>()}
-    fun display(image: Bitmap) {val old=bitmap;bitmap=image;canvas?.bitmap=image;canvas?.invalidate();owned+=image;if(old!==image) {owned.remove(old);canvas?.post {old?.recycle()} ?: old?.recycle()}}
+    fun display(image: Bitmap,raster: Int=requestedRaster) {val old=bitmap;bitmap=image;renderedRaster=raster;canvas?.bitmap=image;canvas?.invalidate();owned+=image;if(old!==image) {owned.remove(old);canvas?.post {old?.recycle()} ?: old?.recycle()}}
     suspend fun render(values: Map<String,String>,change: DocumentChange?=null): Triple<Bitmap,List<PdfBodyRun>,List<PdfImagePlacement>> {
         var produced: Bitmap?=null
         try {return withContext(Dispatchers.IO) {
             if(change==null && values.isEmpty() && s.edits.strokes.isEmpty()) {
                 val text=if(readOnly) emptyList() else PdfBodyText.runs(s.base,page).filter {it.bounds!=null}
                 val graphics=if(readOnly) emptyList() else PdfImages.list(s.base,page)
-                val image=PdfEngine.render(s.base,page);produced=image
+                val image=PdfEngine.renderForViewport(s.base,page,requestedRaster,annotationPages=s.pdf?.annotatedPages);produced=image
                 return@withContext Triple(image,text,graphics)
             }
             val file=File.createTempFile("pdf-scene-",".pdf",s.base.parentFile)
@@ -203,7 +209,7 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
                 PdfEngine.write(s.base,file,s.edits.strokes,false,values,s.edits.layers)
                 val source=if(change!=null) {PdfEngine.change(file,changed,change);changed} else file
                 val text=if(readOnly) emptyList() else PdfBodyText.runs(source,page).filter {it.bounds!=null};val graphics=if(readOnly) emptyList() else PdfImages.list(source,page)
-                val image=PdfEngine.render(source,page);produced=image
+                val image=PdfEngine.renderForViewport(source,page,requestedRaster);produced=image
                 Triple(image,text,graphics)
             } finally {file.delete();changed.delete()}
         }} catch(e: CancellationException) {produced?.recycle();throw e}
@@ -219,6 +225,19 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
         try {show(render(s.edits.values));failure=null}
         catch(e: CancellationException) {throw e}
         catch(e: Exception) {failure=e.message ?: "페이지 편집 결과를 표시하지 못했습니다."}
+    }
+    LaunchedEffect(bitmap,readOnly,requestedRaster,s.base,page,s.edits.values,s.edits.strokes) {
+        // Zoom only rerenders the clean native page. It never reparses text/images or
+        // serializes pending edits. Edited scenes keep the existing preview until saved.
+        if(readOnly && bitmap!=null && s.edits.values.isEmpty() && s.edits.strokes.isEmpty() && renderedRaster!=requestedRaster) {
+            delay(180)
+            var produced: Bitmap?=null
+            try {
+                val image=withContext(Dispatchers.IO){PdfEngine.renderForViewport(s.base,page,requestedRaster,annotationPages=s.pdf?.annotatedPages).also {produced=it}}
+                display(image,requestedRaster)
+            } catch(e: CancellationException){produced?.recycle();throw e}
+            catch(e: Exception){failure=e.message ?: "확대 페이지를 표시하지 못했습니다."}
+        }
     }
     DisposableEffect(s.base,page) {onDispose {previewJob?.cancel();canvas?.bitmap=null;owned.forEach {it.recycle()};owned.clear()}}
     fun resetPreview() {
@@ -263,7 +282,7 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
             controller?.deleteImage={if(!readOnly&&!busy)(selected as? PdfImagePlacement)?.let {image->canvas?.clearSelection(false);vm.change(DocumentChange("pdf.deleteImage",page.toString(),mapOf("id" to image.id.toString(),"expected" to image.token)))}}
         }
         failure?.let {Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall,modifier=Modifier.padding(8.dp))}
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().then(Modifier.onSizeChanged {viewportPixels=it.width})) {
             val pageWidth=(maxWidth-24.dp).coerceAtLeast(1.dp)
             val image=bitmap
             SideEffect {controller?.fitPage={if(image!=null)zoom=((maxHeight.value-24).coerceAtLeast(1f)/(pageWidth.value*image.height/image.width)).coerceIn(.25f,3f)}}

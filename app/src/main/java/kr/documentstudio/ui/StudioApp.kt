@@ -79,7 +79,8 @@ fun StudioApp(vm: EditorViewModel) {
     val editing=state.active?.let {state.presentation(it).allowsMutation}==true
     LaunchedEffect(editing,state.active) {
         if(editing)fullScreen=false
-        else (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(view.windowToken,0)
+        else if(androidx.core.view.ViewCompat.getRootWindowInsets(view)?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())!=false)
+            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(view.windowToken,0)
     }
     var newDialog by remember { mutableStateOf(false) }
     var settingsDialog by remember { mutableStateOf(false) }
@@ -314,6 +315,12 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
     }},confirmButton={TextButton(onClick={officeLicenses=false}){Text("닫기")}})
 }
 
+private class NativeTextBinding {
+    var editor: LineNumberEditText?=null
+    var keyListener: android.text.method.KeyListener?=null
+    var modelText: String?=null
+}
+
 @Composable
 internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false,readOnly: Boolean=true,controller: NativeEditorController?=null,showToolbar: Boolean=true,fontFamily: String="고정폭",showLineNumbers: Boolean=true,viewportKey: String?=null,dark: Boolean=false) {
     val fontContext=LocalContext.current
@@ -321,11 +328,12 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
     val desiredFace=remember(fontFamily,fontContext) {EditorFonts.face(fontContext,fontFamily)}
     val onChange by rememberUpdatedState(change)
     val onFocused by rememberUpdatedState(focused)
-    var editor by remember {mutableStateOf<LineNumberEditText?>(null)}
-    var inputKeyListener by remember {mutableStateOf<android.text.method.KeyListener?>(null)}
+    // Factory/update handles do not drive composition. Keep the immutable model reference
+    // so toolbar/mode changes never copy or compare the entire document again.
+    val binding=remember {NativeTextBinding()}
     val acceptsInput by rememberUpdatedState(!busy && !readOnly)
     Column(Modifier.fillMaxSize()) {
-    if(markdown && !readOnly && showToolbar) MarkdownToolbar({editor},!busy)
+    if(markdown && !readOnly && showToolbar) MarkdownToolbar({binding.editor},!busy)
     AndroidView(factory={context -> LineNumberEditText(context).apply {
         gravity=android.view.Gravity.TOP or android.view.Gravity.START
         setBackgroundColor(AndroidColor.WHITE);setPadding(92,24,28,24)
@@ -338,7 +346,7 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
         })
         contentDescription="문서 본문"
         setOnFocusChangeListener {_,hasFocus -> if(hasFocus) onFocused()}
-    }.also {editor=it;it.onSelectionUpdate={a,b->if(controller?.editor===it)controller?.selectionChanged(a,b)};inputKeyListener=it.keyListener} },update={view ->
+    }.also {binding.editor=it;it.onSelectionUpdate={a,b->if(controller?.editor===it)controller?.selectionChanged(a,b)};binding.keyListener=it.keyListener} },update={view ->
         if(view.darkPage!=dark){view.darkPage=dark;view.setBackgroundColor(if(dark)AndroidColor.rgb(27,30,36) else AndroidColor.WHITE);view.setTextColor(if(dark)AndroidColor.rgb(231,234,240) else AndroidColor.rgb(32,38,48))}
         if(view.showLineNumbers!=showLineNumbers){val x=view.scrollX;val y=view.scrollY;view.showLineNumbers=showLineNumbers;view.setPadding(if(showLineNumbers)92 else 24,24,28,24);view.scrollTo(x,y);view.invalidate()}
         if(view.typeface!=desiredFace) {val a=view.selectionStart.coerceIn(0,view.length());val b=view.selectionEnd.coerceIn(0,view.length());val x=view.scrollX;val y=view.scrollY;view.typeface=desiredFace;view.setSelection(a,b);view.scrollTo(x,y)}
@@ -346,21 +354,24 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
         if(view.isEnabled==busy)view.isEnabled=!busy
         if(view.wrapLines!=wrap){view.wrapLines=wrap;view.setHorizontallyScrolling(!wrap)}
 
-        val desiredKeyListener=if(readOnly) null else inputKeyListener
+        view.documentReadOnly=readOnly
+        val desiredKeyListener=if(readOnly) null else binding.keyListener
         if(view.keyListener !== desiredKeyListener) {
             val start=view.selectionStart.coerceIn(0,view.length());val end=view.selectionEnd.coerceIn(0,view.length())
             val x=view.scrollX;val y=view.scrollY
             view.keyListener=desiredKeyListener
             view.setSelection(start,end);view.scrollTo(x,y)
         }
-        view.showSoftInputOnFocus=!readOnly;view.isCursorVisible=!readOnly
-        
-        view.isFocusable=true;view.isFocusableInTouchMode=true
-        if(view.text.toString()!=text) {
+        if(view.showSoftInputOnFocus==readOnly)view.showSoftInputOnFocus=!readOnly
+        if(view.isCursorVisible==readOnly)view.isCursorVisible=!readOnly
+        if(!view.isFocusable)view.isFocusable=true
+        if(!view.isFocusableInTouchMode)view.isFocusableInTouchMode=true
+        if(binding.modelText!==text && !android.text.TextUtils.equals(view.text,text)) {
             val start=view.selectionStart.coerceIn(0,text.length);val end=view.selectionEnd.coerceIn(0,text.length)
             val x=view.scrollX;val y=view.scrollY
             view.tag=true;view.setText(text);view.setSelection(start,end);view.tag=false;view.scrollTo(x,y)
         }
+        binding.modelText=text
         if(controller?.editor!==view && viewportKey!=null) {
             val y=scrollPreferences.getInt(viewportKey+":textY",0);val x=scrollPreferences.getInt(viewportKey+":textX",0)
             view.post {view.scrollTo(x,y)}

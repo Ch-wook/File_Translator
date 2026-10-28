@@ -73,4 +73,50 @@ class ReadingPerformanceTest {
         assertEquals("저장 실패에도 유지되는 최신 한글",target.readText())
         record("text-ui",JSONObject().put("modeDriverRoundTripMs",modes).put("menuDriverRoundTripMs",menus).put("saveFailureRecoveryAndRetry",true).put("driverIncludesComposeIdling",true))
     }
+
+    private fun <T: android.view.View> native(root: android.view.View,type: Class<T>): T? {
+        if(type.isInstance(root))return type.cast(root)
+        if(root is android.view.ViewGroup)for(i in 0 until root.childCount)native(root.getChildAt(i),type)?.let {return it}
+        return null
+    }
+    private fun settledMemory(): JSONObject {
+        compose.waitForIdle()
+        Runtime.getRuntime().gc();System.runFinalization();SystemClock.sleep(250)
+        val info=Debug.MemoryInfo().also {Debug.getMemoryInfo(it)}
+        val runtime=Runtime.getRuntime()
+        return JSONObject().put("pssKiB",info.totalPss).put("javaUsedBytes",runtime.totalMemory()-runtime.freeMemory())
+            .put("nativeAllocatedBytes",Debug.getNativeHeapAllocatedSize()).put("artAllocatedBytes",Debug.getRuntimeStat("art.gc.bytes-allocated"))
+    }
+    @Test fun viewportRasterAndSettledMemoryAcrossCloseCycles(){
+        val pdf=file("pdf")
+        com.tom_roush.pdfbox.pdmodel.PDDocument().use {doc->repeat(80){doc.addPage(com.tom_roush.pdfbox.pdmodel.PDPage())};doc.save(pdf)}
+        val originalHash=DocumentRepository.digest(pdf)
+        val phases=JSONArray();val rasters=JSONArray()
+        phases.put(JSONObject().put("phase","home-before").put("memory",settledMemory()))
+        repeat(3){cycle->
+            compose.runOnUiThread {vm.open(uri(pdf))};ready()
+            compose.waitUntil(30000){var ok=false;compose.runOnUiThread {ok=native(context.window.decorView,kr.documentstudio.ui.PdfObjectCanvas::class.java)?.bitmap!=null};ok}
+            compose.waitForIdle();SystemClock.sleep(350)
+            lateinit var bitmap: android.graphics.Bitmap
+            compose.runOnUiThread {bitmap=native(context.window.decorView,kr.documentstudio.ui.PdfObjectCanvas::class.java)!!.bitmap!!}
+            rasters.put(JSONObject().put("cycle",cycle).put("width",bitmap.width).put("height",bitmap.height).put("allocationBytes",bitmap.allocationByteCount))
+            phases.put(JSONObject().put("phase","pdf-open-"+cycle).put("memory",settledMemory()))
+            val id=vm.state.value.session!!.id
+            compose.runOnUiThread {vm.close(id)}
+            compose.waitUntil(30000){!vm.state.value.busy && vm.state.value.session==null};compose.waitForIdle()
+            assertTrue(bitmap.isRecycled)
+            phases.put(JSONObject().put("phase","pdf-closed-"+cycle).put("memory",settledMemory()))
+        }
+        val txt=file("txt").apply {writeText(("긴 문서 한글 입력과 선택 ABC 123\n").repeat(12000))}
+        compose.runOnUiThread {vm.open(uri(txt))};ready()
+        val times=JSONArray()
+        phases.put(JSONObject().put("phase","text-before").put("memory",settledMemory()))
+        repeat(7){
+            times.put(timed {compose.onNodeWithTag("edit-document").performClick();compose.waitForIdle()})
+            compose.runOnUiThread {vm.readDocument()};compose.waitForIdle()
+        }
+        phases.put(JSONObject().put("phase","text-after").put("memory",settledMemory()))
+        assertEquals(originalHash,DocumentRepository.digest(pdf))
+        record("viewport-memory",JSONObject().put("gcRequestedBeforeEachSample",true).put("phases",phases).put("rasters",rasters).put("largeTextModeDriverMs",times).put("textBytes",txt.length()).put("allClosedBitmapsRecycled",true).put("pdfOriginalUnchanged",true))
+    }
 }

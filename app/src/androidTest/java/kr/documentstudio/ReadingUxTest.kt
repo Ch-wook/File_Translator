@@ -94,9 +94,14 @@ class ReadingUxTest {
         compose.onNodeWithContentDescription("설정 닫기").performClick()
         compose.onNodeWithContentDescription("PDF 연속 페이지 목록").performScrollToIndex(60)
         compose.waitUntil(15000){compose.activity.getSharedPreferences("reading-position",0).getInt(id+":page",-1)==60}
+        compose.onNodeWithContentDescription("PDF 연속 페이지 목록").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy){it(0f,133f)}
+        compose.waitForIdle()
+        val position=compose.onNodeWithContentDescription("PDF 연속 페이지 목록").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.StateDescription]
+        assertTrue(position.startsWith("60:"));assertTrue(position.substringAfter(':').toInt()>0)
         compose.runOnUiThread {vm.home()};compose.waitForIdle()
         compose.runOnUiThread {vm.restore(id)};ready()
-        compose.waitUntil(30000){var found=false;compose.runOnUiThread {found=find(compose.activity.window.decorView,PdfObjectCanvas::class.java)?.page==60};found}
+        compose.onNodeWithContentDescription("PDF 연속 페이지 목록").assertExists()
+        compose.waitUntil(30000){compose.onNodeWithContentDescription("PDF 연속 페이지 목록").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.StateDescription]==position}
         assertFalse(vm.state.value.session!!.dirty);assertEquals(hash,DocumentRepository.digest(file))
     }
     @Test fun markdownStartsFormattedAndSaveFailureKeepsEditableRecovery(){
@@ -113,5 +118,55 @@ class ReadingUxTest {
         compose.waitUntil(15000){var found=false;compose.runOnUiThread {found=find(compose.activity.window.decorView,WebView::class.java)?.progress==100};found}
         compose.onNodeWithTag("mobile-editor-dock").assertDoesNotExist()
         assertEquals("# 제목\n\n한글 **굵게**",original.readText())
+    }
+
+    @Test fun textModeAndToolsKeepTheNativeViewSelectionAndBlockReadingMutations(){
+        compose.runOnUiThread {vm.create(Format.TXT)};ready()
+        compose.onNodeWithTag("edit-document").performClick();compose.waitForIdle()
+        val source=("한글 선택 범위와 원본 유지\n").repeat(2000)
+        compose.runOnUiThread {vm.text(source)};compose.waitForIdle()
+        lateinit var native: EditText
+        compose.runOnUiThread {native=find(compose.activity.window.decorView,EditText::class.java)!!;native.setSelection(120,130)}
+        repeat(3) {
+            compose.onNodeWithText("더보기").performClick();compose.waitForIdle()
+            compose.onNodeWithContentDescription("설정 닫기").performClick();compose.waitForIdle()
+            compose.runOnUiThread {assertSame(native,find(compose.activity.window.decorView,EditText::class.java));assertEquals(120,native.selectionStart);assertEquals(130,native.selectionEnd);vm.readDocument()}
+            compose.waitForIdle()
+            compose.runOnUiThread {
+                assertSame(native,find(compose.activity.window.decorView,EditText::class.java))
+                assertNull(native.onCreateInputConnection(android.view.inputmethod.EditorInfo()))
+                assertFalse(native.onTextContextMenuItem(android.R.id.cut));assertFalse(native.onTextContextMenuItem(android.R.id.paste))
+                assertEquals(source,native.text.toString())
+            }
+            compose.onNodeWithTag("edit-document").performClick();compose.waitForIdle()
+        }
+        compose.runOnUiThread {
+            assertEquals(120,native.selectionStart);assertEquals(130,native.selectionEnd)
+            val connection=checkNotNull(native.onCreateInputConnection(android.view.inputmethod.EditorInfo()))
+            assertTrue(connection.commitText("수정",1))
+        }
+        compose.waitForIdle()
+        val expected=source.replaceRange(120,130,"수정")
+        assertEquals(expected,vm.state.value.session!!.edits.text)
+        val saved=save("txt");assertEquals(expected,saved.readText())
+    }
+    @Test fun pdfZoomRerasterizesWithinBudgetAndReleasesTheClosedPage(){
+        compose.runOnUiThread {vm.create(Format.PDF)};ready()
+        compose.waitUntil(30000){var ok=false;compose.runOnUiThread {ok=find(compose.activity.window.decorView,PdfObjectCanvas::class.java)?.bitmap!=null};ok}
+        lateinit var initial: android.graphics.Bitmap
+        compose.runOnUiThread {initial=find(compose.activity.window.decorView,PdfObjectCanvas::class.java)!!.bitmap!!}
+        val source=vm.state.value.session!!.base;val hash=DocumentRepository.digest(source)
+        compose.onNodeWithContentDescription("문서 메뉴").performClick();compose.onNodeWithText("보기 설정").performClick()
+        repeat(4){compose.onNodeWithText("확대").performScrollTo().performClick()}
+        compose.onNodeWithContentDescription("설정 닫기").performClick()
+        compose.waitUntil(30000){var ok=false;compose.runOnUiThread {ok=(find(compose.activity.window.decorView,PdfObjectCanvas::class.java)?.bitmap?.width ?: 0)>initial.width};ok}
+        lateinit var zoomed: android.graphics.Bitmap
+        compose.runOnUiThread {zoomed=find(compose.activity.window.decorView,PdfObjectCanvas::class.java)!!.bitmap!!;assertTrue(zoomed.width.toLong()*zoomed.height<=4000000)}
+        compose.waitUntil(5000){initial.isRecycled}
+        val output=File(compose.activity.getExternalFilesDir(null),"native-reading-ux").apply {mkdirs()}
+        File(output,"pdf-raster-budget.json").writeText(org.json.JSONObject().put("zoomWidth",zoomed.width).put("zoomHeight",zoomed.height).put("allocationBytes",zoomed.allocationByteCount).put("originalUnchanged",hash==DocumentRepository.digest(source)).toString())
+        compose.runOnUiThread {vm.home()};compose.waitForIdle()
+        compose.waitUntil(5000){zoomed.isRecycled}
+        assertEquals(hash,DocumentRepository.digest(source))
     }
 }
