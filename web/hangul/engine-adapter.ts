@@ -28,7 +28,7 @@ function studioReadingLayout() {
 }
 function studioPageState() {
   const count=wasm.pageCount, vs=canvasView?.getVirtualScroll();
-  const index=count&&vs&&studioFrame ? vs.getRowFirstPageAtY(studioFrame.scrollTop+Math.min(80,studioFrame.clientHeight/4)) : 0;
+  const index=count&&vs&&studioFrame ? vs.getRowFirstPageAtY(studioFrame.scrollTop+studioFrame.clientHeight/2) : 0;
   return {page:Math.max(0,Math.min(count-1,index)),pages:count,zoom:canvasView?.getViewportManager().getZoom()??1};
 }
 async function studioGoToPage(index:number) {

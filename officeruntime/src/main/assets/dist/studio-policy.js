@@ -38,6 +38,10 @@
     #studio-office-actions .studio-office-action{min-height:44px;min-width:44px;padding:5px 9px;margin:2px;border:0;border-radius:7px;background:#edf2f9;color:#26364a;font:12px system-ui}
     #studio-office-actions .studio-office-action:disabled{opacity:.35}
     #studio-office-actions .studio-office-action[aria-pressed=true]{background:#dbe7fc;color:#2858a5}
+    #studio-office-pages{display:flex;flex:none;align-items:center;justify-content:center;gap:4px;min-height:44px;background:#fff;border-top:1px solid #dfe5ed;padding:0 8px env(safe-area-inset-bottom);z-index:30;color:#26364a}
+    #studio-office-pages[hidden],html[data-studio-fullscreen=true] #studio-office-pages{display:none!important}
+    #studio-office-pages button{min-width:44px;min-height:44px;border:0;border-radius:7px;background:transparent;color:inherit;font:13px system-ui;padding:4px 10px;white-space:nowrap}
+    #studio-office-pages button:nth-child(2){overflow:hidden;text-overflow:ellipsis;max-width:65vw;font-variant-numeric:tabular-nums}
     #studio-office-mode-label,#studio-office-hint{display:none!important}
     #studio-office-sheet{max-height:min(38dvh,300px)}
     html[data-studio-office-host] #toolbar-search{z-index:40}
@@ -47,6 +51,7 @@
   let attempts = 0;
   const UI=window.StudioEditorUI;
   let bar,actions,hint,tabs,modeButton,modeLabel,saveButton,header,bottom,sheet,undoButton,redoButton,cellActions,picker,groupOpen=false,fontList=false,contextName='',previousContext='',partsSignature='';
+  let navigationBar,navigationLabel,navigationPrevious,navigationNext,navigationZoom;
   let transitionViewport, persistTimer, lastViewport='',reader,updateFrame=0,viewSampler;
   let activeTab = '글자';
   let modeTransition=false, transitionGeneration=0, ownedNativeRestore=null;
@@ -70,6 +75,55 @@
     if (!rect || !map()?.getZoom) return null;
     return { x:Number(rect.x1), y:Number(rect.y1), zoom:Number(map().getZoom()), part:map().getDocType()==='text' ? 0 : Number(map().getCurrentPartNumber?.() || 0) };
   }
+  function navigationState() {
+    const m=map(),layer=m?._docLayer,family=m?.getDocType?.(),rectangles=app.file?.writer?.pageRectangleList||[];
+    let count=family==='text'?Number(layer?._pages||rectangles.length):Number(m?.getNumberOfParts?.()||0);
+    if(!Number.isInteger(count)||count<1)return null;
+    let index=family==='text'?Number(layer?._currentPage||0):Number(m?.getCurrentPartNumber?.()||0);
+    if(family==='text'){
+      const y=app.activeDocument?.activeLayout?.viewedRectangle?.y1;
+      if(Number.isFinite(y)){
+        const found=rectangles.findIndex(r=>Number(r[1])+Number(r[3])>y+40);
+        if(found>=0)index=found;
+      }
+    }
+    return {family,index:Math.max(0,Math.min(count-1,index)),count,
+      zoomPercent:Math.round((m?.getZoomScale?.(m.getZoom(),10)||1)*100)};
+  }
+  function updateNavigation(){
+    if(!navigationBar)return;
+    const s=navigationState();
+    sync(navigationBar,'hidden',!s||editable());
+    if(!s)return;
+    const name=s.family==='spreadsheet'?(map()._docLayer?._partNames?.[s.index]||'시트 '+(s.index+1)):'';
+    sync(navigationLabel,'textContent',name?name+' · '+(s.index+1)+' / '+s.count:(s.index+1)+' / '+s.count+(s.family==='presentation'?' 슬라이드':'쪽'));
+    attribute(navigationLabel,'aria-label',s.family==='spreadsheet'?'시트 목록':'페이지 이동');
+    sync(navigationPrevious,'disabled',modeTransition||s.index===0);
+    sync(navigationNext,'disabled',modeTransition||s.index===s.count-1);
+    sync(navigationZoom,'textContent',s.zoomPercent+'%');
+    sync(navigationZoom,'hidden',s.family==='spreadsheet'||typeof map()._docLayer?._fitWidthZoom!=='function');
+  }
+  function navigateTo(index){
+    const s=navigationState();
+    if(!s||modeTransition||!Number.isInteger(index)||index<0||index>=s.count)return false;
+    releaseViewportPin();
+    if(s.family==='text')map().goToPage(index);
+    else map().setPart(index);
+    rememberViewport();updateNavigation();return true;
+  }
+  function choosePage(){
+    const s=navigationState();if(!s)return;
+    if(s.family==='spreadsheet'){openSheet('시트 목록');return;}
+    const value=prompt('이동할 '+(s.family==='presentation'?'슬라이드':'페이지')+' (1–'+s.count+')',String(s.index+1));
+    if(value===null)return;const index=Number(value)-1;
+    if(!navigateTo(index))UI.toast('1부터 '+s.count+' 사이의 번호를 입력하세요.',true);
+  }
+  function fitWidth(){
+    if(typeof map()?._docLayer?._fitWidthZoom!=='function')return;
+    releaseViewportPin();map()._docLayer._fitWidthZoom(null,null,true);rememberViewport();updateNavigation();
+  }
+  policy.viewerState=navigationState;
+  policy.navigate=navigateTo;
   function traceRestore(stage, desired, error) {
     try {
       const layout=window.app?.activeDocument?.activeLayout, layer=map()?._docLayer;
@@ -279,10 +333,10 @@
   function sync(node,key,value){if(node&&node[key]!==value)node[key]=value;}
   function attribute(node,name,value){if(node.getAttribute(name)!==String(value))node.setAttribute(name,String(value));}
   function updateNow(){
-    reader?.sync();
+    reader?.sync();updateNavigation();
     if(initialViewportRestored&&!policy.initialIntentHandled){policy.initialIntentHandled=true;if(policy.modeSupported&&new URLSearchParams(location.search).get('studioopen')==='EDIT')setTimeout(()=>map()._switchToEditMode(),0);}
     if(!bar)return;const editing=editable(),object=objectSelected();
-    sync(bar.dataset,'editing',String(editing));const searching=groupOpen&&(activeTab==='찾기'||activeTab==='슬라이드 목록');sync(bottom,'hidden',!editing&&!searching);sync(sheet,'hidden',!groupOpen||(!editing&&!searching));sync(tabs,'hidden',!editing);
+    sync(bar.dataset,'editing',String(editing));const searching=groupOpen&&(activeTab==='찾기'||activeTab==='슬라이드 목록'||activeTab==='시트 목록');sync(bottom,'hidden',!editing&&!searching);sync(sheet,'hidden',!groupOpen||(!editing&&!searching));sync(tabs,'hidden',!editing);
     if(cellActions){const hidden=!(editing&&!modeTransition&&map().getDocType()==='spreadsheet'&&(window.app?.file?.textCursor?.visible||map().formulabar?.hasFocus?.()||map().formulabar?.isInEditMode?.()));if(cellActions.hidden!==hidden){cellActions.hidden=hidden;refreshLayout();}}
     sync(modeLabel,'textContent',editing?'편집 중':'원본 보기');
     attribute(modeButton,'aria-label','편집하기');
@@ -298,7 +352,7 @@
     const font=actions.querySelector('[data-current-font]');if(font){const name=state('CharFontName')===undefined?'문서 글꼴':state('CharFontName')||'혼합 글꼴';sync(font,'textContent',name+(fonts().includes(name)?'':' · 대체 표시')+' ▾');attribute(font,'aria-label','글꼴 선택');attribute(font,'aria-description','현재 글꼴: '+name);}
     sync(hint,'textContent',editing?'편집 중':'원본 보기');
     const signature=JSON.stringify([map().getNumberOfParts?.(),map().getCurrentPartNumber?.(),map()._docLayer?._partNames,window.app?.calc?.getHiddenPartNameArray?.()]);
-    if(signature!==partsSignature){partsSignature=signature;if(groupOpen&&['시트','슬라이드','슬라이드 목록'].includes(activeTab)){render();return;}}
+    if(signature!==partsSignature){partsSignature=signature;if(groupOpen&&['시트','시트 목록','슬라이드','슬라이드 목록'].includes(activeTab)){render();return;}}
     const context=currentContext();if(context!==previousContext){previousContext=context;if(groupOpen&&['그림','표','셀'].includes(activeTab))closeSheet();renderDock();}
   }
   function row(){const r=document.createElement('div');r.className='studio-ui-fields';actions.append(r);return r;}
@@ -322,6 +376,12 @@
     if(fontList){
       const available=fonts();
       picker=UI.fontPicker(actions,{fonts:available,current:state('CharFontName'),onPick:name=>{if(!editable()||modeTransition)return;uno('CharFontName',{'CharFontName.FamilyName':{type:'string',value:name}});fontList=false;render();},preview:previewFont,key:'studio-office-fonts',note:'엔진이 실제 제공하는 글꼴 · 번들 파일이 없는 글꼴은 미리보기 제한을 표시합니다. 선택 영역 또는 이후 입력에 적용됩니다.'});
+      update();refreshLayout();return;
+    }
+    if(activeTab==='시트 목록'){
+      const count=map().getNumberOfParts(),current=map().getCurrentPartNumber(),hidden=new Set(window.app?.calc?.getHiddenPartNameArray?.()||[]);
+      for(let i=0;i<count;i++){const name=map()._docLayer?._partNames?.[i]||('시트 '+(i+1));if(hidden.has(name))continue;
+        const b=button(name,()=>{navigateTo(i);closeSheet();});b.setAttribute('aria-pressed',String(i===current));}
       update();refreshLayout();return;
     }
     if(activeTab==='찾기'){
@@ -421,7 +481,13 @@
     button('셀 입력 완료',()=>{if(editable())app.dispatcher?.dispatch('acceptformula');},cellActions);
     button('셀 입력 취소',()=>{if(editable())app.dispatcher?.dispatch('cancelformula');},cellActions);
     bottom.append(sheet,cellActions,tabs);
-    const lower=document.getElementById('toolbar-down');if(lower)lower.before(bottom);else document.body.append(bottom);
+    navigationBar=document.createElement('nav');navigationBar.id='studio-office-pages';navigationBar.setAttribute('aria-label','문서 탐색');
+    const navButton=(label,text,action)=>{const b=document.createElement('button');b.type='button';b.textContent=text;b.setAttribute('aria-label',label);b.onclick=action;UI.retain(b);navigationBar.append(b);return b;};
+    navigationPrevious=navButton('이전 페이지','‹',()=>navigateTo((navigationState()?.index||0)-1));
+    navigationLabel=navButton('페이지 이동','1 / 1',choosePage);
+    navigationZoom=navButton('화면 너비 맞춤','100%',fitWidth);
+    navigationNext=navButton('다음 페이지','›',()=>navigateTo((navigationState()?.index||0)+1));
+    const lower=document.getElementById('toolbar-down');if(lower)lower.before(navigationBar,bottom);else document.body.append(navigationBar,bottom);
     reader=UI.readingChrome({header,editable,capture:snapshot,restore,layout:refreshLayout,canToggle:()=>!modeTransition&&!objectSelected()&&!app.file?.textCursor?.visible});reader.bind(document);
     UI.popup(more,()=>[
       {label:reader.fullscreen?'메뉴 표시':'전체 화면 보기',hidden:editable(),action:()=>reader.toggle()},
@@ -435,6 +501,11 @@
           window.postMobileMessage('DOCUMENT_STUDIO_CONVERT_PDF');
         }catch(error){UI.toast(error.message,true);}
       }},
+      {label:'페이지 이동',hidden:family==='spreadsheet',action:choosePage},
+      {label:'첫 페이지',hidden:family==='spreadsheet',action:()=>navigateTo(0)},
+      {label:'마지막 페이지',hidden:family==='spreadsheet',action:()=>navigateTo(navigationState().count-1)},
+      {label:'시트 목록',hidden:family!=='spreadsheet',action:()=>openSheet('시트 목록')},
+      {label:'화면 너비에 맞춤',hidden:family==='spreadsheet'||typeof map()._docLayer?._fitWidthZoom!=='function',action:fitWidth},
       {label:'슬라이드 목록',hidden:map().getDocType()!=='presentation',action:()=>openSheet('슬라이드 목록')},
       {label:editable()?'읽기 모드로 전환':'편집하기',hidden:Boolean(bridge()?.isStudioConversionOnly?.())||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit',disabled:modeTransition||!initialViewportRestored,action:()=>editable()?map().setPermission('readonly'):map()._switchToEditMode()},
       {label:editable()?'찾기·바꾸기':'찾기',disabled:!editable()&&!searchService(),action:()=>editable()?uno('SearchDialog'):openSheet('찾기')},
@@ -447,7 +518,7 @@
     ]);
     const family=map().getDocType();
     if(family==='text'&&map().uiManager?.isRulerVisible?.())map().uiManager.hideRuler();
-    for(const element of [bar,bottom]){
+    for(const element of [bar,bottom,navigationBar]){
       if(window.L?.DomEvent?.disableClickPropagation)L.DomEvent.disableClickPropagation(element);
       else for(const name of ['mousedown','touchstart','pointerdown','dblclick','contextmenu'])element.addEventListener(name,event=>event.stopPropagation());
     }
@@ -455,7 +526,7 @@
     map().on('commandstatechanged',event=>{if(event.commandName==='.uno:ModifiedStatus'&&String(event.state)==='true'&&policy.wasAuthorized)policy.changed=true;update();});
     app.events.on('contextchange',event=>{contextName=String(event.detail?.context||event.context||'');update();});
     app.events.on('updatepermission',()=>{update();refreshLayout();if(modeTransition)restore(transitionViewport,undefined,transitionGeneration);});
-    map().on('moveend zoomend updateparts',()=>{rememberViewport();update();});
+    map().on('moveend zoomend updateparts pagenumberchanged updatestatepagenumber',()=>{rememberViewport();update();});
     for(const name of ['pointerup','input','keyup','compositionend'])document.addEventListener(name,()=>{if(editable())update();},{passive:true});
     try{const saved=JSON.parse(bridge()?.getStudioViewState?.()||'{}');restore(saved,()=>{if(validViewport(saved))holdViewport(snapshot());initialViewportRestored=true;update();persistViewport();if(bridge()?.isStudioConversionOnly?.())setTimeout(()=>window.postMobileMessage('DOCUMENT_STUDIO_CONVERT_PDF'),300);});}catch(ignore){initialViewportRestored=true;}
     render();policy.ready=true;return true;
@@ -476,7 +547,7 @@
       clearInterval(timer);
       // A cheap coordinate sampler covers layout scrolls that emit no map event.
       // It never rebuilds tools, and runs only while this document is visible.
-      viewSampler=setInterval(()=>{if(document.visibilityState==='visible'){persistViewport();if(editable())update();}},1000);
+      viewSampler=setInterval(()=>{if(document.visibilityState==='visible'){persistViewport();updateNavigation();if(editable())update();}},1000);
     }
     } catch(error) {
       // Keep bounded local diagnostics when an upstream UI API prevents mounting.

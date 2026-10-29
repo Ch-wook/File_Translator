@@ -37,6 +37,7 @@ const digest=b=>crypto.createHash('sha256').update(b).digest('hex');
   const rendered=[];
   for(let i=0;i<20;i++){
    await call('goToPage',i);
+   console.log('VIEWER_PAGE_ATTEMPT',i+1,await call('pageState'),await call('captureView'));
    await frame.waitForFunction(index=>window.rhwpStudio.documentStudio.pageState().page===index,i);
    await frame.waitForFunction(()=>{
     const box=document.getElementById('scroll-container').getBoundingClientRect();

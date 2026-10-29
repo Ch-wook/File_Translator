@@ -55,6 +55,9 @@ jobs:
       - name: Build the application and the test-only InputMethodService
         run: |
           python3 scripts/prepare-open-fixtures.py
+          pip install python-docx python-pptx openpyxl
+          ./gradlew :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain
+          python3 scripts/prepare-viewer-fixtures.py
           ./gradlew -PstudioAbi=x86_64 :core:prepareVisualFixtures :officeruntime:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/android-build.log
           cp app/build/outputs/apk/debug/app-debug.apk artifacts/hangul-android-build/x86_64.apk
           python3 - <<'PY'
@@ -75,7 +78,7 @@ jobs:
         continue-on-error: true
         env:
           STUDIO_ABI: x86_64
-          MODE_TEST_CLASSES: kr.documentstudio.ReadingUxTest
+          MODE_TEST_CLASSES: kr.documentstudio.ReadingUxTest,kr.documentstudio.ViewerNavigationTest
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -95,7 +98,7 @@ jobs:
           summary=json.loads(pathlib.Path('artifacts/ci/android-summary.json').read_text())
           print('ACTUAL_ANDROID_OUTCOME',os.environ['ACTUAL_ANDROID_OUTCOME'])
           print('MOBILE_ANDROID_SUMMARY',json.dumps(summary))
-          assert os.environ['ACTUAL_ANDROID_OUTCOME']=='success' and summary=={'tests':6,'failures':0,'errors':0,'skipped':0},summary
+          assert os.environ['ACTUAL_ANDROID_OUTCOME']=='success' and summary=={'tests':10,'failures':0,'errors':0,'skipped':0},summary
           PY
       - uses: actions/upload-artifact@v4
         if: always()
