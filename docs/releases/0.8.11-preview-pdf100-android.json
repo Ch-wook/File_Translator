@@ -1,10 +1,8 @@
 {
-  "source": "1053a6adacd9ee56fd2ff08d3b28a2cb3ef8237d",
-  "run": 40849376309,
-  "tests": 1,
-  "failures": 0,
-  "physicalDevice": false,
-  "navigation": {
+  "source": "865b36a35ceed7451112b08f15f65e866fb96b30",
+  "run": 40853363439,
+  "environment": "Android 35 x86_64 Pixel7 SwiftShader 3072 MiB",
+  "result": {
     "pages": 100,
     "mixedSizesAndRotation": true,
     "actualTwoPointerZoom": true,
@@ -12,7 +10,6 @@
     "page100ReachedAndRestored": true,
     "sourceHashUnchanged": true,
     "zoomBefore": 1,
-    "zoomAfterPinch": 4
-  },
-  "missingPageMarkers": []
+    "zoomAfterPinch": 2.1111104
+  }
 }

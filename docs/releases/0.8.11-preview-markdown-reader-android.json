@@ -1,0 +1,24 @@
+{
+  "source": "50658fb771454a38d5b5a76b2dee03d38d7b8a04",
+  "run": 40856067880,
+  "environment": "Android 35 x86_64 Pixel7 SwiftShader 3072 MiB",
+  "result": {
+    "nativeTopBottomNavigation": true,
+    "bundledFontSupplied": true,
+    "fontChangesViewportPixels": true,
+    "displayZoomAppliedWithoutReplacingWebView": true,
+    "scriptsAndNetworkDisabled": true,
+    "sourceUnchanged": true
+  },
+  "render": {
+    "sourceLength": 2405,
+    "height": 4501,
+    "viewHeight": 2012,
+    "progress": 100,
+    "url": "about:blank",
+    "htmlLength": 4803,
+    "htmlHasLastSection": true,
+    "font": "monospace",
+    "textZoom": 100
+  }
+}
