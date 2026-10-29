@@ -52,7 +52,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     private fun action(block: suspend () -> Unit) {
         if(mutable.value.busy) return
         checkpointJob?.cancel()
-        mutable.value=mutable.value.copy(busy=true)
+        mutable.value=mutable.value.copy(busy=true,problem=null)
         viewModelScope.launch {
             try {
                 // Preserve pending input even when the requested operation fails.

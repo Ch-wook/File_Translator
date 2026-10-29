@@ -118,7 +118,7 @@ class ReadingUxTest {
         compose.waitUntil(30000){!vm.state.value.busy}
         assertTrue(vm.state.value.presentation(vm.state.value.session!!.id).allowsMutation)
         assertEquals("# 제목\n\n한글 **굵게**",runBlocking {vm.repository.restore(vm.state.value.session!!.id).edits.text})
-        val original=save("md")
+        val original=save("md");assertNull("Successful save must clear the previous failure detail",vm.state.value.problem)
         compose.runOnUiThread {vm.readDocument()};compose.waitForIdle()
         compose.waitUntil(15000){var found=false;compose.runOnUiThread {found=find(compose.activity.window.decorView,WebView::class.java)?.progress==100};found}
         compose.onNodeWithTag("mobile-editor-dock").assertDoesNotExist()
