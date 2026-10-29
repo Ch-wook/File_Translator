@@ -148,6 +148,9 @@ jobs:
           script: |
             python3 scripts/test-mobile-installation.py
             bash scripts/run-android-mode-tests.sh
+            adb root || true
+            adb wait-for-device
+            adb pull /data/anr artifacts/native-android/anr || true
       - name: Require the actual Android report, independent of action status
         run: |
           python3 - <<'PY'

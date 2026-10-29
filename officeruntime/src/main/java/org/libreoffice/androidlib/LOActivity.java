@@ -163,6 +163,7 @@ public class LOActivity extends AppCompatActivity {
     private volatile boolean officeSavedApproved = false;
     private volatile boolean officeLoadFinished = false;
     private volatile boolean officeLoadFailed = false;
+    private volatile boolean studioUiTextInputFocused = false;
 
     private ClipboardManager clipboardManager;
     private ClipData clipData;
@@ -1451,6 +1452,16 @@ public class LOActivity extends AppCompatActivity {
      * Initialize the COOLWSD to load 'loadFileURL'.
      */
     public native void createCOOLWSD(String dataDir, String cacheDir, String apkFile, AssetManager assetManager, String loadFileURL, String uiMode, String userName);
+
+    /** Cached focus avoids synchronously querying WebView during a hardware paste event. */
+    @JavascriptInterface
+    public void studioSetUiTextFocus(boolean focused) {
+        studioUiTextInputFocused = focused;
+    }
+
+    boolean studioBlocksDocumentPaste() {
+        return this instanceof StudioOfficeActivity && !studioEditAuthorized && !studioUiTextInputFocused;
+    }
 
     /**
      * Passing messages from JS (instead of the websocket communication).

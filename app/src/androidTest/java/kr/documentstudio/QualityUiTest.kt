@@ -53,8 +53,15 @@ class QualityUiTest {
             File(context.filesDir,"signatures.json").writeText("damaged private signature fixture")
             assertTrue("A valid previous fixture must exist before opening the UI",SignatureStore(context).canRestorePrevious())
             compose.waitUntil(30000){!vm.state.value.busy}
-            compose.onNodeWithContentDescription("저장 복구").performClick()
-            awaitRecoveryRows()
+            val repositoryLock=kr.documentstudio.data.DocumentRepository::class.java.getDeclaredField("repositoryMutex").apply {isAccessible=true}.get(null) as kotlinx.coroutines.sync.Mutex
+            kotlinx.coroutines.runBlocking {repositoryLock.lock()}
+            try {
+                compose.onNodeWithContentDescription("저장 복구").performClick()
+                awaitRecoveryRows()
+            } finally {repositoryLock.unlock()}
+            File(context.getExternalFilesDir(null),"native-common-ui/recovery-independent-stores.json").apply {
+                parentFile!!.mkdirs();writeText("{\"signaturePaneIndependentFromPendingDocumentStore\":true}")
+            }
             val activityBefore=compose.activity
             val newNight=if(oldMask==android.content.res.Configuration.UI_MODE_NIGHT_YES)"no" else "yes"
             device.executeShellCommand("cmd uimode night "+newNight)

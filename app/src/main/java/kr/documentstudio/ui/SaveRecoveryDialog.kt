@@ -26,6 +26,7 @@ fun SaveRecoveryDialog(repository: DocumentRepository,message: (String)->Unit,cl
     var damaged by remember {mutableIntStateOf(0)}
     var busy by remember {mutableStateOf(false)}
     var loading by remember {mutableStateOf(true)}
+    var signatureLoading by remember {mutableStateOf(true)}
     var status by remember {mutableStateOf("")}
     var signatures by remember {mutableStateOf(false)}
     var signatureBad by remember {mutableStateOf(false)}
@@ -34,15 +35,6 @@ fun SaveRecoveryDialog(repository: DocumentRepository,message: (String)->Unit,cl
     var original by rememberSaveable {mutableStateOf(false)}
     var discard by remember {mutableStateOf<SaveRecovery?>(null)}
     var restore by remember {mutableStateOf(false)}
-    suspend fun refresh() {
-        rows=repository.saveRecoveries();damaged=repository.damagedSaveRecords()
-        val state=withContext(Dispatchers.IO){
-            val store=SignatureStore(context)
-            Triple(java.io.File(context.filesDir,"signatures.json").isFile || java.io.File(context.filesDir,"signatures.json.bak").isFile,
-                runCatching {store.read()}.isFailure,store.canRestorePrevious())
-        }
-        signatures=state.first;signatureBad=state.second;previous=state.third
-    }
     fun perform(block: suspend ()->Unit) {
         if(busy)return
         busy=true
@@ -53,7 +45,28 @@ fun SaveRecoveryDialog(repository: DocumentRepository,message: (String)->Unit,cl
             finally {busy=false}
         }
     }
-    LaunchedEffect(generation){loading=true;try {refresh()}catch(e:Exception){status=UserProblems.explain(e).advice}finally {loading=false}}
+    LaunchedEffect(generation) {
+        loading=true
+        try {rows=repository.saveRecoveries();damaged=repository.damagedSaveRecords()}
+        catch(e: kotlinx.coroutines.CancellationException){throw e}
+        catch(e: Exception){status=UserProblems.explain(e).advice}
+        finally {loading=false}
+    }
+    // Signature recovery must remain usable while the document transaction/index
+    // is busy. These stores have independent locks and no shared write operation.
+    LaunchedEffect(generation) {
+        signatureLoading=true
+        try {
+            val state=withContext(Dispatchers.IO) {
+                val store=SignatureStore(context)
+                Triple(java.io.File(context.filesDir,"signatures.json").isFile || java.io.File(context.filesDir,"signatures.json.bak").isFile,
+                    runCatching {store.read()}.isFailure,store.canRestorePrevious())
+            }
+            signatures=state.first;signatureBad=state.second;previous=state.third
+        } catch(e: kotlinx.coroutines.CancellationException){throw e}
+        catch(e: Exception){status=UserProblems.explain(e).advice}
+        finally {signatureLoading=false}
+    }
     val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) {uri->
         val id=pendingId;pendingId=null;val before=original
         if(uri!=null && id!=null)perform {repository.exportSaveRecovery(id,before,uri);status="검증한 복구 사본을 새 파일에 저장했습니다. 원본은 자동으로 복원하지 않았습니다."}
@@ -67,7 +80,7 @@ fun SaveRecoveryDialog(repository: DocumentRepository,message: (String)->Unit,cl
     AlertDialog(onDismissRequest={if(!busy)close()},title={Text("저장 복구")},text={
         Column(Modifier.heightIn(max=480.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Text("자동 복구본은 원본 파일 저장과 별개입니다. 중단된 저장의 이전 원본과 최신 편집본을 새 파일로 보관한 뒤 비교하세요.",style=MaterialTheme.typography.bodySmall)
-            if(loading || busy)LinearProgressIndicator(Modifier.fillMaxWidth())
+            if(loading || signatureLoading || busy)LinearProgressIndicator(Modifier.fillMaxWidth())
             if(!loading && rows.isEmpty())Text("확인이 필요한 저장 기록이 없습니다.")
             if(damaged>0)Text("해석하지 못한 저장 기록 "+damaged+"개를 기기에 보존했습니다. 자동으로 삭제하지 않습니다.")
             rows.forEach {r->
@@ -79,9 +92,9 @@ fun SaveRecoveryDialog(repository: DocumentRepository,message: (String)->Unit,cl
                 TextButton({discard=r},enabled=!busy) {Text("이 복구 기록 삭제…")}
             }
             HorizontalDivider();Text("내 서명 보관함",style=MaterialTheme.typography.titleSmall)
-            Text(if(signatureBad)"보관함을 읽지 못했습니다. 손상 자료를 보존하고 새 덮어쓰기를 차단했습니다." else if(signatures)"서명 자료는 앱 내부에 보관됩니다." else "보관한 서명이 없습니다.",style=MaterialTheme.typography.bodySmall)
-            if(signatures)TextButton({signatureExport.launch("자필서명-복구자료.zip")},enabled=!busy) {Text("서명 자료 내보내기")}
-            if(previous)TextButton({restore=true},enabled=!busy) {Text("이전 정상 서명 보관함 복원…")}
+            Text(if(signatureLoading)"서명 자료를 확인하고 있습니다." else if(signatureBad)"보관함을 읽지 못했습니다. 손상 자료를 보존하고 새 덮어쓰기를 차단했습니다." else if(signatures)"서명 자료는 앱 내부에 보관됩니다." else "보관한 서명이 없습니다.",style=MaterialTheme.typography.bodySmall)
+            if(signatures && !signatureLoading)TextButton({signatureExport.launch("자필서명-복구자료.zip")},enabled=!busy) {Text("서명 자료 내보내기")}
+            if(previous && !signatureLoading)TextButton({restore=true},enabled=!busy) {Text("이전 정상 서명 보관함 복원…")}
             if(status.isNotEmpty())Text(status,style=MaterialTheme.typography.bodySmall)
         }
     },confirmButton={TextButton({message(status.takeIf {it.isNotBlank()} ?: "복구 사본은 자동으로 원본에 덮어쓰지 않습니다.");close()},enabled=!busy){Text("닫기")}})

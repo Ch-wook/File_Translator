@@ -6,6 +6,8 @@
  */
 package org.libreoffice.androidlib;
 import android.content.Context;
+import android.content.ContextWrapper;
+import android.view.KeyEvent;
 import android.util.AttributeSet;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
@@ -43,6 +45,24 @@ public class COWebView extends WebView {
     @Override
     public COWebViewClient getWebViewClient() {
         return (COWebViewClient) super.getWebViewClient();
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        Context owner = getContext();
+        while (owner instanceof ContextWrapper && !(owner instanceof LOActivity)) {
+            Context next = ((ContextWrapper) owner).getBaseContext();
+            if (next == owner) break;
+            owner = next;
+        }
+        boolean paste = event.getKeyCode() == KeyEvent.KEYCODE_PASTE
+                || (event.isCtrlPressed() && event.getKeyCode() == KeyEvent.KEYCODE_V)
+                || (event.isShiftPressed() && event.getKeyCode() == KeyEvent.KEYCODE_INSERT);
+        // VIEW must not enter WebView's synchronous clipboard path. Search and
+        // settings input retain normal paste through a cached DOM focus report.
+        if (paste && owner instanceof LOActivity && ((LOActivity) owner).studioBlocksDocumentPaste())
+            return true;
+        return super.dispatchKeyEvent(event);
     }
 
     /*

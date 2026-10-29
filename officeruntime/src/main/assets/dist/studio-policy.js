@@ -3,6 +3,15 @@
   if (window.studioOffice) return;
   const policy = window.studioOffice = { ready: false, authorized: false, wasAuthorized: false, modeSupported: false, changed: false, initialIntentHandled: false };
   const bridge = () => window.COOLMessageHandler;
+  const reportUiTextFocus=()=>{
+    const target=document.activeElement;
+    const allowed=Boolean(target?.matches?.('input:not([disabled]):not([readonly]),textarea:not([disabled]):not([readonly])')
+      && target.closest('#toolbar-search,#studio-office-tools,[role="dialog"]'));
+    try {bridge()?.studioSetUiTextFocus?.(allowed);} catch(ignore) {}
+  };
+  document.addEventListener('focusin',reportUiTextFocus,true);
+  document.addEventListener('focusout',()=>queueMicrotask(reportUiTextFocus),true);
+  window.addEventListener('pagehide',()=>{try {bridge()?.studioSetUiTextFocus?.(false);}catch(ignore){}});
   let conversionComposing=false;
   document.addEventListener('compositionstart',()=>conversionComposing=true,true);
   document.addEventListener('compositionend',()=>conversionComposing=false,true);
