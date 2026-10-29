@@ -1,0 +1,37 @@
+name: Inspect exact failed quality acceptance evidence
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    if: contains(github.event.head_commit.message, '[quality-failure-inspection]')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read only the failed candidate's saved logs and reports
+        run: |
+          gh run download 40797189929 --name mobile-release-logs-8cae9b06f84ca7ea6d8b21a2e1c38d028562b244 --dir failed-quality
+          python3 - <<'PY'
+          import pathlib,re,xml.etree.ElementTree as E
+          root=pathlib.Path('failed-quality')
+          for p in root.rglob('TEST-*.xml'):
+              if 'androidTest-results' not in p.as_posix():continue
+              for c in E.parse(p).getroot().iter('testcase'):
+                  for f in list(c.findall('failure'))+list(c.findall('error')):print('SAVED_ANDROID_FAILURE',c.attrib,(f.text or '')[:18000])
+          candidates=list(root.rglob('android-runtime.log'))+list(root.rglob('android-all-processes.log'))
+          for p in candidates:
+              lines=p.read_text(errors='replace').splitlines()
+              print('SAVED_RUNTIME_LOG',p,len(lines))
+              selected=set()
+              for n,line in enumerate(lines):
+                  if re.search(r'FATAL EXCEPTION|ANR in kr.documentstudio|Process: kr.documentstudio|SIGSEGV|Fatal signal|StudioDocumentHost|ProviderWriteFailure|SaveRecoveryRequired',line):
+                      selected.update(range(max(0,n-12),min(len(lines),n+45)))
+                  if 'qualitypreview' in line and re.search(r'died|crash|am_anr|START |Displayed |Finishing|Killing |Start proc|Force finishing',line):
+                      selected.add(n)
+              for n in sorted(selected)[:1800]:print('SAVED_RUNTIME_LINE',n,lines[n])
+          PY
