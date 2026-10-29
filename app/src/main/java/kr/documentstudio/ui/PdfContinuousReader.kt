@@ -40,6 +40,25 @@ fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolea
                         onZoomChanged: (Float)->Unit={},initialOffset: Int=0,
                         onPositionChanged: (Int,Int)->Unit={_,_->},controller: PdfEditorController?=null) {
     val count=s.pdf!!.pages
+    var renderer by remember(s.id) {mutableStateOf<PdfReadRenderer?>(null)}
+    var rendererFailure by remember(s.id) {mutableStateOf(false)}
+    var openRetry by remember(s.id) {mutableIntStateOf(0)}
+    LaunchedEffect(s.base,s.edits.values,openRetry) {
+        var opened: PdfReadRenderer?=null
+        renderer=null;rendererFailure=false
+        try {
+            // One immutable working snapshot and native renderer per revision,
+            // rather than reopening/re-serializing the whole PDF for every page.
+            withContext(Dispatchers.IO){opened=PdfReadRenderer.open(s)}
+            renderer=opened
+            awaitCancellation()
+        } catch(e: CancellationException){throw e}
+        catch(e: Exception){rendererFailure=true}
+        finally {
+            if(renderer===opened)renderer=null
+            withContext(NonCancellable+Dispatchers.IO){opened?.close()}
+        }
+    }
     val list=rememberLazyListState(page.coerceIn(0,count-1),initialOffset.coerceAtLeast(0))
     val pan=rememberScrollState()
     val scope=rememberCoroutineScope()
@@ -130,9 +149,16 @@ fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolea
         val documentWidth=baseWidth*zoom
         val surfaceWidth=maxOf(maxWidth,documentWidth+24.dp)
         Box(Modifier.fillMaxSize().then(gestures)) {
+            if(rendererFailure) {
+                Column(Modifier.align(Alignment.Center).padding(16.dp),horizontalAlignment=Alignment.CenterHorizontally){
+                    Text("PDF 페이지를 준비하지 못했습니다. 원본 파일은 변경하지 않았습니다.")
+                    TextButton({openRetry++},enabled=!busy){Text("다시 불러오기")}
+                }
+                return@Box
+            }
             if(horizontal) HorizontalPager(pager,modifier=Modifier.fillMaxSize().semantics {contentDescription="PDF 가로 페이지 목록"},userScrollEnabled=!busy && zoom<=1f) {index->
                 Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState()).padding(12.dp)) {
-                    ContinuousPage(s,index,busy,onEditPage?.let {callback->{callback(index)}},Modifier.width(documentWidth))
+                    ContinuousPage(s,index,busy,renderer,onEditPage?.let {callback->{callback(index)}},Modifier.width(documentWidth))
                 }
             } else Box(Modifier.fillMaxSize().horizontalScroll(pan)) {
                 LazyColumn(Modifier.width(surfaceWidth).fillMaxHeight().semantics {
@@ -151,7 +177,7 @@ fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolea
 }
 
 @Composable
-private fun ContinuousPage(s: Session,index: Int,busy: Boolean,edit: (()->Unit)?,modifier: Modifier=Modifier) {
+private fun ContinuousPage(s: Session,index: Int,busy: Boolean,renderer: PdfReadRenderer?,edit: (()->Unit)?,modifier: Modifier=Modifier) {
     val density=LocalDensity.current
     var viewportPixels by remember {mutableIntStateOf(with(density){360.dp.roundToPx()})}
     val rasterWidth=PdfRasterBudget.requestedWidth(viewportPixels.coerceAtLeast(1),1f)
@@ -163,13 +189,14 @@ private fun ContinuousPage(s: Session,index: Int,busy: Boolean,edit: (()->Unit)?
     val aspect=if(size!=null)size.width/size.height else 595f/842f
     val owned=remember(s.base,index) {mutableSetOf<Bitmap>()}
     DisposableEffect(s.base,index) {onDispose {owned.forEach {it.recycle()};owned.clear()}}
-    LaunchedEffect(s.base,index,s.edits.values,ink,retry,rasterWidth) {
+    LaunchedEffect(s.base,index,s.edits.values,ink,retry,rasterWidth,renderer) {
+        if(renderer==null)return@LaunchedEffect
         var produced: Bitmap?=null
         try {
             if(bitmap!=null)delay(180)
             readerSlots.withPermit {
                 withContext(Dispatchers.IO) {
-                    produced=PdfEngine.renderWorking(s,index,rasterWidth)
+                    produced=renderer.render(index,rasterWidth)
                     val image=produced!!;val canvas=Canvas(image)
                     ink.forEach {drawStroke(canvas,it,image.width.toFloat(),image.height.toFloat())}
                 }
