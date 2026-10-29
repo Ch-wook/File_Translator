@@ -150,7 +150,12 @@ class ReadingUxTest {
         assertFalse(vm.state.value.session!!.dirty);assertEquals(hash,DocumentRepository.digest(file))
         com.tom_roush.pdfbox.pdmodel.PDDocument.load(file).use {doc->
             val text=com.tom_roush.pdfbox.text.PDFTextStripper().getText(doc)
-            for(index in 1..100)assertTrue(text.contains("VIEWER_PDF_PAGE_${index}"))
+            val normalized=text.filterNot {it.isWhitespace()}
+            val missing=(1..100).filterNot {normalized.contains("VIEWER_PDF_PAGE_"+it)}
+            val output=File(compose.activity.getExternalFilesDir(null),"native-reading-ux").apply {mkdirs()}
+            File(output,"pdf-100-extraction.json").writeText(org.json.JSONObject().put("missingPageMarkers",org.json.JSONArray(missing))
+                .put("extractedText",text).toString(2))
+            assertTrue("Independent extraction must preserve all markers; missing: "+missing,missing.isEmpty())
         }
         val output=File(compose.activity.getExternalFilesDir(null),"native-reading-ux").apply {mkdirs()}
         File(output,"pdf-100-page-navigation.json").writeText(org.json.JSONObject().put("pages",100).put("mixedSizesAndRotation",true)

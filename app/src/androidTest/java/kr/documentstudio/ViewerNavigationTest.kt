@@ -107,7 +107,7 @@ class ViewerNavigationTest {
                 // Existing native address command must navigate to actual populated CV5000.
                 eval(kind,"app.map.sendUnoCommand('.uno:GoToCell',{ToPoint:{type:'string',value:'CV5000'}});true")
                 waitFor("Native cell address reaches far populated data"){
-                    eval(kind,"String(document.querySelector('#addressInput input,#addressInput')?.value||app.map.stateChangeHandler.getItemValue('.uno:CellAddress')||'')").contains("CV5000")
+                    eval(kind,"String((document.querySelector('#addressInput input')||document.querySelector('input#addressInput'))?.value||app.map.stateChangeHandler.getItemValue('.uno:CellAddress')||'')").contains("CV5000")
                 }
                 record.put("distantCell","CV5000")
             }else{
@@ -156,7 +156,7 @@ class ViewerNavigationTest {
             runCatching {probeClient.close()}
             if(!completed)runCatching {
                 record.put("observedState",JSONObject(eval(kind,state)))
-                if(kind=="office")record.put("officeGeometry",JSONObject(eval(kind,"JSON.stringify({layout:app.activeDocument?.activeLayout?.type,view:app.activeDocument?.activeLayout?.viewedRectangle,zoom:app.map.getZoom(),address:document.querySelector('#addressInput input,#addressInput')?.value,cellAddress:app.map.stateChangeHandler.getItemValue('.uno:CellAddress'),changed:window.studioOffice.changed})")))
+                if(kind=="office")record.put("officeGeometry",JSONObject(eval(kind,"JSON.stringify({layout:app.activeDocument?.activeLayout?.type,view:app.activeDocument?.activeLayout?.viewedRectangle,zoom:app.map.getZoom(),address:(document.querySelector('#addressInput input')||document.querySelector('input#addressInput'))?.value,cellAddress:app.map.stateChangeHandler.getItemValue('.uno:CellAddress'),changed:window.studioOffice.changed})")))
             }
             record.put("completed",completed);File(evidence,name+".json").writeText(record.toString(2))
             instrumentation.runOnMainSync {if(!foreground.isFinishing)foreground.finish()}

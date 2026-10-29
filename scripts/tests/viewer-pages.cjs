@@ -11,9 +11,9 @@ const digest=b=>crypto.createHash('sha256').update(b).digest('hex');
  page.on('pageerror',e=>errors.push(e.message));
  await context.addInitScript(()=>{
   window.__writes=0;
-  window.DocumentStudio={describe:()=>JSON.stringify({name:'viewer-20.hwpx',format:'hwpx',openIntent:'VIEW'}),
+  window.DocumentStudio={describe:()=>JSON.stringify({name:'viewer-20.hwpx',format:'hwpx',openIntent:'VIEW',viewState:JSON.parse(localStorage.getItem('viewer-state')||'null')}),
    loaded:()=>window.__ready=true,loadFailed:e=>window.__failure=e,setEditing:()=>true,
-   saveViewState:v=>window.__view=JSON.parse(v),beginWrite:()=>{window.__writes++;return false;},
+   saveViewState:v=>{window.__view=JSON.parse(v);localStorage.setItem('viewer-state',v);},beginWrite:()=>{window.__writes++;return false;},
    closeEditor:()=>{window.__closed=true},requestDiscard:()=>{}};
  });
  await context.route('**/*',route=>{
@@ -34,7 +34,7 @@ const digest=b=>crypto.createHash('sha256').update(b).digest('hex');
   const call=(method,...args)=>frame.evaluate(({method,args})=>window.rhwpStudio.documentStudio[method](...args),{method,args});
   assert.equal((await call('info')).pages,20,'The fixture contains twenty real layout pages');
   await page.locator('#page-number').getAttribute('aria-label').then(v=>assert.match(v,/20쪽/));
-  const rendered=[];
+  const rendered=[],visibleHashes=[];
   for(let i=0;i<20;i++){
    await call('goToPage',i);
    console.log('VIEWER_PAGE_ATTEMPT',i+1,await call('pageState'),await call('captureView'));
@@ -45,10 +45,25 @@ const digest=b=>crypto.createHash('sha256').update(b).digest('hex');
       const r=c.getBoundingClientRect();return c.width>0&&c.height>0&&r.bottom>box.top&&r.top<box.bottom;
     });
    });
+   await frame.waitForFunction(()=>{
+     const box=document.getElementById('scroll-container').getBoundingClientRect(),x=box.left+box.width/2,y=box.top+box.height/2;
+     return Array.from(document.querySelectorAll('canvas.document-page-canvas')).some(c=>{
+       const r=c.getBoundingClientRect();return Number(c.dataset.rhwpRenderedZoom)>0&&r.left<=x&&r.right>=x&&r.top<=y&&r.bottom>=y;
+     });
+   });
+   const visible=await frame.evaluate(()=>{
+     const box=document.getElementById('scroll-container').getBoundingClientRect(),x=box.left+box.width/2,y=box.top+box.height/2;
+     const canvas=Array.from(document.querySelectorAll('canvas.document-page-canvas')).find(c=>{
+       const r=c.getBoundingClientRect();return Number(c.dataset.rhwpRenderedZoom)>0&&r.left<=x&&r.right>=x&&r.top<=y&&r.bottom>=y;
+     });
+     return canvas.toDataURL('image/png').split(',')[1];
+   });
+   visibleHashes.push(digest(Buffer.from(visible,'base64')));
    const raster=await call('pdfPage',i);
    rendered.push({page:i+1,hash:digest(Buffer.from(raster.png,'base64')),width:raster.width,height:raster.height});
    if([0,9,19].includes(i))await page.screenshot({path:path.join(out,'hwpx-page-'+(i+1)+'.png')});
   }
+  assert.equal(new Set(visibleHashes).size,20,'All twenty visible viewport canvases must contain distinct content');
   assert.equal(new Set(rendered.map(r=>r.hash)).size,20,'Unique real pages cannot be duplicated first-page copies');
   await call('goToPage',0);
   const scroll=frame.locator('#scroll-container'),box=await scroll.boundingBox();
@@ -80,10 +95,14 @@ const digest=b=>crypto.createHash('sha256').update(b).digest('hex');
   const finalView=await call('captureView');
   await page.locator('#back').click();await page.waitForFunction(()=>window.__closed);
   assert.equal(await page.evaluate(()=>window.__writes),0);assert.equal(digest(fs.readFileSync(path.join(assets,'viewer-20.hwpx'))),before);
+  await page.reload();await page.waitForFunction(()=>window.__ready||window.__failure,null,{timeout:90000});
+  const reopened=page.frames().find(f=>f.url().includes('/engine/index.html'));
+  await reopened.waitForFunction(()=>window.rhwpStudio?.documentStudio?.pageState().page===19);
+  assert.equal(await page.evaluate(()=>window.__writes),0);
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-  const result={pages:20,uniqueRenderedPages:20,continuousScroll:true,directLastPage:true,actualChromiumTouchPinch:true,
+  const result={pages:20,uniqueRenderedPages:20,uniqueVisibleCanvasPages:20,reopenedLastPage:true,continuousScroll:true,directLastPage:true,actualChromiumTouchPinch:true,
    panAfterZoom:true,modeSwitchPagePreserved:true,phoneLandscapeViewport:true,fitPage:true,retry:true,documentWrites:0,
-   originalUnchanged:true,firstReadyMs,zoomBefore:z,zoomAfter:zoomed.zoom,finalView,rendered,
+   originalUnchanged:true,firstReadyMs,zoomBefore:z,zoomAfter:zoomed.zoom,finalView,rendered,visibleHashes,
    limitations:['Chromium mobile viewport; not physical Android or Android screen rotation']};
   fs.writeFileSync(path.join(out,'hwpx-20-results.json'),JSON.stringify(result,null,2));console.log('HWPX_20_VIEWER_ACCEPTANCE',JSON.stringify(result));
  } finally {await context.close();await browser.close();}
