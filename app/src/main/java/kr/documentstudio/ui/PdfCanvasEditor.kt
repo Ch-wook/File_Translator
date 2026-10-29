@@ -56,15 +56,26 @@ class PdfObjectCanvas(context: Context): FrameLayout(context) {
     var selection: Any?=null;private set
     var onSelection: (Any?)->Unit={}
     var onScale: (Float)->Unit={}
+    var onScaleAt: ((Float,Float,Float)->Unit)?=null
+    var onDoubleTapAt: ((Float,Float)->Unit)?=null
+    private var doubleTapZooming=false
+    private val tapDetector=android.view.GestureDetector(context,object: android.view.GestureDetector.SimpleOnGestureListener(){
+        override fun onDown(e: MotionEvent)=!editable
+        override fun onDoubleTap(e: MotionEvent): Boolean {if(editable)return false;doubleTapZooming=true;onDoubleTapAt?.invoke(e.x,e.y);return true}
+    })
     private var scaling=false
     private val scaleDetector=android.view.ScaleGestureDetector(context,object: android.view.ScaleGestureDetector.SimpleOnScaleGestureListener(){
         override fun onScaleBegin(detector: android.view.ScaleGestureDetector): Boolean {scaling=true;return true}
-        override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {onScale(detector.scaleFactor);return true}
+        override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {onScaleAt?.invoke(detector.scaleFactor,detector.focusX,detector.focusY) ?: onScale(detector.scaleFactor);return true}
     })
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         scaleDetector.onTouchEvent(event)
+        if(!editable)tapDetector.onTouchEvent(event)
+        if(doubleTapZooming){if(event.actionMasked==MotionEvent.ACTION_UP || event.actionMasked==MotionEvent.ACTION_CANCEL)doubleTapZooming=false;return true}
         if(event.pointerCount>1 || scaling) {parent?.requestDisallowInterceptTouchEvent(true);if(event.actionMasked==MotionEvent.ACTION_UP || event.actionMasked==MotionEvent.ACTION_CANCEL){scaling=false;parent?.requestDisallowInterceptTouchEvent(false)};return true}
-        return super.dispatchTouchEvent(event)
+        // Retain the first DOWN so the scale detector receives POINTER_DOWN/MOVE.
+        // Parents may still intercept ordinary one-finger scrolling.
+        return super.dispatchTouchEvent(event) || (!editable && event.actionMasked==MotionEvent.ACTION_DOWN)
     }
     override fun onSizeChanged(w: Int,h: Int,oldw: Int,oldh: Int) {
         super.onSizeChanged(w,h,oldw,oldh)
@@ -172,12 +183,14 @@ class PdfObjectCanvas(context: Context): FrameLayout(context) {
 }
 
 @Composable
-fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readOnly: Boolean=true,controller: PdfEditorController?=null,initialZoom: Float=1f,onZoomChanged: (Float)->Unit={}) {
+fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readOnly: Boolean=true,controller: PdfEditorController?=null,initialZoom: Float=1f,onZoomChanged: (Float)->Unit={},initialOffset: Int=0,onPositionChanged: (Int)->Unit={}) {
     val scope=rememberCoroutineScope()
     val density=androidx.compose.ui.platform.LocalDensity.current
     val screenWidth=androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
     var viewportPixels by remember {mutableIntStateOf(with(density){screenWidth.dp.roundToPx()})}
-    val verticalPosition=rememberScrollState()
+    val verticalPosition=key(s.id,page){rememberScrollState(initialOffset.coerceAtLeast(0))}
+    val positionChanged by rememberUpdatedState(onPositionChanged)
+    LaunchedEffect(verticalPosition){snapshotFlow {verticalPosition.value}.collect {positionChanged(it)}}
     val horizontalPosition=rememberScrollState()
     var canvas by remember(s.id,page) {mutableStateOf<PdfObjectCanvas?>(null)}
     var selected by remember(s.base,page) {mutableStateOf<Any?>(null)}
@@ -285,11 +298,21 @@ fun PdfCanvasEditor(s: Session,page: Int,vm: DocumentActions,busy: Boolean,readO
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().then(Modifier.onSizeChanged {viewportPixels=it.width})) {
             val pageWidth=(maxWidth-24.dp).coerceAtLeast(1.dp)
             val image=bitmap
-            SideEffect {controller?.fitPage={if(image!=null)zoom=((maxHeight.value-24).coerceAtLeast(1f)/(pageWidth.value*image.height/image.width)).coerceIn(.25f,3f)}}
+            SideEffect {controller?.fitPage={if(image!=null)zoom=minOf(1f,(maxHeight.value-24).coerceAtLeast(1f)/(pageWidth.value*image.height/image.width)).coerceIn(.25f,3f)}}
             if(image==null) Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {if(failure==null) CircularProgressIndicator() else Text("페이지를 편집 가능한 상태로 표시하지 못했습니다.")}
             else Box(Modifier.fillMaxSize().verticalScroll(verticalPosition).horizontalScroll(horizontalPosition).padding(12.dp)) {
                 AndroidView(factory={context->PdfObjectCanvas(context).also {canvas=it}},update={view->
-                    view.bitmap=image;view.page=page;view.onScale={factor->zoom=(zoom*factor).coerceIn(.25f,3f)};view.editable=!busy && !readOnly;view.textRuns=runs;view.images=images;view.onSelection={selected=it}
+                    view.bitmap=image;view.page=page;
+                    fun zoomAt(target: Float,x: Float,y: Float) {
+                        val next=target.coerceIn(.25f,3f);val ratio=next/zoom
+                        val sx=(horizontalPosition.value+x*(ratio-1)).toInt().coerceAtLeast(0)
+                        val sy=(verticalPosition.value+y*(ratio-1)).toInt().coerceAtLeast(0)
+                        zoom=next
+                        scope.launch {withFrameNanos{};horizontalPosition.scrollTo(sx);verticalPosition.scrollTo(sy)}
+                    }
+                    view.onScaleAt={factor,x,y->zoomAt(zoom*factor,x,y)}
+                    view.onDoubleTapAt={x,y->zoomAt(if(zoom<1.8f)2f else 1f,x,y)}
+                    view.onScale={factor->zoom=(zoom*factor).coerceIn(.25f,3f)};view.editable=!busy && !readOnly;view.textRuns=runs;view.images=images;view.onSelection={selected=it}
                     (view.selection as? PdfBodyRun)?.let {run->
                         val pending=s.edits.values[PdfTextEdits.key(page,run.id)]
                         val value=pending?.let {org.json.JSONObject(it).getString("text")} ?: runs.firstOrNull {it.id==run.id}?.text

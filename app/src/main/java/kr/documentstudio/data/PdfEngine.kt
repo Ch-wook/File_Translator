@@ -27,7 +27,8 @@ import com.tom_roush.pdfbox.util.Matrix
 import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory
 
 data class PdfForm(val name: String,val value: String,val kind: String,val options: List<String>,val readOnly: Boolean)
-data class PdfInfo(val pages: Int, val archival: Boolean,val forms: List<PdfForm> = emptyList(),val annotatedPages: Set<Int> = emptySet())
+data class PdfPageSize(val width: Float,val height: Float)
+data class PdfInfo(val pages: Int, val archival: Boolean,val forms: List<PdfForm> = emptyList(),val annotatedPages: Set<Int> = emptySet(),val pageSizes: List<PdfPageSize> = emptyList())
 object PdfEngine {
     /** Reading/drawing must show pending in-place edits as well as the saved base. */
     fun renderWorking(s: Session,page: Int,viewportWidth: Int?=null): android.graphics.Bitmap {
@@ -49,7 +50,14 @@ object PdfEngine {
             val options=when(field) {is PDChoice -> field.options;is PDButton -> field.onValues.toList();else->emptyList()}
             PdfForm(field.fullyQualifiedName,field.valueAsString,when(field) {is PDTextField->"text";is PDCheckBox->"checkbox";is PDChoice->"choice";is PDRadioButton->"radio";else->"unsupported"},options,field.isReadOnly)
         } ?: emptyList()
-        PdfInfo(doc.numberOfPages, xmp.contains("pdfaid", ignoreCase = true),forms,(0 until doc.numberOfPages).filter {doc.getPage(it).annotations.isNotEmpty()}.toSet())
+        val sizes=(0 until doc.numberOfPages).map {index->
+            val page=doc.getPage(index);val box=page.cropBox
+            val rotated=((page.rotation%360)+360)%360 in listOf(90,270)
+            val width=if(rotated)box.height else box.width;val height=if(rotated)box.width else box.height
+            require(width.isFinite() && height.isFinite() && width>0 && height>0) {"PDF 페이지 크기를 확인하지 못했습니다."}
+            PdfPageSize(width,height)
+        }
+        PdfInfo(doc.numberOfPages, xmp.contains("pdfaid", ignoreCase = true),forms,(0 until doc.numberOfPages).filter {doc.getPage(it).annotations.isNotEmpty()}.toSet(),sizes)
     }
     fun render(file: File, index: Int,maxWidth: Int=1600,maxHeight: Int=2200,annotationPages: Set<Int>?=null): Bitmap {
         require(maxWidth in 1..1600 && maxHeight in 1..2200)

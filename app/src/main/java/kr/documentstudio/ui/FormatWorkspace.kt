@@ -18,6 +18,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import kr.documentstudio.*
 import kr.documentstudio.core.*
 import kr.documentstudio.data.*
@@ -34,7 +36,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     val readerPreferences=remember {readerContext.getSharedPreferences("reading-position",0)}
     var page by rememberSaveable(s.id) {mutableIntStateOf(readerPreferences.getInt(s.id+":page",0))}
     var readingZoom by rememberSaveable(s.id) {mutableFloatStateOf(readerPreferences.getFloat(s.id+":zoom",1f))}
-    var continuous by rememberSaveable(s.id) {mutableStateOf(readerPreferences.getBoolean(s.id+":continuous",false))}
+    var continuous by rememberSaveable(s.id) {mutableStateOf(readerPreferences.getString(s.id+":pdf-layout-v2","continuous")!="single")}
     var readingOffset by rememberSaveable(s.id) {mutableIntStateOf(readerPreferences.getInt(s.id+":offset",0).coerceAtLeast(0))}
     var navigationRequest by remember(s.id) {mutableIntStateOf(0)}
     var search by remember {mutableStateOf(false)}
@@ -42,6 +44,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     var ocr by remember {mutableStateOf(false)}
     val textController=remember(s.id) {NativeEditorController()}
     val pdfController=remember(s.id) {PdfEditorController()}
+    val viewerScope=rememberCoroutineScope()
     val context=LocalContext.current
     val preferences=remember {context.getSharedPreferences("editor-display",0)}
     var displayFont by rememberSaveable {mutableStateOf(preferences.getString("font","고정폭") ?: "고정폭")}
@@ -83,11 +86,17 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
         Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFFE8ECF3))) {
             when {
                 editing && ink->DrawingPage(s,null,page,settings,vm,busy)
-                s.format==Format.PDF && !editing && continuous->PdfContinuousReader(s,page,navigationRequest,busy,onVisiblePage=updatePage,onEditPage=null,initialZoom=readingZoom,onZoomChanged={readingZoom=it;pdfController.zoom=it},initialOffset=readingOffset,onPositionChanged={index,offset->updatePage(index);readingOffset=offset})
-                s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController,initialZoom=readingZoom,onZoomChanged={readingZoom=it})
+                s.format==Format.PDF && !editing && continuous && (s.pdf?.pages ?: 0)>1->PdfContinuousReader(s,page,navigationRequest,busy,onVisiblePage=updatePage,onEditPage=null,initialZoom=readingZoom,onZoomChanged={readingZoom=it;pdfController.zoom=it},initialOffset=readingOffset,onPositionChanged={index,offset->updatePage(index);readingOffset=offset},controller=pdfController)
+                s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController,initialZoom=readingZoom,onZoomChanged={readingZoom=it},initialOffset=readingOffset,onPositionChanged={readingOffset=it})
                 preview && s.format==Format.MD->MarkdownPreview(s.edits.text,busy || !editing,vm::text,viewportKey=s.id,dark=dark)
                 else->NativeTextEditor(s.edits.text,displaySize,busy,wrap,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont,showLineNumbers=lineNumbers,viewportKey=s.id,dark=dark)
             }
+        }
+        if(s.format==Format.PDF && !editing) Row(Modifier.fillMaxWidth().heightIn(min=48.dp).background(MaterialTheme.colorScheme.surface),verticalAlignment=Alignment.CenterVertically) {
+            IconButton({navigate(page-1)},enabled=!busy && page>0){Icon(Icons.AutoMirrored.Filled.NavigateBefore,"이전 페이지")}
+            TextButton({panel="보기 설정"},enabled=!busy,modifier=Modifier.weight(1f)){Text("${page+1} / ${s.pdf!!.pages}")}
+            TextButton({panel="보기 설정"},enabled=!busy){Text("${(readingZoom*100).roundToInt()}%")}
+            IconButton({navigate(page+1)},enabled=!busy && page<s.pdf!!.pages-1){Icon(Icons.AutoMirrored.Filled.NavigateNext,"다음 페이지")}
         }
         if(panel!=null) MobileEditorSheet(if(fontList)"보기 글꼴" else if(s.format==Format.TXT && panel=="글자")"보기 설정" else panel!!,sheetLimit,{panel=null;fontList=false;if(editing&&s.format!=Format.PDF)textController.focus()}) {
           when(panel) {
@@ -163,14 +172,15 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                     Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(lineNumbers,{lineNumbers=it;preferences.edit().putBoolean("lineNumbers",it).apply()});Text("줄 번호")}
                     Text("${textStats.first}자 · ${textStats.second}줄",style=MaterialTheme.typography.bodySmall)
                 } else {
-                    if(!editing) Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(continuous,{continuous=it},modifier=Modifier.testTag("pdf-continuous-toggle"));Text("연속 페이지 보기")}
+                    if(!editing) Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(continuous,{continuous=it;readerPreferences.edit().putString(s.id+":pdf-layout-v2",if(it)"continuous" else "single").apply()},modifier=Modifier.testTag("pdf-continuous-toggle"));Text("연속 페이지 보기")}
                     Row(verticalAlignment=Alignment.CenterVertically) {Tool("이전 페이지"){navigate(page-1)};Text("${page+1} / ${s.pdf!!.pages}");Tool("다음 페이지"){navigate(page+1)}}
+                    Row {Tool("첫 페이지"){navigate(0);panel=null};Tool("마지막 페이지"){navigate(s.pdf!!.pages-1);panel=null}}
                     var pageInput by remember(page) {mutableStateOf((page+1).toString())}
                     Row(verticalAlignment=Alignment.CenterVertically) {
                         OutlinedTextField(pageInput,{pageInput=it},label={Text("페이지 번호")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.weight(1f))
                         Tool("이동"){pageInput.toIntOrNull()?.takeIf {it in 1..s.pdf!!.pages}?.let {navigate(it-1);panel=null}}
                     }
-                    Row(verticalAlignment=Alignment.CenterVertically) {Tool("축소"){pdfController.setZoom(pdfController.zoom-.25f)};Text("${(pdfController.zoom*100).toInt()}%");Tool("확대"){pdfController.setZoom(pdfController.zoom+.25f)};Tool("너비 맞춤"){pdfController.setZoom(1f)};Tool("전체 페이지 맞춤"){pdfController.fitPage()}}
+                    Row(verticalAlignment=Alignment.CenterVertically) {Tool("축소"){pdfController.setZoom(pdfController.zoom-.25f)};Text("${(pdfController.zoom*100).toInt()}%");Tool("확대"){pdfController.setZoom(pdfController.zoom+.25f)};Tool("너비 맞춤"){pdfController.setZoom(1f)};Tool("전체 페이지 맞춤"){panel=null;viewerScope.launch {withFrameNanos{};withFrameNanos{};pdfController.fitPage()}}}
                     Tool("PDF 검색"){panel="PDF 검색"}
                     if(editing){Row{Tool("페이지 도구"){panel="페이지"};Tool("주석"){panel="주석"}};DocumentTools(s,null,vm,busy,page,navigate,"편집"){ocr=true}}
                 }
