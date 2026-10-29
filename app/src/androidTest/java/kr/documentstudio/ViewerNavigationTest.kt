@@ -66,6 +66,14 @@ class ViewerNavigationTest {
     @Test fun spreadsheetAllThreeSheetsAndDistantCellRemainAccessible()=exercise("viewer-large.xlsx","office",3)
     private fun exercise(name: String,kind: String,count: Int)=runBlocking {
         device.wakeUp();device.executeShellCommand("am force-stop com.android.launcher3")
+        // Match the real app entry flow without startActivitySync's idle wait:
+        // cold extraction/initial dialogs can otherwise race a headless launch.
+        instrumentation.runOnMainSync {
+            context.startActivity(Intent(context,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        }
+        waitFor("Application host is foreground before opening its isolated engine",30000){
+            device.currentPackageName==context.packageName && device.hasObject(By.pkg(context.packageName))
+        }
         val original=File(context.cacheDir,"tests/viewer-"+UUID.randomUUID()+"-"+name).apply {parentFile!!.mkdirs()}
         instrumentation.context.assets.open(name).use {input->original.outputStream().use {input.copyTo(it)}}
         val uri=FileProvider.getUriForFile(context,context.packageName+".testfiles",original)
