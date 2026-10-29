@@ -1,8 +1,10 @@
 {
-  "source": "87a09d3c46d5459caccb9c6f81534fd70feee912",
-  "run": 40844681112,
+  "source": "1053a6adacd9ee56fd2ff08d3b28a2cb3ef8237d",
+  "run": 40849376299,
   "pages": 20,
   "uniqueRenderedPages": 20,
+  "uniqueVisibleCanvasPages": 20,
+  "reopenedLastPage": true,
   "continuousScroll": true,
   "directLastPage": true,
   "actualChromiumTouchPinch": true,
@@ -13,7 +15,7 @@
   "retry": true,
   "documentWrites": 0,
   "originalUnchanged": true,
-  "firstReadyMs": 958,
+  "firstReadyMs": 1221,
   "zoomBefore": 0.46869094116164794,
   "zoomAfter": 0.9373818823232959,
   "finalView": {
@@ -147,6 +149,28 @@
       "width": 595.2750000000001,
       "height": 841.875
     }
+  ],
+  "visibleHashes": [
+    "b75e620e69a2ff929910556f6d0372b096dcc45d256a8bc146ccfd495ba3889a",
+    "2eeaaec540943db7a95990de172c983635693bb59eed1846f5c698a3f3742564",
+    "5224f552a04a8b3e76ffbe88e5be22d73c7f13c6d340d5f6982c42d7fb4a5870",
+    "cc1a66b63e0e9e9d351b3e9771fbefab1eec5d0b72d23349e693b9555ebbedf9",
+    "b605f29089b1d50899a341cc9dfda64ff0abfbed44c1e492cd397d7308b357ab",
+    "a7751d3137cbd4e4e8a904083e85a76cff08cfbfe9b32cb69daa513a45948176",
+    "2be3a4c49a8b6926ced4a2c7d4533c966dd3a4f9a0a8dbfa698c674fab4f4317",
+    "16ba9eea416e6dd2684687d3aa84bafb7841c9bef57405deb61bfd4612349ec3",
+    "edf3ea996ef8e1850e51c3c6686ddc60c28c81555c6d39ed8518e69de76224fd",
+    "e2090f1b2c7646e08fc56dfb543542bf30169b1d905f565d6f7026d9b20a1ec8",
+    "b0ebfb126340a087899e3b414febe729bca017cdac477b344aa46f8462a44ee2",
+    "127dd1e223347b49c9183254f90bc40576e26ac30f435ab605e6ad79f5e2fdd4",
+    "221c5eef64fb619d73095fd1cbbc39498ff3e97f8d9647388898322722fe7a37",
+    "c37498f939ae2d23e61257789cf2e848eb6124189657dfde40a0786dc3b1f4b9",
+    "c7aad2700558ac9290e2c620648a15acff716099d6e21557f81751454973fc79",
+    "20d7b9d5f0f110c90e24dce5f934c78ae799d783aa90b7233418efe0d4d64192",
+    "41b284ccdf7c821223e5b9637eb3d5b6854d63ff4b66d1fa7a9d8b07b4802dca",
+    "67ce7d1c6548cba5f620711757a38fb8916f908b4af39d9ee31b58ff4f7642f3",
+    "96af1f54c2477f52c86e1b0c1676cb840acd55c45c35b8eb03727435b994bd00",
+    "6b45a469beaffbaa13c3ce0f15319b6ca4e547458816cf18b6c1178d5b0dab47"
   ],
   "limitations": [
     "Chromium mobile viewport; not physical Android or Android screen rotation"

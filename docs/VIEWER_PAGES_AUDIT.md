@@ -40,3 +40,16 @@ Office는 읽기 상태의 작은 페이지/슬라이드/시트 탐색 줄을 �
 Android의 실제 한 손가락 스크롤·두 손가락·슬라이드 스와이프, 원거리 셀·시트 이동, 회전, PDF100 재열기, 최신 편집/서명/변환 회귀와 동일 소스 APK 설치·패키지 검사, 신규 성능·보안 실행 결과를 최종 보고서와 배포 게이트에 반영한다. 사용자가 보고한 특정 파일/설치 버전은 추가 정보 대기 중이며, 같은 문제가 모든 파일에서 해결됐다고 단정하지 않는다.
 
 코드: ui/FormatWorkspace.kt, PdfContinuousReader.kt, PdfCanvasEditor.kt; data/PdfEngine.kt, PdfReadRenderer.kt; HangulEditorActivity.kt; web/hangul/engine-adapter.ts, studio-touch.ts, host.js, host.css, index.html; officeruntime/.../studio-policy.js. 검증: ReadingUxTest, ViewerNavigationTest, ReadingPerformanceTest, prepare-viewer-fixtures.py, viewer-pages.cjs와 Actions 워크플로.
+
+
+## 추가 실제 결과와 원인 분리 (09:49 UTC)
+
+- Actions40849376299 /1053a6ad: 실제20개 viewport Canvas의 픽셀 해시도 모두 다름을 확인했다. PDF용 별도 렌더러가 실제 화면의 첫 페이지 반복을 가리는 상황을 배제했다. 같은 문서를 새 WebView로 다시 열어20쪽을 복원하는 검사까지 통과했다. 원본 해시·쓰기0회 유지.
+- Actions40849376309 /1053a6ad: Android의100페이지PDF, 서로 다른 크기·회전,50/100쪽, 명시적 단일/연속 전환, 실제 두 포인터 핀치·더블 탭, 현재 위치 보존·종료/재열기, 원본 해시 보존·독립 파서 재열기를 통과했다(1건, 실패/오류/건너뜀0). PDF 텍스트 추출의 글자 사이 공백/줄 구분을 문서 내용 누락으로 오인하지 않도록 정규화했고100개 페이지 표식이 모두 보존됐다. 아직 전체70건 최종 APK 검증을 대체하지 않는다.
+- Android 로그에서 한글 Activity는 회전 때 실제로 파괴/재생성됐다. orientation/screenSize 변경에서는 현재 WebView·문서를 유지하도록 바꾸고 보기 위치를 별도 debounce 저장한다. 실제 Android 동일 엔진·쪽·확대율 검사는 재실행 중이다.
+- 새 시험의 Office probe는 Activity 생성 전에 등록해야 한다. 후등록 시 관찰 대상이 없어지는 시험 문제를 수정했다. 종료되는 private 엔진 프로세스에 stable provider를 붙잡아 시험 프로세스까지 종료되는 문제는 unstable client로 수정했다. 시험용 MainActivity 동기 시작의45초 대기도 제거했다. 이 오류들을 사용자 문서 손상이나 앱의 전체 지원 실패로 보고하지 않는다.
+- Word는 실제로 스크롤돼 y=10213까지 이동했지만 상단 쪽만 사용해 현재 쪽이0으로 남았다. viewport 중심의 실제 페이지 사각형으로 번호를 계산한다.
+- PowerPoint 네이티브는 ViewLayoutFileBased로 모든 슬라이드를 세로 배치한다. 기본 맞춤이 전체 파일 높이를 기준으로20%까지 축소되고 좌우 스와이프는 슬라이드 전환이 아니었다. 실제 getPartSizeTwips, getScaleZoom, native setPart/preview scroll API를 확인해 개별 슬라이드 맞춤과 읽기 좌우 스와이프를 연결했다. 확대 상태에서는 화면 이동을 우선한다.
+- 기존 Office 확대율 표시는 존재하지 않는 map.getZoomScale에100% 기본값을 사용했다. 실제 app.activeDocument.getZoomScale로 고쳤다. 없는 값을 정상 배율로 표시하지 않는다.
+- XLSX 시험의 GoToCell 직접 UNO는 읽기 전용에서 거절됐다. 실제 사용자에게 제공하는 찾기 UI를 통해 고유한CV5000셀 값으로 이동하고 viewport/원본 보존을 검사한다. 편집 전용 명령을 읽기 명령으로 우회하지 않는다.
+- Markdown의 보기 글꼴·크기·맨 위/아래 메뉴가 원문 입력기에만 연결된 것을 찾았다. 기존 WebView에 실제 번들 글꼴 공급, 표시 크기, native 위/아래, pinch를 연결하고 표시 변경 때 불필요한 Markdown 재파싱을 줄였다. JavaScript/네트워크/파일 접근은 계속 차단하고 고정 목록의 앱 글꼴만 공급한다. 실제 픽셀·글꼴 공급·원문 바이트 검사는 진행 중이다.

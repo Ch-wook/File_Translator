@@ -1,0 +1,18 @@
+{
+  "source": "1053a6adacd9ee56fd2ff08d3b28a2cb3ef8237d",
+  "run": 40849376309,
+  "tests": 1,
+  "failures": 0,
+  "physicalDevice": false,
+  "navigation": {
+    "pages": 100,
+    "mixedSizesAndRotation": true,
+    "actualTwoPointerZoom": true,
+    "doubleTapZoom": true,
+    "page100ReachedAndRestored": true,
+    "sourceHashUnchanged": true,
+    "zoomBefore": 1,
+    "zoomAfterPinch": 4
+  },
+  "missingPageMarkers": []
+}
