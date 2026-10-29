@@ -29,9 +29,9 @@ jobs:
               print('SAVED_RUNTIME_LOG',p,len(lines))
               selected=set()
               for n,line in enumerate(lines):
-                  if re.search(r'FATAL EXCEPTION|ANR in kr.documentstudio|Process: kr.documentstudio|SIGSEGV|Fatal signal|StudioDocumentHost|ProviderWriteFailure|SaveRecoveryRequired',line):
-                      selected.update(range(max(0,n-12),min(len(lines),n+45)))
-                  if 'qualitypreview' in line and re.search(r'died|crash|am_anr|START |Displayed |Finishing|Killing |Start proc|Force finishing',line):
+                  if re.search(r'Fatal signal|Abort message|backtrace:| F DEBUG|FATAL EXCEPTION',line):
+                      selected.update(range(max(0,n-35),min(len(lines),n+160)))
+                  if re.search(r'01:08:4[89]|01:08:5[0-9]|01:09:|01:10:3[3-9]|01:10:40',line) and re.search(r'2962|3387|Fatal|crash|blocked|studio|Exception|abort|denied',line):
                       selected.add(n)
-              for n in sorted(selected)[:1800]:print('SAVED_RUNTIME_LINE',n,lines[n])
+              for n in sorted(selected)[:1700]:print('SAVED_RUNTIME_LINE',n,lines[n])
           PY
