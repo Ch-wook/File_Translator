@@ -147,6 +147,14 @@ jobs:
           script: |
             python3 scripts/test-mobile-installation.py
             bash scripts/run-android-mode-tests.sh
+      - name: Require the actual Android report, independent of action status
+        run: |
+          python3 - <<'PY'
+          import json,pathlib
+          result=json.loads(pathlib.Path('artifacts/ci/android-summary.json').read_text())
+          assert result=={'tests':66,'failures':0,'errors':0,'skipped':0},result
+          print('EXACT_ANDROID_ACCEPTANCE',result)
+          PY
       - name: Verify ABI packages, signatures, all test results and exact source
         env:
           EMULATOR_OUTCOME: ${{ steps.android.outcome }}

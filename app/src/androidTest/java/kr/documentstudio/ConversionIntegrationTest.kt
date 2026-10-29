@@ -106,6 +106,9 @@ class ConversionIntegrationTest {
         var completed=false
         try {
             await("Actual native document must load",120000){probe("state")?.getBoolean("ready")==true}
+            val geometry=probe("geometry")!!
+            assertTrue("Office header must clear the system status bar",geometry.getInt("top")>=geometry.getInt("barTop"))
+            assertTrue("Office content must clear display cutouts",geometry.getInt("left")>=geometry.getInt("barLeft"))
             await("Mobile PDF conversion menu must exist"){device.findObject(By.desc("문서 메뉴"))!=null || device.findObject(By.text("문서 메뉴"))!=null}
             NativeUiActions.tap(device,context.packageName,"문서 메뉴")
             await("PDF conversion action must be visible",10000){device.findObject(By.text("PDF로 변환"))!=null || device.findObject(By.desc("PDF로 변환"))!=null}

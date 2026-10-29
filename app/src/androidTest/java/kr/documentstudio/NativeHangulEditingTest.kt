@@ -191,12 +191,15 @@ class NativeHangulEditingTest {
             assertFalse("Cell character formatting must leave another cell unchanged",mJson("state()").getJSONObject("char").getBoolean("underline"))
             eval("document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.find('셀입력');document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.focus()")
             ime("key",key=KeyEvent.KEYCODE_DPAD_RIGHT)
+            await("The table must consume Right and dismiss selection before saving") {
+                !mJson("state()").optBoolean("selection") && !mJson("state()").optBoolean("composing") && mCount("셀입력")==1
+            }
             val viewport=json("(function(){const f=document.getElementById('engine'),r=f.getBoundingClientRect(),c=f.contentDocument.querySelector('.caret').getBoundingClientRect();return {frameTop:r.top,frameBottom:r.bottom,caretBottom:r.top+c.bottom,caretTop:r.top+c.top,caretHeight:c.height,height:innerHeight};})()")
             assertTrue("The IME must not cover the active caret",viewport.getDouble("caretHeight")>0 && viewport.getDouble("caretTop")>=viewport.getDouble("frameTop")-3 && viewport.getDouble("caretBottom")<=viewport.getDouble("frameBottom")+3)
             device.takeScreenshot(File(output,format.extension+"-keyboard-format.png"))
             assertEquals("Working-copy edits must not overwrite the baseline",baseline,DocumentRepository.digest(session.base))
             await("The real save button must be enabled") {json("({enabled:!document.getElementById('save').disabled})").optBoolean("enabled")}
-            tapVisibleControl("저장 후 닫기")
+            NativeUiActions.tap(device,context.packageName,"저장 후 닫기")
             await("Validated HWP work copy must close",60000) {File(working.path+".closed").isFile}
             await("Hangul writer must release its process",20000) {device.executeShellCommand("pidof "+context.packageName+":hangul").trim().isEmpty()}
             closed=true
@@ -238,7 +241,7 @@ class NativeHangulEditingTest {
             File(output,format.extension+"-editing.json").writeText(evidence.toString(2))
         } catch(error: Throwable) {
             runCatching {device.takeScreenshot(File(output,format.extension+"-failure.png"));device.dumpWindowHierarchy(File(output,format.extension+"-failure.xml"))}
-            runCatching {File(output,format.extension+"-failure.json").writeText(JSONObject().put("error",error.toString()).put("cursorText",m("cursorText()")).put("ime",imeStatus()).put("imeCommands",imeCommands).put("state",mJson("state()")).toString(2))}
+            runCatching {File(output,format.extension+"-failure.json").writeText(JSONObject().put("error",error.toString()).put("cursorText",m("cursorText()")).put("ime",imeStatus()).put("imeCommands",imeCommands).put("state",mJson("state()")).put("host",json("({state:document.body.dataset.state,status:document.getElementById('status').textContent,error:document.getElementById('status').dataset.error,saveDisabled:document.getElementById('save').disabled,focused:document.hasFocus()})")).toString(2))}
             throw error
         } finally {
             if(previousIme.isNotBlank() && previousIme!="null")device.executeShellCommand("ime set "+previousIme)

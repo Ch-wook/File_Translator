@@ -364,6 +364,7 @@ public class LOActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         this.savedInstanceState = savedInstanceState;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         sPrefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
@@ -537,18 +538,20 @@ public class LOActivity extends AppCompatActivity {
             mWebView = (COWebView) findViewById(R.id.browser);
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                mWebView.setOnApplyWindowInsetsListener((v, windowInsets) -> {
-                    Insets insets = windowInsets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime() | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ? WindowInsets.Type.systemOverlays() : 0));
-
-                    ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
-                    mlp.leftMargin = insets.left;
-                    mlp.topMargin = insets.top;
-                    mlp.rightMargin = insets.right;
-                    mlp.bottomMargin = insets.bottom;
-                    v.setLayoutParams(mlp);
-
-                    return WindowInsets.CONSUMED;
+                // Asset preparation can finish after the initial inset dispatch.
+                // Pad the parent so drawing, touch and accessibility move together;
+                // changing WebView margins alone can leave its header under system UI.
+                View content = findViewById(android.R.id.content);
+                content.setOnApplyWindowInsetsListener((v, windowInsets) -> {
+                    Insets insets = windowInsets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime()
+                            | WindowInsets.Type.displayCutout()
+                            | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ? WindowInsets.Type.systemOverlays() : 0));
+                    if (v.getPaddingLeft()!=insets.left || v.getPaddingTop()!=insets.top
+                            || v.getPaddingRight()!=insets.right || v.getPaddingBottom()!=insets.bottom)
+                        v.setPadding(insets.left,insets.top,insets.right,insets.bottom);
+                    return windowInsets;
                 });
+                content.requestApplyInsets();
 
                 boolean lightMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_YES) == 0;
                 WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView()).setAppearanceLightStatusBars(lightMode);
