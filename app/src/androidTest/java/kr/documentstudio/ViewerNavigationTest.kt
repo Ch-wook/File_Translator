@@ -31,14 +31,19 @@ class ViewerNavigationTest {
     private fun eval(kind: String,script: String): String {
         val uri=Uri.parse("content://"+context.packageName+"."+kind+"probe")
         val raw=context.contentResolver.acquireUnstableContentProviderClient(uri).use {client->
-            checkNotNull(client).call("eval",script,null)!!.getString("result")!!
+            val reply=checkNotNull(client).call("eval",script,null)!!
+            checkNotNull(reply.getString("result")) {"Native "+kind+" probe is not ready (ready="+reply.getBoolean("ready")+")"}
         }
         return JSONTokener(raw).nextValue().toString()
     }
     private fun waitFor(label: String,timeout: Long=30000,condition: ()->Boolean) {
         val end=SystemClock.uptimeMillis()+timeout
-        while(SystemClock.uptimeMillis()<end){if(runCatching(condition).getOrDefault(false))return;SystemClock.sleep(100)}
-        assertTrue(label,condition())
+        var lastFailure: Throwable?=null
+        while(SystemClock.uptimeMillis()<end){
+            try{if(condition())return}catch(failure: Throwable){lastFailure=failure}
+            SystemClock.sleep(100)
+        }
+        throw AssertionError(label,lastFailure)
     }
     private fun tap(label: String)=NativeUiActions.tap(device,context.packageName,label,20000)
     private fun documentBounds()=requireNotNull(device.wait(Until.findObject(By.pkg(context.packageName).clazz("android.webkit.WebView")),15000)).visibleBounds
@@ -61,18 +66,25 @@ class ViewerNavigationTest {
     @Test fun spreadsheetAllThreeSheetsAndDistantCellRemainAccessible()=exercise("viewer-large.xlsx","office",3)
     private fun exercise(name: String,kind: String,count: Int)=runBlocking {
         device.wakeUp();device.executeShellCommand("am force-stop com.android.launcher3")
+        // Exercise the normal foreground host → private engine flow.
+        val foreground=instrumentation.startActivitySync(Intent(context,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         val original=File(context.cacheDir,"tests/viewer-"+UUID.randomUUID()+"-"+name).apply {parentFile!!.mkdirs()}
         instrumentation.context.assets.open(name).use {input->original.outputStream().use {input.copyTo(it)}}
         val uri=FileProvider.getUriForFile(context,context.packageName+".testfiles",original)
         val repo=DocumentRepository(context);val session=repo.open(uri);val working=repo.prepareOffice(session)
         val originalHash=DocumentRepository.digest(original);val workingHash=DocumentRepository.digest(working)
-        val api=if(kind=="hangul")"document.getElementById('engine').contentWindow.rhwpStudio.documentStudio" else "window.studioOffice"
-        val state=if(kind=="hangul")api+".pageState()" else api+".viewerState()"
+        val api=if(kind=="hangul")"document.getElementById('engine')?.contentWindow?.rhwpStudio?.documentStudio" else "window.studioOffice"
+        val state=if(kind=="hangul")api+"?.pageState?.()" else api+"?.viewerState?.()"
         val index=if(kind=="hangul")"page" else "index"
         val total=if(kind=="hangul")"pages" else "count"
         val closed=File(working.path+".closed");var completed=false
         val record=JSONObject().put("file",name).put("expectedCount",count)
+        val probeClient=checkNotNull(context.contentResolver.acquireContentProviderClient(Uri.parse("content://"+context.packageName+"."+kind+"probe")))
         try{
+            // Provider lifecycle observation must be registered before Activity
+            // creation. Resolving the provider after onCreate can miss that event.
+            probeClient.call("eval","true",null)
+            record.put("probePrimedBeforeActivity",true)
             val intent=if(kind=="hangul")Intent(context,HangulEditorActivity::class.java)
                 else Intent().setClassName(context.packageName,"org.libreoffice.androidlib.StudioOfficeActivity")
             context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("sessionId",session.id)
@@ -117,8 +129,9 @@ class ViewerNavigationTest {
                 record.put("continuousScroll",true)
             }
             device.setOrientationLeft();SystemClock.sleep(1000)
-            waitFor("Viewer survives native landscape rotation"){JSONObject(eval(kind,state)).getInt(total)==count}
-            device.setOrientationNatural();SystemClock.sleep(1000)
+            waitFor("Viewer survives native landscape rotation"){eval(kind,"innerWidth>innerHeight")=="true" && JSONObject(eval(kind,state)).getInt(total)==count}
+            device.setOrientationNatural()
+            waitFor("Viewer is ready after returning to portrait"){eval(kind,"innerWidth<innerHeight")=="true" && JSONObject(eval(kind,state)).getInt(total)==count}
             assertFalse(File(working.path+".edited").exists())
             assertEquals(workingHash,DocumentRepository.digest(working));assertEquals(originalHash,DocumentRepository.digest(original))
             record.put("finalState",JSONObject(eval(kind,state))).put("nativeRotation",true).put("workingUnchanged",true).put("originalUnchanged",true)
@@ -131,11 +144,13 @@ class ViewerNavigationTest {
             completed=true
         }finally{
             runCatching {device.setOrientationNatural();device.unfreezeRotation()}
+            runCatching {probeClient.close()}
             runCatching {
                 record.put("observedState",JSONObject(eval(kind,state)))
                 if(kind=="office")record.put("officeGeometry",JSONObject(eval(kind,"JSON.stringify({layout:app.activeDocument?.activeLayout?.type,view:app.activeDocument?.activeLayout?.viewedRectangle,zoom:app.map.getZoom(),address:document.querySelector('#addressInput input,#addressInput')?.value,cellAddress:app.map.stateChangeHandler.getItemValue('.uno:CellAddress'),changed:window.studioOffice.changed})")))
             }
             record.put("completed",completed);File(evidence,name+".json").writeText(record.toString(2))
+            instrumentation.runOnMainSync {if(!foreground.isFinishing)foreground.finish()}
             if(!completed){
                 runCatching {device.dumpWindowHierarchy(File(evidence,name+"-failure.xml"));device.takeScreenshot(File(evidence,name+"-failure.png"))}
                 // Preserve documents and metadata; stop only the isolated failed engine.
