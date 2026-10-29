@@ -177,7 +177,11 @@ class ViewerNavigationTest {
             record.put("completed",completed);File(evidence,name+".json").writeText(record.toString(2))
             if(!completed){
                 runCatching {device.dumpWindowHierarchy(File(evidence,name+"-failure.xml"));device.takeScreenshot(File(evidence,name+"-failure.png"))}
-                // Preserve documents and metadata; stop only the isolated failed engine.
+                for(metadata in listOf("office-lifecycle.json","office-view-state-error.json","office-view-state.json")){
+                val file=File(working.parentFile,metadata)
+                if(file.isFile)file.copyTo(File(evidence,name+"-"+metadata),overwrite=true)
+            }
+            // Preserve documents and metadata; stop only the isolated failed engine.
                 runCatching {device.executeShellCommand("pidof "+context.packageName+":"+kind).trim().split(Regex("\\s+")).mapNotNull {it.toIntOrNull()}.forEach {android.os.Process.killProcess(it)}}
             }
         }

@@ -1497,13 +1497,14 @@ public class LOActivity extends AppCompatActivity {
      */
     @JavascriptInterface
     public void postMobileError(String message) {
-        if (!officeLoadFinished) reportOfficeLoadFailure("오피스 엔진을 시작하지 못했습니다.");
+        if (!officeLoadFinished) { onOfficeLifecycle("browser-start-failed"); reportOfficeLoadFailure("오피스 엔진을 시작하지 못했습니다."); }
     }
 
     /**
      * Passing messages from JS (instead of the websocket communication).
      */
     public void reportOfficeLoadFailure(String error) {
+        onOfficeLifecycle("office-load-failed");
         officeLoadFailed = true;
         runOnUiThread(() -> onOfficeLoadFailed(error));
     }
@@ -1564,6 +1565,11 @@ public class LOActivity extends AppCompatActivity {
         if (messageStartsWith(message, "error:")) {
             String failure = new String(message, java.nio.charset.StandardCharsets.UTF_8);
             if (!officeLoadFinished && !failure.toLowerCase(java.util.Locale.ROOT).contains("password")) {
+                // Keep only protocol error categories, never document text/paths.
+                java.util.regex.Matcher category = java.util.regex.Pattern.compile("(?:^|\\s)(cmd|kind)=([A-Za-z0-9_-]{1,48})(?=\\s|$)").matcher(failure);
+                StringBuilder stage = new StringBuilder("native-load-error");
+                while (category.find()) stage.append("-").append(category.group(1)).append("-").append(category.group(2));
+                onOfficeLifecycle(stage.toString());
                 officeLoadFailed = true;
                 runOnUiThread(() -> onOfficeLoadFailed("오피스 문서를 열지 못했습니다."));
             }
