@@ -1,0 +1,391 @@
+{
+  "baseline": "aa3414f1fae89f5f98d10dabb64df85bfd7fc1df",
+  "applicationBuild": "ea111b8dcceef56b57d9febe6fd44dbc491ac862",
+  "note": "Application, tests and build source changes through the tested candidate. Later report/publication-only changes are represented by the Release source archive and Git patch.",
+  "files": [
+    {
+      "path": ".github/workflows/mobile-release.yml",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 3
+    },
+    {
+      "path": ".github/workflows/publish-quality-preview.yml",
+      "status": "added",
+      "additions": 336,
+      "deletions": 0
+    },
+    {
+      "path": ".github/workflows/quality-android.yml",
+      "status": "added",
+      "additions": 113,
+      "deletions": 0
+    },
+    {
+      "path": ".github/workflows/quality-conversion.yml",
+      "status": "added",
+      "additions": 115,
+      "deletions": 0
+    },
+    {
+      "path": ".github/workflows/quality-failure-inspection.yml",
+      "status": "added",
+      "additions": 37,
+      "deletions": 0
+    },
+    {
+      "path": ".github/workflows/quality-foundation.yml",
+      "status": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": ".github/workflows/quality-maintenance.yml",
+      "status": "added",
+      "additions": 25,
+      "deletions": 0
+    },
+    {
+      "path": ".github/workflows/quality-publication-check.yml",
+      "status": "added",
+      "additions": 42,
+      "deletions": 0
+    },
+    {
+      "path": ".github/workflows/quality-security.yml",
+      "status": "added",
+      "additions": 49,
+      "deletions": 0
+    },
+    {
+      "path": ".github/workflows/reading-performance.yml",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "app/build.gradle.kts",
+      "status": "modified",
+      "additions": 14,
+      "deletions": 3
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/BackupSafetyTest.kt",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/ConversionIntegrationTest.kt",
+      "status": "modified",
+      "additions": 65,
+      "deletions": 1
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/EncryptedBackupIntegrationTest.kt",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 3
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt",
+      "status": "added",
+      "additions": 74,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/ReadingPerformanceTest.kt",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 1
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/ReadingUxTest.kt",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/SaveProcessRecoveryTest.kt",
+      "status": "added",
+      "additions": 67,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/debug/AndroidManifest.xml",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "app/src/debug/java/kr/documentstudio/OfficeProbeProvider.kt",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "app/src/debug/java/kr/documentstudio/SaveCrashFixtureService.kt",
+      "status": "added",
+      "additions": 35,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/main/AndroidManifest.xml",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "app/src/main/assets/licenses/Log4j-API-2.25.5-NOTICE.txt",
+      "status": "added",
+      "additions": 6,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ConversionActivity.kt",
+      "status": "modified",
+      "additions": 46,
+      "deletions": 23
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ConversionPreviewActivity.kt",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/EditorViewModel.kt",
+      "status": "modified",
+      "additions": 30,
+      "deletions": 12
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/HangulEditorActivity.kt",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 8
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/StudioApplication.kt",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 2
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/ConversionFiles.kt",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 13
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/DocumentRepository.kt",
+      "status": "modified",
+      "additions": 67,
+      "deletions": 59
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/DocumentUris.kt",
+      "status": "added",
+      "additions": 20,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/ProviderWrites.kt",
+      "status": "added",
+      "additions": 170,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/SafeDiagnostics.kt",
+      "status": "added",
+      "additions": 40,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/SignatureStore.kt",
+      "status": "added",
+      "additions": 98,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/UserProblems.kt",
+      "status": "added",
+      "additions": 29,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/FolderBrowser.kt",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/FormatWorkspace.kt",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 1
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/MarkdownPreview.kt",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/SaveRecoveryDialog.kt",
+      "status": "added",
+      "additions": 96,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/StudioApp.kt",
+      "status": "modified",
+      "additions": 40,
+      "deletions": 7
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/StudioTheme.kt",
+      "status": "added",
+      "additions": 28,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/WorkspaceComponents.kt",
+      "status": "modified",
+      "additions": 11,
+      "deletions": 5
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/WorkspaceHome.kt",
+      "status": "modified",
+      "additions": 36,
+      "deletions": 13
+    },
+    {
+      "path": "app/src/main/res/values-night/styles.xml",
+      "status": "added",
+      "additions": 1,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/test/java/kr/documentstudio/ProviderWriteRecoveryTest.kt",
+      "status": "added",
+      "additions": 79,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/test/java/kr/documentstudio/RecentSourceSafetyTest.kt",
+      "status": "added",
+      "additions": 49,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/test/java/kr/documentstudio/SignatureStoreTest.kt",
+      "status": "added",
+      "additions": 67,
+      "deletions": 0
+    },
+    {
+      "path": "app/src/test/java/kr/documentstudio/UserProblemPrivacyTest.kt",
+      "status": "added",
+      "additions": 25,
+      "deletions": 0
+    },
+    {
+      "path": "core/build.gradle.kts",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 0
+    },
+    {
+      "path": "core/src/test/java/kr/documentstudio/core/LogJsonSafetyTest.java",
+      "status": "added",
+      "additions": 21,
+      "deletions": 0
+    },
+    {
+      "path": "docs/COMMERCIAL_QUALITY_AUDIT.md",
+      "status": "added",
+      "additions": 17,
+      "deletions": 0
+    },
+    {
+      "path": "docs/COMMERCIAL_QUALITY_RESULTS.md",
+      "status": "added",
+      "additions": 173,
+      "deletions": 0
+    },
+    {
+      "path": "docs/THIRD_PARTY.md",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 2
+    },
+    {
+      "path": "docs/releases/0.8.11-preview-performance.json",
+      "status": "added",
+      "additions": 610,
+      "deletions": 0
+    },
+    {
+      "path": "officeruntime/src/main/java/org/libreoffice/androidlib/LOActivity.java",
+      "status": "modified",
+      "additions": 60,
+      "deletions": 92
+    },
+    {
+      "path": "officeruntime/src/main/java/org/libreoffice/androidlib/StudioDocumentHost.java",
+      "status": "added",
+      "additions": 12,
+      "deletions": 0
+    },
+    {
+      "path": "scripts/audit-commercial-quality.py",
+      "status": "added",
+      "additions": 72,
+      "deletions": 0
+    },
+    {
+      "path": "scripts/package-mobile-release.py",
+      "status": "modified",
+      "additions": 11,
+      "deletions": 11
+    },
+    {
+      "path": "scripts/run-reading-performance.sh",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1
+    },
+    {
+      "path": "scripts/test-mobile-installation.py",
+      "status": "modified",
+      "additions": 11,
+      "deletions": 11
+    },
+    {
+      "path": "scripts/tests/signature-conversion.cjs",
+      "status": "modified",
+      "additions": 26,
+      "deletions": 2
+    },
+    {
+      "path": "scripts/verify-log-json-regression.py",
+      "status": "added",
+      "additions": 25,
+      "deletions": 0
+    },
+    {
+      "path": "shared/editor-ui/dist/studio-editor-ui.css",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 0
+    },
+    {
+      "path": "web/hangul/signature.js",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 7
+    }
+  ]
+}
