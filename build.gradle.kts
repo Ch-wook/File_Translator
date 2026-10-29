@@ -11,3 +11,10 @@ providers.gradleProperty("studio.buildRoot").orNull?.takeIf {it.isNotBlank()}?.l
     val output=rootProject.file(directory)
     allprojects {layout.buildDirectory.set(output.resolve(if(path==":") "root" else path.removePrefix(":").replace(':','/')))}
 }
+
+val prepareStudioFonts by tasks.registering(Exec::class) {
+    commandLine("python3",rootProject.file("scripts/prepare-studio-fonts.py").absolutePath)
+    inputs.file(rootProject.file("scripts/prepare-studio-fonts.py"))
+    inputs.file(rootProject.file("config/studio-fonts.json"))
+    outputs.dir(rootProject.file(".engine-cache/studio-fonts/assets"))
+}

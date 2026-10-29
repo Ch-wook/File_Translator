@@ -1,0 +1,81 @@
+name: Repackage preserved and tested 0.8.8 APKs
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  repackage:
+    if: contains(github.event.head_commit.message, '[publish-repackage]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      STUDIO_APK_BUILD_SHA: be2ea66fede30792927e672bd35abcc45d509f15
+      ORIGINAL_TEST_RUN: '40665116237'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Verify original app tests and recover immutable APKs and evidence
+        run: |
+          sdkmanager "build-tools;35.0.0"
+          python3 - <<'PY'
+          import json,subprocess,os
+          repo=os.environ['GITHUB_REPOSITORY'];run=os.environ['ORIGINAL_TEST_RUN'];sha=os.environ['STUDIO_APK_BUILD_SHA']
+          def api(path):return json.loads(subprocess.check_output(['gh','api',path]))
+          info=api(f'repos/{repo}/actions/runs/{run}')
+          assert info['head_sha']==sha and info['status']=='completed' and info['conclusion']=='failure'
+          job=api(f'repos/{repo}/actions/runs/{run}/jobs')['jobs'][0]
+          required=['Real offline engine, TypeScript and fixtures','Reproduce old metadata failure, verify host regressions and compile Android tests','Real browser editing and independent saved-file parsers','Unit tests, lint and ARM64 phone APK','x86_64 APK and instrumentation','Installation, actual Android IME and full P0 regression']
+          steps={s['name']:s for s in job['steps']}
+          assert all(steps[name]['conclusion']=='success' for name in required),steps
+          failed=[s['name'] for s in job['steps'] if s['conclusion']=='failure']
+          assert failed==['Verify ABI packages, signatures, all test results and exact source'],failed
+          for name in ('mobile-candidate-'+sha,'mobile-release-logs-'+sha):
+              subprocess.run(['gh','run','download',run,'-R',repo,'--name',name,'--dir','.'],check=True)
+          from pathlib import Path
+          ci=Path('artifacts/ci')
+          actual=json.loads((ci/'android-summary.json').read_text())
+          assert actual=={'tests':44,'failures':0,'errors':0,'skipped':0},actual
+          proof={'apkBuildCommit':sha,'originalTestRun':int(run),'originalTestsPassed':True,'originalOnlyFailedStep':failed[0],'reason':'Unauthenticated GitHub releases API HTTP 403 rate limit during packaging','apkRebuilt':False,'packagingRun':int(os.environ['GITHUB_RUN_ID'])}
+          (ci/'packaging-recovery.json').write_text(json.dumps(proof,indent=2))
+          print('PRESERVED_APKS_AND_ORIGINAL_44_TESTS_CONFIRMED',json.dumps(proof),flush=True)
+          PY
+      - name: Restore pinned font references without rebuilding the application
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,zipfile,hashlib
+          root=pathlib.Path('.engine-cache/studio-fonts/assets')
+          with zipfile.ZipFile('artifacts/mobile-build/arm64-v8a.apk') as z:
+              for family in json.loads(pathlib.Path('config/studio-fonts.json').read_text())['families']:
+                  for item in family['files']:
+                      name=item['filename'];assert '/' not in name and '\\' not in name
+                      folder='font-licenses' if name.endswith('.txt') else 'fonts'
+                      data=z.read('assets/'+folder+'/'+name)
+                      assert len(data)==item['size'] and hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==item['gitBlob']
+                      target=root/folder/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
+          PY
+      - name: Authenticate release history lookup and re-run every packaging guard
+        env:
+          EMULATOR_OUTCOME: success
+        run: python3 scripts/package-mobile-release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: document-studio-mobile-be2ea66fede30792927e672bd35abcc45d509f15
+          path: artifacts/delivery/
+          compression-level: 0
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recovered-088-packaging-evidence
+          path: artifacts/ci/
+          if-no-files-found: warn

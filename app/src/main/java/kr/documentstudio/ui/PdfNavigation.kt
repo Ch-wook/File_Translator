@@ -35,12 +35,12 @@ fun PdfNavigationActions(s: Session,page: Int,vm: DocumentActions,busy: Boolean,
         var title by remember(page) {mutableStateOf("${page+1} 페이지")};var rename by remember {mutableStateOf<PdfBookmark?>(null)};var newName by remember {mutableStateOf("")}
         val entries by produceState<List<PdfBookmark>?>(null,s.base) {value=withContext(Dispatchers.IO) {runCatching {PdfBookmarks.list(s.base)}.getOrElse {vm.message(it.message);emptyList()}}}
         AlertDialog(onDismissRequest={bookmarks=false},title={Text("PDF 북마크")},text={Column {
-            OutlinedTextField(title,{title=it},label={Text("현재 페이지 북마크 이름")},singleLine=true,enabled=!busy)
-            TextButton({vm.change(DocumentChange("pdf.bookmarkAdd",page.toString(),mapOf("title" to title)))},enabled=!busy && title.isNotBlank()) {Text("현재 페이지 추가")}
+            if(vm.canEdit()) OutlinedTextField(title,{title=it},label={Text("현재 페이지 북마크 이름")},singleLine=true,enabled=!busy)
+            if(vm.canEdit())TextButton({vm.change(DocumentChange("pdf.bookmarkAdd",page.toString(),mapOf("title" to title)))},enabled=!busy && title.isNotBlank()) {Text("현재 페이지 추가")}
             if(entries==null) LinearProgressIndicator(Modifier.fillMaxWidth())
             else LazyColumn(Modifier.heightIn(max=300.dp)) {items(entries!!,key={it.id}) {entry->Row(Modifier.fillMaxWidth().padding(start=entry.depth.coerceAtMost(5).times(5).dp)) {
                 TextButton({navigate(entry.page);bookmarks=false},enabled=entry.page>=0 && !busy,modifier=Modifier.weight(1f)) {Text(entry.title+(if(entry.page>=0) " · ${entry.page+1}" else ""),maxLines=2)}
-                TextButton({rename=entry;newName=entry.title},enabled=!busy) {Text("이름")};TextButton({vm.change(DocumentChange("pdf.bookmarkDelete",page.toString(),mapOf("id" to entry.id)))},enabled=!busy) {Text("삭제")}
+                if(vm.canEdit())TextButton({rename=entry;newName=entry.title},enabled=!busy) {Text("이름")};if(vm.canEdit())TextButton({vm.change(DocumentChange("pdf.bookmarkDelete",page.toString(),mapOf("id" to entry.id)))},enabled=!busy) {Text("삭제")}
             }}}
         }},confirmButton={TextButton({bookmarks=false}) {Text("닫기")}})
         rename?.let {entry->AlertDialog(onDismissRequest={rename=null},title={Text("북마크 이름")},text={OutlinedTextField(newName,{newName=it},singleLine=true)},confirmButton={TextButton({vm.change(DocumentChange("pdf.bookmarkRename",page.toString(),mapOf("id" to entry.id,"title" to newName)));rename=null},enabled=newName.isNotBlank() && !busy) {Text("적용")}},dismissButton={TextButton({rename=null}) {Text("취소")}})}

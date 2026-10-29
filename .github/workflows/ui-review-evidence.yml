@@ -1,0 +1,43 @@
+name: Review actual compact editor screenshots
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  evidence:
+    if: contains(github.event.head_commit.message, '[ui-evidence]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read exact completed browser and native evidence
+        run: |
+          python3 - <<'PY'
+          import base64,json,pathlib,subprocess,xml.etree.ElementTree as ET
+          repo='Ch-wook/File_Translator'
+          candidates=[('40494582093','mobile-release-logs-10ab10e01e027c35af3083e5d22a9e14b02c4f50')]
+          for run,name in candidates:
+              dest=pathlib.Path('evidence')/run
+              subprocess.run(['gh','run','download',run,'--repo',repo,'--name',name,'--dir',str(dest)],check=True)
+              pictures=list(dest.rglob('*.png'))
+              patterns=['docx-compact-font.png','text-character-panel.png','hwpx-keyboard-format.png']
+              for pattern in patterns:
+                  p=next((p for p in pictures if p.name==pattern),None)
+                  if p:print('ACTUAL_COMPACT_UI_PNG',json.dumps({'path':str(p.relative_to(dest)),'run':run,'base64':base64.b64encode(p.read_bytes()).decode()}),flush=True)
+              for p in dest.rglob('*failure.xml'):
+                  nodes=ET.parse(p).getroot().iter('node')
+                  selected=[{key:n.get(key) for key in ('text','content-desc','bounds','enabled','visible-to-user','package')} for n in nodes if n.get('package')!='com.android.inputmethod.latin' and (n.get('text') or n.get('content-desc'))]
+                  print('ACTUAL_APP_UI_NODES',str(p.relative_to(dest)),json.dumps(selected,ensure_ascii=False))
+              for p in dest.rglob('android-all-processes.log'):
+                  import re
+                  lines=[line for line in p.read_text(errors='replace').splitlines() if re.search(r'\bANR\b|am_anr|Input dispatching|not responding|Timeout waiting for.*window',line,re.I)]
+                  print('ACTUAL_SYSTEM_INPUT_DIAGNOSTIC',json.dumps(lines[-100:]))
+              for p in dest.rglob('*.json'):
+                  if p.name in ('android-summary.json','summary.json') or 'failure' in p.name or p.name=='ui-state.json':
+                      text=p.read_text()
+                      if len(text)<30000:print('ACTUAL_UI_RESULT',str(p.relative_to(dest)),text)
+          PY

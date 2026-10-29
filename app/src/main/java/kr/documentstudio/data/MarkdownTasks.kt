@@ -9,7 +9,7 @@ import org.commonmark.renderer.html.HtmlRenderer
 
 data class MarkdownTask(val offset: Int,val checked: Boolean)
 object MarkdownTasks {
-    private fun parser()=Parser.builder().extensions(listOf(TablesExtension.create())).includeSourceSpans(IncludeSourceSpans.BLOCKS_AND_INLINES).build()
+    private fun parser()=Parser.builder().extensions(listOf(TablesExtension.create(),org.commonmark.ext.gfm.strikethrough.StrikethroughExtension.create())).includeSourceSpans(IncludeSourceSpans.BLOCKS_AND_INLINES).build()
     fun parse(source: String): Node=parser().parse(source)
     fun task(node: Text,source: String): MarkdownTask? {
         if(node.parent !is Paragraph || node.parent.parent !is ListItem || node.parent.firstChild!==node || node.parent.parent.firstChild!==node.parent) return null
@@ -25,7 +25,7 @@ object MarkdownTasks {
         val task=tasks(source).firstOrNull {it.offset==offset} ?: error("체크리스트가 변경되었습니다.")
         return source.replaceRange(offset+1,offset+2,if(task.checked) " " else "x")
     }
-    fun html(source: String,token: String): String = HtmlRenderer.builder().extensions(listOf(TablesExtension.create())).escapeHtml(true).sanitizeUrls(true)
+    fun html(source: String,token: String): String = HtmlRenderer.builder().extensions(listOf(TablesExtension.create(),org.commonmark.ext.gfm.strikethrough.StrikethroughExtension.create())).escapeHtml(true).sanitizeUrls(true)
         .nodeRendererFactory {ctx->object: NodeRenderer {
             override fun getNodeTypes(): Set<Class<out Node>> = setOf(Text::class.java)
             override fun render(node: Node) {

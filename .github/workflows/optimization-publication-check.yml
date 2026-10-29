@@ -1,0 +1,35 @@
+name: Validate additional optimization publication scripts
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+jobs:
+  syntax:
+    if: contains(github.event.head_commit.message, '[optimization-publish-check]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate exact preview identity, acceptance counts and embedded Python
+        run: |
+          python3 - <<'PY'
+          import ast,pathlib,re,textwrap,json
+          source=pathlib.Path('.github/workflows/publish-optimization-preview.yml').read_text()
+          blocks=re.findall(r"(?m)^([ ]*)python3 - <<'PY'\n(.*?)^\1PY[ \t]*$",source,re.S)
+          assert len(blocks)==4,len(blocks)
+          for _,block in blocks:ast.parse(textwrap.dedent(block))
+          for name in ('scripts/package-mobile-release.py','scripts/test-mobile-installation.py'):
+              ast.parse(pathlib.Path(name).read_text())
+          assert 'PLACEHOLDER' not in source
+          assert "item['applicationId']=='kr.documentstudio.performancepreview' and item['versionCode']==20" in source
+          assert "'tests':54" in source and "'app':24" in source and 'coexistsWith089' in source
+          assert 'docs/ADDITIONAL_OPTIMIZATION_RESULTS.md' in source
+          comparison=json.loads(pathlib.Path('docs/releases/0.8.10-preview-performance.json').read_text())
+          assert comparison['baselineCommit']=='0faea43c3395e4e9e26757f621842650a59da0ce'
+          assert comparison['candidateCommit']=='efb242066777846081704672a1e4e109450822a5'
+          assert comparison['records']['candidate']['viewport-memory']['allClosedBitmapsRecycled']
+          print('OPTIMIZATION_PUBLICATION_SCRIPTS_VALID',len(blocks))
+          PY

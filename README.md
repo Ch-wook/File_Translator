@@ -1,76 +1,180 @@
-# 문서 스튜디오 0.6.0 — Android 통합 문서 편집 앱
+# 문서 스튜디오 0.8.10-preview
 
-Kotlin·Compose 앱에 로컬 Collabora/LibreOffice 엔진을 통합했습니다. Word·Excel·PowerPoint는 **정밀 편집**에서 실제 페이지·시트·슬라이드를 보고 편집할 수 있습니다. 다른 앱 설치나 문서 서버 없이 실행합니다. 11개 확장자를 열고 지원하는 편집을 원본 형식으로 저장합니다.
+기존 편집·서명·로컬 변환을 유지하면서 **텍스트 처리·PDF 메모리·읽기 위치 복원**을 추가 개선한 개발 서명 프리뷰입니다.
 
-이번 버전은 요구사항을 크게 확장했지만 모든 전문 기능의 완성·호환성을 인증한 제품은 아닙니다. 한국어/영어 OCR, 두 문서 편집, 셀 연결 필기, 암호 백업을 추가했습니다. 한글 전문 조판·HWPX→HWP 역변환·PDF/A 인증·정밀 조판 후 필기 재배치와 실기기 검증은 남아 있습니다. [구현 범위](docs/SUPPORT_MATRIX.md)와 [검증 결과](docs/TEST_RESULTS.md)를 확인하세요.
+[휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.10-preview/document-studio-0.8.10-preview-arm64-v8a.apk) · [전체 소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.10-preview/document-studio-0.8.10-preview-source.zip) · [작업 보고서·최종 측정값](docs/ADDITIONAL_OPTIMIZATION_RESULTS.md) · [Release·해시·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.10-preview)
 
-## 0.6.0 사용성 개편
+같은 Android35 에뮬레이터에서 메뉴 열기364→235ms,516KB TXT 전환145→124ms,PDF 표시 비트맵12.1→5.4MB를 기록했습니다. 일반 TXT 전환은 약167ms로 같고 앱 전체 메모리가55% 감소한 결과는 아닙니다. [느려진 항목·원시 값·조건·남은 제한](docs/ADDITIONAL_OPTIMIZATION_RESULTS.md)을 함께 확인하세요.
 
-- 홈에서 Word·Excel·PowerPoint·한글·PDF·Markdown·텍스트를 바로 만들고, 최근 파일을 형식과 즐겨찾기로 찾습니다.
-- Word/Excel/PowerPoint는 열기·새 문서·최근 작업에서 실제 오프라인 편집기로 바로 들어갑니다. 작은 화면은 모바일 도구, 태블릿은 리본을 사용합니다. 설정에서 자동 진입을 끌 수 있습니다.
-- 기본 편집도 형식별 도구 탭을 제공합니다. 본문은 종이 위에서 입력하고, 한글 표는 셀 격자에서 편집합니다. 스프레드시트는 셀을 두 번 눌러 입력하고 하단에서 시트를 바꿉니다. 발표는 슬라이드 캔버스, PDF는 읽기 화면으로 시작합니다.
-- 도구 이름 검색, 색상 팔레트, 방향/정렬 선택, 접이식 세부 서식을 제공합니다. 펜·형광펜·지우개·올가미·손과 레이어를 간결한 필기 막대에서 선택합니다.
+Android 회귀54건, 단위153건, JavaScript28건, 실제 엔진 브라우저9개 시나리오·독립 저장/재열기 검사 통과. 별도 읽기 UI6건도 통과했으며54건과 중복 합산하지 않습니다. 실제 ARM64 휴대폰·삼성/Gboard·S펜·60fps·장시간 최대 메모리는 미검증입니다.
 
-[설치 APK 다운로드](https://github.com/Ch-wook/File_Translator/releases/latest/download/document-studio-release.apk) · [릴리스](https://github.com/Ch-wook/File_Translator/releases) · [개편 실행 계획](docs/UI_REDESIGN_PLAN_20261024.md) · [화면 예시](docs/UI_SCREENSHOTS.md)
+휴대폰용 APK는 약429.9MB입니다. 기존 서명키를 사용할 수 없어 사용자 선택대로 **문서 스튜디오 추가 개선**(`kr.documentstudio.performancepreview`)을 별도 설치합니다. 기존 앱·작업 복구본을 삭제하지 마세요. 파일로 저장한 문서를 새 앱에서 열 수 있고 비공개 데이터는 자동 이관하지 않습니다. Android10+ 64비트, Office11+입니다.
 
-## 주요 기능
+[공개 다운로드·해시·기존 배포 보존 확인서](docs/releases/0.8.10-preview-download-verification.json) — 10개 자산 확인 완료.
 
-- DOCX/DOC·XLSX/XLS·PPTX/PPT 정밀 편집: 앱 내부 별도 프로세스에서 네이티브 엔진 실행. 원본 대신 작업용 복사본을 전달하고 저장·닫기 후 검증된 결과를 불변 베이스로 가져옵니다. 앱의 실행 취소·원본 충돌 검사·필기 보존과 연결됩니다.
-- 기본 DOCX 도구: 글자·문단·자간·장평·위아래 첨자, 다단, 표 행열/병합/분할/배경/테두리, 이미지·링크·머리글·바닥글·쪽 번호.
-- 기본 XLSX 도구: 범위 복사/붙여넣기·채우기·삭제·정렬, 행열 삽입/삭제와 참조 갱신, 시트·병합·서식, 다른 시트 참조와 날짜·백분율 계산 표시. 무거운 표 계산은 백그라운드에서 처리합니다.
-- 기본 PPTX 도구: 슬라이드·개체 이동/크기/회전/순서/삭제, 이미지 삽입, 기본 개체 미리보기·발표·PDF 출력.
-- PDF 페이지 조작·병합·추출·축소판·연속 스크롤·북마크, 검색·선택·양식, 본문/이미지 추가, 직접 이미지의 위치·크기·삭제, 원래 폰트가 지원하는 기존 가로 본문 문자열 교체, 표준 Ink 저장.
-- HWPX 텍스트·글자/문단 서식·용지·표 생성/행열/병합/서식과 실제 새 문서, HWP 일반 문자 구간 편집. TXT/MD 입력·검색·인코딩·줄 번호·CommonMark/GFM 표 미리보기.
-- 공통 필기: 필압·기울기 입력, 여러 펜·형광펜·도형, 획 전체/부분 지우기, 올가미·이동·복사·회전·크기·삭제, 확대·손가락 탐색.
-- 탭·즐겨찾기·복구·Undo/Redo, SAF 원본 백업·해시 충돌 검사·저장 검증, ZIP 백업·필기 포함 PDF·인쇄. INTERNET/전체 저장소 접근 권한 없음.
+<details>
+<summary>0.8.9 및 이전 구현·배포 기록</summary>
 
-기본 Excel은 구현된 16개 함수의 이름·한국어 설명 검색과 입력 끝 함수 이름 완성을 제공합니다. 외부 열기/공유 요청은 진행 중인 명령이 끝난 뒤 순서대로 처리하며, 가져온 ZIP의 정밀 편집 실패 파일과 원본 백업은 재백업에도 보존합니다.
+# 문서 스튜디오 0.8.9-preview
 
-0.4.0은 분할 편집/SAF 폴더, PDF 선택 문자 주석/가로 보기, 필압/보정/프리셋/레이어/종이, Markdown 체크/문법, HWPX 자간/장평/번호/다단, 셀 연결 필기, 번들 OCR, 암호 백업/임시 정리, XLSX 테두리/조건부 규칙/목록/표를 추가했습니다. [0.4.0 실행 계획](docs/EXECUTION_PLAN_20261017.md).
+읽기 화면에서 편집 도구를 숨기고 검색·편집·전체 화면으로 문서 영역을 넓혔습니다. 중복 체크포인트·재파싱·Office 도구 갱신과 수정 없이 닫을 때의 대기를 줄였습니다. 기존 편집·글꼴·서명·파일 변환·원본 보호 기능은 유지합니다.
 
-0.5.0은 **HWP→HWPX 변환**을 추가했습니다. 새 탭에 결과를 열고 변환 전 HWP·현재 편집본·구역별 필기/레이어·점검 보고서를 보존합니다. 문단/셀별 텍스트·표 구조·각주/미주·그림 자원/참조·수식을 대조하고 지원하지 않는 제어는 중단합니다. [변환 사용법과 제한](docs/HANGUL_CONVERSION.md), [후속 실행 계획](docs/EXECUTION_PLAN_20261017_PHASE2.md).
+[휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/document-studio-0.8.9-preview-arm64-v8a.apk) · [전체 소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.9-preview/document-studio-0.8.9-preview-source.zip) · [작업 보고서·측정 결과](docs/READING_PERFORMANCE_RESULTS.md) · [Release·해시·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.9-preview)
 
-## 설치·빌드
+같은 Android35 x86_64 에뮬레이터 비교에서 변경 없는 DOCX/XLSX/PPTX 닫기는 약2.3~2.4초→0.27~0.38초, 반복 복구 체크포인트는 중앙값30.13ms→0.219ms로 줄었습니다. 모드 전환 시간·PSS는 이번 측정에서 증가했습니다. [개선되지 않은 항목을 포함한 전체 표·조건·원시 JSON](docs/READING_PERFORMANCE_RESULTS.md)을 확인하세요. 실기기 속도·60fps·모든 버튼100ms를 보장하는 결과가 아닙니다.
 
-`artifacts/document-studio-release.apk`는 설치용, `document-studio-release.aab`는 배포용 번들입니다. `document-studio-source.zip`, 개발 APK와 SHA-256도 함께 제공합니다. 프로젝트 로컬 출시 키를 재사용하며 Play 업로드는 하지 않았습니다.
+Android 에뮬레이터 **52건**, 단위 **150건**, JavaScript **28건**, 실제 엔진 브라우저9개 시나리오와 저장/재열기 독립 검사 통과. 기존0.8.8 앱·개인 데이터 보존 설치와 같은 APK 재설치도 확인했습니다. 실제 ARM64 휴대폰·삼성/Gboard·S펜 검증, 대형 파일·장시간 최대 메모리 측정은 미완료입니다.
 
-Git 저장소에는 소스·리소스·테스트·문서를 포함합니다. APK/AAB와 검사 보고서는 아래 빌드·패키징 명령으로 `artifacts/`에 생성하며 Git에는 포함하지 않습니다. 서명 키·암호 설정·기기별 SDK 경로·다운로드한 엔진 캐시도 제외합니다.
+휴대폰용 APK는 약429.9MB입니다. 기존 서명키를 사용할 수 없어 사용자 선택대로 **문서 스튜디오 읽기 개선**(`kr.documentstudio.readingpreview`)을 별도 설치합니다. 기존 앱·작업 복구본은 삭제하지 마세요. 기존 앱에서 파일로 저장한 문서를 새 앱으로 열 수 있으며 앱 비공개 데이터는 자동 이관하지 않습니다. Android10+ 64비트, Office는Android11+입니다. 개발 서명 프리뷰입니다.
 
-앱은 **Android 10 이상, arm64-v8a/x86_64**를 지원합니다. 로그 보호에 필요한 Android API 때문에 **정밀 편집은 Android 11 이상**에서 사용합니다. Android 10에서는 기본 편집 도구를 사용합니다. 두 ABI의 큰 엔진을 포함하므로 APK와 설치 공간이 기존 버전보다 크게 증가했습니다. debug/release 서명은 다르므로 전환 전 작업을 ZIP으로 백업하세요.
+[공개 다운로드·크기·해시·기존 배포 보존 확인서](docs/releases/0.8.9-preview-download-verification.json) — APK·소스·검증 자료 등10개 자산 확인 완료.
 
-JDK 17, SDK 36, NDK 28.2.13676358, CMake 3.22.1을 사용합니다. 첫 빌드는 고정 SHA-256으로 검증하는 공식 엔진 APK 약 523 MB와 Gradle 의존성을 다운로드합니다. 다운로드 자산은 `.engine-cache`에 저장하고 전달 소스 ZIP에서 제외합니다. [엔진 출처와 수정 소스](officeruntime/PROVENANCE.md).
+<details>
+<summary>0.8.8 및 이전 구현·배포 기록</summary>
 
-```powershell
-$env:JAVA_HOME = 'C:\Program Files\Java\jdk-17'
-.\gradlew.bat :core:test :app:assembleDebug :app:lintDebug
-.\gradlew.bat :app:connectedDebugAndroidTest
-.\scripts\verify-editing.ps1
-.\scripts\build-release.ps1
-.\scripts\verify-release.ps1
-.\scripts\package-delivery.ps1
+# 문서 스튜디오 0.8.8-preview
+
+기존 편집기에 **자필 서명 삽입·보관**과 **기기 내 파일 변환**을 추가한 개발 서명 프리뷰입니다. 메인 화면의 파일 변환 카드와 편집기의 더보기 메뉴에서 시작합니다.
+
+[휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.8-preview/document-studio-0.8.8-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.8-preview/document-studio-0.8.8-preview-source.zip) · [작업 보고서](docs/SIGNATURE_CONVERSION_RESULTS.md) · [Release·검증 자료·SHA256SUMS](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.8-preview)
+
+PPTX·DOCX·XLSX는 기존 Office 엔진의 PDF 필터, HWP/HWPX는 전체 페이지 렌더링을 사용합니다. TXT·Markdown PDF, PDF 페이지 PNG/JPG ZIP·텍스트 추출, Markdown HTML/TXT, TXT HTML/MD 및 기존 HWP→HWPX를 제공합니다. 실제 선택 가능한 경로만 표시하며 원본을 덮어쓰지 않습니다.
+
+한글 문서에서 편집하기 → 더보기 → 서명/필기로 들어가 손가락이나 펜으로 작성합니다. 투명 PNG를 실제 문서 그림으로 삽입하고 기존 그림 도구로 위치·크기를 조절합니다. 서명은 앱 내부에 저장·재사용할 수 있습니다. 인증서 기반 전자서명은 아닙니다.
+
+한글 PDF는 페이지 이미지 방식이며 텍스트 선택·검색·링크가 보존되지 않습니다. Markdown PDF는 기본 서식 범위이며 복잡한 표·원격 이미지 배치는 미지원입니다. OCR, 편집 가능한 PDF→Word, DOCX↔HWPX, 일괄 변환과 문서 위 직접 벡터 필기는 아직 지원하지 않습니다.
+
+검증: Android 35 x86_64 **44건**, 단위 **148건**, JavaScript **28건**, 브라우저 실제 엔진 9개 시나리오와 독립 파일 검사 통과. 설치·기존 앱/개인 데이터 보존·서명·16KiB 정렬도 확인했습니다. 익명 API 403으로 중단된 마지막 패키징은 보존된 동일 APK로 복구했으며 재빌드하지 않았습니다. 실제 ARM64 휴대폰·S펜 하드웨어 검증은 미완료입니다.
+
+기존 서명키가 없어 사용자 선택에 따라 **문서 스튜디오 서명·변환**(`kr.documentstudio.convertpreview`)을 별도 설치합니다. 기존 앱과 비공개 작업 복구본을 삭제하지 마세요. 기존 앱에서 파일로 저장한 문서를 새 앱에서 열 수 있습니다. Android 10+ 64비트이며 Office 변환은 Android 11+입니다. 문서·서명은 외부 서버에 업로드하지 않습니다.
+
+[공개 다운로드·해시·이전 배포 보존 확인서](docs/releases/0.8.8-preview-download-verification.json) — 10개 자산 확인 완료.
+
+<details>
+<summary>0.8.7 및 이전 구현·배포 기록</summary>
+
+# 문서 스튜디오 0.8.7-preview
+
+기존 7종 편집기를 유지하면서 **PowerPoint 슬라이드 목록·이동·삭제 보호**, **Excel 셀 입력 완료·취소와 숨김 시트 보호**를 보완했습니다.
+
+[휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.7-preview/document-studio-0.8.7-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.7-preview/document-studio-0.8.7-preview-source.zip) · [작업 보고서](docs/WORKSPACE_TOOLS_RESULTS.md) · [Release·검증 자료·SHA256SUMS](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.7-preview)
+
+휴대폰에서는 ARM64 APK(약 429.6 MB)를 설치합니다. 기존 서명키가 없어 사용자 선택대로 **문서 스튜디오 작업 도구**(`kr.documentstudio.workspacepreview`)를 별도 설치합니다. 기존 0.8.6 앱·작업 복구본을 삭제하지 마세요. 기존 앱에서 파일로 저장한 문서를 새 앱에서 열 수 있습니다.
+
+Android 35 x86_64 **39건**, 단위 **148건**, JavaScript **28건**, 실제 엔진 브라우저 7개 시나리오와 저장/재열기 파서 검사를 통과했습니다. 설치·기존 앱/데이터 보존·재설치 및 APK 서명·정렬·자산도 확인했습니다. 실제 ARM64 휴대폰·삼성 키보드·Gboard 검증과 고급 편집 기능 일부는 남아 있습니다. 자동 저장은 작업 복구본이며 원본 저장 성공과 구분합니다.
+
+[실제 변경 파일·형식별 범위·남은 제한](docs/WORKSPACE_TOOLS_RESULTS.md) · [이전 글꼴·7종 편집 보완](docs/EDITOR_COMPLETION_RESULTS.md)
+
+[공개 다운로드·해시·이전 배포 보존 확인서](docs/releases/0.8.7-preview-download-verification.json) — 10개 자산 확인 완료.
+
+<details>
+<summary>0.8.6 및 이전 구현·배포 기록</summary>
+
+# 문서 스튜디오 0.8.6-preview
+
+기존 Word·Excel·PowerPoint·한글·PDF·Markdown·TXT 편집기에 실제 글꼴과 형식별 도구, 서식·선택·저장 처리를 보완한 개발 서명 프리뷰입니다.
+
+[휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.6-preview/document-studio-0.8.6-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.6-preview/document-studio-0.8.6-preview-source.zip) · [작업 보고서 다운로드](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.6-preview/document-studio-0.8.6-preview-work-report.md) · [Release·검증 자료·SHA256SUMS](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.6-preview)
+
+나눔고딕·나눔명조·고운돋움·고운바탕·Lato·Cousine 6개 패밀리의 실제 파일과 라이선스를 추가했습니다. 공통 글꼴 검색·즐겨찾기·미리보기, 파일별 하단 도구, Word 선택 서식, Excel 수식·셀·시트, Markdown 문법 토글·미리보기 복귀와 TXT 찾기·바꾸기를 보완합니다. [변경 파일·검증 결과·부분 지원·미지원](docs/EDITOR_COMPLETION_RESULTS.md)을 확인하세요.
+
+휴대폰에서는 ARM64 APK를 다운로드해 설치합니다. 기존 서명키가 없어 사용자 선택에 따라 **문서 스튜디오 편집 개선**(kr.documentstudio.editorspreview)을 별도 설치합니다. 기존 앱과 비공개 작업 복구본을 삭제하지 마세요. 기존 앱에서 문서를 다른 이름으로 저장한 뒤 새 앱의 파일 열기에서 선택할 수 있습니다.
+
+검증: Android 35 x86_64 39건, 단위 148건, JavaScript 25건과 실제 엔진/독립 파서 검사를 통과했습니다. APK 서명·ABI·16KiB 정렬·자산과 기존 앱 보존 설치도 확인했습니다.
+
+고급 차트·전체 개체/스타일 편집·PDF 자유 재배치·모든 기존 파일의 무손실 호환성을 완성한 버전은 아닙니다. 실제 ARM64 휴대폰·삼성/Gboard 검증은 미완료입니다. 자동 저장은 작업 복구본이며 외부 원본의 저장 성공과 구분합니다.
+
+[공개 다운로드·해시·기존 배포 보존 확인서](docs/releases/0.8.6-preview-download-verification.json) — 10개 자산 확인 완료.
+
+<details>
+<summary>0.8.5 이전 구현·배포 기록</summary>
+
+# 문서 스튜디오 0.8.5-preview
+
+Android에서 문서를 원래 형식의 엔진으로 열어 보고, **편집하기**를 선택하면 문서 화면에서 직접 수정하는 앱입니다. 기존 파일 열기·최근 작업·외부 앱 열기는 기본적으로 보기로 시작합니다.
+
+이 버전은 확인 가능한 원격 `2bfe225`에서 **재구현**했습니다. 이전 환경의 미푸시 0.8.0 소스·패치·APK는 회수하지 못했습니다. [출처와 감사](docs/ORIGINAL_VIEW_AUDIT.md), [검증 자료 안내](docs/ORIGINAL_VIEW_RESULTS.md)를 확인하세요.
+
+## 문서 열기 오류 수정
+
+배포용 HWP를 열지 못하던 문제와 파일 제공자의 이름·MIME 조회 실패로 문서 가져오기가 중단되는 문제를 수정합니다. 배포용 HWP는 원래 제한을 유지한 읽기 전용으로 표시하며, 일반 HWP/HWPX의 명시적 편집과 원본 보호는 유지합니다. [원인·수정·검증](docs/DOCUMENT_OPEN_FIX.md).
+
+## 모바일 공통 편집 UI
+
+상단과 하단을 각각 한 줄로 줄이고, 상세 설정은 필요할 때 여는 패널로 옮겼습니다. HWP/HWPX·Office는 같은 도구·글꼴 컴포넌트를, PDF·TXT·Markdown은 같은 네이티브 컴포넌트를 사용합니다. HWP/HWPX 눈금자는 기본 숨김이며, 글꼴 검색·현재/최근 글꼴·미리보기와 선택 범위 보존을 개선했습니다. Office의 서식 인수 유실과 이전 검색 API 연결, 저장 알림의 하단 도구 가림도 수정했습니다. [실제 수정 파일·형식별 지원·검증·제한](docs/COMMON_MOBILE_UI_RESULTS.md).
+
+## 작업 문서
+
+[작업 보고서·인수인계](docs/WORK_REPORT_0.8.5-preview.md)에 수정 파일, 실패 원인, 실제 검증·미검증, 배포 커밋·해시와 후속 작업을 정리했습니다.
+
+[보고서 Markdown 다운로드](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-work-report-20261027-r1.md) · [관련 문서·화면 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-work-docs-20261027-r1.zip) · [문서 배포 확인서](docs/releases/0.8.5-preview-work-report-20261027-r1-download-verification.json). 추가 문서 3개의 공개 다운로드·해시와 기존 앱 배포 자산 9개·태그 보존을 확인했습니다.
+
+## 다운로드
+
+[휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-arm64-v8a.apk) · [소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-source.zip) · [Release·해시·검증 자료](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.5-preview)
+
+0.8.5-preview APK·소스·검증 자료 9개를 게시했고, [공개 다운로드·크기·SHA-256 확인](docs/releases/0.8.5-preview-download-verification.json)을 완료했습니다. ARM64 APK는 약 404.7 MB입니다. 휴대폰은 ARM64용, x86_64 APK는 해당 아키텍처용입니다. 기존 서명키가 없어 **문서 스튜디오 모바일 UI**(`kr.documentstudio.compactpreview`) 별도 프리뷰로 제공합니다. 기존 앱·데이터를 지울 필요가 없습니다. 작업 중인 문서는 기존 앱에서 파일로 저장한 뒤 새 프리뷰의 파일 열기에서 선택하세요. [기존 설치 실패 분석](docs/INSTALLATION_FIX.md).
+
+## 휴대폰에서 사용하기
+
+1. **파일 열기** 또는 최근 작업에서 문서를 선택합니다. 먼저 원본 문서를 봅니다.
+2. **편집하기**를 누르고 본문·표 셀·실제 셀·슬라이드 개체 등 해당 형식의 대상을 선택합니다.
+3. 필요하면 **보기**로 돌아갑니다. 읽기 상태에서는 입력·붙여넣기·개체 변경과 undo/redo를 차단합니다.
+4. 편집 화면의 **저장 후 닫기** 또는 작업 화면의 **저장**으로 원본 반영을 요청합니다. 새 파일은 시스템 저장 위치를 선택합니다.
+5. 저장한 파일을 다시 열어 변경 내용과 중요한 표·그림·수식·페이지를 확인하세요. 다른 이름 저장과 문서·필기 ZIP 백업도 사용할 수 있습니다.
+
+한글 편집 화면 아래의 글자·문단·표(개체 선택 시 그림)·삽입·더보기에서 도구를 엽니다. 목록·찾기·스타일·쪽·클립보드 등의 기존 도구는 더보기에 있습니다. 선택한 글자에 글꼴·크기·색·자간·장평을 함께 적용하고, 선택 핸들로 범위를 조절합니다. 표 행·열 추가/삭제와 셀 병합/나누기, 갤러리 그림 삽입을 실제 엔진에 연결했습니다. 입력이 멈추면 약 1.2초 후 작업 복사본에 자동 저장하며, 원본 반영은 저장 후 닫기를 선택합니다.
+
+엔진은 앱 전용 작업 복사본을 사용합니다. 읽기만 하고 닫으면 문서를 다시 저장하지 않으며, 승인된 편집 결과만 가져옵니다. 원본 저장에는 기존 충돌 검사·백업·실패 복구를 유지합니다. **별도 필기**는 사용자가 직접 선택하는 기능입니다.
+
+## 형식과 엔진
+
+| 형식 | 화면/엔진 |
+|---|---|
+| HWP/HWPX | Rhwp 0.8.7의 페이지 캔버스·본문·표·그림 도구 |
+| DOC/DOCX | 로컬 Collabora/LibreOffice Writer |
+| XLS/XLSX | Calc의 실제 셀·수식 입력줄·시트 |
+| PPT/PPTX | Impress의 슬라이드·텍스트 상자·그림/도형 |
+| PDF | 원본 PDF 페이지, 주석·필기와 지원 범위의 본문/이미지 편집 |
+| TXT/MD | 본래 텍스트 형식의 보기/편집과 Markdown 미리보기 |
+
+Android 10 이상, arm64-v8a/x86_64를 지원합니다. Office 엔진은 Android 11 이상이 필요합니다. 문서 엔진은 APK에 포함되며 앱에 INTERNET 권한이 없습니다.
+
+**검증용 개발 서명 프리뷰입니다.** 실제 Android 휴대폰 종합 인수와 모든 형식의 고급 문서 보존 검증은 남아 있습니다. 전용 글꼴·복잡한 한글 컨트롤·Office 고급 요소·PDF 임의 콘텐츠를 상용 프로그램과 동일하게 처리한다고 보장하지 않습니다. [형식별 지원과 제한](docs/SUPPORT_MATRIX.md)을 확인하세요.
+
+APK는 [GitHub Releases](https://github.com/Ch-wook/File_Translator/releases)에 실제 첨부된 파일로 제공합니다. 개발 서명이 기존 설치와 다르면 바로 업데이트되지 않으므로 기존 작업을 보존한 상태에서 확인하세요.
+
+2026-10-27 [최종 검증 실행](https://github.com/Ch-wook/File_Translator/actions/runs/40494582093): Android 35 x86_64 **27건**, 단위 **143건**, JavaScript **20건** 모두 실패·오류·건너뜀 0건. 실제 엔진 브라우저 7개 시나리오, HWP/HWPX 독립 저장 파서, 설치·기존 앱/데이터 보존과 저장 후 재열기를 통과했습니다. [수정 파일·형식별 범위·결과](docs/COMMON_MOBILE_UI_RESULTS.md). 실제 ARM64 휴대폰·삼성 키보드·Gboard 검증은 미완료입니다.
+
+## 빌드와 검증
+
+JDK 17, Node.js 24, Python 3.11 이상, SDK 36, Build Tools 35.0.0, NDK 28.2.13676358, CMake 3.22.1이 필요합니다. 최초 빌드에 고정 해시의 엔진 다운로드와 충분한 공간이 필요합니다.
+
+```sh
+python3 scripts/prepare-open-fixtures.py
+./gradlew :app:help :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain
+python3 scripts/prepare-hangul-engine.py
+./gradlew :officeruntime:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=2 --console=plain
+npm ci --prefix scripts/tests
+node --test scripts/tests/*.test.cjs
+(cd scripts/tests && npx playwright install chromium && npm run test:hangul)
+node scripts/tests/hangul-mobile.cjs
+(cd .engine-cache/hangul/source/rhwp-studio && npx tsc --noEmit)
+./gradlew :core:verifyVisualRoundTrip :core:verifyMobileRoundTrip --max-workers=2 --console=plain
 ```
 
-## 저장·필기·복구
+모바일 편집은 GitHub Actions의 `Build and verify mobile editing APKs`에서 실제 엔진 브라우저 7개 시나리오, 독립 HWP/HWPX 저장 파서, Android 35 x86_64에서 기존 P0 및 실제 InputConnection 편집·외부 열기·공통 TXT/MD/PDF 화면·Writer 부분 서식 저장을 포함한 총 27건의 통과를 요구합니다. 실제 휴대폰·삼성 키보드·Gboard 검증은 남아 있습니다. `Android preview verification`은 이전 경로입니다. ABI별 APK·전체 추적 소스 ZIP·패치·Git bundle·검증 ZIP·SHA256SUMS를 생성합니다. 실제 실행 결과는 해당 커밋의 Actions 로그와 검증 ZIP을 기준으로 확인합니다.
 
-정밀 편집에서 저장 후 닫으면 앱의 작업 복구본으로 돌아옵니다. 상단 **저장**으로 SAF 파일에 반영합니다. 엔진 강제 종료 시 마지막으로 엔진이 저장한 유효한 작업 파일을 복구합니다. 손상·동시 쓰기가 감지되면 이전 베이스를 유지하고 작업 파일을 보존합니다. 실패한 복구본은 문서 메뉴에서 보관한 뒤 다시 시작할 수 있고 ZIP의 `office-recovery/`에 포함됩니다.
+[사용 안내](docs/USER_GUIDE.md) · [한글 엔진 출처](web/hangul/PROVENANCE.md) · [Office 엔진 출처](officeruntime/PROVENANCE.md) · [오픈소스 고지](docs/THIRD_PARTY.md)
 
-PDF 필기는 표준 Ink 주석에 포함합니다. 나머지는 **앱 내부 별도 필기 데이터**입니다. 기본 XLSX 필기는 셀 주소/크기에 연결해 기본 행열·시트 구조 변경을 추적합니다. 정밀 편집기의 페이지·셀에 자동 부착하거나 Word/HWP 본문 재배치를 추적하지는 않습니다. 원본만 옮기면 별도 필기는 따라가지 않습니다. 앱 삭제·서명 전환·기기 이동 전에 ZIP으로 백업하세요.
+0.7.0 이하 문서와 테스트 수는 과거 기록입니다. 이번 버전의 실기기 검증 결과로 합산하지 않습니다.
 
-기본 편집은 입력 휴지 약 700 ms와 백그라운드 전환에 복구본을 기록합니다. 원본은 명시적 저장 시 바뀝니다. 강제 종료 직전 입력·진행 중 획은 유실될 수 있습니다. 실제 S펜·손바닥·Bluetooth 장치 검증은 아직 수행하지 않았습니다.
+</details>
 
-## 문서
+</details>
 
-- [0.5.0 후속 실행 계획](docs/EXECUTION_PLAN_20261017_PHASE2.md)
-- [HWP→HWPX 변환](docs/HANGUL_CONVERSION.md)
-- [0.4.0 실행 계획](docs/EXECUTION_PLAN_20261017.md)
-- [암호 백업](docs/BACKUP_ENCRYPTION.md)
-- [남은 전문 기능 인수 조건](docs/PROFESSIONAL_VALIDATION.md)
-- [전체 기능 검증·보완 계획과 진행 기록](docs/IMPLEMENTATION_PLAN.md)
-- [원문 기능별 인수 확인표](docs/FEATURE_ACCEPTANCE.md)
-- [형식별 지원과 남은 요구사항](docs/SUPPORT_MATRIX.md)
-- [테스트 결과](docs/TEST_RESULTS.md)
-- [빌드·서명·배포](docs/BUILD_AND_RELEASE.md)
-- [기술 설계·엔진 비교](docs/ARCHITECTURE.md)
-- [라이선스·비용·제약](docs/THIRD_PARTY.md)
-- [사용 안내](docs/USER_GUIDE.md)
-- [원문 요구사항](docs/REQUIREMENTS.ko.md)
+</details>
+
+</details>
+
+</details>

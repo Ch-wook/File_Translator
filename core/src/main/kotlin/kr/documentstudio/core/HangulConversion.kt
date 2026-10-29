@@ -43,6 +43,7 @@ object HangulConversion {
         require(source.canonicalFile != destination.canonicalFile) { "변환 결과는 원본과 다른 파일이어야 합니다." }
         // The existing detector bounds OLE streams and inflation, and rejects encryption/macros/signatures.
         require(LegacyDocument.detect(source) == Format.HWP) { "HWP 5 문서만 변환할 수 있습니다." }
+        require(LegacyDocument.hwpReadOnlyReason(source)==null) { "배포용 HWP는 읽기 전용이며 변환하지 않습니다." }
         checkStreams(source)
         val hwp = HWPReader.fromFile(source) ?: error("HWP를 읽지 못했습니다.")
         val before = sourceInventory(hwp)

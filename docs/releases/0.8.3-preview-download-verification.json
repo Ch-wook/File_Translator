@@ -1,0 +1,60 @@
+{
+  "verifiedBuildCommit": "2eb73f437994ae52b15d206611884679b530e5c1",
+  "tagCommit": "b79410752e8bae15f5eb45100b17b8f7a79912a6",
+  "assets": [
+    {
+      "name": "README.txt",
+      "bytes": 1816,
+      "sha256": "28d58718915f43dde4a2b0839d747c87d980cb4ec04b99b042a838636be349c8",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "SHA256SUMS",
+      "bytes": 849,
+      "sha256": "e52a23f09dbc2993a3c692d99a00e382882610d4b45a13f9c05429bb3581e572",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.3-preview-apk-metadata.json",
+      "bytes": 1045,
+      "sha256": "b4480023fa4eacd60729784f74ecee6883e79104cf38fd2c3a5b8be90519574a",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.3-preview-arm64-v8a.apk",
+      "bytes": 398851877,
+      "sha256": "983ecb43e86b5df77603faa021f51f963402100af148c96e9e7b278d3c7b025d",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.3-preview-changes.patch",
+      "bytes": 242372,
+      "sha256": "4a941224a0a434cc98dcb17c8d5163338caa1cb54aba0b062c824962cc1ca44a",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.3-preview-history.bundle",
+      "bytes": 8236162,
+      "sha256": "665ea115c2531f4efb9c78fd4eaf699f999f93c3ac5ec5b06aeea6e021e8f128",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.3-preview-source.zip",
+      "bytes": 8077935,
+      "sha256": "f5c0648fcc424826ceccd6a50adf809a9080d4d9ea4ee55360ba187967a6e9fb",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.3-preview-verification.zip",
+      "bytes": 2016503,
+      "sha256": "c13f7520047abf2ccc30b97907a287bce59ea5a60e69c506901bcfb73a51a823",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.3-preview-x86_64.apk",
+      "bytes": 410738367,
+      "sha256": "22c77d55390b9334e1a69682f457eb955992677e33a91759ea79f184f40380ef",
+      "publicDownloadVerified": true
+    }
+  ]
+}

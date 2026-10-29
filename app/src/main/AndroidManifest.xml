@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" tools:node="remove"/>
-    <application android:name=".StudioApplication" android:theme="@style/AppTheme" android:label="문서 스튜디오" android:icon="@drawable/ic_app" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:supportsRtl="true" android:usesCleartextTraffic="false">
+    <application android:name=".StudioApplication" android:theme="@style/AppTheme" android:label="문서 스튜디오 품질 개선" android:icon="@drawable/ic_app" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:supportsRtl="true" android:usesCleartextTraffic="false">
+        <activity android:name=".ConversionPreviewActivity" android:exported="false" android:resizeableActivity="true"/>
+        <activity android:name=".ConversionActivity" android:exported="false" android:resizeableActivity="true"/>
+        <provider android:name=".ConversionFileProvider" android:authorities="${applicationId}.conversionfiles" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/conversion_paths"/>
+        </provider>
+        <activity android:name=".HangulEditorActivity" android:exported="false" android:process=":hangul" android:resizeableActivity="true" android:windowSoftInputMode="adjustResize"/>
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:resizeableActivity="true" android:windowSoftInputMode="adjustResize">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
             <intent-filter>
-                <action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/>
+                <action android:name="android.intent.action.VIEW"/><action android:name="android.intent.action.EDIT"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="content"/>
-                <data android:mimeType="text/*"/><data android:mimeType="application/pdf"/><data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document"/><data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/><data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation"/><data android:mimeType="application/hwp+zip"/><data android:mimeType="application/vnd.hancom.hwpx"/><data android:mimeType="application/x-hwp"/><data android:mimeType="application/msword"/><data android:mimeType="application/vnd.ms-excel"/><data android:mimeType="application/vnd.ms-powerpoint"/>
+                <data android:mimeType="text/*"/><data android:mimeType="application/pdf"/><data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document"/><data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/><data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation"/><data android:mimeType="application/hwp+zip"/><data android:mimeType="application/vnd.hancom.hwpx"/><data android:mimeType="application/x-hwp"/><data android:mimeType="application/haansofthwp"/><data android:mimeType="application/vnd.hancom.hwp"/><data android:mimeType="application/haansofthwpx"/><data android:mimeType="application/msword"/><data android:mimeType="application/vnd.ms-excel"/><data android:mimeType="application/vnd.ms-powerpoint"/>
             </intent-filter>
             <intent-filter><action android:name="android.intent.action.SEND"/><category android:name="android.intent.category.DEFAULT"/><data android:mimeType="*/*"/></intent-filter>
         </activity>

@@ -1,0 +1,46 @@
+name: Check quality preview publication scripts
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+jobs:
+  check:
+    if: contains(github.event.head_commit.message, '[quality-publication-check]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate embedded Python, preview identity and exact acceptance gates
+        run: |
+          python3 - <<'PY'
+          import ast,pathlib,re,textwrap
+          source=pathlib.Path('.github/workflows/publish-quality-preview.yml').read_text()
+          blocks=re.findall(r"(?m)^([ ]*)python3 - <<'PY'\n(.*?)^\1PY[ \t]*$",source,re.S)
+          assert len(blocks)==4,len(blocks)
+          for _,body in blocks:ast.parse(textwrap.dedent(body))
+          for p in ('scripts/package-mobile-release.py','scripts/test-mobile-installation.py','scripts/audit-commercial-quality.py'):
+              ast.parse(pathlib.Path(p).read_text())
+          assert "'tests':66" in source and "'app':45" in source and "versionCode']==21" in source
+          assert 'coexistsWith0810' in source and 'SECURITY_RUN' in source and 'commercialReady' in source
+          assert 'PLACEHOLDER' not in source
+          anr_pattern=source.split("assert not re.search(r'",1)[1].split("'",1)[0]
+          assert re.search(anr_pattern,'ActivityManager: ANR in kr.documentstudio.qualitypreview:office (native)')
+          assert re.search(anr_pattern,'ActivityManager: ANR in kr.documentstudio.qualitypreview (host)')
+          assert not re.search(anr_pattern,'ActivityManager: ANR in com.android.launcher3 (launcher)')
+          import urllib.request,zipfile,io,hashlib
+          url='https://repo.maven.apache.org/maven2/org/apache/logging/log4j/log4j-api/2.25.5/log4j-api-2.25.5.jar'
+          with urllib.request.urlopen(url,timeout=90) as r:data=r.read()
+          with urllib.request.urlopen(url+'.sha1',timeout=90) as r:expected=r.read().decode().strip().split()[0]
+          assert hashlib.sha1(data).hexdigest()==expected # Maven's published checksum; HTTPS source, not a signing claim.
+          with zipfile.ZipFile(io.BytesIO(data)) as z:
+              names=[n for n in z.namelist() if n.upper() in ('META-INF/NOTICE','META-INF/NOTICE.TXT')]
+              assert len(names)==1
+              notice=z.read(names[0]).decode()
+          print('UPSTREAM_LOG4J_NOTICE_START',flush=True)
+          print(notice,flush=True)
+          print('UPSTREAM_LOG4J_NOTICE_END',flush=True)
+          preserved=pathlib.Path('app/src/main/assets/licenses/Log4j-API-2.25.5-NOTICE.txt').read_text()
+          assert ''.join(notice.split()) in ''.join(preserved.split()),'Updated API notice must be retained'
+          print('UPDATED_LOG4J_API_NOTICE_MATCHES_EXISTING_BUNDLED_TEXT',hashlib.sha256(notice.encode()).hexdigest())
+          print('QUALITY_PUBLICATION_SCRIPTS_VALID',len(blocks))
+          PY

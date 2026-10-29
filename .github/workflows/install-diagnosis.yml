@@ -1,0 +1,46 @@
+name: Diagnose Android package installation
+on:
+  push:
+    branches: [codex/android-install-fix]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-install-diagnosis
+  cancel-in-progress: true
+jobs:
+  diagnose:
+    if: contains(github.event.head_commit.message, '[install-diagnose]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Inspect the published packages and native libraries
+        run: |
+          sdkmanager "build-tools;35.0.0"
+          python3 scripts/diagnose-apk-installation.py inspect
+          rg -n '"kr\.documentstudio|kr\.documentstudio:|kr\.documentstudio/' app/src officeruntime/src scripts > artifacts/install/package-references.txt || true
+          cat artifacts/install/package-references.txt
+          sudo chmod 666 /dev/kvm
+      - name: Reproduce clean installation and old-version update on Android 35
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 2048
+          script: python3 scripts/diagnose-apk-installation.py install
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-install-diagnosis-${{ github.sha }}
+          path: artifacts/install/
+          if-no-files-found: error

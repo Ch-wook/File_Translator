@@ -5,6 +5,8 @@ import android.net.Uri
 import android.os.CancellationSignal
 import android.provider.DocumentsContract
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class TreeEntry(val id: String,val name: String,val directory: Boolean,val uri: Uri,val size: Long=0)
 data class TreeListing(val entries: List<TreeEntry>,val truncated: Boolean=false,val scanned: Int=0)
@@ -36,6 +38,24 @@ class DocumentTree(private val source: TreeSource) {
             if(!recursive) break
         }
         return TreeListing(found.sortedWith(compareBy<TreeEntry> {!it.directory}.thenBy(String.CASE_INSENSITIVE_ORDER) {it.name}),limited,scanned.coerceAtMost(20000))
+    }
+}
+
+/** Short-lived bounded folder snapshots; never caches document bytes or recovery data. */
+class CachedTreeSource(private val source: TreeSource,private val now: ()->Long={System.nanoTime()/1_000_000}): TreeSource {
+    private data class Snapshot(val time: Long,val entries: List<TreeEntry>)
+    private val snapshots=linkedMapOf<String,Snapshot>()
+    private val mutex=Mutex()
+    override suspend fun children(id: String): List<TreeEntry> = mutex.withLock {
+        snapshots[id]?.takeIf {now()-it.time in 0..5000}?.let {return@withLock it.entries}
+        val entries=source.children(id)
+        currentCoroutineContext().ensureActive()
+        snapshots.remove(id)
+        if(entries.size<=2000) {
+            snapshots[id]=Snapshot(now(),entries)
+            while(snapshots.size>8 || snapshots.values.sumOf {it.entries.size}>2000) snapshots.remove(snapshots.keys.first())
+        }
+        entries
     }
 }
 

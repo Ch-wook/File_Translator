@@ -1,0 +1,204 @@
+name: Build and verify mobile editing APKs
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mobile-release-0811-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: contains(github.event.head_commit.message, '[release-build]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate delivery scripts before tool downloads
+        run: python3 -m py_compile scripts/package-mobile-release.py scripts/test-mobile-installation.py scripts/prepare-open-fixtures.py scripts/verify-open-regression.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Pinned Android tools
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('scripts/package-mobile-release.py','scripts/test-mobile-installation.py','scripts/prepare-hangul-engine.py','web/hangul/patch-engine.py'):
+              compile(Path(name).read_text(),name,'exec')
+          PY
+          chmod +x gradlew
+          mkdir -p artifacts/ci artifacts/mobile-build
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: android-gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: android-gradle-${{ runner.os }}-
+      - uses: actions/cache@v4
+        id: engine-cache
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: hangul-public-tools-${{ runner.os }}-${{ github.sha }}
+          restore-keys: hangul-public-tools-${{ runner.os }}-
+      - name: Real offline engine, TypeScript and fixtures
+        run: |
+          python3 scripts/prepare-open-fixtures.py
+          pip install python-pptx python-docx openpyxl Pillow
+          python3 scripts/prepare-conversion-fixtures.py
+          ./gradlew :app:help :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/fixtures.log
+          python3 scripts/prepare-viewer-fixtures.py
+          python3 scripts/prepare-hangul-engine.py 2>&1 | tee artifacts/ci/hangul-prepare.log
+      - name: Reproduce old metadata failure, verify host regressions and compile Android tests
+        run: |
+          python3 scripts/verify-open-regression.py
+          ./gradlew :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/host-regression.log
+      - name: Real browser editing and independent saved-file parsers
+        run: |
+          npm ci --prefix scripts/tests
+          node --test --test-reporter=tap scripts/tests/*.test.cjs 2>&1 | tee artifacts/ci/javascript.log
+          node scripts/tests/mobile-ui-layout.cjs 2>&1 | tee artifacts/ci/mobile-ui-layout.log
+          (cd scripts/tests && npx playwright install chromium && npm run test:hangul) 2>&1 | tee artifacts/ci/hangul-browser.log
+          TABLE_SAVE_DIAGNOSTIC=1 node scripts/tests/hangul-mobile.cjs 2>&1 | tee artifacts/ci/table-save-browser.log
+          ./gradlew :core:inspectTableSave --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/table-save-records.log
+          python3 scripts/verify-hangul-close-race.py 2>&1 | tee artifacts/ci/close-race-regression.log
+          node scripts/tests/hangul-mobile.cjs 2>&1 | tee artifacts/ci/hangul-mobile.log
+          node scripts/tests/viewer-pages.cjs 2>&1 | tee artifacts/ci/viewer-pages.log
+          node scripts/tests/signature-conversion.cjs 2>&1 | tee artifacts/ci/signature-conversion.log
+          python3 scripts/verify-signature-conversion.py
+          ./gradlew :core:verifyVisualRoundTrip :core:verifyMobileRoundTrip --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/roundtrip.log
+      - name: Configured private signing key, if available
+        env:
+          KEYSTORE_BASE64: ${{ secrets.STUDIO_KEYSTORE_B64 }}
+        run: |
+          python3 - <<'PY'
+          import base64,os,pathlib
+          if os.environ.get('KEYSTORE_BASE64'):
+              path=pathlib.Path(os.environ['RUNNER_TEMP'])/'studio-signing.jks'
+              path.write_bytes(base64.b64decode(os.environ['KEYSTORE_BASE64'],validate=True));path.chmod(0o600)
+              with open(os.environ['GITHUB_ENV'],'a') as f:f.write('STUDIO_KEYSTORE='+str(path)+'\n')
+          PY
+      - name: Unit tests, lint and ARM64 phone APK
+        env:
+          STUDIO_STORE_PASSWORD: ${{ secrets.STUDIO_STORE_PASSWORD }}
+          STUDIO_KEY_ALIAS: ${{ secrets.STUDIO_KEY_ALIAS }}
+          STUDIO_KEY_PASSWORD: ${{ secrets.STUDIO_KEY_PASSWORD }}
+        run: |
+          ./gradlew -PstudioAbi=arm64-v8a :officeruntime:testDebugUnitTest :app:assembleDebug :app:lintDebug --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/gradle-arm64.log
+          cp app/build/outputs/apk/debug/app-debug.apk artifacts/mobile-build/arm64-v8a.apk
+      - name: x86_64 APK and instrumentation
+        env:
+          STUDIO_STORE_PASSWORD: ${{ secrets.STUDIO_STORE_PASSWORD }}
+          STUDIO_KEY_ALIAS: ${{ secrets.STUDIO_KEY_ALIAS }}
+          STUDIO_KEY_PASSWORD: ${{ secrets.STUDIO_KEY_PASSWORD }}
+        run: |
+          ./gradlew -PstudioAbi=x86_64 :app:assembleDebug :app:assembleDebugAndroidTest --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/gradle-x86.log
+          cp app/build/outputs/apk/debug/app-debug.apk artifacts/mobile-build/x86_64.apk
+      - name: Preserve both APKs and their tested engine before acceptance packaging
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-candidate-${{ github.sha }}
+          path: |
+            artifacts/mobile-build/
+            .engine-cache/hangul/runtime/
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+      - name: Emulator acceleration
+        run: |
+          ./gradlew --stop
+          sudo chmod 666 /dev/kvm
+      - name: Installation, actual Android IME and full P0 regression
+        id: android
+        continue-on-error: true
+        env:
+          STUDIO_ABI: x86_64
+          STUDIO_PACKAGE: kr.documentstudio.qualitypreview
+          MODE_TEST_CLASSES: kr.documentstudio.SaveProcessRecoveryTest,kr.documentstudio.QualityUiTest,kr.documentstudio.BackupSafetyTest,kr.documentstudio.EncryptedBackupIntegrationTest,kr.documentstudio.ReadingUxTest,kr.documentstudio.ViewerNavigationTest,kr.documentstudio.DocumentTreeTest,kr.documentstudio.ConversionIntegrationTest,kr.documentstudio.PdfAnnotationsTest,kr.documentstudio.PdfImageEditingTest,kr.documentstudio.PdfInkAppearanceTest,kr.documentstudio.PdfMarkupUiTest,kr.documentstudio.MarkdownUiTest,kr.documentstudio.CommonMobileUiTest,kr.documentstudio.NativeOfficeFontTest,kr.documentstudio.DocumentOpenRegressionTest,kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest
+          STUDIO_STORE_PASSWORD: ${{ secrets.STUDIO_STORE_PASSWORD }}
+          STUDIO_KEY_ALIAS: ${{ secrets.STUDIO_KEY_ALIAS }}
+          STUDIO_KEY_PASSWORD: ${{ secrets.STUDIO_KEY_PASSWORD }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 3072
+          script: |
+            python3 scripts/test-mobile-installation.py
+            bash scripts/run-android-mode-tests.sh
+            adb root || true
+            adb wait-for-device
+            adb pull /data/anr artifacts/native-android/anr || true
+      - name: Require the actual Android report, independent of action status
+        run: |
+          python3 - <<'PY'
+          import json,pathlib
+          result=json.loads(pathlib.Path('artifacts/ci/android-summary.json').read_text())
+          assert result=={'tests':70,'failures':0,'errors':0,'skipped':0},result
+          print('EXACT_ANDROID_ACCEPTANCE',result)
+          PY
+      - name: Verify ABI packages, signatures, all test results and exact source
+        env:
+          EMULATOR_OUTCOME: ${{ steps.android.outcome }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/package-mobile-release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: document-studio-mobile-${{ github.sha }}
+          path: artifacts/delivery/
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/cache/save@v4
+        if: always() && steps.engine-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: hangul-public-tools-${{ runner.os }}-${{ github.sha }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-release-logs-${{ github.sha }}
+          path: |
+            artifacts/ci/
+            artifacts/open-fixtures/
+            artifacts/mobile-install/
+            artifacts/hangul-mobile/
+            artifacts/viewer/
+            artifacts/signature-conversion/
+            artifacts/mobile-ui/
+            artifacts/document-engines/
+            artifacts/native-android/
+            app/build/reports/
+            app/build/outputs/androidTest-results/
+            core/build/test-results/
+            officeruntime/build/test-results/
+            app/build/test-results/
+            core/build/visual-fixtures/
+          if-no-files-found: warn

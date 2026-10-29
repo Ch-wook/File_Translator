@@ -154,7 +154,16 @@ public class LOActivity extends AppCompatActivity {
     private boolean isDocEditable = false;
     private boolean isDocDebuggable = false;
     private boolean documentLoaded = false;
-    private boolean officeWasEdited = false;
+    // Permission, pending core modifications and durable approved output are distinct.
+    private volatile boolean studioEditAuthorized = false;
+    private volatile boolean studioEditEverAuthorized = false;
+    private volatile boolean officeModified = false;
+    private volatile boolean officeApprovedChanges = false;
+    private volatile boolean officeSaveInFlight = false;
+    private volatile boolean officeSavedApproved = false;
+    private volatile boolean officeLoadFinished = false;
+    private volatile boolean officeLoadFailed = false;
+    private volatile boolean studioUiTextInputFocused = false;
 
     private ClipboardManager clipboardManager;
     private ClipData clipData;
@@ -356,6 +365,7 @@ public class LOActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         this.savedInstanceState = savedInstanceState;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         sPrefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
@@ -529,18 +539,20 @@ public class LOActivity extends AppCompatActivity {
             mWebView = (COWebView) findViewById(R.id.browser);
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                mWebView.setOnApplyWindowInsetsListener((v, windowInsets) -> {
-                    Insets insets = windowInsets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime() | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ? WindowInsets.Type.systemOverlays() : 0));
-
-                    ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
-                    mlp.leftMargin = insets.left;
-                    mlp.topMargin = insets.top;
-                    mlp.rightMargin = insets.right;
-                    mlp.bottomMargin = insets.bottom;
-                    v.setLayoutParams(mlp);
-
-                    return WindowInsets.CONSUMED;
+                // Asset preparation can finish after the initial inset dispatch.
+                // Pad the parent so drawing, touch and accessibility move together;
+                // changing WebView margins alone can leave its header under system UI.
+                View content = findViewById(android.R.id.content);
+                content.setOnApplyWindowInsetsListener((v, windowInsets) -> {
+                    Insets insets = windowInsets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime()
+                            | WindowInsets.Type.displayCutout()
+                            | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ? WindowInsets.Type.systemOverlays() : 0));
+                    if (v.getPaddingLeft()!=insets.left || v.getPaddingTop()!=insets.top
+                            || v.getPaddingRight()!=insets.right || v.getPaddingBottom()!=insets.bottom)
+                        v.setPadding(insets.left,insets.top,insets.right,insets.bottom);
+                    return windowInsets;
                 });
+                content.requestApplyInsets();
 
                 boolean lightMode = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_YES) == 0;
                 WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView()).setAppearanceLightStatusBars(lightMode);
@@ -763,8 +775,8 @@ public class LOActivity extends AppCompatActivity {
 
         PrivateLog.i(TAG, "onNewIntent");
 
-        if (documentLoaded) {
-            postMobileMessageNative("save dontTerminateEdit=1 dontSaveIfUnmodified=1");
+        if (documentLoaded && officeModified && officeApprovedChanges) {
+            saveApprovedWorkingCopy();
         }
 
         super.onNewIntent(intent);
@@ -912,31 +924,7 @@ public class LOActivity extends AppCompatActivity {
                     OutputStream outputStream = null;
                     try {
                         try {
-                            inputStream = new FileInputStream(mTempFile);
-
-                            int len = inputStream.available();
-                            if (len <= 0)
-                                // empty for some reason & do not write it back
-                                return;
-
-                            Uri uri = getIntent().getData();
-                            try {
-                                outputStream = contentResolver.openOutputStream(uri, "wt");
-                            }
-                            catch (FileNotFoundException e) {
-                                PrivateLog.i(TAG, "failed with the 'wt' mode, trying without: " + e.getMessage());
-                                outputStream = contentResolver.openOutputStream(uri);
-                            }
-
-                            byte[] buffer = new byte[1024];
-                            int length;
-                            long bytes = 0;
-                            while ((length = inputStream.read(buffer)) != -1) {
-                                outputStream.write(buffer, 0, length);
-                                bytes += length;
-                            }
-
-                            PrivateLog.i(TAG, "Success copying " + bytes + " bytes from " + mTempFile + " to " + uri);
+                            studioPublishNativeOutput(mTempFile,getIntent().getData());
                         } finally {
                             if (inputStream != null)
                                 inputStream.close();
@@ -1020,8 +1008,8 @@ public class LOActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         // A Save similar to an autosave
-        if (documentLoaded)
-            postMobileMessageNative("save dontTerminateEdit=1 dontSaveIfUnmodified=1");
+        if (documentLoaded && officeModified && officeApprovedChanges && studioEditAuthorized)
+            saveApprovedWorkingCopy();
 
         super.onPause();
         PrivateLog.d(TAG, "onPause() - hinting to save, we might need to return to the doc");
@@ -1088,6 +1076,9 @@ public class LOActivity extends AppCompatActivity {
             Meaning that we will switch to the copied (saved-as) document in the bg
             this way we don't need to reload the activity.
         */
+        if(requestCode==REQUEST_SAVEAS_PDF && intent!=null && intent.getData()!=null){
+            convertStudioPdf(intent.getData());return;
+        }
         boolean requestCopy = false;
         if (requestCode == REQUEST_COPY) {
             requestCopy = true;
@@ -1116,37 +1107,19 @@ public class LOActivity extends AppCompatActivity {
                     mPendingExportSourcePath = null;
                     return;
                 }
-                File srcFile = new File(mPendingExportSourcePath);
+                final File srcFile = new File(mPendingExportSourcePath);
+                final Uri destination=intent.getData();
                 mPendingExportSourcePath = null;
-                InputStream inputStream = null;
-                OutputStream outputStream = null;
-                try {
-                    inputStream = new FileInputStream(srcFile);
-                    try {
-                        outputStream = getContentResolver().openOutputStream(intent.getData(), "wt");
-                    } catch (FileNotFoundException e) {
-                        PrivateLog.i(TAG, "failed with the 'wt' mode, trying without: " + e.getMessage());
-                        outputStream = getContentResolver().openOutputStream(intent.getData());
-                    }
-                    byte[] buffer = new byte[4096];
-                    int len;
-                    while ((len = inputStream.read(buffer)) != -1) {
-                        outputStream.write(buffer, 0, len);
-                    }
-                    outputStream.flush();
-                } catch (Exception e) {
-                    Toast.makeText(this, "Something went wrong while exporting: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    
-                } finally {
-                    try {
-                        if (inputStream != null)
-                            inputStream.close();
-                        if (outputStream != null)
-                            outputStream.close();
-                    } catch (Exception e) {
-                    }
-                    srcFile.delete();
-                }
+                if(studioPdfBusy){Toast.makeText(this,"현재 저장이 끝난 뒤 다시 시도하세요.",Toast.LENGTH_LONG).show();return;}
+                studioPdfBusy=true;
+                final android.app.ProgressDialog progress=new android.app.ProgressDialog(this);
+                progress.setMessage("파일 저장·검증 중");progress.setCancelable(false);progress.show();
+                mWebView.setEnabled(false);
+                new Thread(()->{
+                    try {studioPublishNativeOutput(srcFile,destination);srcFile.delete();}
+                    catch(Exception failure){final String message=studioOutputError(failure);runOnUiThread(()->Toast.makeText(this,message,Toast.LENGTH_LONG).show());}
+                    finally {runOnUiThread(()->{studioPdfBusy=false;if(mWebView!=null)mWebView.setEnabled(true);if(!isFinishing())progress.dismiss();});}
+                },"studio-output-publication").start();
                 return;
             }
             case REQUEST_SAVEAS_PDF:
@@ -1171,25 +1144,12 @@ public class LOActivity extends AppCompatActivity {
                     OutputStream outputStream = null;
                     try {
                         final File tempFile = File.createTempFile("CollaboraOffice", "." + format, this.getCacheDir());
-                        LOActivity.this.saveAs(tempFile.toURI().toString(), format, requestCopy ? "TakeOwnership" : null);
+                        LOActivity.this.saveAs(tempFile.toURI().toString(), format, requestCopy && !(getApplication() instanceof StudioDocumentHost) ? "TakeOwnership" : null);
 
-                        inputStream = new FileInputStream(tempFile);
-                        try {
-                            outputStream = getContentResolver().openOutputStream(intent.getData(), "wt");
-                        } catch (FileNotFoundException e) {
-                            PrivateLog.i(TAG, "failed with the 'wt' mode, trying without: " + e.getMessage());
-                            outputStream = getContentResolver().openOutputStream(intent.getData());
-                        }
-
-                        byte[] buffer = new byte[4096];
-                        int len;
-                        while ((len = inputStream.read(buffer)) != -1) {
-                            outputStream.write(buffer, 0, len);
-                        }
-                        outputStream.flush();
+                        studioPublishNativeOutput(tempFile,intent.getData());
                         _tempFile = tempFile;
                     } catch (Exception e) {
-                        Toast.makeText(this, "Something went wrong while Saving as: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, studioOutputError(e), Toast.LENGTH_SHORT).show();
                         
                     } finally {
                         try {
@@ -1200,8 +1160,7 @@ public class LOActivity extends AppCompatActivity {
                         } catch (Exception e) {
                         }
                     }
-                    if (requestCopy == true) {
-                        assert (_tempFile != null);
+                    if (requestCopy == true && _tempFile != null && !(getApplication() instanceof StudioDocumentHost)) {
                         mTempFile = _tempFile;
                         getIntent().setData(intent.getData());
                         mResolvedFile = null;
@@ -1246,7 +1205,71 @@ public class LOActivity extends AppCompatActivity {
     /** Show the Saving progress and finish the app. */
     private volatile java.util.concurrent.CountDownLatch closeSave;
     private volatile boolean closeSaveSucceeded;
+    private boolean studioSaveOriginal;
+    protected boolean shouldSaveOriginal() { return studioSaveOriginal; }
     protected void onOfficeClosed() { }
+    protected void onPristineViewerClosed() { mProgressDialog.dismiss(); onOfficeClosed(); finish(); }
+    protected void onOfficeBeforeClose() throws IOException { }
+    protected void onOfficeLifecycle(String stage) { }
+    protected void onOfficeSaved() throws IOException { }
+    protected void onOfficeLoadFailed(String error) { }
+    protected String readOfficeViewState() { return "{}"; }
+    protected void writeOfficeViewState(String state) { }
+    protected boolean hasApprovedOfficeOutput() { return officeSavedApproved; }
+
+    @JavascriptInterface
+    public String getStudioViewState() { return readOfficeViewState(); }
+
+    @JavascriptInterface
+    public String getStudioDocumentName() {
+        String name = getIntent().getStringExtra("displayName");
+        return name == null || name.trim().isEmpty() ? "Office 문서" : name;
+    }
+
+    @JavascriptInterface
+    public void saveStudioViewState(String state) {
+        if (state != null && state.length() <= 4096) writeOfficeViewState(state);
+    }
+
+    @JavascriptInterface
+    public boolean requestStudioEdit() {
+        if (isStudioConversionOnly()) return false;
+        if (!isDocEditable) { onOfficeLifecycle("edit-refused-capability"); return false; }
+        if (!documentLoaded) { onOfficeLifecycle("edit-refused-not-loaded"); return false; }
+        if (officeLoadFailed) { onOfficeLifecycle("edit-refused-load-error"); return false; }
+        if (closeSave != null) { onOfficeLifecycle("edit-refused-closing"); return false; }
+        studioEditAuthorized = true;
+        studioEditEverAuthorized = true;
+        onOfficeLifecycle("edit-authorized");
+        return true;
+    }
+
+    private void saveApprovedWorkingCopy() {
+        if (!officeModified || !officeApprovedChanges || officeLoadFailed) return;
+        officeSaveInFlight = true;
+        // Back commits the current cell before entering read mode. Temporarily
+        // permit only this native save; the Java/JS input gates remain closed.
+        if (!studioEditAuthorized) postMobileMessageNative("setviewreadonly value=false");
+        postMobileMessageNative("save dontTerminateEdit=1 dontSaveIfUnmodified=1");
+        if (!studioEditAuthorized) postMobileMessageNative("setviewreadonly value=true");
+    }
+
+    private void observeSaveResult(JSONObject result) {
+        if (!".uno:Save".equals(result.optString("commandName"))) return;
+        if (officeSaveInFlight && result.optBoolean("success", false)) {
+            try {
+                onOfficeSaved();
+                officeSavedApproved = true;
+            } catch (IOException failure) {
+                officeSaveInFlight = false;
+                if (closeSave != null) { closeSaveSucceeded = false; closeSave.countDown(); }
+                runOnUiThread(() -> Toast.makeText(this, "편집 결과 기록을 확인하지 못했습니다. 다시 저장해 주세요.", Toast.LENGTH_LONG).show());
+                return;
+            }
+        }
+        officeSaveInFlight = false;
+        confirmCloseSave(result);
+    }
 
     private void confirmCloseSave(JSONObject result) {
         java.util.concurrent.CountDownLatch pending = closeSave;
@@ -1258,6 +1281,8 @@ public class LOActivity extends AppCompatActivity {
     }
 
     private void finishWithProgress() {
+        if (studioPdfBusy) { Toast.makeText(this, "파일을 저장·검증하는 중입니다. 완료 후 닫아 주세요.", Toast.LENGTH_SHORT).show(); return; }
+        onOfficeLifecycle("close-requested");
         if (!documentLoaded) {
             finish();
             return;
@@ -1270,12 +1295,10 @@ public class LOActivity extends AppCompatActivity {
         // The 'BYE' blocks until the document has closed, so it runs off the UI thread and the
         // progress dialog keeps drawing.
         nativeHandler.post(() -> {
+            onOfficeLifecycle("close-worker");
             OfficePrivacy.requireQuiet();
-            if (officeWasEdited) {
-                // Mobile Back switches core's view to read-only. Restore only
-                // this private working view before asking core to persist it.
-                postMobileMessageNative("setviewreadonly value=false");
-                postMobileMessageNative("save dontTerminateEdit=1 dontSaveIfUnmodified=0");
+            if (officeModified && officeApprovedChanges) {
+                saveApprovedWorkingCopy();
             }
             else { closeSaveSucceeded = true; closeSave.countDown(); }
             boolean saved = false;
@@ -1289,12 +1312,53 @@ public class LOActivity extends AppCompatActivity {
                 });
                 return;
             }
+            try { onOfficeBeforeClose(); }
+            catch (IOException failure) {
+                closeSave = null;
+                runOnUiThread(() -> {
+                    mProgressDialog.dismiss();
+                    Toast.makeText(this, "종료 요청을 기록하지 못했습니다. 작업 파일을 보존했습니다. 다시 닫아 주세요.", Toast.LENGTH_LONG).show();
+                });
+                return;
+            }
             documentLoaded = false;
+            // This final host owns an isolated process and a private working copy.
+            // A successfully loaded session that NEVER authorized editing has no
+            // document changes to flush. The durable close request above already
+            // seals its bytes. Finish the viewer now; StudioOfficeActivity releases
+            // the file lock and ends only this private process in onDestroy().
+            // Edited, saving, failed-load and active PDF conversion sessions retain
+            // the complete acknowledged-save + native BYE path below.
+            if (this instanceof StudioOfficeActivity && !isStudioConversionOnly() && officeLoadFinished && !officeLoadFailed
+                    && !studioEditEverAuthorized && !officeModified && !officeApprovedChanges
+                    && !officeSaveInFlight && !studioPdfBusy) {
+                onOfficeLifecycle("readonly-close-sealed");
+                runOnUiThread(() -> {
+                    java.util.concurrent.atomic.AtomicBoolean completed = new java.util.concurrent.atomic.AtomicBoolean();
+                    Runnable complete = () -> {
+                        if (completed.compareAndSet(false, true)) {
+                            onPristineViewerClosed();
+                        }
+                    };
+                    // System Back must capture the last scroll too. A dead renderer
+                    // cannot hold an unchanged viewer open indefinitely.
+                    getMainHandler().postDelayed(complete, 250);
+                    try {
+                        mWebView.evaluateJavascript("window.studioOffice?.flushView?.()", ignored -> {
+                            getMainHandler().removeCallbacks(complete); complete.run();
+                        });
+                    } catch (RuntimeException failure) {
+                        getMainHandler().removeCallbacks(complete); complete.run();
+                    }
+                });
+                return;
+            }
+            onOfficeLifecycle("sending-native-bye");
             postMobileMessageNative("BYE");
+            onOfficeLifecycle("native-bye-returned");
             //copyTempBackToIntent();
 
-            mProgressDialog.dismiss();
-            runOnUiThread(() -> { onOfficeClosed(); finish(); });
+            runOnUiThread(() -> { mProgressDialog.dismiss(); onOfficeLifecycle("reporting-closed"); onOfficeClosed(); finish(); });
         });
     }
 
@@ -1324,6 +1388,9 @@ public class LOActivity extends AppCompatActivity {
         PrivateLog.i(TAG, "Loading with language:  " + language);
 
         finalUrlToLoad += "&lang=" + language;
+        // Keep edit capability, while entering an actual core read-only view.
+        finalUrlToLoad += "&startreadonly=true&studioopen="
+                + ("EDIT".equals(getIntent().getStringExtra("openIntent")) ? "EDIT" : "VIEW");
 
         if (isDocEditable) {
             finalUrlToLoad += "&permission=edit";
@@ -1386,6 +1453,16 @@ public class LOActivity extends AppCompatActivity {
      */
     public native void createCOOLWSD(String dataDir, String cacheDir, String apkFile, AssetManager assetManager, String loadFileURL, String uiMode, String userName);
 
+    /** Cached focus avoids synchronously querying WebView during a hardware paste event. */
+    @JavascriptInterface
+    public void studioSetUiTextFocus(boolean focused) {
+        studioUiTextInputFocused = focused;
+    }
+
+    boolean studioBlocksDocumentPaste() {
+        return this instanceof StudioOfficeActivity && !studioEditAuthorized && !studioUiTextInputFocused;
+    }
+
     /**
      * Passing messages from JS (instead of the websocket communication).
      */
@@ -1394,7 +1471,7 @@ public class LOActivity extends AppCompatActivity {
     public void postMobileMessage(String message) {
         OfficePrivacy.requireQuiet();
         if (message.startsWith("SAVE ") && closeSave != null) {
-            try { confirmCloseSave(new JSONObject(message.substring(5))); }
+            try { observeSaveResult(new JSONObject(message.substring(5))); }
             catch (JSONException malformed) { /* A malformed acknowledgement cannot confirm a save. */ }
         }
         PrivateLog.d(TAG, "postMobileMessage: " + message);
@@ -1403,6 +1480,9 @@ public class LOActivity extends AppCompatActivity {
 
         if (beforeMessageFromWebView(messageAndParameterArray)) {
             postMobileMessageNative(message);
+            // Preserve queue order: initial native load, then a read-only core view,
+            // before any user input. readonly=1 would forbid later explicit editing.
+            if (message.startsWith("load ")) postMobileMessageNative("setviewreadonly value=true");
             afterMessageFromWebView(messageAndParameterArray);
         }
     }
@@ -1417,13 +1497,17 @@ public class LOActivity extends AppCompatActivity {
      */
     @JavascriptInterface
     public void postMobileError(String message) {
-        // TODO handle this
-        PrivateLog.d(TAG, "postMobileError: " + message);
+        if (!officeLoadFinished) reportOfficeLoadFailure("오피스 엔진을 시작하지 못했습니다.");
     }
 
     /**
      * Passing messages from JS (instead of the websocket communication).
      */
+    public void reportOfficeLoadFailure(String error) {
+        officeLoadFailed = true;
+        runOnUiThread(() -> onOfficeLoadFailed(error));
+    }
+
     @JavascriptInterface
     public void postMobileDebug(String message) {
         // TODO handle this
@@ -1461,12 +1545,33 @@ public class LOActivity extends AppCompatActivity {
      */
     @UsedByNative // androidapp.cpp send2JS
     void rawCallFakeWebsocketOnMessage(final byte[] message) {
-        // The browser can close its socket before dispatching its SAVE bridge
-        // callback. The kit acknowledgement still reaches this native callback.
-        if (closeSave != null && messageStartsWith(message, "unocommandresult:")) {
+        // Native state is authoritative even when the browser closes its socket.
+        if (messageStartsWith(message, "status:")) officeLoadFinished = true;
+        if (messageStartsWith(message, "statechanged:")) {
+            String state = new String(message, java.nio.charset.StandardCharsets.UTF_8).substring("statechanged:".length()).trim();
+            String modified = null;
+            try {
+                if (state.startsWith("{")) {
+                    JSONObject value = new JSONObject(state);
+                    if (".uno:ModifiedStatus".equals(value.optString("commandName"))) modified = value.optString("state");
+                } else if (state.startsWith(".uno:ModifiedStatus=")) modified = state.substring(".uno:ModifiedStatus=".length()).trim();
+            } catch (JSONException ignored) { }
+            if (modified != null) {
+                officeModified = "true".equals(modified);
+                if (officeModified && studioEditEverAuthorized) officeApprovedChanges = true;
+            }
+        }
+        if (messageStartsWith(message, "error:")) {
+            String failure = new String(message, java.nio.charset.StandardCharsets.UTF_8);
+            if (!officeLoadFinished && !failure.toLowerCase(java.util.Locale.ROOT).contains("password")) {
+                officeLoadFailed = true;
+                runOnUiThread(() -> onOfficeLoadFailed("오피스 문서를 열지 못했습니다."));
+            }
+        }
+        if (messageStartsWith(message, "unocommandresult:")) {
             try {
                 String response = new String(message, java.nio.charset.StandardCharsets.UTF_8);
-                confirmCloseSave(new JSONObject(response.substring(response.indexOf('{'))));
+                observeSaveResult(new JSONObject(response.substring(response.indexOf('{'))));
             } catch (Exception malformed) { /* Keep the old baseline if acknowledgement is invalid. */ }
         }
         try {
@@ -1553,9 +1658,35 @@ public class LOActivity extends AppCompatActivity {
      * return true to pass the message to the native part or false to block the message
      */
     private boolean beforeMessageFromWebView(String[] messageAndParam) {
-        switch (messageAndParam[0]) {
+        if (messageAndParam.length == 0) return false;
+        String command = messageAndParam[0];
+        String argument = messageAndParam.length > 1 ? messageAndParam[1] : "";
+        if (this instanceof StudioOfficeActivity && !studioEditAuthorized) {
+            // Native view readonly is the primary barrier; these guards additionally
+            // stop keyboard/IME, paste and object commands at the Android bridge.
+            if (command.equals("key") || command.equals("textinput") || command.equals("paste")
+                    || command.equals("windowkey") || command.equals("insertfile")
+                    || command.equals("removetextcontext") || command.equals("formfieldevent")
+                    || command.equals("contentcontrolevent")
+                    || command.equals("graphicselection") || command.equals("selectgraphic")
+                    || (command.equals("setviewreadonly") && argument.contains("value=false"))) return false;
+            if (command.equals("uno") && !OfficeEditPolicy.allowsViewUno(argument)) return false;
+            if (command.equals("save")) return false;
+        }
+        if (command.equals("save") || (command.equals("uno") && (argument.equals(".uno:Save") || argument.startsWith(".uno:Save ")))) {
+            if (!officeModified || !officeApprovedChanges) return false;
+            officeSaveInFlight = true;
+        }
+        switch (command) {
+            case "DOCUMENT_STUDIO_CONVERT_PDF":
+                runOnUiThread(() -> initiateSaveAs("format=pdf"));
+                return false;
+            case "DOCUMENT_STUDIO_SAVE_AND_CLOSE":
+                studioSaveOriginal = officeApprovedChanges || officeSavedApproved;
+                runOnUiThread(this::finishWithProgress);
+                return false;
             case "BYE":
-                finishWithProgress();
+                runOnUiThread(this::finishWithProgress);
                 return false;
             case "PRINT":
                 getMainHandler().post(new Runnable() {
@@ -1623,13 +1754,19 @@ public class LOActivity extends AppCompatActivity {
             case "EDITMODE": {
                 switch (messageAndParam[1]) {
                     case "on":
+                        if (!studioEditAuthorized) {
+                            runOnUiThread(() -> callFakeWebsocketOnMessage("mobile: readonlymode"));
+                            return false;
+                        }
                         mIsEditModeActive = true;
-                        officeWasEdited = true;
-                        // prompt for file conversion
-                        requestForOdf();
+                        // Studio edits the existing work copy in its original format.
+                        // Format conversion is a separate explicit export action.
+                        if (!(this instanceof StudioOfficeActivity))
+                            runOnUiThread(this::requestForOdf);
                         break;
                     case "off":
                         mIsEditModeActive = false;
+                        studioEditAuthorized = false;
                         break;
                 }
                 return false;
@@ -1839,6 +1976,98 @@ public class LOActivity extends AppCompatActivity {
         startActivityForResult(intent, REQUEST_EXPORT_FILE);
     }
 
+    private StudioDocumentHost studioStorage() throws java.io.IOException {
+        if(!(getApplication() instanceof StudioDocumentHost))throw new java.io.IOException("안전한 저장 호스트를 확인하지 못했습니다.");
+        return (StudioDocumentHost)getApplication();
+    }
+    private void studioPublishNativeOutput(File file,Uri destination) throws Exception {
+        if(destination==null)throw new java.io.IOException("저장할 파일을 선택하세요.");
+        File canonical=file.getCanonicalFile();
+        String cacheRoot=getCacheDir().getCanonicalPath()+File.separator;
+        String session=getIntent().getStringExtra("sessionId");
+        File documentRoot=session!=null && session.matches("[a-zA-Z0-9-]+") ? new File(getFilesDir(),"documents/"+session).getCanonicalFile() : null;
+        if(!canonical.getPath().startsWith(cacheRoot) && (documentRoot==null || !canonical.getParentFile().equals(documentRoot)))
+            throw new java.io.IOException("문서의 작업 파일만 내보낼 수 있습니다.");
+        studioStorage().publishResult(canonical,destination,getIntent().getStringExtra("originalUri"));
+    }
+    private String studioOutputError(Throwable failure) {
+        try {return studioStorage().describeFailure(failure);}
+        catch(Exception ignored){return "저장을 완료하지 못했습니다. 작업 파일을 보존했습니다. 저장 복구 또는 다른 이름으로 저장을 선택하세요.";}
+    }
+    private boolean studioPdfBusy;
+    private volatile String studioPdfError;
+    /** Direct native PDF filter; no print UI, original ownership or screenshot conversion. */
+    private void convertStudioPdf(Uri destination) {
+        if(studioPdfBusy)return;
+        // Loading the WebView URL is not completion of native document loading.
+        // The JNI filter dereferences the document; never call it before status:.
+        if (!officeLoadFinished || officeLoadFailed || !documentLoaded || closeSave != null || isFinishing()) {
+            studioPdfError="문서를 아직 준비하지 못했습니다. 문서가 표시된 뒤 다시 변환하세요.";
+            Toast.makeText(this,studioPdfError,Toast.LENGTH_LONG).show();return;
+        }
+        if(getApplication() instanceof StudioDocumentHost && ((StudioDocumentHost)getApplication()).sameDocument(destination.toString(),getIntent().getStringExtra("originalUri"))){
+            Toast.makeText(this,"원본과 다른 파일을 선택하세요.",Toast.LENGTH_LONG).show();return;
+        }
+        onPdfConversionStarted();
+        studioPdfError=null;
+        studioPdfBusy=true;
+        final android.app.ProgressDialog progress=new android.app.ProgressDialog(this);
+        progress.setMessage("PDF 변환 중 · 전체 문서 레이아웃 처리");progress.setCancelable(false);
+        final java.util.concurrent.atomic.AtomicBoolean cancelled=new java.util.concurrent.atomic.AtomicBoolean(false);
+        final java.util.concurrent.atomic.AtomicBoolean publishing=new java.util.concurrent.atomic.AtomicBoolean(false);
+        progress.setButton(android.content.DialogInterface.BUTTON_NEGATIVE,"변환 취소",(dialog,which)->{});progress.show();
+        progress.getButton(android.content.DialogInterface.BUTTON_NEGATIVE).setOnClickListener(view->{
+            synchronized(cancelled) {
+                if(publishing.get()){Toast.makeText(this,"파일을 저장·검증하는 중입니다. 완료 후 닫아 주세요.",Toast.LENGTH_SHORT).show();return;}
+                cancelled.set(true);progress.setMessage("변환 취소 요청을 확인하는 중입니다.");
+            }
+        });
+        mWebView.setEnabled(false);
+        new Thread(() -> {
+            File stage=null;
+            try {
+                stage=File.createTempFile("studio-pdf-",".pdf",getCacheDir());
+                saveAs(stage.toURI().toString(),"pdf",null);
+                if(stage.length()<10 || stage.length()>128L*1024*1024)throw new java.io.IOException("PDF 파일을 만들지 못했습니다.");
+                int pages;
+                try(android.os.ParcelFileDescriptor fd=android.os.ParcelFileDescriptor.open(stage,android.os.ParcelFileDescriptor.MODE_READ_ONLY);
+                    android.graphics.pdf.PdfRenderer renderer=new android.graphics.pdf.PdfRenderer(fd)){
+                    pages=renderer.getPageCount();if(pages<1)throw new java.io.IOException("PDF 페이지가 없습니다.");
+                    try(android.graphics.pdf.PdfRenderer.Page page=renderer.openPage(0)){
+                        android.graphics.Bitmap bitmap=android.graphics.Bitmap.createBitmap(128,128,android.graphics.Bitmap.Config.ARGB_8888);
+                        try{page.render(bitmap,null,null,android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);}finally{bitmap.recycle();}
+                    }
+                }
+                synchronized(cancelled) {
+                    if(cancelled.get())throw new java.io.IOException("변환을 취소했습니다.");
+                    publishing.set(true);
+                }
+                runOnUiThread(()->{progress.setMessage("PDF 저장·검증 중");progress.getButton(android.content.DialogInterface.BUTTON_NEGATIVE).setEnabled(false);});
+                studioPublishNativeOutput(stage,destination);
+                final int count=pages;runOnUiThread(()->{
+                    onPdfConversionCompleted(destination);
+                    new AlertDialog.Builder(this).setTitle("PDF 변환 완료").setMessage(count+"쪽 PDF를 저장하고 다시 읽어 검증했습니다.").setPositiveButton("결과 열기",(d,w)->{
+                        Intent view=new Intent().setClassName(getPackageName(),"kr.documentstudio.ConversionPreviewActivity").setData(destination).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(view);
+                    }).setNegativeButton("닫기",null).show();
+                });
+            }catch(Exception failure){
+                studioPdfError=cancelled.get() && !publishing.get() ? "변환을 취소했습니다. 원본은 변경하지 않았습니다." : studioOutputError(failure);
+                runOnUiThread(()->Toast.makeText(this,studioPdfError,Toast.LENGTH_LONG).show());
+            }finally{
+                if(stage!=null)stage.delete();
+                runOnUiThread(()->{studioPdfBusy=false;if(mWebView!=null)mWebView.setEnabled(true);if(!isFinishing())progress.dismiss();});
+            }
+        },"studio-pdf-conversion").start();
+    }
+    private static String studioFileDigest(File file) throws Exception {
+        java.security.MessageDigest digest=java.security.MessageDigest.getInstance("SHA-256");
+        try(InputStream in=new FileInputStream(file)){byte[] buffer=new byte[65536];int n;while((n=in.read(buffer))!=-1)digest.update(buffer,0,n);}
+        return android.util.Base64.encodeToString(digest.digest(),android.util.Base64.NO_WRAP);
+    }
+    @JavascriptInterface public boolean isStudioConversionOnly(){return getIntent().getBooleanExtra("conversionOnly",false);}
+    protected void onPdfConversionStarted() { }
+    protected void onPdfConversionCompleted(Uri destination) { }
+    private static void studioCopyStream(InputStream input,OutputStream out) throws java.io.IOException {byte[] b=new byte[65536];int n;while((n=input.read(b))!=-1)out.write(b,0,n);}
     private void initiateSaveAs(String optionsString) {
         Map<String, String> optionsMap = new HashMap<>();
         String[] options = optionsString.split(" ");
@@ -1848,6 +2077,7 @@ public class LOActivity extends AppCompatActivity {
                 optionsMap.put(keyValue[0], keyValue[1]);
         }
         String format = optionsMap.get("format");
+        if("pdf".equals(format))onPdfConversionStarted();
         String mime = getMimeForFormat(format);
         if (format != null && mime != null) {
             String filename = optionsMap.get("name");

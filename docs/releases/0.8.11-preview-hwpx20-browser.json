@@ -1,0 +1,154 @@
+{
+  "source": "87a09d3c46d5459caccb9c6f81534fd70feee912",
+  "run": 40844681112,
+  "pages": 20,
+  "uniqueRenderedPages": 20,
+  "continuousScroll": true,
+  "directLastPage": true,
+  "actualChromiumTouchPinch": true,
+  "panAfterZoom": true,
+  "modeSwitchPagePreserved": true,
+  "phoneLandscapeViewport": true,
+  "fitPage": true,
+  "retry": true,
+  "documentWrites": 0,
+  "originalUnchanged": true,
+  "firstReadyMs": 958,
+  "zoomBefore": 0.46869094116164794,
+  "zoomAfter": 0.9373818823232959,
+  "finalView": {
+    "zoom": 0.4888496913191382,
+    "scrollTop": 10279,
+    "scrollLeft": 23,
+    "viewportWidth": 412,
+    "viewportHeight": 822,
+    "page": 19,
+    "pageOffset": 294.6881443298926,
+    "pageX": 216.8355670103093
+  },
+  "rendered": [
+    {
+      "page": 1,
+      "hash": "933970ea06155e5a12ef0b69f70ddd133a645394be59b5d78932f6cfbb2b1a6f",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 2,
+      "hash": "91106daa89713e5a0464da4aa1cdfddb7d7d87c669b4d70c10846a9b84cad549",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 3,
+      "hash": "c1662c945b196baf0ff102e1b64de843715bdb1fa757529e8f349f7fd74a397d",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 4,
+      "hash": "ee80e23f4758bc566623093a1c712e634a5894d8b8766dd35238dec408193ae9",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 5,
+      "hash": "de132c38f7f4b0dc337e1494d68f7140c6893ac6a9b0404326e76682ce70ef8f",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 6,
+      "hash": "77e6347bc7764d81db69d4b0d1217524a50c0f9bddb7ef8f8dfb71db3569d5bb",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 7,
+      "hash": "4a86c2aa9450394830efd49d7b10d68bfb39a59934b1e17b3175d3659db2f11a",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 8,
+      "hash": "09f6b347b878036fce809067754fde4bf80da518883c5631345e1a37ab4a40de",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 9,
+      "hash": "1049ef0be5cf010dce2e3b1fa565e3c4587671bacada8d8091228cf2ee8ed487",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 10,
+      "hash": "f11bc6833fc2c2dd3413cd95ab80553173bdcce92e831698e5767a026ac77ebd",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 11,
+      "hash": "f71907a240321e586ee2c4b9cb3794426dcaf30932c46d3ca2d8a0109ca167dc",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 12,
+      "hash": "04f0e381df7e99b33665203dfc4377acc55d5d679a5013e5f2da469e72f27481",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 13,
+      "hash": "39203819bb6e50a49f0fe86fb199dd992e8073cdf42b3103530d75500704e953",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 14,
+      "hash": "70571a534d7b035620db35540babc01cfe3de5c41c083a0fdc9f988875fcc0e8",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 15,
+      "hash": "4747869d59f6ea068e028b22afb31439e671a362519f5a64d13b33c9d5689627",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 16,
+      "hash": "834a55ea007760f9549f018d3ec5dd4a1362fb6d1da0a214d920fbe4e9c1a044",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 17,
+      "hash": "f4d8b7cfad953c641403ef84985aaf1a38261a0bc2876441b02f3ade98cc98ed",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 18,
+      "hash": "00fdf8097868bbabcca02899640c9c188943f42b146c8b2a6e0b6457425d61e4",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 19,
+      "hash": "597bcee4b5aa6cd12cb23dd0572c5c5e064971930a67aee9062b7791b9a99e07",
+      "width": 595.2750000000001,
+      "height": 841.875
+    },
+    {
+      "page": 20,
+      "hash": "bf9a1e16e8746c3b070716d177241ccbc6da86175e290119ac66a64a272f884a",
+      "width": 595.2750000000001,
+      "height": 841.875
+    }
+  ],
+  "limitations": [
+    "Chromium mobile viewport; not physical Android or Android screen rotation"
+  ]
+}

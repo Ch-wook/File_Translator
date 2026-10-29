@@ -27,8 +27,19 @@ import com.tom_roush.pdfbox.util.Matrix
 import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory
 
 data class PdfForm(val name: String,val value: String,val kind: String,val options: List<String>,val readOnly: Boolean)
-data class PdfInfo(val pages: Int, val archival: Boolean,val forms: List<PdfForm> = emptyList(),val annotatedPages: Set<Int> = emptySet())
+data class PdfPageSize(val width: Float,val height: Float)
+data class PdfInfo(val pages: Int, val archival: Boolean,val forms: List<PdfForm> = emptyList(),val annotatedPages: Set<Int> = emptySet(),val pageSizes: List<PdfPageSize> = emptyList())
 object PdfEngine {
+    /** Reading/drawing must show pending in-place edits as well as the saved base. */
+    fun renderWorking(s: Session,page: Int,viewportWidth: Int?=null): android.graphics.Bitmap {
+        if(s.edits.values.isEmpty()) return if(viewportWidth==null)render(s.base,page,annotationPages=s.pdf?.annotatedPages) else renderForViewport(s.base,page,viewportWidth,2_000_000,s.pdf?.annotatedPages)
+        val stage=java.io.File.createTempFile("pdf-working-",".pdf",s.base.parentFile)
+        try {
+            write(s.base,stage,emptyList(),false,s.edits.values)
+            return if(viewportWidth==null)render(stage,page) else renderForViewport(stage,page,viewportWidth,2_000_000)
+        } finally {stage.delete()}
+    }
+
     private const val PREFIX = "DocumentStudio:"
     fun inspect(file: File): PdfInfo = PDDocument.load(file).use { doc ->
         require(!doc.isEncrypted) { "암호화된 PDF는 지원하지 않습니다." }
@@ -39,7 +50,14 @@ object PdfEngine {
             val options=when(field) {is PDChoice -> field.options;is PDButton -> field.onValues.toList();else->emptyList()}
             PdfForm(field.fullyQualifiedName,field.valueAsString,when(field) {is PDTextField->"text";is PDCheckBox->"checkbox";is PDChoice->"choice";is PDRadioButton->"radio";else->"unsupported"},options,field.isReadOnly)
         } ?: emptyList()
-        PdfInfo(doc.numberOfPages, xmp.contains("pdfaid", ignoreCase = true),forms,(0 until doc.numberOfPages).filter {doc.getPage(it).annotations.isNotEmpty()}.toSet())
+        val sizes=(0 until doc.numberOfPages).map {index->
+            val page=doc.getPage(index);val box=page.cropBox
+            val rotated=((page.rotation%360)+360)%360 in listOf(90,270)
+            val width=if(rotated)box.height else box.width;val height=if(rotated)box.width else box.height
+            require(width.isFinite() && height.isFinite() && width>0 && height>0) {"PDF 페이지 크기를 확인하지 못했습니다."}
+            PdfPageSize(width,height)
+        }
+        PdfInfo(doc.numberOfPages, xmp.contains("pdfaid", ignoreCase = true),forms,(0 until doc.numberOfPages).filter {doc.getPage(it).annotations.isNotEmpty()}.toSet(),sizes)
     }
     fun render(file: File, index: Int,maxWidth: Int=1600,maxHeight: Int=2200,annotationPages: Set<Int>?=null): Bitmap {
         require(maxWidth in 1..1600 && maxHeight in 1..2200)
@@ -55,11 +73,42 @@ object PdfEngine {
             } }
         }
     }
-    fun displaySize(file: File,index: Int): Pair<Float,Float> = PDDocument.load(file).use {doc->val page=doc.getPage(index);val r=page.cropBox;if(((page.rotation%360)+360)%360 in listOf(90,270)) r.height to r.width else r.width to r.height}
+    /** A bounded viewport raster, also used for sharp read-only zoom without PDFBox reparsing. */
+    fun renderForViewport(file: File,index: Int,requestedWidth: Int,maxPixels: Int=4_000_000,annotationPages: Set<Int>?=null): Bitmap {
+        ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY).use {fd->
+            PdfRenderer(fd).use {renderer->renderer.openPage(index).use {page->
+                val (w,h)=PdfRasterBudget.dimensions(page.width,page.height,requestedWidth,maxPixels)
+                val image=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888)
+                try {
+                    image.eraseColor(Color.WHITE);page.render(image,null,null,PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    if(annotationPages==null || index in annotationPages)PdfAnnotations.overlay(file,index,image)
+                    return image
+                } catch(e: Throwable){image.recycle();throw e}
+            }}
+        }
+    }
+    fun renderAtDpi(file: File,index: Int,dpi: Int): Bitmap {
+        require(dpi in 72..216)
+        ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY).use {fd->
+            PdfRenderer(fd).use {renderer->renderer.openPage(index).use {page->
+                val w=kotlin.math.ceil(page.width*dpi/72.0).toInt();val h=kotlin.math.ceil(page.height*dpi/72.0).toInt()
+                require(w>0 && h>0 && w.toLong()*h<=16000000) {"페이지가 너무 큽니다. 해상도를 낮추세요."}
+                val bitmap=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888)
+                try{bitmap.eraseColor(Color.WHITE);page.render(bitmap,null,null,PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);PdfAnnotations.overlay(file,index,bitmap);return bitmap}
+                catch(e:Throwable){bitmap.recycle();throw e}
+            }}
+        }
+    }
+    /** Native page dimensions already include CropBox and rotation; no PDFBox document parse. */
+    fun displaySize(file: File,index: Int): Pair<Float,Float> =
+        ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY).use {fd->
+            PdfRenderer(fd).use {renderer->renderer.openPage(index).use {page->page.width.toFloat() to page.height.toFloat()}}
+        }
     fun write(base: File, destination: File, strokes: List<Stroke>, ordinaryCopy: Boolean,values: Map<String,String> = emptyMap(),layers: List<InkLayer> = listOf(InkLayer())) {
         InkLayers.validate(layers)
         require(strokes.all {s->layers.any {it.id==s.layerId}})
         PDDocument.load(base).use { doc ->
+            PdfTextEdits.apply(doc,values)
             doc.documentCatalog.cosObject.setString("StudioLayers",StateCodec.layers(layers).toString())
             values.filterKeys {it.startsWith("pdf:form#")}.forEach {(key,value)->
                 val field=doc.documentCatalog.acroForm?.getField(key.removePrefix("pdf:form#")) ?: error("PDF 양식 필드를 찾을 수 없습니다.")

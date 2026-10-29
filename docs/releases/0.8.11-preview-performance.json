@@ -1,0 +1,610 @@
+{
+  "activityLaunchTotalTimeMs": {
+    "baseline": [
+      2731,
+      2123,
+      3274
+    ],
+    "candidate": [
+      2025,
+      2500,
+      2775
+    ]
+  },
+  "apkSha256": {
+    "baseline-test.apk": "cd7bf38b5a59bfae5b283ba70c1b8dd6850f6d126f028da2a201e92c994de0fb",
+    "candidate.apk": "b3634dc8827479f817aac91833033ca1b806912e2daeb852b222423b3293549c",
+    "baseline.apk": "594f32059e31684cf132c9e4c449add4e12fa366d4dfdcdc6de4bef26513dbab",
+    "candidate-test.apk": "b5615feae909451e7dc1b7106c4dc1403ae3da6130cdf85bbb777f2a53a3f867"
+  },
+  "baselineCommit": "aa3414f1fae89f5f98d10dabb64df85bfd7fc1df",
+  "candidateCommit": "ea111b8dcceef56b57d9febe6fd44dbc491ac862",
+  "environment": "same Android 35 x86_64 Pixel 7 emulator, SwiftShader, 3072 MiB; sequential baseline then candidate; not physical phone",
+  "nativeSamplesPerFormat": 1,
+  "textUiMeasurement": "includes Compose test idling; not raw input-to-first-frame",
+  "metrics": {
+    "openMs": {
+      "baseline": 19.192,
+      "candidate": 24.406,
+      "changePercent": 27.2
+    },
+    "checkpointMs": {
+      "baseline": 0.327,
+      "candidate": 0.541,
+      "changePercent": 65.4
+    },
+    "unchangedOriginalSaveMs": {
+      "baseline": 1.873,
+      "candidate": 2.299,
+      "changePercent": 22.7
+    },
+    "modifiedOriginalSaveMs": {
+      "baseline": 111.296,
+      "candidate": 139.069,
+      "changePercent": 25
+    },
+    "pdfGeometryMs": {
+      "baseline": 0.586,
+      "candidate": 0.84,
+      "changePercent": 43.3
+    },
+    "pdfPageRenderMs": {
+      "baseline": 3.465,
+      "candidate": 3.876,
+      "changePercent": 11.9
+    },
+    "modeDriverRoundTripMs": {
+      "baseline": 182.123,
+      "candidate": 176.37,
+      "changePercent": -3.2
+    },
+    "menuDriverRoundTripMs": {
+      "baseline": 387.133,
+      "candidate": 248.311,
+      "changePercent": -35.9
+    },
+    "largeTextModeDriverMs": {
+      "baseline": 141.544,
+      "candidate": 125.312,
+      "changePercent": -11.5
+    }
+  },
+  "records": {
+    "baseline": {
+      "viewport-memory": {
+        "gcRequestedBeforeEachSample": true,
+        "phases": [
+          {
+            "phase": "home-before",
+            "memory": {
+              "pssKiB": 152266,
+              "javaUsedBytes": 8783648,
+              "nativeAllocatedBytes": 23303904,
+              "artAllocatedBytes": "114787200"
+            }
+          },
+          {
+            "phase": "pdf-open-0",
+            "memory": {
+              "pssKiB": 153299,
+              "javaUsedBytes": 8962656,
+              "nativeAllocatedBytes": 27590400,
+              "artAllocatedBytes": "122025088"
+            }
+          },
+          {
+            "phase": "pdf-closed-0",
+            "memory": {
+              "pssKiB": 147534,
+              "javaUsedBytes": 7369920,
+              "nativeAllocatedBytes": 22872944,
+              "artAllocatedBytes": "124475184"
+            }
+          },
+          {
+            "phase": "pdf-open-1",
+            "memory": {
+              "pssKiB": 152283,
+              "javaUsedBytes": 7045728,
+              "nativeAllocatedBytes": 27828624,
+              "artAllocatedBytes": "127129392"
+            }
+          },
+          {
+            "phase": "pdf-closed-1",
+            "memory": {
+              "pssKiB": 147899,
+              "javaUsedBytes": 7369904,
+              "nativeAllocatedBytes": 23043840,
+              "artAllocatedBytes": "129595776"
+            }
+          },
+          {
+            "phase": "pdf-open-2",
+            "memory": {
+              "pssKiB": 152853,
+              "javaUsedBytes": 7049824,
+              "nativeAllocatedBytes": 27867408,
+              "artAllocatedBytes": "132413824"
+            }
+          },
+          {
+            "phase": "pdf-closed-2",
+            "memory": {
+              "pssKiB": 148409,
+              "javaUsedBytes": 7369904,
+              "nativeAllocatedBytes": 23077328,
+              "artAllocatedBytes": "135068624"
+            }
+          },
+          {
+            "phase": "text-before",
+            "memory": {
+              "pssKiB": 160476,
+              "javaUsedBytes": 11237696,
+              "nativeAllocatedBytes": 23154800,
+              "artAllocatedBytes": "171893568"
+            }
+          },
+          {
+            "phase": "text-after",
+            "memory": {
+              "pssKiB": 156327,
+              "javaUsedBytes": 9435456,
+              "nativeAllocatedBytes": 23701072,
+              "artAllocatedBytes": "177767264"
+            }
+          }
+        ],
+        "rasters": [
+          {
+            "cycle": 0,
+            "width": 1024,
+            "height": 1325,
+            "allocationBytes": 5427200
+          },
+          {
+            "cycle": 1,
+            "width": 1024,
+            "height": 1325,
+            "allocationBytes": 5427200
+          },
+          {
+            "cycle": 2,
+            "width": 1024,
+            "height": 1325,
+            "allocationBytes": 5427200
+          }
+        ],
+        "largeTextModeDriverMs": [
+          221.518155,
+          157.34692,
+          129.282407,
+          138.158491,
+          141.544371,
+          141.395616,
+          146.756828
+        ],
+        "textBytes": 516000,
+        "allClosedBitmapsRecycled": true,
+        "pdfOriginalUnchanged": true,
+        "api": 35,
+        "model": "Android SDK built for x86_64",
+        "physicalDevice": false
+      },
+      "repository": {
+        "textBytes": 180000,
+        "pdfPages": 80,
+        "openMs": [
+          224.91651,
+          21.385321,
+          19.19215,
+          18.97789,
+          18.116313
+        ],
+        "checkpointMs": [
+          61.983378,
+          0.526803,
+          0.507877,
+          0.359781,
+          0.331368,
+          0.415815,
+          0.304568,
+          0.345194,
+          0.312983,
+          0.3001,
+          0.341307,
+          0.328613,
+          0.292505,
+          0.354281,
+          0.306612,
+          0.313404,
+          0.323594,
+          0.303475,
+          0.29479,
+          0.325467
+        ],
+        "checkpointStateWrites": 0,
+        "unchangedOriginalSaveMs": [
+          2.243024,
+          1.963492,
+          1.873195,
+          1.857534,
+          1.845492
+        ],
+        "modifiedOriginalSaveMs": [
+          111.296362,
+          115.167212,
+          109.513897,
+          113.035295,
+          107.410848
+        ],
+        "pdfGeometryMs": [
+          70.891805,
+          0.604819,
+          0.469926,
+          0.487398,
+          0.496988,
+          0.460369,
+          0.53062,
+          0.468254,
+          0.667174,
+          0.542572,
+          0.501235,
+          0.516914,
+          0.591824,
+          0.607173,
+          0.585933,
+          0.678676,
+          0.585862,
+          0.585883,
+          0.673737,
+          0.789022
+        ],
+        "pdfPageRenderMs": [
+          6.477704,
+          3.465003,
+          3.250683
+        ],
+        "processPssKiB": 143322,
+        "originalUnchanged": true,
+        "api": 35,
+        "model": "Android SDK built for x86_64",
+        "physicalDevice": false
+      },
+      "native-readers": {
+        "samplesPerFormat": 1,
+        "results": [
+          {
+            "format": "docx",
+            "prepareMs": 48.876961,
+            "engineReadyMs": 7818.08061,
+            "idleHeaderMutationsOver2s": 0,
+            "headerHeightCssPx": 48,
+            "unchangedCloseMs": 211.322098,
+            "documentUnchanged": true
+          },
+          {
+            "format": "xlsx",
+            "prepareMs": 70.579442,
+            "engineReadyMs": 6108.013073,
+            "idleHeaderMutationsOver2s": 0,
+            "headerHeightCssPx": 48,
+            "unchangedCloseMs": 422.313966,
+            "documentUnchanged": true
+          },
+          {
+            "format": "pptx",
+            "prepareMs": 62.111544,
+            "engineReadyMs": 6154.353575,
+            "idleHeaderMutationsOver2s": 0,
+            "headerHeightCssPx": 48,
+            "unchangedCloseMs": 387.726742,
+            "documentUnchanged": true
+          },
+          {
+            "format": "hwpx",
+            "prepareMs": 28.314285,
+            "engineReadyMs": 7045.773387,
+            "idleHeaderMutationsOver2s": 0,
+            "headerHeightCssPx": 48,
+            "unchangedCloseMs": 432.564754,
+            "documentUnchanged": true
+          }
+        ],
+        "api": 35,
+        "model": "Android SDK built for x86_64",
+        "physicalDevice": false
+      },
+      "text-ui": {
+        "modeDriverRoundTripMs": [
+          100.524986,
+          166.94289,
+          298.737698,
+          182.122578,
+          299.103567
+        ],
+        "menuDriverRoundTripMs": [
+          284.128993,
+          558.254503,
+          469.27942,
+          228.92875,
+          387.133231
+        ],
+        "saveFailureRecoveryAndRetry": true,
+        "driverIncludesComposeIdling": true,
+        "api": 35,
+        "model": "Android SDK built for x86_64",
+        "physicalDevice": false
+      }
+    },
+    "candidate": {
+      "viewport-memory": {
+        "gcRequestedBeforeEachSample": true,
+        "phases": [
+          {
+            "phase": "home-before",
+            "memory": {
+              "pssKiB": 147616,
+              "javaUsedBytes": 7837952,
+              "nativeAllocatedBytes": 22814560,
+              "artAllocatedBytes": "116168032"
+            }
+          },
+          {
+            "phase": "pdf-open-0",
+            "memory": {
+              "pssKiB": 151399,
+              "javaUsedBytes": 8660080,
+              "nativeAllocatedBytes": 27479136,
+              "artAllocatedBytes": "123340416"
+            }
+          },
+          {
+            "phase": "pdf-closed-0",
+            "memory": {
+              "pssKiB": 145191,
+              "javaUsedBytes": 6682320,
+              "nativeAllocatedBytes": 22621408,
+              "artAllocatedBytes": "124963120"
+            }
+          },
+          {
+            "phase": "pdf-open-1",
+            "memory": {
+              "pssKiB": 150439,
+              "javaUsedBytes": 6763632,
+              "nativeAllocatedBytes": 27729040,
+              "artAllocatedBytes": "127699248"
+            }
+          },
+          {
+            "phase": "pdf-closed-1",
+            "memory": {
+              "pssKiB": 145579,
+              "javaUsedBytes": 6698688,
+              "nativeAllocatedBytes": 22755824,
+              "artAllocatedBytes": "129252224"
+            }
+          },
+          {
+            "phase": "pdf-open-2",
+            "memory": {
+              "pssKiB": 150998,
+              "javaUsedBytes": 6767728,
+              "nativeAllocatedBytes": 27767344,
+              "artAllocatedBytes": "131693440"
+            }
+          },
+          {
+            "phase": "pdf-closed-2",
+            "memory": {
+              "pssKiB": 145970,
+              "javaUsedBytes": 6698688,
+              "nativeAllocatedBytes": 22784576,
+              "artAllocatedBytes": "133242320"
+            }
+          },
+          {
+            "phase": "text-before",
+            "memory": {
+              "pssKiB": 160966,
+              "javaUsedBytes": 11295568,
+              "nativeAllocatedBytes": 23254144,
+              "artAllocatedBytes": "169481552"
+            }
+          },
+          {
+            "phase": "text-after",
+            "memory": {
+              "pssKiB": 155106,
+              "javaUsedBytes": 9124688,
+              "nativeAllocatedBytes": 23824576,
+              "artAllocatedBytes": "175064432"
+            }
+          }
+        ],
+        "rasters": [
+          {
+            "cycle": 0,
+            "width": 1024,
+            "height": 1325,
+            "allocationBytes": 5427200
+          },
+          {
+            "cycle": 1,
+            "width": 1024,
+            "height": 1325,
+            "allocationBytes": 5427200
+          },
+          {
+            "cycle": 2,
+            "width": 1024,
+            "height": 1325,
+            "allocationBytes": 5427200
+          }
+        ],
+        "largeTextModeDriverMs": [
+          237.917068,
+          123.093132,
+          151.975489,
+          109.890809,
+          127.613309,
+          123.07633,
+          125.312302
+        ],
+        "textBytes": 516000,
+        "allClosedBitmapsRecycled": true,
+        "pdfOriginalUnchanged": true,
+        "api": 35,
+        "model": "Android SDK built for x86_64",
+        "physicalDevice": false
+      },
+      "repository": {
+        "textBytes": 180000,
+        "pdfPages": 80,
+        "openMs": [
+          254.927115,
+          33.284355,
+          24.095677,
+          24.406057,
+          23.803861
+        ],
+        "checkpointMs": [
+          66.561149,
+          0.988533,
+          0.60601,
+          0.527634,
+          0.561176,
+          0.518568,
+          0.553362,
+          0.478022,
+          0.575463,
+          0.517435,
+          0.550507,
+          0.563932,
+          0.513418,
+          0.521503,
+          0.510783,
+          0.587345,
+          0.607273,
+          0.53097,
+          0.513598,
+          0.501846
+        ],
+        "checkpointStateWrites": 0,
+        "unchangedOriginalSaveMs": [
+          2.804361,
+          2.298667,
+          2.545107,
+          2.223087,
+          2.298026
+        ],
+        "modifiedOriginalSaveMs": [
+          155.493433,
+          140.717361,
+          136.491068,
+          139.069319,
+          128.788063
+        ],
+        "pdfGeometryMs": [
+          38.045737,
+          0.925646,
+          0.908615,
+          0.831621,
+          0.847871,
+          0.749137,
+          0.91162,
+          1.169842,
+          0.941245,
+          0.629755,
+          0.801304,
+          0.538524,
+          0.95416,
+          0.657817,
+          0.76127,
+          0.705566,
+          0.708802,
+          1.144666,
+          0.934894,
+          0.733599
+        ],
+        "pdfPageRenderMs": [
+          13.219338,
+          3.875559,
+          3.743903
+        ],
+        "processPssKiB": 145842,
+        "originalUnchanged": true,
+        "api": 35,
+        "model": "Android SDK built for x86_64",
+        "physicalDevice": false
+      },
+      "native-readers": {
+        "samplesPerFormat": 1,
+        "results": [
+          {
+            "format": "docx",
+            "prepareMs": 23.503735,
+            "engineReadyMs": 9031.534613,
+            "idleHeaderMutationsOver2s": 0,
+            "headerHeightCssPx": 48,
+            "unchangedCloseMs": 402.448612,
+            "documentUnchanged": true
+          },
+          {
+            "format": "xlsx",
+            "prepareMs": 562.151959,
+            "engineReadyMs": 7291.218631,
+            "idleHeaderMutationsOver2s": 0,
+            "headerHeightCssPx": 48,
+            "unchangedCloseMs": 535.338633,
+            "documentUnchanged": true
+          },
+          {
+            "format": "pptx",
+            "prepareMs": 50.035732,
+            "engineReadyMs": 6125.332462,
+            "idleHeaderMutationsOver2s": 0,
+            "headerHeightCssPx": 48,
+            "unchangedCloseMs": 390.137685,
+            "documentUnchanged": true
+          },
+          {
+            "format": "hwpx",
+            "prepareMs": 28.587555,
+            "engineReadyMs": 6629.450914,
+            "idleHeaderMutationsOver2s": 0,
+            "headerHeightCssPx": 48,
+            "unchangedCloseMs": 299.266431,
+            "documentUnchanged": true
+          }
+        ],
+        "api": 35,
+        "model": "Android SDK built for x86_64",
+        "physicalDevice": false
+      },
+      "text-ui": {
+        "modeDriverRoundTripMs": [
+          88.482756,
+          329.912985,
+          182.54418,
+          166.566295,
+          176.370383
+        ],
+        "menuDriverRoundTripMs": [
+          248.310885,
+          301.075661,
+          196.839576,
+          456.666686,
+          189.784347
+        ],
+        "saveFailureRecoveryAndRetry": true,
+        "driverIncludesComposeIdling": true,
+        "api": 35,
+        "model": "Android SDK built for x86_64",
+        "physicalDevice": false
+      }
+    }
+  }
+}

@@ -3,7 +3,7 @@
 - 원본: https://github.com/neolord0/hwp2hwpx
 - 고정 커밋: `edc05278506b663d5bdd98050a51f54b7ff5e0bc`
 - 라이선스: Apache-2.0. 앱의 `licenses/hwp2hwpx-LICENSE.txt`에 원문 포함.
-- 위치: `core/src/main/java/kr/dogfoot/hwp2hwpx/`. upstream Maven 프로젝트의 Java 소스를 포함한다. Android AWT 의존성 없이 hwplib 1.1.10, hwpxlib 1.0.9와 함께 빌드한다.
+- 위치: `core/src/main/java/kr/dogfoot/hwp2hwpx/`. upstream Maven 프로젝트의 Java 소스를 포함한다. Android AWT 의존성 없이 hwplib 1.1.11, hwpxlib 1.0.9와 함께 빌드한다.
 - Document Studio 변경: `ForChars`의 하이픈 직전 버퍼 유실 수정, 마지막 런에서 65,535자 이후 범위를 벗어나는 문제 수정. `ForPicture`의 오른쪽 내부 여백이 위쪽 값으로 복사되는 문제 수정. 변경 파일 첫 줄에 수정 고지를 넣었다. 변환 결과의 제작 앱 메타데이터는 래퍼에서 Document Studio로 지정한다.
 - 별도 Kotlin 래퍼 `HangulConversion`이 입력 제한, 지원 제어 선별, 텍스트/구조/바이너리 대조와 검증 후 결과 파일 생성을 담당한다. upstream이 지원하는 모든 기능을 앱이 보증한다는 뜻은 아니다.
 

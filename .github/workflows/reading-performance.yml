@@ -1,0 +1,89 @@
+name: Reading UX and performance comparison
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: reading-performance-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  compare:
+    if: contains(github.event.head_commit.message, '[reading-performance]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BASELINE_SHA: aa3414f1fae89f5f98d10dabb64df85bfd7fc1df
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Tools and baseline source
+        run: |
+          for attempt in 1 2 3; do
+            if sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"; then break; fi
+            test "$attempt" -lt 3
+          done
+          git worktree add /tmp/studio-reading-baseline "$BASELINE_SHA"
+          cp app/src/androidTest/java/kr/documentstudio/*ReadingPerformanceTest.kt /tmp/studio-reading-baseline/app/src/androidTest/java/kr/documentstudio/
+          mkdir -p artifacts/reading-performance/apks
+          chmod +x gradlew /tmp/studio-reading-baseline/gradlew
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.npm
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: reading-tools-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            hangul-public-tools-${{ runner.os }}-
+            android-gradle-${{ runner.os }}-
+      - name: Build unchanged baseline with identical test source
+        working-directory: /tmp/studio-reading-baseline
+        run: |
+          ./gradlew -PstudioAbi=x86_64 :app:assembleDebug :app:assembleDebugAndroidTest --max-workers=2 --console=plain
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/artifacts/reading-performance/apks/baseline.apk"
+          cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk "$GITHUB_WORKSPACE/artifacts/reading-performance/apks/baseline-test.apk"
+          ./gradlew --stop
+      - name: Build candidate
+        run: |
+          ./gradlew -PstudioAbi=x86_64 :app:assembleDebug :app:assembleDebugAndroidTest --max-workers=2 --console=plain
+          cp app/build/outputs/apk/debug/app-debug.apk artifacts/reading-performance/apks/candidate.apk
+          cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk artifacts/reading-performance/apks/candidate-test.apk
+          ./gradlew --stop
+          sudo chmod 666 /dev/kvm
+      - name: Same emulator baseline and candidate measurements
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 3072
+          script: bash scripts/run-reading-performance.sh
+      - name: Show measurement records and failure diagnostics
+        if: always()
+        run: python3 scripts/summarize-reading-evidence.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reading-performance-${{ github.sha }}
+          path: |
+            artifacts/reading-performance/
+            !artifacts/reading-performance/apks/**
+          if-no-files-found: error
+          compression-level: 0

@@ -23,10 +23,12 @@ class MarkdownUiTest {
     @Test fun sourceToolbarAndPreviewCheckboxUpdateHistoryWithoutJavascript() {
         val vm=ViewModelProvider(compose.activity)[EditorViewModel::class.java]
         compose.runOnUiThread {vm.create(Format.MD)};compose.waitUntil(15000) {!vm.state.value.busy && vm.state.value.session?.format==Format.MD}
+        compose.onNodeWithTag("edit-document").performClick();compose.waitForIdle()
         compose.runOnUiThread {vm.text("- [ ] 할 일\n\n한글")};compose.waitForIdle()
         compose.runOnUiThread {find(compose.activity.window.decorView,EditText::class.java)!!.apply {requestFocus();setSelection(text.length-2,text.length)}}
+        compose.onNodeWithText("글자").performClick()
         compose.onNodeWithText("굵게").performScrollTo().performClick();compose.waitForIdle();assertTrue(vm.state.value.session!!.edits.text.endsWith("**한글**"))
-        compose.onNodeWithText("미리보기").performScrollTo().performClick()
+        compose.onNodeWithText("미리보기").assertIsDisplayed().performClick()
         compose.waitUntil(15000) {var loaded=false;compose.runOnUiThread {loaded=find(compose.activity.window.decorView,WebView::class.java)?.progress==100};loaded}
         compose.runOnUiThread {val w=find(compose.activity.window.decorView,WebView::class.java)!!;assertFalse(w.settings.javaScriptEnabled);assertTrue(w.settings.blockNetworkLoads)}
         val automation=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
@@ -37,10 +39,15 @@ class MarkdownUiTest {
             return null
         }
         var target: android.view.accessibility.AccessibilityNodeInfo?=null
-        compose.waitUntil(15000) {target=checkbox(automation.rootInActiveWindow);target!=null}
+        compose.waitUntil(15000) {NativeUiActions.refresh();target=checkbox(automation.rootInActiveWindow);target!=null}
         assertTrue(target!!.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK))
         compose.waitUntil(10000) {vm.state.value.session!!.edits.text.startsWith("- [x]")}
         compose.onNodeWithContentDescription("실행 취소").performClick();compose.waitForIdle();assertTrue(vm.state.value.session!!.edits.text.startsWith("- [ ]"))
         compose.onNodeWithContentDescription("다시 실행").performClick();compose.waitForIdle();assertTrue(vm.state.value.session!!.edits.text.startsWith("- [x]"))
+        // Returning from preview must attach the latest source, not mutate an old detached EditText.
+        compose.onNodeWithText("글자").performClick();compose.waitForIdle()
+        compose.onNodeWithText("굵게").performScrollTo().performClick();compose.waitForIdle()
+        assertTrue("Formatting after preview cannot revert the checked task",vm.state.value.session!!.edits.text.startsWith("- [x]"))
+        assertTrue(vm.state.value.session!!.edits.text.endsWith("한글"))
     }
 }

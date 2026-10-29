@@ -1,0 +1,113 @@
+name: Focused common editor Android acceptance
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: common-mobile-ui-${{ github.ref }}-${{ contains(github.event.head_commit.message, '[focus-ui]') }}
+  cancel-in-progress: true
+jobs:
+  android:
+    if: contains(github.event.head_commit.message, '[focus-ui]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install pinned build tools
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+          chmod +x gradlew
+          mkdir -p artifacts/ci artifacts/hangul-android-build
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: android-gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: android-gradle-${{ runner.os }}-
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: hangul-public-tools-${{ runner.os }}-${{ github.sha }}
+          restore-keys: hangul-public-tools-${{ runner.os }}-
+      - name: Build the application and the test-only InputMethodService
+        run: |
+          python3 scripts/prepare-open-fixtures.py
+          ./gradlew -PstudioAbi=x86_64 :core:prepareVisualFixtures :officeruntime:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/android-build.log
+          cp app/build/outputs/apk/debug/app-debug.apk artifacts/hangul-android-build/x86_64.apk
+          python3 - <<'PY'
+          import pathlib,subprocess,os,re
+          tool=pathlib.Path(os.environ['ANDROID_HOME'])/'build-tools/35.0.0/aapt2'
+          manifest=subprocess.check_output([str(tool),'dump','xmltree','app/build/outputs/apk/debug/app-debug.apk','--file','AndroidManifest.xml'],text=True)
+          assert 'KoreanImeFixture' not in manifest and 'korean_ime_fixture' not in manifest,'IME fixture must not ship in the app'
+          badging=subprocess.check_output([str(tool),'dump','badging','app/build/outputs/apk/debug/app-debug.apk'],text=True)
+          package=re.search("package: name='([^']+)'",badging).group(1)
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('STUDIO_PACKAGE='+package+'\n')
+          PY
+      - name: Enable emulator acceleration
+        run: |
+          ./gradlew --stop
+          sudo chmod 666 /dev/kvm
+      - name: Actual text display, selection and Office formatting acceptance
+        id: android-tests
+        continue-on-error: true
+        env:
+          STUDIO_ABI: x86_64
+          MODE_TEST_CLASSES: kr.documentstudio.CommonMobileUiTest,kr.documentstudio.NativeOfficeFontTest
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 3072
+          script: |
+            bash scripts/run-android-mode-tests.sh
+            adb pull /sdcard/Android/data/$STUDIO_PACKAGE/files/native-common-ui artifacts/native-android/ || true
+      - name: Require actual Android success and all selected tests
+        env:
+          ACTUAL_ANDROID_OUTCOME: ${{ steps.android-tests.outcome }}
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib
+          summary=json.loads(pathlib.Path('artifacts/ci/android-summary.json').read_text())
+          print('ACTUAL_ANDROID_OUTCOME',os.environ['ACTUAL_ANDROID_OUTCOME'])
+          print('MOBILE_ANDROID_SUMMARY',json.dumps(summary))
+          assert os.environ['ACTUAL_ANDROID_OUTCOME']=='success' and summary=={'tests':5,'failures':0,'errors':0,'skipped':0},summary
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: focused-mobile-ui-${{ github.sha }}
+          path: |
+            artifacts/ci/
+            artifacts/native-android/
+            artifacts/hangul-android-build/
+            app/build/outputs/androidTest-results/
+            app/build/reports/
+            core/build/test-results/
+            officeruntime/build/test-results/
+            app/build/test-results/
+          if-no-files-found: error

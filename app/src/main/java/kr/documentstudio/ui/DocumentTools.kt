@@ -143,26 +143,33 @@ fun DocumentTools(s: Session,sec: Section?,vm: DocumentActions,busy: Boolean,pag
 @Composable
 private fun PdfTextAndForms(s: Session,page: Int,vm: DocumentActions,busy: Boolean,navigate: (Int)->Unit,category: String) {
     var bodyEditor by remember {mutableStateOf(false)}
+    var copyPageText by remember {mutableStateOf(false)}
     var imageEditor by remember {mutableStateOf(false)}
     var forms by remember {mutableStateOf(false)};var text by remember {mutableStateOf(false)};var annotations by remember {mutableStateOf(false)};var search by remember {mutableStateOf(false)}
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp)) {
         if(category in listOf("보기","페이지")) PdfNavigationActions(s,page,vm,busy,navigate)
-        if(category=="편집") TextButton({bodyEditor=true},enabled=!busy) {Text("기존 본문 문자열 편집")}
-        if(category=="편집") TextButton({imageEditor=true},enabled=!busy) {Text("기존 이미지 편집")}
+        if(category=="보기")TextButton({copyPageText=true},enabled=!busy) {Text("페이지 텍스트 복사")}
+
+
         if(category=="주석") TextButton({text=true},enabled=!busy) {Text("텍스트 선택")};if(category=="주석") TextButton({annotations=true},enabled=!busy) {Text("주석 관리")};if(category=="보기") TextButton({search=true},enabled=!busy) {Text("PDF 검색")}
         if(category=="편집") TextButton({forms=true},enabled=!busy && s.pdf!!.forms.isNotEmpty()) {Text("양식 (${s.pdf!!.forms.size})")}
     }
-    if(imageEditor) PdfImageTools(s,page,vm) {imageEditor=false}
-    if(bodyEditor) {
-        var selected by remember {mutableStateOf<PdfBodyRun?>(null)};var replacement by remember {mutableStateOf("")}
-        val runs by produceState<List<PdfBodyRun>?>(null,s.base,page) {value=withContext(Dispatchers.IO) {runCatching {PdfBodyText.runs(s.base,page)}.getOrElse {vm.message(it.message);emptyList()}}}
-        AlertDialog(onDismissRequest={bodyEditor=false},title={Text("기존 PDF 본문 문자열")},text={Column(Modifier.heightIn(max=440.dp).verticalScroll(rememberScrollState())) {
-            Text("원래 폰트의 페이지 문자열만 수정합니다. 양식 XObject·태그·세로쓰기·스캔은 제외하며 자동 줄바꿈·보안 지우기가 아닙니다.",style=MaterialTheme.typography.bodySmall)
-            if(runs==null) LinearProgressIndicator(Modifier.fillMaxWidth())
-            else if(runs!!.isEmpty()) Text("이 페이지에 편집 가능한 본문 문자열이 없습니다.")
-            else if(selected==null) runs!!.forEach {run->TextButton({selected=run;replacement=run.text}) {Text("${run.id+1} · "+run.text.take(160))}}
-            selected?.let {run->Text(run.font,style=MaterialTheme.typography.labelSmall);OutlinedTextField(replacement,{replacement=it},label={Text("새 본문 문자열")},singleLine=true,modifier=Modifier.fillMaxWidth());TextButton({selected=null}) {Text("다른 문자열 선택")}}
-        }},confirmButton={TextButton({val run=selected!!;vm.change(DocumentChange("pdf.replaceText",page.toString(),mapOf("id" to run.id.toString(),"expected" to run.text,"text" to replacement)));bodyEditor=false},enabled=selected!=null && replacement!=selected?.text) {Text("본문에 저장")}},dismissButton={TextButton({bodyEditor=false}) {Text("취소")}})
+    if(copyPageText) {
+        val content by produceState<String?>(null,s.base,page,s.edits.values) {
+            value=withContext(Dispatchers.IO) {
+                runCatching {
+                    if(s.edits.values.isEmpty())PdfEngine.text(s.base,page)
+                    else {
+                        val stage=java.io.File.createTempFile("reading-text-",".pdf",s.base.parentFile)
+                        try {PdfEngine.write(s.base,stage,emptyList(),false,s.edits.values,s.edits.layers);PdfEngine.text(stage,page)} finally {stage.delete()}
+                    }
+                }.getOrElse {it.message ?: "텍스트를 읽지 못했습니다."}
+            }
+        }
+        AlertDialog(onDismissRequest={copyPageText=false},title={Text("페이지 텍스트 · "+(page+1))},text={
+            if(content==null)LinearProgressIndicator()
+            else SelectionContainer {Text(content!!.ifBlank {"텍스트 정보가 없는 페이지입니다. OCR은 별도 기능입니다."},modifier=Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState()))}
+        },confirmButton={TextButton({copyPageText=false}){Text("닫기")}})
     }
     if(forms) AlertDialog(onDismissRequest={forms=false},title={Text("PDF 양식")},text={Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState())) {
         s.pdf!!.forms.forEach {f ->
@@ -183,7 +190,7 @@ private fun PdfTextAndForms(s: Session,page: Int,vm: DocumentActions,busy: Boole
 }
 
 @Composable
-fun StyleDialog(id: String,format: Format,existing: Map<String,String>,vm: DocumentActions,close: ()->Unit) {
+fun StyleDialog(id: String,format: Format,existing: Map<String,String>,vm: DocumentActions,apply: ((Map<String,String>)->Unit)?=null,close: ()->Unit) {
     val pending=remember {mutableStateMapOf<String,String>()}
     var advanced by remember {mutableStateOf(false)}
     val spreadsheet=format==Format.XLSX
@@ -196,5 +203,5 @@ fun StyleDialog(id: String,format: Format,existing: Map<String,String>,vm: Docum
         allFields.filter {it.first in setOf("font","size","color","background","numberFormat","align","lineSpacing","highlight")}.forEach {(key,label)->CommandInput(key,label,pending[key] ?: existing[key] ?: "") {pending[key]=it}}
         TextButton({advanced=!advanced}) {Text(if(advanced) "세부 문단 설정 접기" else "세부 문단 설정")}
         if(advanced) allFields.filter {it.first !in setOf("font","size","color","background","numberFormat","align","lineSpacing","highlight")}.forEach {(key,label)->CommandInput(key,label,pending[key] ?: existing[key] ?: "") {pending[key]=it}}
-    }},confirmButton={TextButton(onClick={vm.style(id,pending.filterValues {it.isNotBlank()});close()},enabled=pending.isNotEmpty()) {Text("적용")}},dismissButton={TextButton(onClick=close) {Text("취소")}})
+    }},confirmButton={TextButton(onClick={val properties=pending.filterValues {it.isNotBlank()};if(apply!=null) apply(properties) else vm.style(id,properties);close()},enabled=pending.isNotEmpty()) {Text("적용")}},dismissButton={TextButton(onClick=close) {Text("취소")}})
 }
