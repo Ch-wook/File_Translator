@@ -15,7 +15,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Read exact native launch and failure logs
         run: |
-          gh run download 40847330686 --name focused-reading-ui-c5520781742d16c41666c0d23ef843274b310541 --dir viewer-failure
+          gh run download 40852680836 --name focused-reading-ui-b8a32103fe61e6466f18f3f283ecbb53eefe0b93 --dir viewer-failure/native
+          gh run download 40852810159 --name focused-reading-ui-be53c4e3f9fe63a232cf8c220df60d75b1fb8080 --dir viewer-failure/markdown
           python3 - <<'PY'
           from pathlib import Path
           for file in Path('viewer-failure').rglob('android-all-processes.log'):
@@ -26,5 +27,11 @@ jobs:
               activity=[l for l in lines if ('ActivityTaskManager' in l or 'wm_' in l) and any(t in l for t in ('kr.documentstudio','StudioOfficeActivity','HangulEditorActivity'))]
               print('VIEWER_ACTIVITY_LIFECYCLE','\n'.join(activity[-120:]),flush=True)
           for file in Path('viewer-failure').rglob('*.json'):
-              if 'native-viewer' in str(file):print('VIEWER_OBSERVED_NATIVE_STATE',file,file.read_text(),flush=True)
+              if 'native-viewer' in str(file) or 'native-reading-ux' in str(file):print('VIEWER_OBSERVED_NATIVE_STATE',file,file.read_text(),flush=True)
+          import xml.etree.ElementTree as ET
+          for file in Path('viewer-failure').rglob('*failure.xml'):
+              try:
+                  nodes=ET.parse(file).getroot().iter('node')
+                  print('VIEWER_FAILURE_UI',str(file),[(n.attrib.get('text'),n.attrib.get('content-desc'),n.attrib.get('class'),n.attrib.get('bounds')) for n in nodes if n.attrib.get('text') or n.attrib.get('content-desc')],flush=True)
+              except Exception as error:print('UI_XML_ERROR',type(error).__name__)
           PY
