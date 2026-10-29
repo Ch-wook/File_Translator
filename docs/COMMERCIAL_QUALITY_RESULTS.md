@@ -108,3 +108,7 @@ Android 조건은 API35 x86_64 Pixel7 에뮬레이터, SwiftShader, RAM3072MiB�
 8. 고급 문서 요소·변환·OCR·일괄 작업과 일부 화면의 어두운 모드 세부 검토.
 
 위 항목을 남긴 상태를 상용 서비스 완성으로 표시하지 않는다. 이번 배포는 기존 엔진을 유지하고 재현한 데이터 위험을 고친 품질 개선 프리뷰다.
+
+## 보안 검사 후 추가 수정
+
+157개 release Maven 좌표 조회에서 Log4j API 2.24.3의 GHSA-qv9r-c865-cp47 / CVE-2026-49844가 일치했습니다. 공개 권고의 수정 버전 2.25.5를 고정하고 NaN·Infinity·-Infinity의 JSON 출력 재현 검사를 추가합니다. 이전 검사에서 일치가 0개였다고 보고하지 않으며, 갱신된 의존성·APK·회귀 검사를 다시 실행합니다. [공개 권고](https://github.com/advisories/GHSA-qv9r-c865-cp47). 이는 Log4Shell 판정과 다른 권고입니다.

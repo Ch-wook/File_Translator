@@ -20,7 +20,7 @@ CanvasKit 0.42.0 BSD-3-Clause와 폰트(SIL OFL 1.1/GUST)의 원문 고지를 `a
 | HWPX 빈 문서 | hwpxlib upstream commit f9fd2255ac0fc57414e0b657d115e7de51d31c65 | Apache 2.0, 템플릿 자산 |
 | Commons IO / Codec | 2.20.0 / 1.18.0 | Apache 2.0 |
 | Commons Collections4 / Math3 | 4.4 / 3.6.1 | Apache 2.0 |
-| Log4j API / SparseBitSet | 2.24.3 / 1.3 | Apache 2.0 |
+| Log4j API / SparseBitSet | 2.25.5 / 1.3 | Apache 2.0 |
 | CommonMark Java/GFM Tables | 0.25.0 | BSD 2-Clause |
 | LiberationSans-Regular | 2.1.5, 포트 내장 | SIL OFL 1.1, PDFBox fallback 폰트 |
 | POI OOXML | 5.4.1, JVM 테스트 전용 | Apache 2.0, 독립 저장 검증 |

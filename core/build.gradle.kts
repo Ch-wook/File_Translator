@@ -16,6 +16,8 @@ val prepareHwplibRuntime by tasks.registering(Jar::class) {
     }
 }
 dependencies {
+    // CVE-2026-49844: non-finite MapMessage JSON was fixed in this compatible 2.25 line.
+    implementation("org.apache.logging.log4j:log4j-api:2.25.5")
     implementation("org.apache.poi:poi:5.4.1")
     implementation("org.apache.poi:poi-scratchpad:5.4.1")
     hwplibOriginal("kr.dogfoot:hwplib:1.1.11")
