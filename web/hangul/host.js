@@ -33,7 +33,7 @@ const reader=UI.readingChrome({header:document.querySelector('header'),editable:
 const mobileUI=createMobileTools({groups,tools,panel,getEditor:()=>editor,isEditable:()=>ready&&editing&&!switching,message,
  layoutChanged:view=>{if(ready) requestAnimationFrame(()=>editor.restoreView(view).catch(error=>message(String(error.message),true)));}});
 function message(text,error=false){status.textContent=text;status.dataset.error=String(error);document.getElementById('discard').hidden=!error;}
-let checkpointFlight=null,closeFlight=null,closeRequests=0;
+let checkpointFlight=null,closeFlight=null,closeRequests=0,viewPersistTimer;
 let updateFrame=0;
 function update(){if(!updateFrame)updateFrame=requestAnimationFrame(()=>{updateFrame=0;updateNow();});}
 function updateNow(){
@@ -163,7 +163,8 @@ async function writePdf(){
 window.documentStudioHost={writePdf,convertPdf,signature:()=>openSignature({editor,native,message}),
  changed(){if(!ready||!editing)return;revision++;message('수정됨 · 작업 복사본 저장 대기');clearTimeout(timer);timer=setTimeout(checkpoint,1200);update();},
  toolsChanged(){if(ready)update();},
- pageChanged:showPage,
+ pageChanged(state){showPage(state);clearTimeout(viewPersistTimer);viewPersistTimer=setTimeout(persistView,350);},
+ background(){persistView();return checkpoint();},
  checkpoint,
  operationState:()=>({pending,switching,closing:Boolean(closeFlight),checkpointActive:Boolean(checkpointFlight),closeRequests,revision,savedRevision}),
  mobileAction:name=>mobileUI.action(name),

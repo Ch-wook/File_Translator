@@ -128,12 +128,21 @@ class ViewerNavigationTest {
                 waitFor("Writer continuous layout scrolls beyond first page"){eval(kind,"app.activeDocument.activeLayout.viewedRectangle.y1").toDouble()>y+100}
                 record.put("continuousScroll",true)
             }
+            val beforeRotation=JSONObject(eval(kind,state));val zoomBeforeRotation=eval(kind,zoom).toDouble()
+            val rotationToken=UUID.randomUUID().toString();eval(kind,"window.__viewerRotationToken="+JSONObject.quote(rotationToken))
             device.setOrientationLeft();SystemClock.sleep(1000)
             waitFor("Viewer survives native landscape rotation"){eval(kind,"innerWidth>innerHeight")=="true" && JSONObject(eval(kind,state)).getInt(total)==count}
             device.setOrientationNatural()
             waitFor("Viewer is ready after returning to portrait"){eval(kind,"innerWidth<innerHeight")=="true" && JSONObject(eval(kind,state)).getInt(total)==count}
             assertFalse(File(working.path+".edited").exists())
             assertEquals(workingHash,DocumentRepository.digest(working));assertEquals(originalHash,DocumentRepository.digest(original))
+            if(kind=="hangul"){
+                assertEquals("Rotation must keep the same live engine",rotationToken,eval(kind,"window.__viewerRotationToken"))
+                record.put("sameEngineAcrossRotation",true)
+                assertEquals("Rotation keeps the document page",beforeRotation.getInt(index),JSONObject(eval(kind,state)).getInt(index))
+                assertEquals("Rotation keeps display zoom",zoomBeforeRotation,eval(kind,zoom).toDouble(),.002)
+                record.put("rotationPageAndZoomPreserved",true)
+            }
             record.put("finalState",JSONObject(eval(kind,state))).put("nativeRotation",true).put("workingUnchanged",true).put("originalUnchanged",true)
             device.takeScreenshot(File(evidence,name+".png"))
             device.pressBack()

@@ -119,7 +119,7 @@ class HangulEditorActivity: ComponentActivity() {
         browser.loadUrl("$ORIGIN/")
     }
     override fun onPause() {
-        if(ready && ::browser.isInitialized) browser.evaluateJavascript("window.documentStudioHost?.checkpoint()",null)
+        if(ready && ::browser.isInitialized) browser.evaluateJavascript("window.documentStudioHost?.background?.()",null)
         super.onPause()
     }
     private fun <T> clipboardOnUi(work: ()->T): T {
