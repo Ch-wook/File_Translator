@@ -39,6 +39,13 @@ class QualityUiTest {
             assertTrue(File(context.filesDir,"signature-recovery").listFiles().orEmpty().any {it.readText()=="damaged private signature fixture"})
         } finally {before.forEach {(name,bytes)->File(context.filesDir,name).let {if(bytes==null)it.delete() else it.writeBytes(bytes)}}}
     }
+    @Test fun localDiagnosticsDoNotExposeTheExceptionMessageOrDocumentUri() {
+        val secret="content://private-contract/김사용자?token=do-not-log"
+        kr.documentstudio.data.SafeDiagnostics.record(compose.activity,java.io.IOException(secret))
+        val result=kr.documentstudio.data.SafeDiagnostics.text(compose.activity)
+        assertFalse(result.contains(secret));assertFalse(result.contains("김사용자"));assertFalse(result.contains("do-not-log"))
+        assertTrue(result.contains("code=IO"))
+    }
     @Test fun homeAdaptsToSystemDarkModeAndLargeTextWithoutReducingTouchTargets() {
         val device=UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
         val oldScale=device.executeShellCommand("settings get system font_scale").trim().toFloatOrNull() ?: 1f
@@ -50,9 +57,9 @@ class QualityUiTest {
             compose.waitForIdle()
             val pixels=compose.onRoot().captureToImage().toPixelMap()
             assertTrue("native background must follow system dark mode",pixels[1,pixels.height/2].luminance()<.15f)
-            val settings=compose.onNodeWithContentDescription("설정").fetchSemanticsNode().boundsInRoot
+            val settings=compose.onNodeWithTag("home-settings-button").fetchSemanticsNode().boundsInRoot
             val density=compose.activity.resources.displayMetrics.density
-            assertTrue(settings.width/density>=47f);assertTrue(settings.height/density>=47f)
+            assertTrue("settings width="+settings.width/density,settings.width/density>=47f);assertTrue("settings height="+settings.height/density,settings.height/density>=47f)
             compose.onNodeWithTag("new-docx").performScrollTo().assertIsDisplayed()
             val word=compose.onNodeWithTag("new-docx").fetchSemanticsNode().boundsInRoot
             val sheet=compose.onNodeWithTag("new-xlsx").fetchSemanticsNode().boundsInRoot

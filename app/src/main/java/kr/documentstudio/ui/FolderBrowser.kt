@@ -38,7 +38,7 @@ fun FolderBrowser(tree: Uri,busy: Boolean,open: (Uri)->Unit,choose: ()->Unit,clo
             if(query.isNotEmpty()) delay(250)
             value=withContext(Dispatchers.Default) {source.list(parents.last(),query,recursive && query.isNotBlank())}
         } catch(e: CancellationException) {throw e}
-        catch(e: Exception) {failure=e.message ?: "폴더 접근 권한을 확인해 주세요."}
+        catch(e: Exception) {failure=kr.documentstudio.data.UserProblems.explain(e).advice}
     }
     Dialog(close,properties=DialogProperties(usePlatformDefaultWidth=false)) {
         Surface(Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.9f),shape=MaterialTheme.shapes.large) {

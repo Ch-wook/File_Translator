@@ -59,7 +59,7 @@ fun WorkspaceHome(state: UiState,vm: EditorViewModel,new: ()->Unit,open: ()->Uni
                         Column(Modifier.fillMaxWidth().padding(12.dp)) {
                             FormatBadge(format,Modifier.size(36.dp))
                             Text(format.label,style=MaterialTheme.typography.bodyMedium,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(top=10.dp),maxLines=2,overflow=TextOverflow.Ellipsis)
-                            Text(".${format.extension}",style=MaterialTheme.typography.bodySmall,color=family.accent,modifier=Modifier.padding(top=3.dp))
+                            Text(".${format.extension}",style=MaterialTheme.typography.bodySmall,color=readableAccent(family.accent),modifier=Modifier.padding(top=3.dp))
                         }
                     }
                 }

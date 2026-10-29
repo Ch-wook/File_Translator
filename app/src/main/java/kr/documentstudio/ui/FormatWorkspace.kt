@@ -46,7 +46,9 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     val preferences=remember {context.getSharedPreferences("editor-display",0)}
     var displayFont by rememberSaveable {mutableStateOf(preferences.getString("font","고정폭") ?: "고정폭")}
     var displaySize by rememberSaveable {mutableFloatStateOf(preferences.getFloat("size",settings.fontSize))}
-    var dark by rememberSaveable {mutableStateOf(preferences.getBoolean("dark",false))}
+    val systemDark=androidx.compose.foundation.isSystemInDarkTheme()
+    var dark by rememberSaveable {mutableStateOf(preferences.getBoolean("dark",systemDark))}
+    LaunchedEffect(systemDark){if(!preferences.contains("dark"))dark=systemDark}
     var lineNumbers by rememberSaveable {mutableStateOf(preferences.getBoolean("lineNumbers",true))}
     val textStats=remember(s.edits.text){s.edits.text.codePointCount(0,s.edits.text.length) to (1+s.edits.text.count {it=='\n'})}
     var fontList by rememberSaveable {mutableStateOf(false)}
@@ -157,6 +159,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                     Tool("보기 글꼴·크기"){panel="글자"}
                     Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(wrap,{wrap=it;preferences.edit().putBoolean("wrap",it).apply()});Text("자동 줄바꿈")}
                     Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(dark,{dark=it;preferences.edit().putBoolean("dark",it).apply()});Text("어두운 보기")}
+                    TextButton({preferences.edit().remove("dark").apply();dark=systemDark}){Text("기기 색상 설정 따르기")}
                     Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(lineNumbers,{lineNumbers=it;preferences.edit().putBoolean("lineNumbers",it).apply()});Text("줄 번호")}
                     Text("${textStats.first}자 · ${textStats.second}줄",style=MaterialTheme.typography.bodySmall)
                 } else {

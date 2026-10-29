@@ -63,6 +63,6 @@ ZIP/XML/텍스트/OLE 용량 제한·DTD/엔티티 차단·매크로/전자서�
 
 ## 2026-10-17 OCR 추가
 
-Google ML Kit Korean/Latin Text Recognition 16.0.1과 모델을 앱에 번들로 포함한다. 모델은 오픈소스 라이선스가 아니며 [ML Kit 약관](https://developers.google.com/ml-kit/terms)과 Google APIs 약관을 따른다. 공식 [Android 통합 문서](https://developers.google.com/ml-kit/vision/text-recognition/v2/android)의 번들 방식을 사용한다. 이미지·인식 결과는 기기에서 처리하고, SDK 통계 전송도 불가능하도록 최종 manifest에서 INTERNET 권한을 제거한다. 앱 고지에 SDK 특성과 약관 링크를 표시한다. 런타임 모델 다운로드/클라우드 OCR은 사용하지 않는다.
+Google ML Kit Korean/Latin Text Recognition 16.0.1과 모델을 앱에 번들로 포함한다. 모델은 오픈소스 라이선스가 아니며 [ML Kit 약관](https://developers.google.com/ml-kit/terms)과 Google APIs 약관을 따른다. 공식 [Android 통합 문서](https://developers.google.com/ml-kit/vision/text-recognition/v2/android)의 번들 방식을 사용한다. 이미지·인식 결과는 기기에서 처리하고, 최종 manifest에서 INTERNET 권한을 제거하여 앱 UID의 직접 네트워크 접근을 차단한다. Google Play 서비스 IPC와 운영체제를 포함한 SDK 전체의 통계 처리·개인정보 동작은 별도로 검토해야 하며, 이 권한 검사만으로 SDK 통계 수집이 전혀 없다고 단정하지 않는다. 앱 고지에 SDK 특성과 약관 링크를 표시한다. 런타임 모델 다운로드/클라우드 OCR은 사용하지 않는다.
 
 검색 텍스트의 한글 글꼴은 변경하지 않은 Noto Sans KR(Google Fonts b38c5c93af322c45f633e17ac440ec1e6c94d489), SIL OFL 1.1이다. 10,414,588바이트이며 SHA-256 `194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252`, 원문 라이선스는 assets/licenses/NotoSansKR-OFL.txt에 있다. PDF에는 필요한 글리프를 subset 임베딩한다. SDK/글꼴 고지는 앱 라이선스 화면에도 포함한다.

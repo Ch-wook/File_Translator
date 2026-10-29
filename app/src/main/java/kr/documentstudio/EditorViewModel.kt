@@ -48,7 +48,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     } }
     fun message(text: String?) { mutable.value=mutable.value.copy(message=text) }
     fun dismissProblem(){mutable.value=mutable.value.copy(problem=null)}
-    private fun report(e: Throwable) {val p=UserProblems.explain(e);mutable.value=mutable.value.copy(problem=p,message=p.title+" · "+p.advice)}
+    private fun report(e: Throwable) {viewModelScope.launch(Dispatchers.IO){SafeDiagnostics.record(getApplication(),e)};val p=UserProblems.explain(e);mutable.value=mutable.value.copy(problem=p,message=p.title+" · "+p.advice)}
     private fun action(block: suspend () -> Unit) {
         if(mutable.value.busy) return
         checkpointJob?.cancel()
@@ -157,7 +157,12 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         setPresentation(s.id,if(s.readOnlyReason==null)PresentationState.READING else PresentationState.READ_ONLY);requestVisual(s,visual)
     }
     fun hideRecent(id: String,hidden: Boolean) = action {repository.hideRecent(id,hidden)}
-    fun home() { if(mutable.value.busy) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=null,officeLaunch=null) }
+    fun home() {
+        if(mutable.value.busy)return
+        if(mutable.value.tabs.any {checkpointed[it.id]!=it}) {
+            action {lastTextEdit=0;mutable.value=mutable.value.copy(active=null,officeLaunch=null)}
+        } else {lastTextEdit=0;mutable.value=mutable.value.copy(active=null,officeLaunch=null)}
+    }
     fun select(id: String) { if(mutable.value.busy || mutable.value.tabs.none {it.id==id}) return; if(mutable.value.active==id){lastTextEdit=0;return}; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=id) }
     fun close(id: String) = action {
         // action() already flushed the latest snapshot; do not serialize it twice.

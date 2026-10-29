@@ -60,9 +60,11 @@ class DocumentRepository(private val context: Context) {
     suspend fun favorite(id: String) = io { writeIndex(readIndex().map { if(it.id==id) it.copy(favorite=!it.favorite) else it }) }
     private fun remember(session: Session) {
         val old = readIndex()
-        val favorite = old.firstOrNull { it.id == session.id }?.favorite ?: false
+        val previous=old.firstOrNull {it.id==session.id}
+        val favorite=previous?.favorite ?: false
+        val hidden=previous?.hidden ?: false
         val pending=File(session.base.parentFile,"office-pending.json").exists()
-        writeIndex((listOf(Recent(session.id,session.name,session.uri,System.currentTimeMillis(),session.dirty || pending,favorite)) + old.filter { it.id != session.id }))
+        writeIndex((listOf(Recent(session.id,session.name,session.uri,System.currentTimeMillis(),session.dirty || pending,favorite,hidden)) + old.filter { it.id != session.id }))
     }
     suspend fun create(format: Format): Session = io {
         require(format != Format.DOC) { "구형 DOC 새 문서는 지원하지 않습니다. DOCX를 생성하거나 기존 DOC를 열어 주세요." }
@@ -77,7 +79,8 @@ class DocumentRepository(private val context: Context) {
         val s = build(id,"새 문서.${format.extension}",format,null,null,base)
         checkpointInternal(s); s
     }
-    suspend fun open(uri: Uri, encoding: String = "UTF-8",password: CharArray?=null): Session = io {openInternal(uri,encoding,password)}
+    private fun showRecent(id: String) {val all=readIndex();if(all.any {it.id==id && it.hidden})writeIndex(all.map {if(it.id==id)it.copy(hidden=false) else it})}
+    suspend fun open(uri: Uri, encoding: String = "UTF-8",password: CharArray?=null): Session = io {openInternal(uri,encoding,password).also {showRecent(it.id)}}
     private fun openInternal(uri: Uri,encoding: String,password: CharArray?): Session {
         val existing = readIndex().firstOrNull {DocumentUris.same(it.uri,uri.toString())}
         if(existing!=null && (existing.dirty || File(File(root,existing.id),"office-pending.json").exists())) return restoreInternal(existing.id)
@@ -119,7 +122,7 @@ class DocumentRepository(private val context: Context) {
     suspend fun restore(id: String): Session = io { restoreInternal(id).also { remember(it) } }
     /** Clean recents must check the provider; unsaved and native working copies win. */
     suspend fun reopenRecent(id: String,encoding: String="UTF-8"): Session = io {
-        val cached=restoreInternal(id)
+        val cached=restoreInternal(id);showRecent(id)
         val pending=File(cached.base.parentFile,"office-pending.json").exists()
         if(cached.dirty || pending || providerWrites.list(id).isNotEmpty() || cached.uri==null)
             return@io cached.also {remember(it)}
@@ -145,10 +148,10 @@ class DocumentRepository(private val context: Context) {
         try {
             val provenance=File(dir,"preserved-backup/conversion").apply {mkdirs()}
             val working=File(provenance,"working.hwp")
-            if(source.edits.values.isEmpty() && source.edits.bold.isEmpty() && source.edits.styles.isEmpty()) atomic(working,source.base.readBytes())
+            if(source.edits.values.isEmpty() && source.edits.bold.isEmpty() && source.edits.styles.isEmpty()) atomicCopy(source.base,working)
             else source.legacy!!.write(working,source.edits)
             val base=File(dir,"base.bin");val report=HangulConversion.convert(working,base)
-            atomic(File(provenance,"original.hwp"),source.base.readBytes())
+            atomicCopy(source.base,File(provenance,"original.hwp"))
             atomic(File(provenance,"report.json"),conversionJson(report).toString().toByteArray())
             val target=build(id,source.name.substringBeforeLast('.',source.name)+"-변환.hwpx",Format.HWPX,null,null,base)
             val anchors=source.sections.mapIndexed {i,s->s.id to target.sections[i].id}.toMap()
@@ -273,13 +276,13 @@ class DocumentRepository(private val context: Context) {
         else when(s.format) {
             Format.TXT,Format.MD -> atomic(stage,s.textContent!!.encode(s.edits.text)).also { TextContent.decode(stage.readBytes(),s.textContent.charset) }
             Format.PDF -> PdfEngine.write(s.base,stage,s.edits.strokes,s.pdf!!.archival,s.edits.values,s.edits.layers)
-            Format.DOC,Format.XLS,Format.PPT,Format.HWP -> if(s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty()) atomic(stage,s.base.readBytes()) else s.legacy!!.write(stage,s.edits)
+            Format.DOC,Format.XLS,Format.PPT,Format.HWP -> if(s.edits.values.isEmpty() && s.edits.bold.isEmpty() && s.edits.styles.isEmpty()) atomicCopy(s.base,stage) else s.legacy!!.write(stage,s.edits)
             else -> s.pack!!.write(stage,s.edits)
         }
         val expected = digest(stage)
         val receipt=providerWrites.publish(s.id,stage,destination,if(replacing)s.sourceHash else null,s.name,s.format.mime,backup)
         // Keep the imported baseline and edit commands so Undo also works across a save.
-        val newBase=if(s.format==Format.PDF) File(dir,"${UUID.randomUUID()}.bin").also {atomic(it,stage.readBytes());PdfEngine.cleanOwned(it)} else s.base
+        val newBase=if(s.format==Format.PDF) File(dir,"${UUID.randomUUID()}.bin").also {atomicCopy(stage,it);PdfEngine.cleanOwned(it)} else s.base
         val result = s.copy(name=displayName(destination),uri=destination.toString(),sourceHash=expected,saved=s.edits,
             pdf=s.pdf?.copy(archival=false),base=newBase,savedRevision=s.revision)
         checkpointInternal(result);java.io.RandomAccessFile(result.base,"rw").use {it.fd.sync()};providerWrites.finish(receipt,listOf(dir,root));stage.delete(); result

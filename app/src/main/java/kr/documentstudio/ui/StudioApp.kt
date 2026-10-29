@@ -174,7 +174,7 @@ fun StudioApp(vm: EditorViewModel) {
         Scaffold(topBar={
             if(state.session==null) TopAppBar(title={ Text("문서 스튜디오",fontWeight=FontWeight.Bold) },actions={
                 IconButton(onClick={recoveryDialog=true}) {Icon(Icons.Default.Restore,"저장 복구")}
-                IconButton(onClick={settingsDialog=true}) { Icon(Icons.Default.Settings,"설정") }
+                IconButton(onClick={settingsDialog=true},modifier=Modifier.size(48.dp).testTag("home-settings-button")) { Icon(Icons.Default.Settings,"설정") }
             }) else if(!fullScreen || editing) {
                 val s=state.session!!
                 TopAppBar(modifier=Modifier.statusBarsPadding().height(48.dp).testTag("mobile-editor-header"),windowInsets=WindowInsets(0,0,0,0),expandedHeight=48.dp,
@@ -291,6 +291,8 @@ private fun EditorPane(s: Session,state: UiState,model: EditorViewModel,openOffi
 private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: ()->Unit,recovery: ()->Unit,close: ()->Unit) {
     var licenses by remember {mutableStateOf(false)}
     var officeLicenses by remember {mutableStateOf(false)}
+    var privacy by remember {mutableStateOf(false)}
+    var diagnostics by remember {mutableStateOf(false)}
     AlertDialog(onDismissRequest=close,title={Text("편집 설정")},text={Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState())) {
         Text("한글은 전용 한글 엔진, Word·Excel·PowerPoint는 각 형식의 오피스 엔진에서 원본을 직접 편집합니다. 오피스 엔진은 Android 11 이상이 필요합니다.",style=MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(12.dp))
@@ -305,9 +307,24 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
         TextButton(onClick={licenses=true}) {Text("오픈소스·SDK 라이선스")}
         Text("화면 색상은 기기의 밝게·어둡게 설정을 따릅니다. 문서 원본의 글자색과 용지는 바꾸지 않습니다.",style=MaterialTheme.typography.bodySmall)
         TextButton(recovery) {Text("저장·서명 복구")}
+        TextButton({privacy=true}) {Text("문서·개인정보 보관 안내")}
+        TextButton({diagnostics=true}) {Text("이 기기의 오류 진단")}
         TextButton(cleanup) {Text("임시 변환 파일 정리")}
         TextButton(onClick={officeLicenses=true}) {Text("정밀 오피스 엔진 고지")}
     }},confirmButton={TextButton(onClick=close){Text("완료")}})
+    if(privacy) {
+        val context=LocalContext.current
+        AlertDialog(onDismissRequest={privacy=false},title={Text("문서·개인정보 보관")},
+            text={Text("문서 변환과 자필 서명은 기기에서 처리합니다. 앱이 문서나 서명을 서버로 보내는 기능은 없으며 INTERNET 권한도 요청하지 않습니다. OCR에는 번들 Google ML Kit를 사용합니다. SDK·운영체제 전체의 데이터 처리는 별도 검토 대상입니다.\n\n문서 복구본·서명·진단은 앱 내부에 보관합니다. 내부 저장소 전체를 별도 암호화하지는 않습니다. 암호화 백업을 선택한 경우에만 .dsbackup에 암호화합니다.\n\n앱 삭제나 기기 설정의 데이터 삭제는 복구본과 내 서명도 지웁니다. 중요한 자료는 먼저 파일로 저장·백업하세요. 외부에 저장·공유한 파일은 앱 데이터 삭제로 지워지지 않습니다.")},
+            confirmButton={TextButton({privacy=false}){Text("닫기")}},
+            dismissButton={TextButton({context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+context.packageName)))}){Text("기기 앱 설정")}})
+    }
+    if(diagnostics) {
+        val context=LocalContext.current
+        val text by produceState("진단 기록 확인 중") {value=withContext(Dispatchers.IO){SafeDiagnostics.text(context)}}
+        AlertDialog(onDismissRequest={diagnostics=false},title={Text("이 기기의 오류 진단")},text={Text(text,style=MaterialTheme.typography.bodySmall,modifier=Modifier.heightIn(max=320.dp).verticalScroll(rememberScrollState()))},
+            confirmButton={TextButton({diagnostics=false}){Text("닫기")}})
+    }
     if(licenses) {
         val context=LocalContext.current
         val notice by produceState("읽는 중…") {
@@ -350,7 +367,9 @@ internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: B
     if(markdown && !readOnly && showToolbar) MarkdownToolbar({binding.editor},!busy)
     AndroidView(factory={context -> LineNumberEditText(context).apply {
         gravity=android.view.Gravity.TOP or android.view.Gravity.START
-        setBackgroundColor(AndroidColor.WHITE);setPadding(92,24,28,24)
+        darkPage=dark
+        setBackgroundColor(if(dark)AndroidColor.rgb(27,30,36) else AndroidColor.WHITE)
+        setTextColor(if(dark)AndroidColor.rgb(231,234,240) else AndroidColor.rgb(32,38,48));setPadding(92,24,28,24)
         inputType=android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         typeface=android.graphics.Typeface.MONOSPACE;setTextIsSelectable(true);setHorizontallyScrolling(false)
         addTextChangedListener(object: TextWatcher {

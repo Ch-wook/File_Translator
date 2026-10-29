@@ -12,6 +12,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -34,10 +36,14 @@ enum class WorkspaceFamily(val title: String,val accent: Color,val icon: ImageVe
 }
 
 @Composable
+fun readableAccent(color: Color)=if(MaterialTheme.colorScheme.surface.luminance()<.3f)lerp(color,Color.White,.45f) else color
+
+@Composable
 fun FormatBadge(format: Format,modifier: Modifier=Modifier) {
     val family=WorkspaceFamily.of(format)
-    Surface(modifier.size(44.dp),shape=RoundedCornerShape(12.dp),color=family.accent.copy(alpha=0.10f)) {
-        Box(contentAlignment=Alignment.Center) {Icon(family.icon,null,tint=family.accent,modifier=Modifier.size(25.dp))}
+    val accent=readableAccent(family.accent)
+    Surface(modifier.size(44.dp),shape=RoundedCornerShape(12.dp),color=accent.copy(alpha=0.10f)) {
+        Box(contentAlignment=Alignment.Center) {Icon(family.icon,null,tint=accent,modifier=Modifier.size(25.dp))}
     }
 }
 
