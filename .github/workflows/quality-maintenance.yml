@@ -1,0 +1,25 @@
+name: Cancel only superseded unpatched quality candidates
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+  actions: write
+jobs:
+  cancel:
+    if: contains(github.event.head_commit.message, '[quality-maintenance]')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - run: |
+          python3 - <<'PY'
+          import json,os,subprocess
+          repo=os.environ['GITHUB_REPOSITORY']
+          for run in (40792907517,40792907398):
+              info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{run}']))
+              assert info['head_sha']=='b247dbd28ac64e96dbd9a4d2f5e45f7fba451a5c'
+              assert info['head_branch']=='codex/hangul-mobile-editing' and info['event']=='push'
+              if info['status'] in ('queued','in_progress'):subprocess.run(['gh','api',f'repos/{repo}/actions/runs/{run}/cancel','--method','POST'],check=True)
+          print('ONLY_UNPATCHED_PREVIEW_RUNS_CANCELLED')
+          PY

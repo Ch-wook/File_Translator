@@ -114,7 +114,7 @@ jobs:
               install=result['installation']
               assert install['cleanInstallWithoutTestFlag'] and install['coexistsWith0810'] and install['priorApkHashUnchanged'] and install['priorPrivateDataPreserved'] and install['sameSignerReinstallPreservedPrivateData'],install
               for counts in result['unitTests'].values():assert counts['tests']>0 and counts['failures']==counts['errors']==counts['skipped']==0
-              assert {name:counts['tests'] for name,counts in result['unitTests'].items()}=={'core':127,'officeruntime':2,'app':44},result['unitTests']
+              assert {name:counts['tests'] for name,counts in result['unitTests'].items()}=={'core':128,'officeruntime':2,'app':45},result['unitTests']
               assert result['signatureConversionVerified'] is True
               assert len(result['signatureEngineTests'])==2
               assert result['additionalBundledFontFamilies']==6 and result['nativeCalc']['nativeFormulaResults']==15,result

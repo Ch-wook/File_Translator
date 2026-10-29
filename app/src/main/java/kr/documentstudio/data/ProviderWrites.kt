@@ -41,6 +41,7 @@ class ProviderWrites(private val context: Context) {
         val f=File(dir,"journal.json")
         val j=JSONObject(AtomicFile(f).openRead().use {require(it.channel.size() in 1L..32768L);it.bufferedReader().readText()});require(j.getInt("version")==1 && j.getString("id")==dir.name)
         val r=SaveRecovery(dir.name,j.getString("owner"),j.getString("name"),j.getString("mime"),j.getString("uri"),j.getString("before"),j.getString("after"),j.getString("phase"),j.getLong("created"))
+        require(r.phase in setOf("PREPARING","PREPARATION_FAILED","PREPARED","WRITING","VERIFIED","ROLLED_BACK","RECOVERY_REQUIRED","COMPLETE"))
         require(r.owner.length<=256 && r.name.length<=512 && r.mime.length<=256 && r.uri.length<=8192)
         require(Uri.parse(r.uri).scheme in setOf("content","file"))
         require(r.before.isEmpty() || r.before.matches(Regex("[0-9a-f]{64}")));require(r.after.isEmpty() || r.after.matches(Regex("[0-9a-f]{64}")))
@@ -60,7 +61,11 @@ class ProviderWrites(private val context: Context) {
         java.nio.channels.FileChannel.open(dir.toPath(),java.nio.file.StandardOpenOption.READ).use {it.force(true)}
     }
     private fun active(r: SaveRecovery)=r.phase in setOf("PREPARED","WRITING","VERIFIED","RECOVERY_REQUIRED")
-    private fun digest(uri: Uri): String=context.contentResolver.openInputStream(uri)?.use {DocumentRepository.digestStreamForRecovery(it)}
+    private fun digest(uri: Uri): String=context.contentResolver.openInputStream(uri)?.use {input->
+        val md=java.security.MessageDigest.getInstance("SHA-256");val bytes=ByteArray(65536);var total=0L
+        while(true){val n=input.read(bytes);if(n<0)break;total+=n;require(total<=LIMIT){"저장 대상이 너무 큽니다."};md.update(bytes,0,n)}
+        md.digest().joinToString("") {"%02x".format(it)}
+    }
         ?: throw IOException("저장 대상 파일을 확인하지 못했습니다.")
     private fun copy(uri: Uri,target: File) {
         val atomic=AtomicFile(target);val out=atomic.startWrite()

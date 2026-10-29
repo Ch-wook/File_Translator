@@ -20,7 +20,7 @@ jobs:
           for _,body in blocks:ast.parse(textwrap.dedent(body))
           for p in ('scripts/package-mobile-release.py','scripts/test-mobile-installation.py','scripts/audit-commercial-quality.py'):
               ast.parse(pathlib.Path(p).read_text())
-          assert "'tests':65" in source and "'app':44" in source and "versionCode']==21" in source
+          assert "'tests':65" in source and "'app':45" in source and "versionCode']==21" in source
           assert 'coexistsWith0810' in source and 'SECURITY_RUN' in source and 'commercialReady' in source
           assert 'PLACEHOLDER' not in source
           print('QUALITY_PUBLICATION_SCRIPTS_VALID',len(blocks))
