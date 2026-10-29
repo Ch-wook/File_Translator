@@ -315,12 +315,18 @@ class NativeOfficeModeSmokeTest {
                         ?: device.wait(Until.findObject(By.pkg(context.packageName).clazz("android.widget.EditText")),5000)
                         ?: throw AssertionError("Native view search input missing")
                     search.click()
+                    await("Search field must receive focus before keyboard paste",10000) {
+                        eval("document.activeElement===document.querySelector('#studio-office-actions input[aria-label=\"찾을 내용\"]')") == "true"
+                    }
                     device.pressKeyCode(KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON)
                     await("VIEW search must still accept clipboard text",10000) {
                         eval("document.querySelector('#studio-office-actions input[aria-label=\"찾을 내용\"]')?.value || ''") == "읽기 상태 붙여넣기 차단"
                     }
                     tap("설정 닫기")
+                    device.pressKeyCode(KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON)
+                    visible("편집하기")
                     record.put("viewSearchClipboardPaste",true)
+                    record.put("documentPasteBlockedAfterSearchClosed",true)
                     assertFalse("Search input cannot approve document edits",edited.exists())
                 }
             }

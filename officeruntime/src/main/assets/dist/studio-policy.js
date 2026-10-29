@@ -3,15 +3,22 @@
   if (window.studioOffice) return;
   const policy = window.studioOffice = { ready: false, authorized: false, wasAuthorized: false, modeSupported: false, changed: false, initialIntentHandled: false };
   const bridge = () => window.COOLMessageHandler;
+  let lastUiTextFocus=false;
   const reportUiTextFocus=()=>{
     const target=document.activeElement;
     const allowed=Boolean(target?.matches?.('input:not([disabled]):not([readonly]),textarea:not([disabled]):not([readonly])')
-      && target.closest('#toolbar-search,#studio-office-tools,#studio-office-bottom,[role="dialog"]'));
-    try {bridge()?.studioSetUiTextFocus?.(allowed);} catch(ignore) {}
+      && target.getClientRects().length && target.closest('#toolbar-search,#studio-office-tools,#studio-office-bottom,[role="dialog"]'));
+    try {
+      const native=bridge();
+      if(typeof native?.studioSetUiTextFocus==='function' && allowed!==lastUiTextFocus) {
+        native.studioSetUiTextFocus(allowed);lastUiTextFocus=allowed;
+      }
+    } catch(ignore) {}
   };
   document.addEventListener('focusin',reportUiTextFocus,true);
   document.addEventListener('focusout',()=>queueMicrotask(reportUiTextFocus),true);
-  window.addEventListener('pagehide',()=>{try {bridge()?.studioSetUiTextFocus?.(false);}catch(ignore){}});
+  for(const event of ['pointerup','keyup'])document.addEventListener(event,()=>queueMicrotask(reportUiTextFocus),{passive:true});
+  window.addEventListener('pagehide',()=>{try {bridge()?.studioSetUiTextFocus?.(false);lastUiTextFocus=false;}catch(ignore){}});
   let conversionComposing=false;
   document.addEventListener('compositionstart',()=>conversionComposing=true,true);
   document.addEventListener('compositionend',()=>conversionComposing=false,true);
@@ -268,7 +275,7 @@
       const b=UI.dockButton(label,icon,()=>{if(groupOpen&&activeTab===label)closeSheet();else openSheet(label);});b.setAttribute('aria-selected',String(groupOpen&&activeTab===label));tabs.append(b);
     }
   }
-  function update(){if(!updateFrame)updateFrame=requestAnimationFrame(()=>{updateFrame=0;updateNow();});}
+  function update(){reportUiTextFocus();if(!updateFrame)updateFrame=requestAnimationFrame(()=>{updateFrame=0;updateNow();});}
   function sync(node,key,value){if(node&&node[key]!==value)node[key]=value;}
   function attribute(node,name,value){if(node.getAttribute(name)!==String(value))node.setAttribute(name,String(value));}
   function updateNow(){
