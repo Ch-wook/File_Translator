@@ -37,6 +37,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     var page by rememberSaveable(s.id) {mutableIntStateOf(readerPreferences.getInt(s.id+":page",0))}
     var readingZoom by rememberSaveable(s.id) {mutableFloatStateOf(readerPreferences.getFloat(s.id+":zoom",1f))}
     var continuous by rememberSaveable(s.id) {mutableStateOf(readerPreferences.getString(s.id+":pdf-layout-v2","continuous")!="single")}
+    var readingAnchorPage by rememberSaveable(s.id) {mutableIntStateOf(readerPreferences.getInt(s.id+":anchorPage",page))}
     var readingOffset by rememberSaveable(s.id) {mutableIntStateOf(readerPreferences.getInt(s.id+":offset",0).coerceAtLeast(0))}
     var navigationRequest by remember(s.id) {mutableIntStateOf(0)}
     var search by remember {mutableStateOf(false)}
@@ -60,13 +61,13 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     var fontCategory by rememberSaveable {mutableStateOf("전체")}
     var wrap by rememberSaveable {mutableStateOf(preferences.getBoolean("wrap",settings.wrapLines))}
     val updatePage: (Int)->Unit={page=it.coerceIn(0,((s.pdf?.pages ?: 1)-1).coerceAtLeast(0))}
-    val navigate: (Int)->Unit={updatePage(it);readingOffset=0;navigationRequest++}
+    val navigate: (Int)->Unit={updatePage(it);readingAnchorPage=page;readingOffset=0;navigationRequest++}
     SideEffect {
         reader?.search={if(s.format==Format.PDF)panel="PDF 검색" else {preview=false;search=true}}
         reader?.settings={panel="보기 설정"}
     }
-    DisposableEffect(s.id) {onDispose {readerPreferences.edit().putInt(s.id+":page",page).putInt(s.id+":offset",readingOffset).putBoolean(s.id+":continuous",continuous).putFloat(s.id+":zoom",pdfController.zoom).apply()}}
-    LaunchedEffect(page,readingOffset,readingZoom,continuous){kotlinx.coroutines.delay(350);readerPreferences.edit().putInt(s.id+":page",page).putInt(s.id+":offset",readingOffset).putBoolean(s.id+":continuous",continuous).putFloat(s.id+":zoom",readingZoom).apply()}
+    DisposableEffect(s.id) {onDispose {readerPreferences.edit().putInt(s.id+":page",page).putInt(s.id+":anchorPage",readingAnchorPage).putInt(s.id+":offset",readingOffset).putBoolean(s.id+":continuous",continuous).putFloat(s.id+":zoom",pdfController.zoom).apply()}}
+    LaunchedEffect(page,readingAnchorPage,readingOffset,readingZoom,continuous){kotlinx.coroutines.delay(350);readerPreferences.edit().putInt(s.id+":page",page).putInt(s.id+":anchorPage",readingAnchorPage).putInt(s.id+":offset",readingOffset).putBoolean(s.id+":continuous",continuous).putFloat(s.id+":zoom",readingZoom).apply()}
     LaunchedEffect(s.base) {updatePage(page)}
     LaunchedEffect(editing) {panel=null;if(!editing)ink=false;if(s.format==Format.MD)preview=!editing}
     val imageSelected=pdfController.selected is PdfImagePlacement
@@ -86,8 +87,8 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
         Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFFE8ECF3))) {
             when {
                 editing && ink->DrawingPage(s,null,page,settings,vm,busy)
-                s.format==Format.PDF && !editing && continuous && (s.pdf?.pages ?: 0)>1->PdfContinuousReader(s,page,navigationRequest,busy,onVisiblePage=updatePage,onEditPage=null,initialZoom=readingZoom,onZoomChanged={readingZoom=it;pdfController.zoom=it},initialOffset=readingOffset,onPositionChanged={index,offset->updatePage(index);readingOffset=offset},controller=pdfController)
-                s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController,initialZoom=readingZoom,onZoomChanged={readingZoom=it},initialOffset=readingOffset,onPositionChanged={readingOffset=it})
+                s.format==Format.PDF && !editing && continuous && (s.pdf?.pages ?: 0)>1->PdfContinuousReader(s,page,navigationRequest,busy,onVisiblePage=updatePage,onEditPage=null,initialZoom=readingZoom,onZoomChanged={readingZoom=it;pdfController.zoom=it},initialOffset=readingOffset,initialAnchorPage=readingAnchorPage,onPositionChanged={index,offset->readingAnchorPage=index;readingOffset=offset},controller=pdfController)
+                s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController,initialZoom=readingZoom,onZoomChanged={readingZoom=it},initialOffset=if(readingAnchorPage==page)readingOffset else 0,onPositionChanged={readingAnchorPage=page;readingOffset=it})
                 preview && s.format==Format.MD->MarkdownPreview(s.edits.text,busy || !editing,vm::text,viewportKey=s.id,dark=dark)
                 else->NativeTextEditor(s.edits.text,displaySize,busy,wrap,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont,showLineNumbers=lineNumbers,viewportKey=s.id,dark=dark)
             }
@@ -172,7 +173,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                     Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(lineNumbers,{lineNumbers=it;preferences.edit().putBoolean("lineNumbers",it).apply()});Text("줄 번호")}
                     Text("${textStats.first}자 · ${textStats.second}줄",style=MaterialTheme.typography.bodySmall)
                 } else {
-                    if(!editing) Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(continuous,{continuous=it;readerPreferences.edit().putString(s.id+":pdf-layout-v2",if(it)"continuous" else "single").apply()},modifier=Modifier.testTag("pdf-continuous-toggle"));Text("연속 페이지 보기")}
+                    if(!editing) Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(continuous,{readingAnchorPage=page;readingOffset=0;continuous=it;readerPreferences.edit().putString(s.id+":pdf-layout-v2",if(it)"continuous" else "single").apply()},modifier=Modifier.testTag("pdf-continuous-toggle"));Text("연속 페이지 보기")}
                     Row(verticalAlignment=Alignment.CenterVertically) {Tool("이전 페이지"){navigate(page-1)};Text("${page+1} / ${s.pdf!!.pages}");Tool("다음 페이지"){navigate(page+1)}}
                     Row {Tool("첫 페이지"){navigate(0);panel=null};Tool("마지막 페이지"){navigate(s.pdf!!.pages-1);panel=null}}
                     var pageInput by remember(page) {mutableStateOf((page+1).toString())}

@@ -37,7 +37,7 @@ private val readerSlots=Semaphore(2)
 @Composable
 fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolean,horizontal: Boolean=false,
                         onVisiblePage: (Int)->Unit,onEditPage: ((Int)->Unit)?,initialZoom: Float=1f,
-                        onZoomChanged: (Float)->Unit={},initialOffset: Int=0,
+                        onZoomChanged: (Float)->Unit={},initialOffset: Int=0,initialAnchorPage: Int=page,
                         onPositionChanged: (Int,Int)->Unit={_,_->},controller: PdfEditorController?=null) {
     val count=s.pdf!!.pages
     var renderer by remember(s.id) {mutableStateOf<PdfReadRenderer?>(null)}
@@ -59,7 +59,7 @@ fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolea
             withContext(NonCancellable+Dispatchers.IO){opened?.close()}
         }
     }
-    val list=rememberLazyListState(page.coerceIn(0,count-1),initialOffset.coerceAtLeast(0))
+    val list=rememberLazyListState(initialAnchorPage.coerceIn(0,count-1),initialOffset.coerceAtLeast(0))
     val pan=rememberScrollState()
     val scope=rememberCoroutineScope()
     val density=LocalDensity.current
@@ -79,10 +79,19 @@ fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolea
     }
     LaunchedEffect(list,pager,count,horizontal) {
         var previousPage=-1
-        snapshotFlow {if(horizontal)pager.currentPage to 0 else list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset}.collect {(index,offset)->
+        snapshotFlow {
+            if(horizontal)Triple(pager.currentPage,0,pager.currentPage)
+            else {
+                val anchor=list.firstVisibleItemIndex
+                // At the bottom, a short/landscape last page can be wholly visible
+                // while the previous page still occupies the viewport's top edge.
+                val current=if(!list.canScrollForward&&list.layoutInfo.visibleItemsInfo.any {it.index==count-1})count-1 else anchor
+                Triple(anchor,list.firstVisibleItemScrollOffset,current)
+            }
+        }.collect {(anchor,offset,index)->
             val current=index.coerceIn(0,count-1)
             if(previousPage!=current){visiblePage(current);previousPage=current}
-            positionChanged(current,offset)
+            positionChanged(anchor.coerceIn(0,count-1),offset)
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFFE5E5DF))) {
@@ -121,7 +130,7 @@ fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolea
             controller?.selected=null
             controller?.setZoom={zoomAction(it,center,center)}
             controller?.fitPage={
-                val index=if(horizontal)pager.currentPage else list.firstVisibleItemIndex
+                val index=if(horizontal)pager.currentPage else page.coerceIn(0,count-1)
                 val size=s.pdf?.pageSizes?.getOrNull(index)
                 val fit=if(size!=null)(viewportHeight-2*gutter)/(basePixels*size.height/size.width) else 1f
                 zoomAction(min(1f,fit),center,center)

@@ -141,7 +141,8 @@ class ReadingUxTest {
         pages.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy){it(0f,133f)}
         compose.waitForIdle()
         val position=pages.fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.StateDescription]
-        assertTrue(position.startsWith("99:"))
+        assertTrue(position.substringBefore(':').toInt() in 98..99)
+        compose.onNodeWithContentDescription("연속 보기 100페이지").assertExists()
         compose.runOnUiThread {vm.home()};compose.waitForIdle()
         compose.runOnUiThread {vm.restore(id)};ready()
         compose.onNodeWithContentDescription("PDF 연속 페이지 목록").assertExists()
