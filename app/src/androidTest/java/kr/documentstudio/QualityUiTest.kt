@@ -27,6 +27,7 @@ class QualityUiTest {
             File(context.filesDir,"signatures.json").writeText("damaged private signature fixture")
             compose.waitUntil(30000){!vm.state.value.busy}
             compose.onNodeWithContentDescription("저장 복구").performClick()
+            compose.waitUntil(30000){compose.onAllNodesWithText("이전 정상 서명 보관함 복원…").fetchSemanticsNodes().size==1}
             compose.onNodeWithText("이전 정상 서명 보관함 복원…").performScrollTo().assertIsDisplayed()
             assertEquals("damaged private signature fixture",File(context.filesDir,"signatures.json").readText())
             compose.onNodeWithText("이전 정상 서명 보관함 복원…").performClick()

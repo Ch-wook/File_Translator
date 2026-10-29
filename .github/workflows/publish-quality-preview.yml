@@ -65,7 +65,7 @@ jobs:
               assert recovery['status']=='completed' and recovery['conclusion']=='success',recovery
           subprocess.run(['git','merge-base','--is-ancestor',sha,'HEAD'],check=True)
           changed=subprocess.check_output(['git','diff','--name-only',sha,'HEAD'],text=True).splitlines()
-          assert all(p in ('README.md','scripts/package-mobile-release.py') or p.startswith(('docs/','.github/workflows/')) for p in changed),changed
+          assert all(p in ('README.md','scripts/package-mobile-release.py','app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt') or p.startswith(('docs/','.github/workflows/')) for p in changed),changed
           subprocess.run(['gh','run','download',package_run,'--name','document-studio-mobile-'+sha,'--dir','delivery'],check=True)
           delivery=pathlib.Path('delivery')
           perf_run=os.environ['PERFORMANCE_RUN']
@@ -74,7 +74,7 @@ jobs:
           assert perf_info['head_sha']==measured_sha and perf_info['conclusion']=='success',perf_info
           subprocess.run(['git','merge-base','--is-ancestor',measured_sha,sha],check=True)
           measurement_delta=subprocess.check_output(['git','diff','--name-only',measured_sha,sha],text=True).splitlines()
-          assert all(p=='README.md' or p=='app/src/main/assets/licenses/Log4j-API-2.25.5-NOTICE.txt' or p=='app/src/androidTest/java/kr/documentstudio/NativeHangulEditingTest.kt' or p=='scripts/tests/signature-conversion.cjs' or p.startswith(('docs/','.github/workflows/')) for p in measurement_delta),measurement_delta
+          assert all(p=='README.md' or p=='app/src/main/assets/licenses/Log4j-API-2.25.5-NOTICE.txt' or p=='app/src/androidTest/java/kr/documentstudio/NativeHangulEditingTest.kt' or p=='scripts/tests/signature-conversion.cjs' or p=='app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt' or p.startswith(('docs/','.github/workflows/')) for p in measurement_delta),measurement_delta
           subprocess.run(['gh','run','download',perf_run,'--name','reading-performance-'+measured_sha,'--dir','performance'],check=True)
           performance=pathlib.Path('performance')
           security_run=os.environ['SECURITY_RUN']
@@ -108,7 +108,7 @@ jobs:
           assert set(comparison['records'])=={'baseline','candidate'}
           for item in comparison['records'].values():assert item['viewport-memory']['allClosedBitmapsRecycled'] and item['viewport-memory']['pdfOriginalUnchanged']
           assert comparison['records']['candidate']['viewport-memory']['rasters'],comparison
-          measurement_proof={'measuredAppCommit':measured_sha,'apkBuildCommit':sha,'changes':measurement_delta,'applicationCodeUnchanged':True,'limitation':'Only license notices, documentation, publication workflows and the NativeHangulEditingTest / signature-conversion test drivers may differ after measuring. Application and benchmark test sources are unchanged.'}
+          measurement_proof={'measuredAppCommit':measured_sha,'apkBuildCommit':sha,'changes':measurement_delta,'applicationCodeUnchanged':True,'limitation':'Only license notices, documentation, publication workflows and the NativeHangulEditingTest / QualityUiTest / signature-conversion test drivers may differ after measuring. Application and benchmark test sources are unchanged.'}
           print('SAME_APPLICATION_CODE_PERFORMANCE_PROVENANCE',json.dumps(measurement_proof),flush=True)
           print('SAME_EMULATOR_PERFORMANCE_VERIFIED',json.dumps(comparison),flush=True)
           for line in (delivery/'SHA256SUMS').read_text().splitlines():
@@ -172,7 +172,7 @@ jobs:
           archive_sha=result.get('sourceArchiveCommit',sha)
           subprocess.run(['git','merge-base','--is-ancestor',sha,archive_sha],check=True)
           archive_delta=subprocess.check_output(['git','diff','--name-only',sha,archive_sha],text=True).splitlines()
-          assert all(p in ('README.md','scripts/package-mobile-release.py') or p.startswith(('docs/','.github/workflows/')) for p in archive_delta),archive_delta
+          assert all(p in ('README.md','scripts/package-mobile-release.py','app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt') or p.startswith(('docs/','.github/workflows/')) for p in archive_delta),archive_delta
           with zipfile.ZipFile(delivery/'document-studio-0.8.11-preview-source.zip') as z:
               assert z.testzip() is None
               tracked={}
@@ -184,7 +184,7 @@ jobs:
               for path,blob in tracked.items():
                   data=z.read(path);assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==blob,path
           # Preserve the tested APK bytes, while publishing source from this tag's
-          # metadata-only descendant (the app/engine sources were checked above).
+          # non-application descendant (the app/engine sources were checked above).
           archive=delivery/'document-studio-0.8.11-preview-source.zip'
           subprocess.run(['git','archive','--format=zip','-o',str(archive),'HEAD'],check=True)
           published_tracked={}
@@ -205,7 +205,7 @@ jobs:
           bundle.unlink()
           subprocess.run(['git','bundle','create',str(bundle),'--all'],check=True)
           subprocess.run(['git','bundle','verify',str(bundle)],check=True)
-          provenance={'apkBuildCommit':sha,'sourceArchiveCommit':os.environ['GITHUB_SHA'],'metadataOnlyChanges':changed,'trackedFiles':len(published_tracked),'appSourceUnchanged':True}
+          provenance={'apkBuildCommit':sha,'sourceArchiveCommit':os.environ['GITHUB_SHA'],'nonApplicationChanges':changed,'trackedFiles':len(published_tracked),'appSourceUnchanged':True}
           metadata=delivery/'document-studio-0.8.11-preview-apk-metadata.json'
           data=json.loads(metadata.read_text());data['sourceArchiveCommit']=os.environ['GITHUB_SHA'];metadata.write_text(json.dumps(data,indent=2))
           with zipfile.ZipFile(delivery/'document-studio-0.8.11-preview-verification.zip','a',zipfile.ZIP_DEFLATED) as z:
@@ -257,7 +257,7 @@ jobs:
           def same_app(commit):
               subprocess.run(['git','merge-base','--is-ancestor',verified,commit],check=True)
               names=subprocess.check_output(['git','diff','--name-only',verified,commit],text=True).splitlines()
-              assert all(p in ('README.md','scripts/package-mobile-release.py') or p.startswith(('docs/','.github/workflows/')) for p in names),names
+              assert all(p in ('README.md','scripts/package-mobile-release.py','app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt') or p.startswith(('docs/','.github/workflows/')) for p in names),names
           releases=api(f'repos/{repo}/releases?per_page=100');existing=[r for r in releases if r['tag_name']==tag]
           expected={p.name:p for p in pathlib.Path('delivery').iterdir() if p.is_file()}
           assert len(expected)==10,sorted(expected)
@@ -303,7 +303,7 @@ jobs:
           assert ref['object']['type']=='commit';tag_sha=ref['object']['sha']
           subprocess.run(['git','merge-base','--is-ancestor',verified,tag_sha],check=True)
           names=subprocess.check_output(['git','diff','--name-only',verified,tag_sha],text=True).splitlines()
-          assert all(p in ('README.md','scripts/package-mobile-release.py') or p.startswith(('docs/','.github/workflows/')) for p in names),names
+          assert all(p in ('README.md','scripts/package-mobile-release.py','app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt') or p.startswith(('docs/','.github/workflows/')) for p in names),names
           results=[]
           for p in sorted(pathlib.Path('delivery').iterdir()):
               if not p.is_file():continue
