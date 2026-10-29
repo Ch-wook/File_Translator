@@ -114,3 +114,5 @@ Android 조건은 API35 x86_64 Pixel7 에뮬레이터, SwiftShader, RAM3072MiB�
 157개 release Maven 좌표 조회에서 Log4j API 2.24.3의 GHSA-qv9r-c865-cp47 / CVE-2026-49844가 일치했습니다. 공개 권고의 수정 버전 2.25.5를 고정하고 NaN·Infinity·-Infinity의 JSON 출력 재현 검사를 추가합니다. 이전 검사에서 일치가 0개였다고 보고하지 않으며, 갱신된 의존성·APK·회귀 검사를 다시 실행합니다. [공개 권고](https://github.com/advisories/GHSA-qv9r-c865-cp47). 
 
 추가 보안 수정 이후 provider readback의 크기 상한과 저장 공간 부족(ENOSPC) 안내 우선순위도 보완했습니다. 최종 회귀에는 Log4j JSON 재현 1건과 저장 공간 안내 1건을 추가하며 전체 단위 검사의 실제 합계를 결과로 확인합니다.
+
+최근 목록의 정렬 시각은 앱 작업 기록 기준입니다. 외부 원본의 마지막 수정 시각을 전부 조회해 표시하는 기능은 추가 확인 대상입니다. 새로운 Log4j 재현 테스트에서 put의 문자열 API에 숫자를 전달한 컴파일 오류를 바로잡아 with의 실제 숫자 API로 재실행하며, 컴파일 실패를 테스트 통과에 포함하지 않습니다.
