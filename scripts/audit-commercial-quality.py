@@ -69,3 +69,4 @@ result={'releaseUnsignedBuild':True,'releaseDebugFixturesAbsent':True,'releaseIn
 print('QUALITY_SECURITY_AUDIT',json.dumps(result,ensure_ascii=False),flush=True)
 for item in advisories:print('PUBLIC_DEPENDENCY_ADVISORY',item['module'],item['version'],item['id'],item['summary'][:400],flush=True)
 assert query_error is None,query_error
+assert not [item for item in advisories if not item['withdrawn']],'Review active dependency advisories before distribution'

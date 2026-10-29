@@ -89,6 +89,7 @@ jobs:
           security_summary=json.loads((security_dir/'summary.json').read_text())
           assert security_summary['releaseUnsignedBuild'] and security_summary['releaseDebugFixturesAbsent'] and security_summary['advisoryQueryCompleted']
           assert security_summary['releaseInternetPermission'] is False and security_summary['commercialReady'] is False
+          assert security_summary['advisoryMatches']==0,'Review dependency matches before publication'
           print('LIMITED_RELEASE_SECURITY_EVIDENCE',json.dumps(security_summary),flush=True)
           print('RELEASE_REQUESTED_PERMISSIONS',(security_dir/'release-permissions.txt').read_text(),flush=True)
           log4j_base='https://repo.maven.apache.org/maven2/org/apache/logging/log4j/log4j-api/2.25.5/log4j-api-2.25.5.jar'
