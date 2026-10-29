@@ -35,7 +35,7 @@ jobs:
           print('UPSTREAM_LOG4J_NOTICE_START',flush=True)
           print(notice,flush=True)
           print('UPSTREAM_LOG4J_NOTICE_END',flush=True)
-          preserved=pathlib.Path('app/src/main/assets/licenses/Upstream-Apache-NOTICES.txt').read_text()
+          preserved=pathlib.Path('app/src/main/assets/licenses/Log4j-API-2.25.5-NOTICE.txt').read_text()
           assert ''.join(notice.split()) in ''.join(preserved.split()),'Updated API notice must be retained'
           print('UPDATED_LOG4J_API_NOTICE_MATCHES_EXISTING_BUNDLED_TEXT',hashlib.sha256(notice.encode()).hexdigest())
           print('QUALITY_PUBLICATION_SCRIPTS_VALID',len(blocks))

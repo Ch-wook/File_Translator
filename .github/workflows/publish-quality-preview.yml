@@ -19,6 +19,7 @@ jobs:
       VERIFIED_SHA: 4fb3d357ecbb474c4e773637674cbde1bdf7c3e2
       VERIFIED_RUN: '40795033209'
       PERFORMANCE_RUN: '40795033317'
+      PERFORMANCE_SHA: 4fb3d357ecbb474c4e773637674cbde1bdf7c3e2
       SECURITY_RUN: '40795033392'
       PREVIEW_TAG: v0.8.11-preview
     steps:
@@ -69,8 +70,12 @@ jobs:
           delivery=pathlib.Path('delivery')
           perf_run=os.environ['PERFORMANCE_RUN']
           perf_info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{perf_run}']))
-          assert perf_info['head_sha']==sha and perf_info['conclusion']=='success',perf_info
-          subprocess.run(['gh','run','download',perf_run,'--name','reading-performance-'+sha,'--dir','performance'],check=True)
+          measured_sha=os.environ.get('PERFORMANCE_SHA',sha)
+          assert perf_info['head_sha']==measured_sha and perf_info['conclusion']=='success',perf_info
+          subprocess.run(['git','merge-base','--is-ancestor',measured_sha,sha],check=True)
+          measurement_delta=subprocess.check_output(['git','diff','--name-only',measured_sha,sha],text=True).splitlines()
+          assert all(p=='README.md' or p=='app/src/main/assets/licenses/Log4j-API-2.25.5-NOTICE.txt' or p.startswith(('docs/','.github/workflows/')) for p in measurement_delta),measurement_delta
+          subprocess.run(['gh','run','download',perf_run,'--name','reading-performance-'+measured_sha,'--dir','performance'],check=True)
           performance=pathlib.Path('performance')
           security_run=os.environ['SECURITY_RUN']
           security_info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{security_run}']))
@@ -94,14 +99,16 @@ jobs:
               entries=[n for n in jar.namelist() if n.upper() in ('META-INF/NOTICE','META-INF/NOTICE.TXT')]
               assert len(entries)==1
               notice=jar.read(entries[0]).decode()
-          bundled=pathlib.Path('app/src/main/assets/licenses/Upstream-Apache-NOTICES.txt').read_text()
+          bundled=pathlib.Path('app/src/main/assets/licenses/Log4j-API-2.25.5-NOTICE.txt').read_text()
           assert ''.join(notice.split()) in ''.join(bundled.split()),'Check updated Log4j API notice before publication'
           print('LOG4J_API_UPDATED_NOTICE_ALREADY_PRESERVED',hashlib.sha256(notice.encode()).hexdigest(),flush=True)
           comparison=json.loads((performance/'comparison.json').read_text())
-          assert comparison['candidateCommit']==sha and comparison['baselineCommit']=='aa3414f1fae89f5f98d10dabb64df85bfd7fc1df',comparison
+          assert comparison['candidateCommit']==measured_sha and comparison['baselineCommit']=='aa3414f1fae89f5f98d10dabb64df85bfd7fc1df',comparison
           assert set(comparison['records'])=={'baseline','candidate'}
           for item in comparison['records'].values():assert item['viewport-memory']['allClosedBitmapsRecycled'] and item['viewport-memory']['pdfOriginalUnchanged']
           assert comparison['records']['candidate']['viewport-memory']['rasters'],comparison
+          measurement_proof={'measuredAppCommit':measured_sha,'apkBuildCommit':sha,'changes':measurement_delta,'applicationCodeUnchanged':True,'limitation':'A separate license notice and publication documentation were added after measuring; benchmarks do not measure the license dialog.'}
+          print('SAME_APPLICATION_CODE_PERFORMANCE_PROVENANCE',json.dumps(measurement_proof),flush=True)
           print('SAME_EMULATOR_PERFORMANCE_VERIFIED',json.dumps(comparison),flush=True)
           for line in (delivery/'SHA256SUMS').read_text().splitlines():
               expected,name=line.split('  ',1);p=delivery/name;assert p.parent==delivery and p.is_file()
@@ -211,6 +218,7 @@ jobs:
           with zipfile.ZipFile(verification,'a',zipfile.ZIP_DEFLATED) as z:
               for p in security_dir.rglob('*'):
                   if p.is_file():z.write(p,'artifacts/quality-security/'+p.relative_to(security_dir).as_posix())
+              z.writestr('artifacts/reading-performance/code-provenance.json',json.dumps(measurement_proof,indent=2))
               z.writestr('artifacts/quality-security/build-provenance.json',json.dumps({'auditCommit':security_sha,'appBuildCommit':sha,'nonApplicationChanges':security_delta},indent=2))
               assert z.testzip() is None
           (delivery/'document-studio-0.8.11-preview-work-report.md').write_text(pathlib.Path('docs/COMMERCIAL_QUALITY_RESULTS.md').read_text())
