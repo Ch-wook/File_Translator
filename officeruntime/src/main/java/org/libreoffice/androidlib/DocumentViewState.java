@@ -60,7 +60,12 @@ public final class DocumentViewState {
         try {
             JSONObject value = new JSONObject();
             try (java.io.FileInputStream input = state.openRead()) {
-                if (input.getChannel().size() <= 8192) value = new JSONObject(new String(input.readAllBytes(), StandardCharsets.UTF_8));
+                long length = input.getChannel().size();
+                if (length <= 8192) {
+                    byte[] bytes = new byte[(int)length];
+                    new java.io.DataInputStream(input).readFully(bytes);
+                    value = new JSONObject(new String(bytes, StandardCharsets.UTF_8));
+                }
             } catch (Exception absentOrInvalidDiagnostic) { /* This is bounded lifecycle metadata, never document recovery data. */ }
             org.json.JSONArray previous = value.optJSONArray("trace"), trace = new org.json.JSONArray();
             if (previous != null) for (int i = Math.max(0, previous.length()-31); i < previous.length(); i++) {
