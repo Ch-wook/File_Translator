@@ -21,6 +21,8 @@ jobs:
       PERFORMANCE_RUN: '40808720705'
       PERFORMANCE_SHA: 533896f7f0eaf57d23a76b089d0c59f7a722a92a
       SECURITY_RUN: '40808720767'
+      UI_DRIVER_RUN: '40811937262'
+      UI_DRIVER_SHA: 684d08e9269da43593c657b8b826b3d1f3cdd38d
       PREVIEW_TAG: v0.8.11-preview
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +45,7 @@ jobs:
         run: |
           pip install Pillow
           python3 - <<'PY'
-          import hashlib,json,os,pathlib,subprocess,zipfile,io,urllib.request
+          import hashlib,json,os,pathlib,subprocess,zipfile,io,urllib.request,xml.etree.ElementTree as ET
           from PIL import Image
           repo=os.environ['GITHUB_REPOSITORY'];sha=os.environ['VERIFIED_SHA'];run=os.environ['VERIFIED_RUN']
           previous=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/releases/tags/v0.8.10-preview']))
@@ -103,6 +105,24 @@ jobs:
           bundled=pathlib.Path('app/src/main/assets/licenses/Log4j-API-2.25.5-NOTICE.txt').read_text()
           assert ''.join(notice.split()) in ''.join(bundled.split()),'Check updated Log4j API notice before publication'
           print('LOG4J_API_UPDATED_NOTICE_ALREADY_PRESERVED',hashlib.sha256(notice.encode()).hexdigest(),flush=True)
+          # A test-only synchronization fix does not change the installation-tested
+          # application; require its independent actual Android run as well.
+          ui_run=os.environ['UI_DRIVER_RUN'];ui_sha=os.environ['UI_DRIVER_SHA']
+          ui_info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{ui_run}']))
+          assert ui_info['head_sha']==ui_sha and ui_info['status']=='completed' and ui_info['conclusion']=='success',ui_info
+          ui_delta=subprocess.check_output(['git','diff','--name-only',sha,ui_sha],text=True).splitlines()
+          assert all(n=='app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt' or n=='README.md' or n.startswith(('docs/','.github/workflows/')) for n in ui_delta),ui_delta
+          subprocess.run(['gh','run','download',ui_run,'--name','quality-storage-ui-'+ui_sha,'--dir','ui-driver'],check=True)
+          ui_dir=pathlib.Path('ui-driver');ui_summaries=list(ui_dir.rglob('android-summary.json'));assert len(ui_summaries)==1
+          ui_summary=json.loads(ui_summaries[0].read_text())
+          assert ui_summary=={'tests':11,'failures':0,'errors':0,'skipped':0},ui_summary
+          ui_cases=[]
+          for file in ui_dir.rglob('TEST-*.xml'):
+              if 'androidTest-results' not in file.as_posix():continue
+              ui_cases.extend(c for c in ET.parse(file).getroot().iter('testcase') if c.get('classname')=='kr.documentstudio.QualityUiTest')
+          assert len(ui_cases)==3 and all(not any(c.find(k) is not None for k in ('failure','error','skipped')) for c in ui_cases)
+          ui_proof={'apkBuildCommit':sha,'uiDriverCommit':ui_sha,'run':int(ui_run),'tests':ui_summary,'qualityUiCases':3,'applicationCodeUnchanged':True,'nonApplicationChanges':ui_delta,'notAddedToFull66Count':True}
+          print('SUPPLEMENTAL_UI_DRIVER_VERIFIED',json.dumps(ui_proof),flush=True)
           comparison=json.loads((performance/'comparison.json').read_text())
           assert comparison['candidateCommit']==measured_sha and comparison['baselineCommit']=='aa3414f1fae89f5f98d10dabb64df85bfd7fc1df',comparison
           assert set(comparison['records'])=={'baseline','candidate'}
@@ -222,9 +242,13 @@ jobs:
               z.writestr('artifacts/reading-performance/code-provenance.json',json.dumps(measurement_proof,indent=2))
               z.writestr('artifacts/quality-security/build-provenance.json',json.dumps({'auditCommit':security_sha,'appBuildCommit':sha,'nonApplicationChanges':security_delta},indent=2))
               assert z.testzip() is None
+          with zipfile.ZipFile(verification,'a',zipfile.ZIP_DEFLATED) as z:
+              for file in ui_dir.rglob('*'):
+                  if file.is_file() and file.suffix!='.apk':z.write(file,'artifacts/supplemental-ui-driver/'+file.relative_to(ui_dir).as_posix())
+              z.writestr('artifacts/supplemental-ui-driver/provenance.json',json.dumps(ui_proof,indent=2));assert z.testzip() is None
           (delivery/'document-studio-0.8.11-preview-work-report.md').write_text(pathlib.Path('docs/COMMERCIAL_QUALITY_RESULTS.md').read_text())
           readme=delivery/'README.txt'
-          readme.write_text(readme.read_text()+'\n소스 ZIP·패치·Git 이력은 태그의 최종 문서·CI를 포함합니다. 앱 코드·엔진·APK는 위 빌드 커밋과 동일합니다.\n소스 아카이브 커밋: '+os.environ['GITHUB_SHA']+'\n')
+          readme.write_text(readme.read_text()+'\n소스 ZIP·패치·Git 이력은 태그의 최종 문서·CI·테스트 동기화를 포함합니다. 앱 코드·엔진·APK는 위 빌드 커밋과 동일합니다.\n소스 아카이브 커밋: '+os.environ['GITHUB_SHA']+'\n')
           def published_digest(path):
               with path.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
           (delivery/'SHA256SUMS').write_text(''.join(published_digest(p)+'  '+p.name+'\n' for p in sorted(delivery.iterdir()) if p.is_file() and p.name!='SHA256SUMS'))
@@ -242,7 +266,7 @@ jobs:
           notes+='unsigned Release의 디버그 검사 구성요소 미포함, 직접 INTERNET 권한 없음, 공개 Maven 의존성 '+str(security_summary['runtimeMavenModules'])+'개 조회를 검증했습니다. 알려진 일치 '+str(security_summary['advisoryMatches'])+'건의 범위·판정은 보고서를 확인하세요. 네이티브/Wasm 전체 보안 인증이 아닙니다.\n'
           notes+='실제 기기·접근성 전수·운영 서명·스토어·악성 문서/개인정보 법무 검토가 남아 상용 출시 완료로 판정하지 않습니다.\n'
           for item in apks:notes+='\n'+item['abi']+': '+str(item['bytes'])+' bytes, SHA-256 '+item['sha256']+'\n'
-          notes+='\n빌드 커밋: '+sha+'\n태그 커밋: '+os.environ['GITHUB_SHA']+' (앱 코드 차이 없음; 배포 문서·CI만 추가)\n'
+          notes+='\n빌드 커밋: '+sha+'\n태그 커밋: '+os.environ['GITHUB_SHA']+' (앱 코드 차이 없음; 배포 문서·CI·테스트 동기화만 추가)\n'
           notes+='읽기 화면·성능 측정 결과·검증: https://github.com/'+repo+'/blob/codex/hangul-mobile-editing/docs/COMMERCIAL_QUALITY_RESULTS.md\n'
           notes+='기능·검증·지원 제한: https://github.com/'+repo+'/blob/codex/hangul-mobile-editing/docs/HANGUL_MOBILE_EDITING.md\n'
           pathlib.Path('release-notes.md').write_text(notes)
