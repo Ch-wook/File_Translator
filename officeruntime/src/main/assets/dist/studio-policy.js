@@ -507,7 +507,7 @@
       update();refreshLayout();return;
     }
     if(activeTab==='찾기'){
-      const r=row(),q=document.createElement('input');q.type='search';q.setAttribute('aria-label','찾을 내용');q.placeholder='찾을 내용';r.append(q);
+      const r=row(),q=document.createElement('input');q.type='search';q.id='studio-office-search-query';q.setAttribute('aria-label','찾을 내용');q.placeholder='찾을 내용';r.append(q);
       const find=backwards=>{if(q.value&&searchService()){releaseViewportPin();searchService().search(q.value,backwards);}};
       button('이전 결과',()=>find(true));button('다음 결과',()=>find(false));
       q.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();find(false);}};

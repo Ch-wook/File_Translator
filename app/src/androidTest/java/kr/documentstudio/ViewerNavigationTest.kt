@@ -105,10 +105,13 @@ class ViewerNavigationTest {
                 // Use the actual readonly search UI, not an edit-only UNO address
                 // command rejected by the native frontend's readonly policy.
                 tap("문서 메뉴");tap("찾기")
-                val input=device.wait(Until.findObject(By.pkg(context.packageName).desc("찾을 내용")),10000)
-                    ?: device.wait(Until.findObject(By.pkg(context.packageName).clazz("android.widget.EditText")),10000)
+                // Calc also exposes an address EditText. Focus the exact host
+                // search element, then type through Android's focused field.
+                assertEquals("true",eval(kind,"(()=>{const q=document.getElementById('studio-office-search-query');q?.focus();return document.activeElement===q})()"))
+                val input=device.wait(Until.findObject(By.pkg(context.packageName).clazz("android.widget.EditText").focused(true)),10000)
                     ?: throw AssertionError("Actual readonly cell search field missing")
                 input.text="CELL_CV5000_S3"
+                waitFor("Actual query receives the search text"){eval(kind,"document.getElementById('studio-office-search-query').value")=="CELL_CV5000_S3"}
                 tap("다음 결과");tap("설정 닫기")
                 waitFor("Native search reaches the distant populated cell"){
                     eval(kind,"app.activeDocument.activeLayout.viewedRectangle.x1>10000 && app.activeDocument.activeLayout.viewedRectangle.y1>100000")=="true"

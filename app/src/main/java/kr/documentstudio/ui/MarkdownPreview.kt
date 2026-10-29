@@ -43,12 +43,12 @@ fun MarkdownPreview(text: String,busy: Boolean=false,onChange: (String)->Unit={}
         // or reparse the document merely for a color/font/display change.
         value=withContext(Dispatchers.Default){MarkdownTasks.html(text,token)}
     }
-    val html=remember(rendered,dark) {
+    val html=remember(rendered,dark,family) {
         val fonts=EditorFonts.files.entries.joinToString("\n"){(name,file)->
             "@font-face{font-family:'"+name+"';src:url('https://markdown.documentstudio.local/fonts/"+file+"') format('truetype');font-display:swap}"
         }
         """<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src https://markdown.documentstudio.local"><style>${fonts}
-        body{font-size:16px;line-height:1.7;padding:12px;color:${if(dark)"#e7eaf0" else "#24382f"};background:${if(dark)"#1b1e24" else "#fff"};overflow-wrap:anywhere}code{font-family:monospace}pre{line-height:1.5;background:${if(dark)"#303640" else "#f2f2ed"};padding:12px;overflow:auto}blockquote{border-left:3px solid #315d54;padding-left:12px}table{border-collapse:collapse;display:block;max-width:100%;overflow-x:auto}td,th{padding:8px;border:1px solid #ccc}a{color:${if(dark)"#a8c9ff" else "#2858a5"}}img{display:none}</style></head><body>${rendered}</body></html>"""
+        body{font-family:'${family}';font-size:16px;line-height:1.7;padding:12px;color:${if(dark)"#e7eaf0" else "#24382f"};background:${if(dark)"#1b1e24" else "#fff"};overflow-wrap:anywhere}code{font-family:monospace}pre{line-height:1.5;background:${if(dark)"#303640" else "#f2f2ed"};padding:12px;overflow:auto}blockquote{border-left:3px solid #315d54;padding-left:12px}table{border-collapse:collapse;display:block;max-width:100%;overflow-x:auto}td,th{padding:8px;border:1px solid #ccc}a{color:${if(dark)"#a8c9ff" else "#2858a5"}}img{display:none}</style></head><body>${rendered}</body></html>"""
     }
     key(viewportKey) {
       AndroidView(factory={context -> WebView(context).apply {
@@ -69,7 +69,10 @@ fun MarkdownPreview(text: String,busy: Boolean=false,onChange: (String)->Unit={}
                 if(viewportKey!=null)view.scrollTo(0,if(pendingY[0]>=0)pendingY[0] else preferences.getInt(viewportKey+":mdY",0))
                 pendingY[0]=-1
             }
-            override fun shouldInterceptRequest(view: WebView?,request: WebResourceRequest?): WebResourceResponse {
+            override fun shouldInterceptRequest(view: WebView?,request: WebResourceRequest?): WebResourceResponse? {
+                // loadDataWithBaseURL owns the inline main document. Intercept
+                // only subresources; a blanket 403 can replace that document.
+                if(request?.isForMainFrame==true)return null
                 val uri=request?.url
                 val filename=uri?.path?.removePrefix("/fonts/")
                 if(uri?.scheme=="https" && uri.host=="markdown.documentstudio.local" && uri.path=="/fonts/"+filename

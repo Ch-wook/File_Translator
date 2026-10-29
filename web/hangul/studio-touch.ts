@@ -119,25 +119,39 @@ export function installStudioTouch(getInput:()=>any,eventBus:any) {
  }
  function cancelPress(){clearTimeout(pressTimer);pressTimer=0;press=null;}
 
- // Reading double-tap changes only the display scale. Native document links,
- // selected text and interactive controls keep their existing click behavior.
- let readTap:{x:number;y:number;time:number}|null=null,readDown:any=null;
- document.addEventListener('pointerdown',e=>{
-   const target=e.target as Element;
-   if(e.isPrimary&&e.pointerType==='touch'&&!studioIsEditing()&&target.closest('#scroll-container')&&!target.closest('a,button,input,[contenteditable=true]'))
-     readDown={x:e.clientX,y:e.clientY,time:e.timeStamp};
-   else readDown=null;
+ // Readonly input guards deliberately stop the engine's pointerdown path.
+ // Own the VIEW touch stream instead of relying on compatibility pointer events
+ // or Android WebView's nested native panning. Editing keeps the engine handlers.
+ let readTap:{x:number;y:number;time:number}|null=null;
+ let readPan:{id:number;x:number;y:number;top:number;left:number;time:number;moved:boolean}|null=null;
+ document.addEventListener('touchstart',e=>{
+   const ih=input(),target=e.target as Element;
+   if(studioIsEditing()||!ih||e.touches.length!==1||!target.closest('#scroll-container')||
+      target.closest('a,button,input,textarea,[contenteditable=true]')){readPan=null;return;}
+   const t=e.touches[0];
+   readPan={id:t.identifier,x:t.clientX,y:t.clientY,top:ih.container.scrollTop,left:ih.container.scrollLeft,time:e.timeStamp,moved:false};
  },{passive:true,capture:true});
- document.addEventListener('pointerup',e=>{
-   const p=readDown;readDown=null;const ih=input();
-   if(!p||!ih||studioIsEditing()||e.timeStamp-p.time>220||Math.hypot(e.clientX-p.x,e.clientY-p.y)>10||Date.now()<suppressUntil)return;
-   if(readTap&&e.timeStamp-readTap.time<300&&Math.hypot(e.clientX-readTap.x,e.clientY-readTap.y)<32){
+ document.addEventListener('touchmove',e=>{
+   const p=readPan,ih=input();if(!p||!ih||studioIsEditing()||e.touches.length!==1)return;
+   const t=e.touches[0];if(t.identifier!==p.id)return;
+   const dx=t.clientX-p.x,dy=t.clientY-p.y;
+   if(!p.moved&&Math.hypot(dx,dy)<6)return;
+   p.moved=true;readTap=null;e.preventDefault();e.stopImmediatePropagation();
+   // Actual engine scroll container; virtual page visibility and page counters
+   // continue to follow its native scroll event, without reparsing or writing.
+   ih.container.scrollTop=p.top-dy;ih.container.scrollLeft=p.left-dx;refresh();
+ },{passive:false,capture:true});
+ document.addEventListener('touchend',e=>{
+   const p=readPan;readPan=null;const ih=input();
+   if(!p||!ih||studioIsEditing()||e.touches.length||p.moved||e.timeStamp-p.time>220||Date.now()<suppressUntil)return;
+   const t=e.changedTouches[0];if(!t||Math.hypot(t.clientX-p.x,t.clientY-p.y)>10)return;
+   if(readTap&&e.timeStamp-readTap.time<300&&Math.hypot(t.clientX-readTap.x,t.clientY-readTap.y)<32){
      const box=ih.container.getBoundingClientRect(),vp=ih.viewportManager;
-     vp.setZoom(vp.getZoom()<1.2?2:.8,{x:(e.clientX-box.left)/box.width,y:(e.clientY-box.top)/box.height});
-     readTap=null;e.preventDefault();refresh();(window.parent as any).documentStudioHost?.toolsChanged?.();
-   }else readTap={x:e.clientX,y:e.clientY,time:e.timeStamp};
- },{capture:true});
- document.addEventListener('pointercancel',()=>{readDown=null;readTap=null;},{passive:true});
+     vp.setZoom(vp.getZoom()<1.2?2:.8,{x:(t.clientX-box.left)/box.width,y:(t.clientY-box.top)/box.height});
+     readTap=null;e.preventDefault();e.stopImmediatePropagation();refresh();(window.parent as any).documentStudioHost?.toolsChanged?.();
+   }else readTap={x:t.clientX,y:t.clientY,time:e.timeStamp};
+ },{passive:false,capture:true});
+ document.addEventListener('touchcancel',()=>{readPan=null;readTap=null;},{passive:true,capture:true});
  // Pinch the document viewport, never the page's character sizes.
  let pinch:{distance:number;zoom:number}|null=null;
  const distance=(touches:TouchList)=>Math.hypot(touches[1].clientX-touches[0].clientX,touches[1].clientY-touches[0].clientY);
@@ -145,7 +159,7 @@ export function installStudioTouch(getInput:()=>any,eventBus:any) {
    const ih=input(),target=e.target as Element;
    if(!ih||!target.closest('#scroll-container')||target.closest('#studio-touch-layer'))return;
    if(e.touches.length===2&&!ih.isComposing&&!ih._iosComposing){
-     cancelPress();
+     cancelPress();readPan=null;readTap=null;
      if(objectGesture){mouse('mouseup',objectGesture.x,objectGesture.y,document);objectGesture=null;}
      pinch={distance:Math.max(1,distance(e.touches)),zoom:ih.viewportManager.getZoom()};
      suppressUntil=Date.now()+10000;e.preventDefault();e.stopImmediatePropagation();

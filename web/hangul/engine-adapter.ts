@@ -196,6 +196,7 @@ eventBus.on('command-state-changed', () => (window.parent as any).documentStudio
 const nativeStyle=document.createElement('style');
 nativeStyle.textContent=`
  #scroll-container {touch-action:pan-x pan-y!important;overscroll-behavior:contain}
+ html[data-studio-mode="view"] #scroll-container {touch-action:none!important}
  #menu-bar,#icon-toolbar,#style-bar,#status-bar {display:none!important}
  html:not([data-studio-rulers="true"]) #h-ruler,html:not([data-studio-rulers="true"]) #v-ruler,html:not([data-studio-rulers="true"]) #ruler-corner {display:none!important}
  html:not([data-studio-rulers="true"]) #scroll-container {grid-column:2;grid-row:2}

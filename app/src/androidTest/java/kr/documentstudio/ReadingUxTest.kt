@@ -192,7 +192,19 @@ class ReadingUxTest {
         compose.onNodeWithTag("mobile-editor-dock").assertDoesNotExist()
         assertEquals(source,original.readText())
         val hash=DocumentRepository.digest(original)
-        compose.waitUntil(15000){var loaded=false;compose.runOnUiThread {loaded=(find(compose.activity.window.decorView,WebView::class.java)?.contentHeight?:0)>1500};loaded}
+        try{
+            compose.waitUntil(15000){var loaded=false;compose.runOnUiThread {loaded=(find(compose.activity.window.decorView,WebView::class.java)?.contentHeight?:0)>1500};loaded}
+        }finally{
+            compose.runOnUiThread {
+                val web=find(compose.activity.window.decorView,WebView::class.java)
+                val output=File(compose.activity.getExternalFilesDir(null),"native-reading-ux").apply {mkdirs()}
+                File(output,"markdown-render-state.json").writeText(org.json.JSONObject()
+                    .put("sourceLength",vm.state.value.session!!.edits.text.length).put("height",web?.contentHeight)
+                    .put("viewHeight",web?.height).put("progress",web?.progress).put("url",web?.url)
+                    .put("htmlLength",web?.tag?.toString()?.length).put("htmlHasLastSection",web?.tag?.toString()?.contains("MD_SECTION_99"))
+                    .put("font",web?.settings?.standardFontFamily).put("textZoom",web?.settings?.textZoom).toString(2))
+            }
+        }
         lateinit var preview: WebView
         compose.runOnUiThread {preview=find(compose.activity.window.decorView,WebView::class.java)!!;assertFalse(preview.settings.javaScriptEnabled)}
         if(compose.onAllNodesWithContentDescription("Dismiss").fetchSemanticsNodes().isNotEmpty())compose.onNodeWithContentDescription("Dismiss").performClick()
