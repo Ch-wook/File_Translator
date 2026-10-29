@@ -83,9 +83,9 @@ fun StudioApp(vm: EditorViewModel) {
             (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(view.windowToken,0)
     }
     var newDialog by remember { mutableStateOf(false) }
-    var settingsDialog by remember { mutableStateOf(false) }
-    var recoveryDialog by remember {mutableStateOf(false)}
-    var problemDialog by remember {mutableStateOf(false)}
+    var settingsDialog by rememberSaveable { mutableStateOf(false) }
+    var recoveryDialog by rememberSaveable {mutableStateOf(false)}
+    var problemDialog by rememberSaveable {mutableStateOf(false)}
     var splitLeft by rememberSaveable {mutableStateOf<String?>(null)}
     var splitRight by rememberSaveable {mutableStateOf<String?>(null)}
     var pendingSaveId by rememberSaveable {mutableStateOf<String?>(null)}
