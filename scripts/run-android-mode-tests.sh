@@ -16,6 +16,7 @@ adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-
 adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-common-ui artifacts/native-android/ || true
 adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-conversion artifacts/native-android/ || true
 adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-reading-ux artifacts/native-android/ || true
+adb pull /sdcard/Android/data/${STUDIO_PACKAGE:-kr.documentstudio}/files/native-viewer artifacts/native-android/ || true
 adb logcat -d -s AndroidRuntime:E > artifacts/ci/android-runtime.log || true
 adb logcat -d -b all > artifacts/ci/android-all-processes.log || true
 python3 - <<'PY'

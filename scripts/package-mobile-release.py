@@ -90,7 +90,7 @@ for release in releases:
             if old['applicationId']==pkg:
                 assert old['certificateSHA256']==apks[0]['certificateSHA256'],'Signing key differs from an existing preview. Configure the original secure STUDIO_KEYSTORE; do not publish an incompatible update.'
 android=json.loads((ci/'android-summary.json').read_text())
-assert os.environ['EMULATOR_OUTCOME']=='success' and android=={'tests':66,'failures':0,'errors':0,'skipped':0},android
+assert os.environ['EMULATOR_OUTCOME']=='success' and android=={'tests':70,'failures':0,'errors':0,'skipped':0},android
 install=json.loads((root/'artifacts/mobile-install/summary.json').read_text())
 assert install['cleanInstallWithoutTestFlag'] and install['coexistsWith0810'] and install['priorApkHashUnchanged'] and install['priorPrivateDataPreserved'] and install['sameSignerReinstallPreservedPrivateData']
 mobile=json.loads((root/'artifacts/hangul-mobile/mobile-engine-results.json').read_text())
@@ -109,6 +109,14 @@ evidence=root/'artifacts/native-android/native-document-open'
 for item in ('metadata-free-hwp.json','metadata-free-hwpx.json','distribution-read-only.json'):
     proof=json.loads((evidence/item).read_text())
     assert all(v is True or k=='originalSha256' for k,v in proof.items()),proof
+viewer=json.loads((root/'artifacts/viewer/hwpx-20-results.json').read_text())
+assert viewer['pages']==20 and viewer['uniqueRenderedPages']==20 and viewer['documentWrites']==0
+assert all(viewer[k] for k in ('continuousScroll','directLastPage','actualChromiumTouchPinch','panAfterZoom','modeSwitchPagePreserved','phoneLandscapeViewport','fitPage','retry','originalUnchanged')),viewer
+pdf_viewer=json.loads((root/'artifacts/native-android/native-reading-ux/pdf-100-page-navigation.json').read_text())
+assert pdf_viewer['pages']==100 and all(pdf_viewer[k] for k in ('mixedSizesAndRotation','actualTwoPointerZoom','doubleTapZoom','page100ReachedAndRestored','sourceHashUnchanged')),pdf_viewer
+for filename in ('viewer-20.hwpx','viewer-12.docx','viewer-30.pptx','viewer-large.xlsx'):
+    proof=json.loads((root/'artifacts/native-android/native-viewer'/(filename+'.json')).read_text())
+    assert all(proof[k] for k in ('completed','workingUnchanged','originalUnchanged','actualAndroidPinch','nativeRotation')),proof
 reports={}
 for module in ('core','officeruntime','app'):
     totals={k:0 for k in ('tests','failures','errors','skipped')}
@@ -153,10 +161,10 @@ metadata={'commit':sha,'sourceArchiveCommit':source_sha,'physicalDeviceTested':F
 (out/(name+'-apk-metadata.json')).write_text(json.dumps(metadata,indent=2))
 (ci/'apk-engine-assets.json').write_text(json.dumps(engine_assets,indent=2))
 summary={'commit':sha,'sourceArchiveCommit':source_sha,'version':'0.8.11-preview','applicationId':pkg,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],
-         'androidTests':android,'signatureConversionVerified':True,'signatureEngineTests':signatures,'unitTests':reports,'installation':install,'mobileEngineTests':mobile,'originalBrowserScenarios':len(old_browser),'javascriptTests':28,'independentPartialFormattingParser':True,'physicalDeviceTested':False,'nativeCalc':calc_result,'additionalBundledFontFamilies':6,'apks':apks}
+         'androidTests':android,'signatureConversionVerified':True,'viewerBrowser':viewer,'pdf100Viewer':pdf_viewer,'nativeMultiPageFormats':4,'signatureEngineTests':signatures,'unitTests':reports,'installation':install,'mobileEngineTests':mobile,'originalBrowserScenarios':len(old_browser),'javascriptTests':28,'independentPartialFormattingParser':True,'physicalDeviceTested':False,'nativeCalc':calc_result,'additionalBundledFontFamilies':6,'apks':apks}
 (ci/'summary.json').write_text(json.dumps(summary,indent=2))
 with zipfile.ZipFile(out/(name+'-verification.zip'),'w',zipfile.ZIP_DEFLATED) as z:
-    for folder in ('artifacts/open-fixtures','artifacts/ci','artifacts/mobile-install','artifacts/hangul-mobile','artifacts/signature-conversion','artifacts/mobile-ui','artifacts/native-android','artifacts/document-engines',
+    for folder in ('artifacts/open-fixtures','artifacts/ci','artifacts/mobile-install','artifacts/hangul-mobile','artifacts/viewer','artifacts/signature-conversion','artifacts/mobile-ui','artifacts/native-android','artifacts/document-engines',
                    'core/build/test-results','officeruntime/build/test-results','app/build/test-results','app/build/outputs/androidTest-results','app/build/reports','core/build/visual-fixtures'):
         for p in (root/folder).rglob('*'):
             if p.is_file():z.write(p,p.relative_to(root))
