@@ -70,16 +70,35 @@ const digest=b=>crypto.createHash('sha256').update(b).digest('hex');
   await page.mouse.move(box.x+box.width*.65,box.y+box.height*.6);await page.mouse.wheel(0,2500);
   await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.pageState().page>0);
   const scrolled=await call('pageState');assert.ok(scrolled.page>0);
+  await call('goToPage',0);
+  const client=await context.newCDPSession(page);
+  const cx=box.x+box.width/2,cy=box.y+box.height/2;
+  await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:cx,y:box.y+box.height*.78,id:0}]});
+  for(let step=1;step<=12;step++){
+    await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:cx,y:box.y+box.height*(.78-.5*step/12),id:0}]});
+    await page.waitForTimeout(16);
+  }
+  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.pageState().page>0);
   await call('goToPage',9);
   page.once('dialog',dialog=>dialog.accept('20'));await page.locator('#page-number').click();
   await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.pageState().page===19);
-  const client=await context.newCDPSession(page),z=(await call('captureView')).zoom;
-  const cx=box.x+box.width/2,cy=box.y+box.height/2;
+  const z=(await call('captureView')).zoom;
   await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:cx-40,y:cy,id:0},{x:cx+40,y:cy,id:1}]});
   for(const d of [50,65,80])await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:cx-d,y:cy,id:0},{x:cx+d,y:cy,id:1}]});
   await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   await frame.waitForFunction(zoom=>window.rhwpStudio.documentStudio.captureView().zoom>zoom*1.5,z);
   const zoomed=await call('captureView');
+  await page.waitForTimeout(800);
+  for(let tap=0;tap<2;tap++){
+    await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:cx,y:cy,id:0}]});
+    await page.waitForTimeout(35);
+    await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    await page.waitForTimeout(65);
+  }
+  await frame.waitForFunction(z=>Math.abs(window.rhwpStudio.documentStudio.captureView().zoom-z)>.1,zoomed.zoom);
+  assert.equal(await call('dirty'),false);
+  await call('restoreView',zoomed);
   assert.equal((await call('pageState')).page,19);
   await frame.evaluate(()=>{const sc=document.getElementById('scroll-container');sc.scrollLeft=120;});
   assert.ok((await call('captureView')).scrollLeft>0,'Zoomed page can pan horizontally');
@@ -100,7 +119,7 @@ const digest=b=>crypto.createHash('sha256').update(b).digest('hex');
   await reopened.waitForFunction(()=>window.rhwpStudio?.documentStudio?.pageState().page===19);
   assert.equal(await page.evaluate(()=>window.__writes),0);
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-  const result={pages:20,uniqueRenderedPages:20,uniqueVisibleCanvasPages:20,reopenedLastPage:true,continuousScroll:true,directLastPage:true,actualChromiumTouchPinch:true,
+  const result={pages:20,uniqueRenderedPages:20,uniqueVisibleCanvasPages:20,reopenedLastPage:true,continuousScroll:true,directLastPage:true,actualChromiumTouchPinch:true,actualChromiumSingleTouchScroll:true,readingDoubleTapZoom:true,
    panAfterZoom:true,modeSwitchPagePreserved:true,phoneLandscapeViewport:true,fitPage:true,retry:true,documentWrites:0,
    originalUnchanged:true,firstReadyMs,zoomBefore:z,zoomAfter:zoomed.zoom,finalView,rendered,visibleHashes,
    limitations:['Chromium mobile viewport; not physical Android or Android screen rotation']};
