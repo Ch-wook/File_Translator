@@ -117,7 +117,7 @@ jobs:
               assert z.testzip() is None
               result=json.loads(z.read('artifacts/ci/summary.json'))
               assert result['commit']==sha and result['androidEmulatorOutcome']=='success' and result['physicalDeviceTested'] is False,result
-              assert result['androidTests']=={'tests':65,'failures':0,'errors':0,'skipped':0},result
+              assert result['androidTests']=={'tests':66,'failures':0,'errors':0,'skipped':0},result
               if package_run!=run:
                   recovered=json.loads(z.read('artifacts/ci/packaging-recovery.json'))
                   assert recovered['apkBuildCommit']==sha and recovered['originalTestRun']==int(run) and recovered['packagingRun']==int(package_run)

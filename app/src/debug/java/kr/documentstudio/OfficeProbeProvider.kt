@@ -41,7 +41,7 @@ class OfficeProbeProvider: ContentProvider() {
                     "eval" -> {require(arg!=null && arg.length<=20000);(field("mWebView") as WebView).evaluateJavascript(arg) {value->output.putString("result",value);done.countDown()};return@runOnUiThread}
                     "uno" -> {require(arg!=null && arg.matches(Regex("\\.uno:[A-Za-z0-9]+")));activity.postUnoCommand(arg,extras?.getString("arguments"),true)}
                     "paste" -> {require(arg!=null && arg.length<=10000);activity.paste("text/plain;charset=utf-8",arg.toByteArray(Charsets.UTF_8))}
-                    "convert-pdf" -> {require(arg!=null && arg.startsWith("content://"+context!!.packageName+".testfiles/"));activity.onActivityResult(LOActivity.REQUEST_SAVEAS_PDF,Activity.RESULT_OK,android.content.Intent().setData(Uri.parse(arg)))}
+                    "convert-pdf" -> {require(arg!=null && (arg.startsWith("content://"+context!!.packageName+".testfiles/") || arg.startsWith("content://"+context!!.packageName+".faults/")));activity.onActivityResult(LOActivity.REQUEST_SAVEAS_PDF,Activity.RESULT_OK,android.content.Intent().setData(Uri.parse(arg)))}
                     "close" -> LOActivity::class.java.getDeclaredMethod("finishWithProgress").apply {isAccessible=true}.invoke(activity)
                     else -> error("Unknown debug probe action")
                 }

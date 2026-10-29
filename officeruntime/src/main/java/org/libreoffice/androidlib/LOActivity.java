@@ -1140,7 +1140,7 @@ public class LOActivity extends AppCompatActivity {
                     OutputStream outputStream = null;
                     try {
                         final File tempFile = File.createTempFile("CollaboraOffice", "." + format, this.getCacheDir());
-                        LOActivity.this.saveAs(tempFile.toURI().toString(), format, requestCopy ? "TakeOwnership" : null);
+                        LOActivity.this.saveAs(tempFile.toURI().toString(), format, requestCopy && !(getApplication() instanceof StudioDocumentHost) ? "TakeOwnership" : null);
 
                         studioPublishNativeOutput(tempFile,intent.getData());
                         _tempFile = tempFile;
@@ -1156,8 +1156,7 @@ public class LOActivity extends AppCompatActivity {
                         } catch (Exception e) {
                         }
                     }
-                    if (requestCopy == true) {
-                        assert (_tempFile != null);
+                    if (requestCopy == true && _tempFile != null && !(getApplication() instanceof StudioDocumentHost)) {
                         mTempFile = _tempFile;
                         getIntent().setData(intent.getData());
                         mResolvedFile = null;
@@ -1968,7 +1967,13 @@ public class LOActivity extends AppCompatActivity {
     }
     private void studioPublishNativeOutput(File file,Uri destination) throws Exception {
         if(destination==null)throw new java.io.IOException("저장할 파일을 선택하세요.");
-        studioStorage().publishResult(file,destination,getIntent().getStringExtra("originalUri"));
+        File canonical=file.getCanonicalFile();
+        String cacheRoot=getCacheDir().getCanonicalPath()+File.separator;
+        String session=getIntent().getStringExtra("sessionId");
+        File documentRoot=session!=null && session.matches("[a-zA-Z0-9-]+") ? new File(getFilesDir(),"documents/"+session).getCanonicalFile() : null;
+        if(!canonical.getPath().startsWith(cacheRoot) && (documentRoot==null || !canonical.getParentFile().equals(documentRoot)))
+            throw new java.io.IOException("문서의 작업 파일만 내보낼 수 있습니다.");
+        studioStorage().publishResult(canonical,destination,getIntent().getStringExtra("originalUri"));
     }
     private String studioOutputError(Throwable failure) {
         try {return studioStorage().describeFailure(failure);}

@@ -30,6 +30,51 @@ class ConversionIntegrationTest {
     private fun await(label: String,timeout: Long=60000,condition: ()->Boolean){val end=SystemClock.uptimeMillis()+timeout;while(SystemClock.uptimeMillis()<end){NativeUiActions.refresh();if(runCatching(condition).getOrDefault(false))return;SystemClock.sleep(200)};device.takeScreenshot(File(output,"failure.png"));device.dumpWindowHierarchy(File(output,"failure.xml"));error(label)}
     private fun probe(method: String,arg: String?=null)=context.contentResolver.acquireUnstableContentProviderClient(Uri.parse("content://"+context.packageName+".officeprobe")).use {requireNotNull(it).call(method,arg,null)}
     private fun uri(file: File)=FileProvider.getUriForFile(context,context.packageName+if(file.canonicalPath.startsWith(File(context.cacheDir,"conversions").canonicalPath+"/"))".conversionfiles" else ".testfiles",file)
+    @Test fun failedNativePdfWriteRetainsPreviousAndLatestPdfAndAllowsSafeSaveAs()=runBlocking {
+        device.wakeUp();device.executeShellCommand("am force-stop com.android.launcher3")
+        val repo=DocumentRepository(context);val writes=ProviderWrites(context)
+        val directory=File(context.cacheDir,"tests/office-publication-fault").apply {mkdirs()}
+        val original=File(directory,"source.docx")
+        instrumentation.context.assets.open("conversion/layout.docx").use {input->original.outputStream().use {input.copyTo(it)}}
+        val sourceHash=DocumentRepository.digest(original);val source=repo.open(uri(original));val working=repo.prepareOffice(source)
+        val target=File(context.cacheDir,"tests/failing-provider.txt").apply {parentFile!!.mkdirs()}
+        ExportEngine.blank(target);val previousHash=DocumentRepository.digest(target)
+        val destination=Uri.parse("content://"+context.packageName+".faults/output.pdf")
+        var recoveryId: String?=null
+        context.startActivity(Intent().setClassName(context.packageName,"org.libreoffice.androidlib.StudioOfficeActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .putExtra("sessionId",source.id).putExtra("workingPath",working.absolutePath).putExtra("displayName",source.name).putExtra("originalUri",uri(original).toString()))
+        try {
+            await("Native Word source must load",120000){probe("state")?.getBoolean("ready")==true}
+            FailingProvider.remainingFailures=2
+            probe("convert-pdf",destination.toString())
+            await("Failed native PDF must retain its durable recovery",60000){
+                val state=probe("pdf-state");state?.getBoolean("busy")==false && !state.getString("error").isNullOrBlank()
+            }
+            val recovery=writes.list().single {it.uri==destination.toString()}
+            recoveryId=recovery.id
+            assertEquals(previousHash,DocumentRepository.digest(writes.snapshot(recovery.id,true)))
+            assertEquals(2,PdfEngine.inspect(writes.snapshot(recovery.id,false)).pages)
+            assertNull(device.findObject(By.text("PDF 변환 완료")))
+            val partialHash=DocumentRepository.digest(target)
+            FailingProvider.remainingFailures=0;probe("convert-pdf",destination.toString())
+            await("An unsafe retry must be blocked",60000){val state=probe("pdf-state");state?.getBoolean("busy")==false && !state.getString("error").isNullOrBlank()}
+            assertEquals(partialHash,DocumentRepository.digest(target))
+            assertEquals(previousHash,DocumentRepository.digest(writes.snapshot(recovery.id,true)))
+            val safe=File(directory,"safe-result.pdf").apply {writeBytes(byteArrayOf())}
+            probe("convert-pdf",uri(safe).toString())
+            await("A separate PDF must be saved successfully",60000){device.findObject(By.text("PDF 변환 완료"))!=null}
+            assertEquals(2,PdfEngine.inspect(safe).pages);assertEquals(sourceHash,DocumentRepository.digest(original))
+            NativeUiActions.tap(device,context.packageName,"닫기")
+            File(output,"office-publish-recovery.json").writeText(JSONObject().put("previousPdfPreserved",true).put("latestPdfRetained",true)
+                .put("unsafeRetryBlocked",true).put("saveAsRetryVerified",true).put("originalUnchanged",true).put("commonHostBridge",true).toString(2))
+        } finally {
+            FailingProvider.remainingFailures=0
+            recoveryId?.let {runCatching {writes.discard(it)}}
+            runCatching {probe("close")}
+            await("Office process must exit after recovery test",30000){device.executeShellCommand("pidof "+context.packageName+":office").trim().isEmpty()}
+            runCatching {repo.acceptOffice(source)}
+        }
+    }
     @Test fun pptxTenSlidesToPdf(){nativePdf("pptx",10,listOf("TEST_SLIDE_01","TEST_SLIDE_10","TABLE"))}
     @Test fun docxPagesToPdf(){nativePdf("docx",2,listOf("DOCX_PAGE_ONE","DOCX_PAGE_TWO","HEADER_TEST","FOOTER_TEST","TABLE_TEST"))}
     @Test fun xlsxSheetsToPdf(){nativePdf("xlsx",2,listOf("XLSX_SHEET_ONE","XLSX_SHEET_TWO","42"))}

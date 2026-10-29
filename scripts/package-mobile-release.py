@@ -90,7 +90,7 @@ for release in releases:
             if old['applicationId']==pkg:
                 assert old['certificateSHA256']==apks[0]['certificateSHA256'],'Signing key differs from an existing preview. Configure the original secure STUDIO_KEYSTORE; do not publish an incompatible update.'
 android=json.loads((ci/'android-summary.json').read_text())
-assert os.environ['EMULATOR_OUTCOME']=='success' and android=={'tests':65,'failures':0,'errors':0,'skipped':0},android
+assert os.environ['EMULATOR_OUTCOME']=='success' and android=={'tests':66,'failures':0,'errors':0,'skipped':0},android
 install=json.loads((root/'artifacts/mobile-install/summary.json').read_text())
 assert install['cleanInstallWithoutTestFlag'] and install['coexistsWith0810'] and install['priorApkHashUnchanged'] and install['priorPrivateDataPreserved'] and install['sameSignerReinstallPreservedPrivateData']
 mobile=json.loads((root/'artifacts/hangul-mobile/mobile-engine-results.json').read_text())
@@ -144,7 +144,7 @@ assert font_result['independentBoldItalicUnderline'] is True and font_result['bu
 calc_result=json.loads((root/'artifacts/native-android/native-office-font/calc-summary.json').read_text())
 assert calc_result['nativeFormulaResults']==15 and all(calc_result[k] is True for k in ['nativePaste','nativeCellFontBoldSize','nativeNewSheet','providerSaved','parserReopened','engineReopened','originalProtected']),calc_result
 conversion=root/'artifacts/native-android/native-conversion'
-for filename in ('pptx.json','docx.json','xlsx.json','portable.json','signature.json'):
+for filename in ('pptx.json','docx.json','xlsx.json','portable.json','signature.json','office-publish-recovery.json'):
     proof=json.loads((conversion/filename).read_text())
     assert all(value is True or key=='pages' for key,value in proof.items()),proof
 signatures=json.loads((root/'artifacts/signature-conversion/signature-results.json').read_text())
