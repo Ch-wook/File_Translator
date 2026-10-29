@@ -118,6 +118,26 @@ export function installStudioTouch(getInput:()=>any,eventBus:any) {
    return x>=left&&x<=left+b.w*z&&y>=top&&y<=top+b.h*z;
  }
  function cancelPress(){clearTimeout(pressTimer);pressTimer=0;press=null;}
+
+ // Reading double-tap changes only the display scale. Native document links,
+ // selected text and interactive controls keep their existing click behavior.
+ let readTap:{x:number;y:number;time:number}|null=null,readDown:any=null;
+ document.addEventListener('pointerdown',e=>{
+   const target=e.target as Element;
+   if(e.isPrimary&&e.pointerType==='touch'&&!studioIsEditing()&&target.closest('#scroll-container')&&!target.closest('a,button,input,[contenteditable=true]'))
+     readDown={x:e.clientX,y:e.clientY,time:e.timeStamp};
+   else readDown=null;
+ },{passive:true,capture:true});
+ document.addEventListener('pointerup',e=>{
+   const p=readDown;readDown=null;const ih=input();
+   if(!p||!ih||studioIsEditing()||e.timeStamp-p.time>220||Math.hypot(e.clientX-p.x,e.clientY-p.y)>10||Date.now()<suppressUntil)return;
+   if(readTap&&e.timeStamp-readTap.time<300&&Math.hypot(e.clientX-readTap.x,e.clientY-readTap.y)<32){
+     const box=ih.container.getBoundingClientRect(),vp=ih.viewportManager;
+     vp.setZoom(vp.getZoom()<1.2?2:.8,{x:(e.clientX-box.left)/box.width,y:(e.clientY-box.top)/box.height});
+     readTap=null;e.preventDefault();refresh();(window.parent as any).documentStudioHost?.toolsChanged?.();
+   }else readTap={x:e.clientX,y:e.clientY,time:e.timeStamp};
+ },{capture:true});
+ document.addEventListener('pointercancel',()=>{readDown=null;readTap=null;},{passive:true});
  // Pinch the document viewport, never the page's character sizes.
  let pinch:{distance:number;zoom:number}|null=null;
  const distance=(touches:TouchList)=>Math.hypot(touches[1].clientX-touches[0].clientX,touches[1].clientY-touches[0].clientY);

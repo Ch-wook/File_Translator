@@ -18,6 +18,44 @@ async function studioRestoreView(state: any): Promise<void> {
   viewport.setScrollTop(top); viewport.setScrollLeft(left);
   studioFrame.scrollTop=top; studioFrame.scrollLeft=left;
 }
+
+function studioReadingLayout() {
+  // These are viewport settings; page content and page geometry stay in WASM.
+  // Ignore desktop/global multi-column or horizontal preferences on mobile open.
+  eventBus.emit('page-view-settings-changed', {
+    arrangement:{kind:'single'}, pageMovement:{direction:'vertical',wheelHorizontal:false},
+  });
+}
+function studioPageState() {
+  const count=wasm.pageCount, vs=canvasView?.getVirtualScroll();
+  const index=count&&vs&&studioFrame ? vs.getRowFirstPageAtY(studioFrame.scrollTop+Math.min(80,studioFrame.clientHeight/4)) : 0;
+  return {page:Math.max(0,Math.min(count-1,index)),pages:count,zoom:canvasView?.getViewportManager().getZoom()??1};
+}
+async function studioGoToPage(index:number) {
+  if(!Number.isInteger(index)||index<0||index>=wasm.pageCount||!canvasView||!studioFrame)throw new Error('페이지 번호를 확인하세요.');
+  const vs=canvasView.getVirtualScroll(),vp=canvasView.getViewportManager();
+  vp.setScrollTop(Math.max(0,vs.getPageOffset(index)-12));
+  await studioFrameTick();
+  return studioPageState();
+}
+async function studioFitPage() {
+  if(!canvasView||!studioFrame||!wasm.pageCount)return;
+  const index=studioPageState().page,info=wasm.getPageInfo(index);
+  const zoom=Math.max(.1,Math.min(5,(studioFrame.clientWidth-24)/info.width,(studioFrame.clientHeight-24)/info.height));
+  canvasView.getViewportManager().setZoom(zoom);
+  await studioFrameTick();await studioFrameTick();await studioGoToPage(index);
+}
+function studioNotifyPage() {
+  if(!canvasView||!wasm.pageCount)return;
+  (window.parent as any).documentStudioHost?.pageChanged?.(studioPageState());
+}
+let studioPageFrame=0;
+studioFrame?.addEventListener('scroll',()=>{
+  if(!studioPageFrame)studioPageFrame=requestAnimationFrame(()=>{studioPageFrame=0;studioNotifyPage();});
+},{passive:true});
+eventBus.on('zoom-changed',studioNotifyPage);
+eventBus.on('current-page-changed',studioNotifyPage);
+
 async function studioFinishInput(): Promise<void> {
   if (!studioIsEditing()) return;
   const active = document.activeElement as HTMLElement | null;
@@ -35,6 +73,7 @@ Object.assign((window as any).rhwpStudio, {
       studioSetEditing(false);
       await studioDocumentLoad(() => loadBytes(bytes, name, null, undefined, { suppressDialogs:true, skipRecent:true }));
       studioSetEditing(false);
+      studioReadingLayout();
       return {pages:wasm.pageCount, format:wasm.getSourceFormat()};
     },
     async setEditing(value: boolean) {
@@ -48,6 +87,10 @@ Object.assign((window as any).rhwpStudio, {
     isEditing: studioIsEditing,
     hasSelection:()=>inputHandler?.hasSelection() ?? false,
     captureView: studioCaptureView,
+    pageState: studioPageState,
+    goToPage: studioGoToPage,
+    fitPage: studioFitPage,
+    retryPages: () => {canvasView?.refreshPages();studioNotifyPage();},
     restoreView: studioRestoreView,
     finishInput: studioFinishInput,
     composing: () => Boolean((inputHandler as any)?.isComposing || (inputHandler as any)?._iosComposing),
@@ -121,6 +164,7 @@ eventBus.on('document-mutated',studioNotifyChanged);
 eventBus.on('command-state-changed', () => (window.parent as any).documentStudioHost?.toolsChanged());
 const nativeStyle=document.createElement('style');
 nativeStyle.textContent=`
+ #scroll-container {touch-action:pan-x pan-y!important;overscroll-behavior:contain}
  #menu-bar,#icon-toolbar,#style-bar,#status-bar {display:none!important}
  html:not([data-studio-rulers="true"]) #h-ruler,html:not([data-studio-rulers="true"]) #v-ruler,html:not([data-studio-rulers="true"]) #ruler-corner {display:none!important}
  html:not([data-studio-rulers="true"]) #scroll-container {grid-column:2;grid-row:2}

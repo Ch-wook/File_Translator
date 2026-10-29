@@ -80,34 +80,81 @@ class ReadingUxTest {
     }
     @Test fun longPdfJumpScrollAndReopenKeepsLastPageWithoutSaving(){
         val file=File(compose.activity.cacheDir,"tests/reading-long-${UUID.randomUUID()}.pdf").apply {parentFile!!.mkdirs()}
-        com.tom_roush.pdfbox.pdmodel.PDDocument().use {doc->repeat(80){doc.addPage(com.tom_roush.pdfbox.pdmodel.PDPage())};doc.save(file)}
+        com.tom_roush.pdfbox.pdmodel.PDDocument().use {doc->
+            repeat(100){index->
+                val page=com.tom_roush.pdfbox.pdmodel.PDPage(if(index%2==0)com.tom_roush.pdfbox.pdmodel.common.PDRectangle.A4 else com.tom_roush.pdfbox.pdmodel.common.PDRectangle.LETTER)
+                if(index%7==0)page.rotation=90
+                doc.addPage(page)
+                com.tom_roush.pdfbox.pdmodel.PDPageContentStream(doc,page).use {content->
+                    content.beginText();content.setFont(com.tom_roush.pdfbox.pdmodel.font.PDType1Font.HELVETICA,16f)
+                    content.newLineAtOffset(50f,500f);content.showText("VIEWER_PDF_PAGE_${index+1}");content.endText()
+                }
+            };doc.save(file)
+        }
         val uri=FileProvider.getUriForFile(compose.activity,compose.activity.packageName+".testfiles",file)
         val hash=DocumentRepository.digest(file)
         compose.runOnUiThread {vm.open(uri)};ready()
         val id=vm.state.value.session!!.id
-        compose.onNodeWithContentDescription("문서 메뉴").performClick();compose.onNodeWithText("보기 설정").performClick()
-        compose.onNodeWithText("페이지 번호").performScrollTo().performTextReplacement("41")
-        compose.onNodeWithText("이동").performScrollTo().performClick()
-        compose.waitUntil(30000){var found=false;compose.runOnUiThread {found=find(compose.activity.window.decorView,PdfObjectCanvas::class.java)?.page==40};found}
+        assertEquals(100,vm.state.value.session!!.pdf!!.pages)
+        assertEquals(100,vm.state.value.session!!.pdf!!.pageSizes.size)
+        assertTrue(vm.state.value.session!!.pdf!!.pageSizes.first().width>vm.state.value.session!!.pdf!!.pageSizes.first().height)
+        val pages=compose.onNodeWithContentDescription("PDF 연속 페이지 목록")
+        pages.assertExists()
+        // Default continuous reading must reach actual distinct pages, including 100.
+        for(index in listOf(1,49,99,60)){
+            pages.performScrollToIndex(index);compose.waitForIdle()
+            compose.waitUntil(20000){compose.activity.getSharedPreferences("reading-position",0).getInt(id+":page",-1)==index}
+            compose.onNodeWithContentDescription("연속 보기 ${index+1}페이지").assertExists()
+        }
+        fun jump(number: String){
+            compose.onNodeWithContentDescription("문서 메뉴").performClick();compose.onNodeWithText("보기 설정").performClick()
+            compose.onNodeWithText("페이지 번호").performScrollTo().performTextReplacement(number)
+            compose.onNodeWithText("이동").performScrollTo().performClick();compose.waitForIdle()
+        }
+        jump("50")
+        compose.waitUntil(15000){compose.activity.getSharedPreferences("reading-position",0).getInt(id+":page",-1)==49}
+        // Preserve the explicit single-page option, then return to continuous.
         compose.onNodeWithContentDescription("문서 메뉴").performClick();compose.onNodeWithText("보기 설정").performClick()
         compose.onNodeWithTag("pdf-continuous-toggle").performScrollTo().performClick()
         compose.onNodeWithContentDescription("설정 닫기").performClick()
-        compose.onNodeWithContentDescription("PDF 연속 페이지 목록").performScrollToIndex(60)
-        for(scale in listOf(2f,1f,3f,1f)) {
-            compose.onNode(SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsActions.SetProgress)).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress){it(scale)}
-            compose.waitForIdle();android.os.SystemClock.sleep(400);compose.waitForIdle()
-            compose.onNodeWithContentDescription("PDF 연속 페이지 목록").assertExists()
+        compose.waitUntil(30000){var found=false;compose.runOnUiThread {found=find(compose.activity.window.decorView,PdfObjectCanvas::class.java)?.page==49};found}
+        compose.onNodeWithContentDescription("문서 메뉴").performClick();compose.onNodeWithText("보기 설정").performClick()
+        compose.onNodeWithTag("pdf-continuous-toggle").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("설정 닫기").performClick();pages.assertExists()
+        pages.performScrollToIndex(60);compose.waitForIdle()
+        val prefs=compose.activity.getSharedPreferences("reading-position",0)
+        val before=prefs.getFloat(id+":zoom",1f)
+        compose.onRoot().performTouchInput {
+            val point=center
+            pinch(point+androidx.compose.ui.geometry.Offset(-45f,0f),point+androidx.compose.ui.geometry.Offset(45f,0f),
+                  point+androidx.compose.ui.geometry.Offset(-95f,0f),point+androidx.compose.ui.geometry.Offset(95f,0f),500)
         }
-        compose.waitUntil(15000){compose.activity.getSharedPreferences("reading-position",0).getInt(id+":page",-1)==60}
-        compose.onNodeWithContentDescription("PDF 연속 페이지 목록").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy){it(0f,133f)}
+        compose.waitUntil(15000){prefs.getFloat(id+":zoom",1f)>before*1.4f}
+        val pinched=prefs.getFloat(id+":zoom",1f)
+        pages.assertExists()
+        // Zooming is view-only, and the same logical page remains near the focal point.
+        assertTrue(prefs.getInt(id+":page",0) in 59..61)
+        compose.onRoot().performTouchInput {doubleClick(center)}
+        compose.waitUntil(15000){kotlin.math.abs(prefs.getFloat(id+":zoom",1f)-pinched)>.1f}
+        pages.performScrollToIndex(99);compose.waitForIdle()
+        compose.waitUntil(15000){prefs.getInt(id+":page",-1)==99}
+        pages.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy){it(0f,133f)}
         compose.waitForIdle()
-        val position=compose.onNodeWithContentDescription("PDF 연속 페이지 목록").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.StateDescription]
-        assertTrue(position.startsWith("60:"));assertTrue(position.substringAfter(':').toInt()>0)
+        val position=pages.fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.StateDescription]
+        assertTrue(position.startsWith("99:"))
         compose.runOnUiThread {vm.home()};compose.waitForIdle()
         compose.runOnUiThread {vm.restore(id)};ready()
         compose.onNodeWithContentDescription("PDF 연속 페이지 목록").assertExists()
         compose.waitUntil(30000){compose.onNodeWithContentDescription("PDF 연속 페이지 목록").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.StateDescription]==position}
         assertFalse(vm.state.value.session!!.dirty);assertEquals(hash,DocumentRepository.digest(file))
+        com.tom_roush.pdfbox.pdmodel.PDDocument.load(file).use {doc->
+            val text=com.tom_roush.pdfbox.text.PDFTextStripper().getText(doc)
+            for(index in 1..100)assertTrue(text.contains("VIEWER_PDF_PAGE_${index}"))
+        }
+        val output=File(compose.activity.getExternalFilesDir(null),"native-reading-ux").apply {mkdirs()}
+        File(output,"pdf-100-page-navigation.json").writeText(org.json.JSONObject().put("pages",100).put("mixedSizesAndRotation",true)
+            .put("actualTwoPointerZoom",true).put("doubleTapZoom",true).put("page100ReachedAndRestored",true)
+            .put("sourceHashUnchanged",true).put("zoomBefore",before).put("zoomAfterPinch",pinched).toString(2))
     }
     @Test fun markdownStartsFormattedAndSaveFailureKeepsEditableRecovery(){
         compose.runOnUiThread {vm.create(Format.MD)};ready()

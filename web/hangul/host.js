@@ -7,6 +7,22 @@ const frame=document.getElementById('engine'), status=document.getElementById('s
 const save=document.getElementById('save'), mode=document.getElementById('mode');
 const tools=document.getElementById('tools'), groups=document.getElementById('groups');
 let readOnlyReason=null,conversionOnly=false;
+const pageBar=document.getElementById('reader-pages'),pageLabel=document.getElementById('page-number');
+function showPage(state){
+ if(!state||!ready)return;
+ const {page,pages,zoom}=state;
+ pageLabel.textContent=(page+1)+' / '+pages+'쪽';
+ pageLabel.setAttribute('aria-label','페이지 이동 · '+(page+1)+' / '+pages+'쪽');
+ document.getElementById('page-prev').disabled=page<=0;
+ document.getElementById('page-next').disabled=page>=pages-1;
+ document.getElementById('reader-zoom').textContent=Math.round(zoom*100)+'%';
+}
+function jumpPage(){
+ if(!ready)return;const state=editor.pageState(),value=prompt('이동할 페이지 (1–'+state.pages+')',String(state.page+1));
+ if(value===null)return;const page=Number(value);
+ if(!Number.isInteger(page)||page<1||page>state.pages){message('1부터 '+state.pages+' 사이의 페이지 번호를 입력하세요.',true);return;}
+ editor.goToPage(page-1).then(showPage).catch(()=>message('해당 페이지로 이동하지 못했습니다. 다시 시도하세요.',true));
+}
 let editor,format,ready=false,editing=false,pending=false,switching=false,timer,revision=0,savedRevision=0,edited=false,activeGroup='글자';
 const panel=document.getElementById('mobile-panel'),dock=document.getElementById('edit-dock');
 const undo=document.getElementById('undo'),redo=document.getElementById('redo');
@@ -21,7 +37,7 @@ let checkpointFlight=null,closeFlight=null,closeRequests=0;
 let updateFrame=0;
 function update(){if(!updateFrame)updateFrame=requestAnimationFrame(()=>{updateFrame=0;updateNow();});}
 function updateNow(){
- reader.sync();search.hidden=!ready||editing;
+ reader.sync();pageBar.hidden=!ready||editing; if(ready)showPage(editor.pageState());search.hidden=!ready||editing;
  document.body.dataset.state=!ready?'LOADING':readOnlyReason?'READ_ONLY':editing?'EDITING':'READING';
  mode.hidden=Boolean(readOnlyReason)||editing||conversionOnly;
  document.getElementById('readonly-badge').hidden=!readOnlyReason;
@@ -147,6 +163,7 @@ async function writePdf(){
 window.documentStudioHost={writePdf,convertPdf,signature:()=>openSignature({editor,native,message}),
  changed(){if(!ready||!editing)return;revision++;message('수정됨 · 작업 복사본 저장 대기');clearTimeout(timer);timer=setTimeout(checkpoint,1200);update();},
  toolsChanged(){if(ready)update();},
+ pageChanged:showPage,
  checkpoint,
  operationState:()=>({pending,switching,closing:Boolean(closeFlight),checkpointActive:Boolean(checkpointFlight),closeRequests,revision,savedRevision}),
  mobileAction:name=>mobileUI.action(name),
@@ -161,6 +178,10 @@ UI.iconButton(search,'찾기','search',()=>editor.command('edit:find'));
 UI.iconButton(undo,'실행 취소','undo',()=>mobileUI.history('undo'));
 UI.iconButton(redo,'다시 실행','redo',()=>mobileUI.history('redo'));
 UI.iconButton(save,'저장 후 닫기','done',()=>close(true));
+document.getElementById('page-prev').onclick=()=>editor.goToPage(Math.max(0,editor.pageState().page-1)).then(showPage);
+document.getElementById('page-next').onclick=()=>editor.goToPage(Math.min(editor.pageState().pages-1,editor.pageState().page+1)).then(showPage);
+pageLabel.onclick=jumpPage;
+document.getElementById('reader-zoom').onclick=()=>editor.command('view:zoom-fit-width');
 const more=UI.iconButton(document.getElementById('more'),'문서 메뉴','more');
 UI.popup(more,()=>[
  {label:reader.fullscreen?'메뉴 표시':'전체 화면 보기',hidden:editing,action:()=>reader.toggle()},
@@ -168,6 +189,11 @@ UI.popup(more,()=>[
  {label:'찾기'+(editing?'·바꾸기':''),disabled:!ready,action:()=>editing?mobileUI.showSearch():editor.command('edit:find')},
  {label:'확대 '+(ready?Math.round(editor.captureView().zoom*100)+'%':''),disabled:!ready,action:()=>editor.command('view:zoom-in')},
  {label:'축소',disabled:!ready,action:()=>editor.command('view:zoom-out')},
+ {label:'페이지 이동',disabled:!ready,action:jumpPage},
+ {label:'첫 페이지',disabled:!ready,action:()=>editor.goToPage(0)},
+ {label:'마지막 페이지',disabled:!ready,action:()=>editor.goToPage(editor.pageState().pages-1)},
+ {label:'전체 페이지 맞춤',disabled:!ready,action:()=>editor.fitPage()},
+ {label:'페이지 다시 표시',disabled:!ready,action:()=>editor.retryPages()},
  {label:'화면 너비에 맞춤',disabled:!ready,action:()=>editor.command('view:zoom-fit-width')},
  {label:rulers?'눈금자 숨기기':'눈금자 표시',disabled:!ready,action:()=>{rulers=!rulers;editor.setRulers(rulers);}},
  {label:toolsVisible?'도구 접기':'도구 펼치기',hidden:!editing,action:()=>{toolsVisible=!toolsVisible;update();}},
@@ -195,7 +221,7 @@ async function start(){
  if(info.format!==format||info.pages<1)throw new Error('원본 문서의 형식 또는 페이지를 확인할 수 없습니다.');
  if(meta.viewState&&Number.isFinite(Number(meta.viewState.zoom)))await editor.restoreView(meta.viewState);
  else await editor.command('view:zoom-fit-width');
- ready=true;reader.bind(frame.contentDocument);renderTools();native.loaded();
+ ready=true;showPage(editor.pageState());reader.bind(frame.contentDocument);renderTools();native.loaded();
  if(meta.conversionOnly)setTimeout(convertPdf,100);
  if(readOnlyReason)message(`${info.pages}쪽 · 읽기 전용 · ${readOnlyReason}`);
  else if(meta.openIntent==='EDIT')await setEditing(true);

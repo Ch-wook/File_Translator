@@ -20,3 +20,7 @@ body[data-state=LOADING] #status-row,body[data-state=ERROR] #status-row,#status-
 .studio-signature button{min-height:44px;padding:6px 12px}.studio-signature img{object-fit:contain}
 
 #status-row[data-operation=pdf]{display:flex;align-items:center;flex-wrap:wrap}
+
+#reader-pages{flex:none;display:flex;align-items:center;justify-content:center;gap:4px;min-height:44px;background:#fff;padding:0 8px env(safe-area-inset-bottom);border-top:1px solid #d6dfe9}
+#reader-pages button{min-width:44px;background:transparent}#page-number{font-variant-numeric:tabular-nums;min-width:100px!important}#reader-zoom{font-size:12px}
+html[data-studio-fullscreen=true] #reader-pages{display:none}
