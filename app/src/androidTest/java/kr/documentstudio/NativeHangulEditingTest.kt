@@ -37,6 +37,7 @@ class NativeHangulEditingTest {
     private val output get()=File(context.getExternalFilesDir(null),"native-hangul-editing").apply {mkdirs()}
     private var sequence=0
     private val imeCommands=org.json.JSONArray()
+    private var lastControl=JSONObject()
     private fun probe(method: String,arg: String?=null,data: Bundle?=null): Bundle =
         requireNotNull(context.contentResolver.call(provider,method,arg,data))
     private fun value(expression: String): Any? {
@@ -85,14 +86,20 @@ class NativeHangulEditingTest {
         ?: device.wait(Until.findObject(By.pkg(context.packageName).text(label)),5000)
         ?: error("Visible control missing: "+label)
     private fun revealControl(label: String) {
-        eval("(function(){const e=Array.from(document.querySelectorAll('button,input,select')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)throw new Error('Missing control');const p=document.getElementById('detail-sheet');if(p.contains(e)){const r=e.getBoundingClientRect(),b=p.getBoundingClientRect();p.scrollTop+=r.top-b.top-(p.clientHeight-r.height)/2;}else e.scrollIntoView({block:'nearest',inline:'center'});})()")
+        eval("(function(){const e=Array.from(document.querySelectorAll('button,input,select')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)throw new Error('Missing control');const p=document.getElementById('detail-sheet');if(p.contains(e)){const r=e.getBoundingClientRect(),b=p.getBoundingClientRect(),h=p.querySelector('.studio-ui-sheet-head')?.getBoundingClientRect(),top=Math.max(b.top,h?.bottom||b.top),bottom=Math.min(b.bottom,innerHeight);p.scrollTop+=r.top+r.height/2-(top+bottom)/2;}else e.scrollIntoView({block:'nearest',inline:'center'});})()")
     }
     private fun tapVisibleControl(label: String) {
-        revealControl(label)
-        var bounds=JSONObject()
+        var bounds=JSONObject();var stableSince=0L
         await("The real WebView button must be visible and receive touch: "+label) {
-            bounds=json("(function(){const e=Array.from(document.querySelectorAll('button,input,select')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)return {};const r=e.getBoundingClientRect(),panel=document.getElementById('mobile-panel'),p=panel.contains(e)?panel.getBoundingClientRect():{top:0,bottom:innerHeight},x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return {x,y,visible:r.width>0&&r.height>0&&y>=p.top&&y<=p.bottom&&y<innerHeight&&x>=0&&x<innerWidth,hit:hit===e||e.contains(hit),disabled:e.disabled,width:innerWidth,height:innerHeight};})()")
-            bounds.optBoolean("visible") && bounds.optBoolean("hit") && !bounds.optBoolean("disabled")
+            // IME resizing can move a scroll target after the first reveal. Recompute
+            // the visible sheet viewport; never send a tap until the point settles.
+            revealControl(label)
+            val next=json("(function(){const e=Array.from(document.querySelectorAll('button,input,select')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)return {};const r=e.getBoundingClientRect(),panel=document.getElementById('detail-sheet'),b=panel.getBoundingClientRect(),h=panel.querySelector('.studio-ui-sheet-head')?.getBoundingClientRect(),p=panel.contains(e)?{top:Math.max(b.top,h?.bottom||b.top),bottom:Math.min(b.bottom,innerHeight)}:{top:0,bottom:innerHeight},x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return {x,y,visible:r.width>0&&r.height>0&&y>=p.top&&y<=p.bottom&&y<innerHeight&&x>=0&&x<innerWidth,hit:hit===e||e.contains(hit),disabled:e.disabled,width:innerWidth,height:innerHeight};})()")
+            val visible=next.optBoolean("visible")&&next.optBoolean("hit")&&!next.optBoolean("disabled")
+            val same=visible&&kotlin.math.abs(next.optDouble("x")-bounds.optDouble("x",Double.NaN))<1&&kotlin.math.abs(next.optDouble("y")-bounds.optDouble("y",Double.NaN))<1
+            if(!same)stableSince=if(visible)SystemClock.uptimeMillis() else 0L
+            bounds=next;lastControl=JSONObject().put("label",label).put("bounds",next)
+            same&&stableSince>0&&SystemClock.uptimeMillis()-stableSince>=200
         }
         val browser=probe("geometry")
         val scale=browser.getInt("width")/bounds.getDouble("width")
@@ -241,7 +248,7 @@ class NativeHangulEditingTest {
             File(output,format.extension+"-editing.json").writeText(evidence.toString(2))
         } catch(error: Throwable) {
             runCatching {device.takeScreenshot(File(output,format.extension+"-failure.png"));device.dumpWindowHierarchy(File(output,format.extension+"-failure.xml"))}
-            runCatching {File(output,format.extension+"-failure.json").writeText(JSONObject().put("error",error.toString()).put("cursorText",m("cursorText()")).put("ime",imeStatus()).put("imeCommands",imeCommands).put("state",mJson("state()")).put("host",json("({state:document.body.dataset.state,status:document.getElementById('status').textContent,error:document.getElementById('status').dataset.error,saveDisabled:document.getElementById('save').disabled,focused:document.hasFocus(),operation:window.documentStudioHost.operationState?.()})")).toString(2))}
+            runCatching {File(output,format.extension+"-failure.json").writeText(JSONObject().put("error",error.toString()).put("cursorText",m("cursorText()")).put("ime",imeStatus()).put("imeCommands",imeCommands).put("state",mJson("state()")).put("lastControl",lastControl).put("host",json("({state:document.body.dataset.state,status:document.getElementById('status').textContent,error:document.getElementById('status').dataset.error,saveDisabled:document.getElementById('save').disabled,focused:document.hasFocus(),operation:window.documentStudioHost.operationState?.()})")).toString(2))}
             throw error
         } finally {
             if(previousIme.isNotBlank() && previousIme!="null")device.executeShellCommand("ime set "+previousIme)
