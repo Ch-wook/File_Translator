@@ -241,7 +241,7 @@ class NativeHangulEditingTest {
             File(output,format.extension+"-editing.json").writeText(evidence.toString(2))
         } catch(error: Throwable) {
             runCatching {device.takeScreenshot(File(output,format.extension+"-failure.png"));device.dumpWindowHierarchy(File(output,format.extension+"-failure.xml"))}
-            runCatching {File(output,format.extension+"-failure.json").writeText(JSONObject().put("error",error.toString()).put("cursorText",m("cursorText()")).put("ime",imeStatus()).put("imeCommands",imeCommands).put("state",mJson("state()")).put("host",json("({state:document.body.dataset.state,status:document.getElementById('status').textContent,error:document.getElementById('status').dataset.error,saveDisabled:document.getElementById('save').disabled,focused:document.hasFocus()})")).toString(2))}
+            runCatching {File(output,format.extension+"-failure.json").writeText(JSONObject().put("error",error.toString()).put("cursorText",m("cursorText()")).put("ime",imeStatus()).put("imeCommands",imeCommands).put("state",mJson("state()")).put("host",json("({state:document.body.dataset.state,status:document.getElementById('status').textContent,error:document.getElementById('status').dataset.error,saveDisabled:document.getElementById('save').disabled,focused:document.hasFocus(),operation:window.documentStudioHost.operationState?.()})")).toString(2))}
             throw error
         } finally {
             if(previousIme.isNotBlank() && previousIme!="null")device.executeShellCommand("ime set "+previousIme)

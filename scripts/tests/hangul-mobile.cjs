@@ -32,6 +32,14 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   const frame=page.frames().find(f=>f.url().includes('/engine/index.html'));assert.ok(frame);
   await page.locator('#mode').click();await page.waitForFunction(()=>document.body.dataset.state==='EDITING'&&!document.getElementById('mode').disabled);
   const call=(method,...args)=>frame.evaluate(({method,args})=>window.rhwpStudio.documentStudio.mobile[method](...args),{method,args});
+  if(process.env.CLOSE_RACE_ONLY==='1'){
+   await call('find','PAGE_EDIT_ORIGINAL');
+   const proof=await require('./hangul-close-race.cjs')({page});
+   const saved=await page.evaluate(()=>window.__saved);
+   await frame.evaluate(async({saved,format})=>window.rhwpStudio.documentStudio.open(Uint8Array.from(atob(saved),c=>c.charCodeAt(0)),'close-race.'+format),{saved,format});
+   await call('find','PAGE_EDIT_ORIGINAL');assert.equal((await call('state')).char.spacings[0],12);
+   results.push({format,...proof,savedAndReopened:true});await context.close();continue;
+  }
   if(process.env.TABLE_SAVE_DIAGNOSTIC==='1'){
    await call('navigate',true);await call('plainText','\nTABLE_SAVE_PREFIX\n');await call('createTable',2,2);
    for(const [i,text] of ['TABLE_CELL_A','TABLE_CELL_B','TABLE_CELL_C','TABLE_CELL_D'].entries()){if(i)await call('moveCell',true);await call('plainText',text);}
@@ -98,7 +106,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   const openPanel=page.getByRole('button',{name:'설정 닫기',exact:true});if(await openPanel.isVisible())await openPanel.click();
   await page.locator('#groups').getByRole('button',{name:'글자',exact:true}).click();
   await page.waitForFunction(()=>!document.getElementById('save').disabled);
-  await page.evaluate(()=>{const input=document.querySelector('[aria-label="자간(%)"]');input.value='12';input.dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('save').click();});
+  const closeRace=await require('./hangul-close-race.cjs')({page,prepareLatest:()=>page.evaluate(()=>{const input=document.querySelector('[aria-label="자간(%)"]');input.value='12';input.dispatchEvent(new Event('input',{bubbles:true}));})});
   await page.waitForFunction(()=>window.__closed,null,{timeout:60000});
   const exported=await page.evaluate(()=>({data:window.__saved,report:window.__report,saveOriginal:window.__saveOriginal}));
   assert.equal(exported.report.count,0);assert.equal(exported.saveOriginal,true);
@@ -110,7 +118,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   await call('find','ABC');for(const key of ['fontSize','bold','textColor','ratios','spacings'])assert.deepEqual((await call('state')).char[key],outsideBefore[key],'Reopened unselected '+key+' remains');
   assert.deepEqual(errors,[]);assert.deepEqual(engineErrors,[]);assert.deepEqual(external,[]);
   await page.screenshot({path:path.join(out,'mobile-format-'+format+'.png'),fullPage:true});
-  results.push({format,phone:true,partialSelection:true,font,structure,combinedCharacterFormatting:true,spacingMetrics:{base,spaced,narrow},unselectedPreserved:true,clipboardRichAndPlain:true,atomicPasteUndoRedo:true,pendingFormatSaved:true,freshSelectionTarget:true,autosave:true,savedAndReopened:true,bytes:bytes.length});
+  results.push({format,...closeRace,phone:true,partialSelection:true,font,structure,combinedCharacterFormatting:true,spacingMetrics:{base,spaced,narrow},unselectedPreserved:true,clipboardRichAndPlain:true,atomicPasteUndoRedo:true,pendingFormatSaved:true,freshSelectionTarget:true,autosave:true,savedAndReopened:true,bytes:bytes.length});
   await context.close();
  }
  fs.writeFileSync(path.join(out,'mobile-engine-results.json'),JSON.stringify(results,null,2));console.log('MOBILE_ENGINE_RESULTS',JSON.stringify(results));

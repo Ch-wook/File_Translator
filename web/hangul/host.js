@@ -17,6 +17,7 @@ const reader=UI.readingChrome({header:document.querySelector('header'),editable:
 const mobileUI=createMobileTools({groups,tools,panel,getEditor:()=>editor,isEditable:()=>ready&&editing&&!switching,message,
  layoutChanged:view=>{if(ready) requestAnimationFrame(()=>editor.restoreView(view).catch(error=>message(String(error.message),true)));}});
 function message(text,error=false){status.textContent=text;status.dataset.error=String(error);document.getElementById('discard').hidden=!error;}
+let checkpointFlight=null,closeFlight=null,closeRequests=0;
 let updateFrame=0;
 function update(){if(!updateFrame)updateFrame=requestAnimationFrame(()=>{updateFrame=0;updateNow();});}
 function updateNow(){
@@ -25,19 +26,26 @@ function updateNow(){
  mode.hidden=Boolean(readOnlyReason)||editing||conversionOnly;
  document.getElementById('readonly-badge').hidden=!readOnlyReason;
  mode.textContent=editing?'보기로':'편집하기';mode.disabled=!ready||pending||switching;
- mode.setAttribute('aria-pressed',String(editing));save.hidden=!editing;save.disabled=!ready||pending||switching;
+ mode.setAttribute('aria-pressed',String(editing));save.hidden=!editing;save.disabled=!ready||switching||Boolean(closeFlight)||(pending&&!checkpointFlight);
+ save.setAttribute('aria-busy',String(pending||Boolean(closeFlight)));
  groups.hidden=!editing;
  dock.hidden=!editing||!toolsVisible;
  undo.hidden=redo.hidden=!editing;
  undo.disabled=!ready||pending||switching||editor?.composing()||!editor?.enabled('edit:undo');
  redo.disabled=!ready||pending||switching||editor?.composing()||!editor?.enabled('edit:redo');
- const back=document.getElementById('back');back.disabled=pending||switching;back.setAttribute('aria-label',editing?'보기로':'작업 화면');back.title=back.getAttribute('aria-label');
+ const back=document.getElementById('back');back.disabled=switching||Boolean(closeFlight)||(pending&&!checkpointFlight);back.setAttribute('aria-label',editing?'보기로':'작업 화면');back.title=back.getAttribute('aria-label');
  mobileUI.update();
 }
 function renderTools(){mobileUI.render();update();}
 function toBase64(bytes){let result='';for(let i=0;i<bytes.length;i+=8192)result+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(result);}
 function persistView(){if(ready)native.saveViewState(JSON.stringify(editor.captureView()));}
-async function checkpoint(){
+function checkpoint(){
+ if(checkpointFlight)return checkpointFlight;
+ const work=writeCheckpoint();checkpointFlight=work;
+ const clear=()=>{if(checkpointFlight===work)checkpointFlight=null;update();};
+ work.then(clear,clear);return work;
+}
+async function writeCheckpoint(){
  if(!ready||pending)return false;
  if(!editor.dirty()&&savedRevision===revision)return true;
  if(!editing){message('보기 상태의 변경을 저장하지 않았습니다.',true);return false;}
@@ -81,16 +89,32 @@ async function setEditing(value){
  }catch(error){message(String(error.message||error),true);}
  finally{switching=false;update();}
 }
-async function close(saveOriginal){
+function close(saveOriginal){
+ closeRequests++;
+ if(closeFlight)return closeFlight;
+ const work=closeAfterCheckpoint(saveOriginal);closeFlight=work;update();
+ const clear=()=>{if(closeFlight===work)closeFlight=null;update();};
+ work.then(clear,clear);return work;
+}
+async function closeAfterCheckpoint(saveOriginal){
  clearTimeout(timer);
  if(!ready){native.closeEditor(false);return;}
- if(pending||switching){message('현재 작업이 끝난 뒤 다시 선택하세요.');return;}
+ if(switching||(pending&&!checkpointFlight)){message('현재 작업이 끝난 뒤 다시 선택하세요.');return;}
  try{
+  // An autosave already serializing the document must not consume a close tap.
+  // Join its actual result before flushing newer IME/panel input.
+  if(checkpointFlight&&!await checkpointFlight)return;
   if(editing){await mobileUI.flush();await editor.finishInput();}
-  if(!await checkpoint())return;
-  persistView();native.closeEditor(Boolean(saveOriginal&&edited));
+  for(let attempt=0;attempt<3;attempt++){
+   if(!await checkpoint())return;
+   if(savedRevision===revision&&!editor.dirty()){
+    persistView();native.closeEditor(Boolean(saveOriginal&&edited));return;
+   }
+  }
+  message('새 입력이 계속되고 있습니다. 입력을 마친 뒤 다시 저장해 주세요.',true);
  }catch(error){message(String(error.message||error),true);}
 }
+
 async function convertPdf(){
  if(!ready||pending||switching||readOnlyReason)return;
  if(!confirm('전체 페이지를 원본 레이아웃으로 PDF 변환합니다. 한글 PDF는 페이지 이미지 방식이며 텍스트 선택·검색·링크는 보존되지 않습니다. 현재 편집 내용도 포함합니다.'))return;
@@ -124,12 +148,13 @@ window.documentStudioHost={writePdf,convertPdf,signature:()=>openSignature({edit
  changed(){if(!ready||!editing)return;revision++;message('수정됨 · 작업 복사본 저장 대기');clearTimeout(timer);timer=setTimeout(checkpoint,1200);update();},
  toolsChanged(){if(ready)update();},
  checkpoint,
+ operationState:()=>({pending,switching,closing:Boolean(closeFlight),checkpointActive:Boolean(checkpointFlight),closeRequests,revision,savedRevision}),
  mobileAction:name=>mobileUI.action(name),
  selectionContext:name=>mobileUI.context(name),
  selectionChanged(){if(ready&&editing)mobileUI.selectionChanged();},
  saveAndClose(){return close(true);},
  returnToWorkspace(){return close(false);},
- async back(){if(editing)await setEditing(false);else await close(false);},
+ async back(){if(checkpointFlight&&!await checkpointFlight)return;if(editing)await setEditing(false);else await close(false);},
 };
 UI.iconButton(document.getElementById('back'),'작업 화면','back',()=>window.documentStudioHost.back());
 UI.iconButton(search,'찾기','search',()=>editor.command('edit:find'));

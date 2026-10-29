@@ -81,6 +81,7 @@ jobs:
           (cd scripts/tests && npx playwright install chromium && npm run test:hangul) 2>&1 | tee artifacts/ci/hangul-browser.log
           TABLE_SAVE_DIAGNOSTIC=1 node scripts/tests/hangul-mobile.cjs 2>&1 | tee artifacts/ci/table-save-browser.log
           ./gradlew :core:inspectTableSave --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/table-save-records.log
+          python3 scripts/verify-hangul-close-race.py 2>&1 | tee artifacts/ci/close-race-regression.log
           node scripts/tests/hangul-mobile.cjs 2>&1 | tee artifacts/ci/hangul-mobile.log
           node scripts/tests/signature-conversion.cjs 2>&1 | tee artifacts/ci/signature-conversion.log
           python3 scripts/verify-signature-conversion.py
