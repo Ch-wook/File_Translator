@@ -15,11 +15,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Read the exact recovery UI failure and semantics tree
         run: |
-          gh run watch 40815284243 --interval 15 --exit-status || true
-          gh run download 40815284243 --name quality-storage-ui-acd2b5077957cc25aa9fe229bc14c10452d2c7dc --dir failed-quality
+          pip install Pillow
+          gh run download 40814068640 --name mobile-release-logs-9463d4dc6dda303d94869019d33dedac1b37c579 --dir failed-quality
           gh run download 40814067745 --name quality-security-9463d4dc6dda303d94869019d33dedac1b37c579 --dir release-audit
           python3 - <<'PY'
-          import pathlib,xml.etree.ElementTree as E
+          import pathlib,xml.etree.ElementTree as E,base64,io
+          from PIL import Image
           root=pathlib.Path('failed-quality')
           for p in root.rglob('TEST-*.xml'):
               if 'androidTest-results' not in p.as_posix():continue
@@ -33,6 +34,14 @@ jobs:
               print('RECOVERY_THREADS_START',p,flush=True)
               print(p.read_text()[:160000],flush=True)
               print('RECOVERY_THREADS_END',flush=True)
+          for p in root.rglob('*.png'):
+              if 'failure' not in p.name and 'doc' not in p.name:continue
+              im=Image.open(p);im.thumbnail((432,960));buf=io.BytesIO();im.save(buf,format='PNG')
+              print('INSPECTION_IMAGE',p.name,base64.b64encode(buf.getvalue()).decode(),flush=True)
+          for p in root.rglob('android-all-processes.log'):
+              lines=p.read_text(errors='replace').splitlines()
+              for i,line in enumerate(lines):
+                  if any(v in line for v in ('FATAL EXCEPTION','Fatal signal','ANR in','Reason: Input','am_anr','Input dispatching timed out','Wrote stack traces')):print('NATIVE_RUNTIME_DIAG', '\n'.join(lines[max(0,i-7):i+100]),flush=True)
           print('ACTUAL_RELEASE_PERMISSIONS',pathlib.Path('release-audit/release-permissions.txt').read_text(),flush=True)
           for p in root.rglob('android-runtime.log'):
               for line in p.read_text(errors='replace').splitlines():
