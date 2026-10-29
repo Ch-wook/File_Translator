@@ -76,3 +76,14 @@ val prepareHangulEngine by tasks.registering(Exec::class) {
 tasks.named("preBuild") {dependsOn(prepareHangulEngine)}
 
 tasks.named("preBuild") {dependsOn(rootProject.tasks.named("prepareStudioFonts"))}
+
+tasks.register("writeQualityRuntimeInventory") {
+    doLast {
+        val modules=configurations.getByName("releaseRuntimeClasspath").incoming.resolutionResult.allComponents
+            .mapNotNull {it.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier}
+            .map {it.group+":"+it.module+":"+it.version}.distinct().sorted()
+        val target=layout.buildDirectory.file("quality/release-runtime-maven.txt").get().asFile
+        target.parentFile.mkdirs();target.writeText(modules.joinToString("\n")+"\n")
+        println("QUALITY_RUNTIME_MODULES "+modules.size)
+    }
+}
