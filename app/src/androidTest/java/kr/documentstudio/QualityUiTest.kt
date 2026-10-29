@@ -34,6 +34,8 @@ class QualityUiTest {
             fun describe(node: androidx.compose.ui.semantics.SemanticsNode): String=node.config.toString()+"\n"+node.children.joinToString("\n"){describe(it)}
             val tree=compose.onAllNodes(isRoot(),useUnmergedTree=true).fetchSemanticsNodes().joinToString("\n"){describe(it)}
             File(compose.activity.getExternalFilesDir(null),"native-common-ui/quality-ui-failure.txt").apply {parentFile!!.mkdirs();writeText(tree)}
+            val threads=Thread.getAllStackTraces().entries.joinToString("\n\n"){(thread,stack)->thread.name+" state="+thread.state+"\n"+stack.joinToString("\n")}
+            File(compose.activity.getExternalFilesDir(null),"native-common-ui/quality-ui-threads.txt").apply {parentFile!!.mkdirs();writeText(threads)}
             println("QUALITY_RECOVERY_UI_FAILURE "+tree.take(16000));throw error
         }
     }
