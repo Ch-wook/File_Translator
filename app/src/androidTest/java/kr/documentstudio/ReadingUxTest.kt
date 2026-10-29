@@ -5,6 +5,7 @@ import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.EditText
 import androidx.compose.ui.test.*
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
@@ -104,6 +105,17 @@ class ReadingUxTest {
                 }
             };doc.save(file)
         }
+        // The default continuous reader must respect saved layer visibility,
+        // not reveal hidden handwriting when reopening a PDF.
+        val inkBase=File(file.parentFile,"ink-base-"+UUID.randomUUID()+".pdf")
+        file.copyTo(inkBase)
+        try{
+            val visible=kr.documentstudio.core.Stroke(anchor="pdf:0",tool=kr.documentstudio.core.InkTool.PEN,color=android.graphics.Color.BLUE,width=.02f,
+                points=listOf(kr.documentstudio.core.InkPoint(.2f,.65f),kr.documentstudio.core.InkPoint(.8f,.65f)))
+            val hidden=visible.copy(id=UUID.randomUUID().toString(),color=android.graphics.Color.RED,layerId="hidden",
+                points=listOf(kr.documentstudio.core.InkPoint(.2f,.45f),kr.documentstudio.core.InkPoint(.8f,.45f)))
+            kr.documentstudio.data.PdfEngine.write(inkBase,file,listOf(visible,hidden),false,layers=listOf(kr.documentstudio.core.InkLayer(),kr.documentstudio.core.InkLayer(id="hidden",name="숨김",visible=false)))
+        }finally{inkBase.delete()}
         val uri=FileProvider.getUriForFile(compose.activity,compose.activity.packageName+".testfiles",file)
         val hash=DocumentRepository.digest(file)
         compose.runOnUiThread {vm.open(uri)};ready()
@@ -113,6 +125,16 @@ class ReadingUxTest {
         assertTrue(vm.state.value.session!!.pdf!!.pageSizes.first().width>vm.state.value.session!!.pdf!!.pageSizes.first().height)
         val pages=compose.onNodeWithContentDescription("PDF 연속 페이지 목록")
         pages.assertExists()
+        compose.waitUntil(20000){compose.onAllNodesWithContentDescription("연속 보기 1페이지").fetchSemanticsNodes().isNotEmpty()}
+        val pixels=compose.onNodeWithContentDescription("연속 보기 1페이지").captureToImage().toPixelMap()
+        var bluePixels=0;var redPixels=0
+        for(y in 0 until pixels.height step 3)for(x in 0 until pixels.width step 3){
+            val color=pixels[x,y]
+            if(color.blue>.7f && color.red<.3f && color.green<.3f)bluePixels++
+            if(color.red>.7f && color.blue<.3f && color.green<.3f)redPixels++
+        }
+        assertTrue("The visible blue handwriting is actually rendered",bluePixels>10)
+        assertEquals("Hidden red handwriting must remain hidden in continuous reading",0,redPixels)
         // Default continuous reading must reach actual distinct pages, including 100.
         for(index in listOf(1,49,99,60)){
             pages.performScrollToIndex(index);compose.waitForIdle()
@@ -174,7 +196,7 @@ class ReadingUxTest {
         val output=File(compose.activity.getExternalFilesDir(null),"native-reading-ux").apply {mkdirs()}
         File(output,"pdf-100-page-navigation.json").writeText(org.json.JSONObject().put("pages",100).put("mixedSizesAndRotation",true)
             .put("actualTwoPointerZoom",true).put("doubleTapZoom",true).put("page100ReachedAndRestored",true)
-            .put("sourceHashUnchanged",true).put("zoomBefore",before).put("zoomAfterPinch",pinched).toString(2))
+            .put("sourceHashUnchanged",true).put("visibleInkRendered",true).put("hiddenInkNotDisclosed",true).put("zoomBefore",before).put("zoomAfterPinch",pinched).toString(2))
     }
     @Test fun markdownStartsFormattedAndSaveFailureKeepsEditableRecovery(){
         val source="# 제목\n\n한글 **굵게**\n\n"+(0 until 100).joinToString("\n\n") {"MD_SECTION_"+it+" 한글 읽기 문단"}

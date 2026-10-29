@@ -192,7 +192,7 @@ private fun ContinuousPage(s: Session,index: Int,busy: Boolean,renderer: PdfRead
     val rasterWidth=PdfRasterBudget.requestedWidth(viewportPixels.coerceAtLeast(1),1f)
     var retry by remember {mutableIntStateOf(0)}
     var failure by remember(s.base,index,retry) {mutableStateOf<String?>(null)}
-    val ink=remember(s.edits.strokes,index) {s.edits.strokes.filter {it.anchor=="pdf:$index"}}
+    val ink=remember(s.edits.strokes,s.edits.layers,index) {kr.documentstudio.core.InkLayers.ordered(s.edits).filter {it.anchor=="pdf:$index"}}
     var bitmap by remember(s.base,index) {mutableStateOf<Bitmap?>(null)}
     val size=s.pdf?.pageSizes?.getOrNull(index)
     val aspect=if(size!=null)size.width/size.height else 595f/842f
