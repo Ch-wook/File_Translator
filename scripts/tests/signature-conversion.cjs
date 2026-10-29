@@ -96,13 +96,19 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   await frame.evaluate(()=>window.rhwpStudio.documentStudio.setEditing(true));
   await page.evaluate(()=>{
     window.__pdfAborted=false;window.__pdfFinished=false;
-    Object.assign(window.DocumentStudio,{beginPdf:()=>true,pdfPage:()=>true,finishPdf:()=>{window.__pdfFinished=true;return JSON.stringify({ok:true});},abortPdf:()=>window.__pdfAborted=true});
-    const original=window.setTimeout.bind(window);window.__originalTimeout=original;window.setTimeout=(fn,delay,...args)=>original(fn,delay===0?1000:delay,...args);
+    Object.assign(window.DocumentStudio,{beginPdf:()=>{window.__holdNextPdfYield=true;return true;},pdfPage:()=>true,finishPdf:()=>{window.__pdfFinished=true;return JSON.stringify({ok:true});},abortPdf:()=>window.__pdfAborted=true});
+    const original=window.setTimeout.bind(window);window.__originalTimeout=original;
+    window.setTimeout=(fn,delay,...args)=>{
+      if(delay===0&&window.__holdNextPdfYield){window.__holdNextPdfYield=false;window.__pdfYieldWaiting=true;window.__releasePdfYield=()=>original(fn,0,...args);return 0;}
+      return original(fn,delay,...args);
+    };
     window.__pdfTask=window.documentStudioHost.writePdf();
   });
   const cancel=page.getByRole('button',{name:'변환 취소',exact:true});await cancel.waitFor({state:'visible'});
+  await page.waitForFunction(()=>window.__pdfYieldWaiting);
+  assert.equal(await frame.evaluate(()=>window.rhwpStudio.documentStudio.isEditing()),false);
   await assert.rejects(call('plainText','PDF_EXPORT_MUTATION'));
-  await cancel.click();await page.waitForFunction(()=>window.__pdfAborted&&!document.getElementById('save').disabled);
+  await cancel.click();await page.evaluate(()=>window.__releasePdfYield());await page.waitForFunction(()=>window.__pdfAborted&&!document.getElementById('save').disabled);
   assert.equal(await page.evaluate(()=>window.__pdfFinished),false);assert.equal(await call('count','PDF_EXPORT_MUTATION'),0);
   assert.equal(await frame.evaluate(()=>window.rhwpStudio.documentStudio.isEditing()),true);
   await page.evaluate(()=>window.setTimeout=window.__originalTimeout);

@@ -74,7 +74,7 @@ jobs:
           assert perf_info['head_sha']==measured_sha and perf_info['conclusion']=='success',perf_info
           subprocess.run(['git','merge-base','--is-ancestor',measured_sha,sha],check=True)
           measurement_delta=subprocess.check_output(['git','diff','--name-only',measured_sha,sha],text=True).splitlines()
-          assert all(p=='README.md' or p=='app/src/main/assets/licenses/Log4j-API-2.25.5-NOTICE.txt' or p=='app/src/androidTest/java/kr/documentstudio/NativeHangulEditingTest.kt' or p.startswith(('docs/','.github/workflows/')) for p in measurement_delta),measurement_delta
+          assert all(p=='README.md' or p=='app/src/main/assets/licenses/Log4j-API-2.25.5-NOTICE.txt' or p=='app/src/androidTest/java/kr/documentstudio/NativeHangulEditingTest.kt' or p=='scripts/tests/signature-conversion.cjs' or p.startswith(('docs/','.github/workflows/')) for p in measurement_delta),measurement_delta
           subprocess.run(['gh','run','download',perf_run,'--name','reading-performance-'+measured_sha,'--dir','performance'],check=True)
           performance=pathlib.Path('performance')
           security_run=os.environ['SECURITY_RUN']
@@ -108,7 +108,7 @@ jobs:
           assert set(comparison['records'])=={'baseline','candidate'}
           for item in comparison['records'].values():assert item['viewport-memory']['allClosedBitmapsRecycled'] and item['viewport-memory']['pdfOriginalUnchanged']
           assert comparison['records']['candidate']['viewport-memory']['rasters'],comparison
-          measurement_proof={'measuredAppCommit':measured_sha,'apkBuildCommit':sha,'changes':measurement_delta,'applicationCodeUnchanged':True,'limitation':'Only license notices, documentation, publication workflows and the NativeHangulEditingTest touch driver may differ after measuring. Application and benchmark test sources are unchanged.'}
+          measurement_proof={'measuredAppCommit':measured_sha,'apkBuildCommit':sha,'changes':measurement_delta,'applicationCodeUnchanged':True,'limitation':'Only license notices, documentation, publication workflows and the NativeHangulEditingTest / signature-conversion test drivers may differ after measuring. Application and benchmark test sources are unchanged.'}
           print('SAME_APPLICATION_CODE_PERFORMANCE_PROVENANCE',json.dumps(measurement_proof),flush=True)
           print('SAME_EMULATOR_PERFORMANCE_VERIFIED',json.dumps(comparison),flush=True)
           for line in (delivery/'SHA256SUMS').read_text().splitlines():
