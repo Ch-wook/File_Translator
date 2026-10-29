@@ -125,6 +125,14 @@ class ViewerNavigationTest {
             val before=eval(kind,zoom).toDouble();pinch()
             waitFor("Actual Android two-finger input changes display scale"){eval(kind,zoom).toDouble()>before+.01}
             record.put("zoomBefore",before).put("zoomAfter",eval(kind,zoom).toDouble()).put("actualAndroidPinch",true)
+            if(kind=="office"){
+                val beforeDouble=eval(kind,zoom).toDouble();val r=documentBounds()
+                device.click(r.centerX(),r.top+r.height()*2/5);SystemClock.sleep(100);device.click(r.centerX(),r.top+r.height()*2/5)
+                waitFor("Office reading double tap zooms without entering editing"){eval(kind,zoom).toDouble()>beforeDouble+.01}
+                assertEquals("false",eval(kind,"app.map.isEditMode()"))
+                assertEquals("false",eval(kind,"window.studioOffice.authorized"))
+                record.put("readingDoubleTapZoom",true).put("doubleTapStaysReadonly",true)
+            }
             if(name.endsWith(".docx")){
                 tap("문서 메뉴");tap("첫 페이지")
                 waitFor("First page"){JSONObject(eval(kind,state)).getInt(index)==0}

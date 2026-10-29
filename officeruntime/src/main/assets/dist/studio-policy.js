@@ -61,6 +61,12 @@
   const pinnedLayouts=new WeakSet();
   const controls = [];
   const map = () => window.app && app.map;
+  let explicitEditRequest=false;
+  function requestEditing(){
+    explicitEditRequest=true;
+    try{return map()._switchToEditMode();}
+    finally{explicitEditRequest=false;}
+  }
   const objectSelected = () => typeof GraphicSelection !== 'undefined' && GraphicSelection.hasActiveSelection();
   const editable = () => Boolean(policy.authorized && map() && map().isEditMode());
   const searchService=()=>typeof window.app?.searchService?.search==='function'?app.searchService:typeof map()?.search==='function'?map():null;
@@ -137,6 +143,48 @@
     if(Math.abs(map().getZoom()-target)>.001)app.activeDocument.activeLayout.applyZoom(target);
     const finish=()=>{map()._docLayer?._preview?._scrollViewToPartPosition?.(index);rememberViewport();updateNavigation();};
     if(app.layoutingService?.onDrain)app.layoutingService.onDrain(finish);else requestAnimationFrame(finish);
+  }
+  function installReaderDoubleTap(){
+    let down=null,lastTap=null,baseZoom=null,appliedZoom=null;
+    const allowed=target=>target?.closest?.('#document-container')&&!target.closest('#studio-office-header,#studio-office-bottom,#studio-office-pages,a,input,button,[role=dialog]');
+    document.addEventListener('touchstart',event=>{
+      if(event.touches.length!==1||editable()||modeTransition||!initialViewportRestored||!allowed(event.target)){down=null;lastTap=null;return;}
+      const touch=event.touches[0];down={x:touch.clientX,y:touch.clientY,time:event.timeStamp};
+    },{passive:true,capture:true});
+    document.addEventListener('touchend',event=>{
+      const start=down;down=null;
+      if(!start||event.touches.length||!event.changedTouches.length||editable()||modeTransition)return;
+      const touch=event.changedTouches[0];
+      if(event.timeStamp-start.time>220||Math.hypot(touch.clientX-start.x,touch.clientY-start.y)>10){lastTap=null;return;}
+      const previous=lastTap;lastTap={x:touch.clientX,y:touch.clientY,time:event.timeStamp};
+      if(!previous||event.timeStamp-previous.time>320||Math.hypot(touch.clientX-previous.x,touch.clientY-previous.y)>28)return;
+      lastTap=null;
+      const before=map().getZoom();
+      requestAnimationFrame(()=>{
+        if(editable()||modeTransition||Math.abs(map().getZoom()-before)>.01)return;
+        const doc=app.activeDocument,layout=doc?.activeLayout,canvas=document.getElementById('document-canvas');
+        if(!canvas||typeof doc?.getScaleZoom!=='function'||typeof layout?.canvasToDocumentPoint!=='function'
+            ||typeof layout?.documentToViewX!=='function'||typeof layout?.documentToViewY!=='function'||!layout.frameSize?.clone)return;
+        const rect=canvas.getBoundingClientRect(),dpi=app.dpiScale||1,point=layout.frameSize.clone();
+        const x=Math.max(0,Math.min(rect.width,touch.clientX-rect.left))*dpi,y=Math.max(0,Math.min(rect.height,touch.clientY-rect.top))*dpi;
+        point.pX=x;point.pY=y;
+        const anchor=layout.canvasToDocumentPoint(point);
+        let target;
+        if(appliedZoom!==null&&Math.abs(before-appliedZoom)<.02){target=baseZoom;appliedZoom=null;}
+        else{baseZoom=before;target=Math.max(0,Math.min(18,map().getMaxZoom?.()??18,doc.getScaleZoom(2,before)));appliedZoom=target;}
+        releaseViewportPin();layout.applyZoom(target);
+        const finish=()=>{
+          const next=app.activeDocument?.activeLayout;if(!next)return;
+          // Use the engine's own page/cell coordinate transforms for the focal
+          // anchor; this also works with the stacked native slide layout.
+          const dx=next.documentToViewX(anchor)-x,dy=next.documentToViewY(anchor)-y;
+          if(Number.isFinite(dx)&&Number.isFinite(dy))next.scroll(dx,dy);
+          rememberViewport();updateNavigation();
+        };
+        if(app.layoutingService?.onDrain)app.layoutingService.onDrain(finish);else requestAnimationFrame(finish);
+      });
+    },{passive:true,capture:true});
+    document.addEventListener('touchcancel',()=>{down=null;lastTap=null;},{passive:true});
   }
   function installPresentationFit(){
     if(map().getDocType()!=='presentation')return;
@@ -333,6 +381,7 @@
     const m=map(), enter=m._switchToEditMode;
     if (typeof enter!=='function' || typeof m.setPermission!=='function') return false;
     m._switchToEditMode=function(...args) {
+      if(!explicitEditRequest)return false;
       if(modeTransition || !initialViewportRestored) return false;
       const value=snapshot();
       if (new URLSearchParams(location.search).get('permission')!=='edit' || !bridge()?.requestStudioEdit?.()) {
@@ -407,7 +456,7 @@
   function attribute(node,name,value){if(node.getAttribute(name)!==String(value))node.setAttribute(name,String(value));}
   function updateNow(){
     reader?.sync();updateNavigation();
-    if(initialViewportRestored&&!policy.initialIntentHandled){policy.initialIntentHandled=true;if(policy.modeSupported&&new URLSearchParams(location.search).get('studioopen')==='EDIT')setTimeout(()=>map()._switchToEditMode(),0);}
+    if(initialViewportRestored&&!policy.initialIntentHandled){policy.initialIntentHandled=true;if(policy.modeSupported&&new URLSearchParams(location.search).get('studioopen')==='EDIT')setTimeout(()=>requestEditing(),0);}
     if(!bar)return;const editing=editable(),object=objectSelected();
     sync(bar.dataset,'editing',String(editing));const searching=groupOpen&&(activeTab==='찾기'||activeTab==='슬라이드 목록'||activeTab==='시트 목록');sync(bottom,'hidden',!editing&&!searching);sync(sheet,'hidden',!groupOpen||(!editing&&!searching));sync(tabs,'hidden',!editing);
     if(cellActions){const hidden=!(editing&&!modeTransition&&map().getDocType()==='spreadsheet'&&(window.app?.file?.textCursor?.visible||map().formulabar?.hasFocus?.()||map().formulabar?.isInEditMode?.()));if(cellActions.hidden!==hidden){cellActions.hidden=hidden;refreshLayout();}}
@@ -542,7 +591,7 @@
     const title=document.createElement('strong');title.textContent=bridge()?.getStudioDocumentName?.()||'Office 문서';
     undoButton=UI.iconButton('studio-office-undo','실행 취소','undo',()=>{releaseViewportPin();uno('Undo');});
     redoButton=UI.iconButton('studio-office-redo','다시 실행','redo',()=>{releaseViewportPin();uno('Redo');});
-    modeButton=document.createElement('button');modeButton.id='studio-office-edit';modeButton.className='studio-office-action';modeButton.textContent='편집하기';modeButton.onclick=()=>{map()._switchToEditMode();update();};UI.retain(modeButton);
+    modeButton=document.createElement('button');modeButton.id='studio-office-edit';modeButton.className='studio-office-action';modeButton.textContent='편집하기';modeButton.onclick=()=>{requestEditing();update();};UI.retain(modeButton);
     saveButton=UI.iconButton('studio-office-save','저장 후 닫기','done',()=>{void saveAndClose();});
     const search=UI.iconButton('studio-office-search','찾기','search',()=>openSheet('찾기'));
     const more=UI.iconButton('studio-office-more','문서 메뉴','more');header.append(back,title,undoButton,redoButton,search,modeButton,saveButton,more);bar.append(header);
@@ -580,7 +629,7 @@
       {label:'시트 목록',hidden:family!=='spreadsheet',action:()=>openSheet('시트 목록')},
       {label:'화면 너비에 맞춤',hidden:family==='spreadsheet'||typeof map()._docLayer?._fitWidthZoom!=='function',action:fitWidth},
       {label:'슬라이드 목록',hidden:map().getDocType()!=='presentation',action:()=>openSheet('슬라이드 목록')},
-      {label:editable()?'읽기 모드로 전환':'편집하기',hidden:Boolean(bridge()?.isStudioConversionOnly?.())||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit',disabled:modeTransition||!initialViewportRestored,action:()=>editable()?map().setPermission('readonly'):map()._switchToEditMode()},
+      {label:editable()?'읽기 모드로 전환':'편집하기',hidden:Boolean(bridge()?.isStudioConversionOnly?.())||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit',disabled:modeTransition||!initialViewportRestored,action:()=>editable()?map().setPermission('readonly'):requestEditing()},
       {label:editable()?'찾기·바꾸기':'찾기',disabled:!editable()&&!searchService(),action:()=>editable()?uno('SearchDialog'):openSheet('찾기')},
       {label:'확대 '+(navigationState()?.zoomPercent??'—')+'%',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(map().getZoom()+1);}},
       {label:'축소',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(Math.max(0,map().getZoom()-1));}},
@@ -595,7 +644,7 @@
       if(window.L?.DomEvent?.disableClickPropagation)L.DomEvent.disableClickPropagation(element);
       else for(const name of ['mousedown','touchstart','pointerdown','dblclick','contextmenu'])element.addEventListener(name,event=>event.stopPropagation());
     }
-    policy.modeSupported=installModeGate();installPresentationFit();
+    policy.modeSupported=installModeGate();installPresentationFit();installReaderDoubleTap();
     map().on('commandstatechanged',event=>{if(event.commandName==='.uno:ModifiedStatus'&&String(event.state)==='true'&&policy.wasAuthorized)policy.changed=true;update();});
     app.events.on('contextchange',event=>{contextName=String(event.detail?.context||event.context||'');update();});
     app.events.on('updatepermission',()=>{update();refreshLayout();if(modeTransition)restore(transitionViewport,undefined,transitionGeneration);});
@@ -613,7 +662,7 @@
       // Only an explicit host EDIT launch may enter editing without a toolbar tap.
       if(bar && initialViewportRestored && !policy.initialIntentHandled) {
         policy.initialIntentHandled=true;
-        if(policy.modeSupported && new URLSearchParams(location.search).get('studioopen')==='EDIT') map()._switchToEditMode();
+        if(policy.modeSupported && new URLSearchParams(location.search).get('studioopen')==='EDIT') requestEditing();
       }
     }
     if(policy.ready) {
