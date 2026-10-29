@@ -1,0 +1,27 @@
+name: Check quality preview publication scripts
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+jobs:
+  check:
+    if: contains(github.event.head_commit.message, '[quality-publication-check]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate embedded Python, preview identity and exact acceptance gates
+        run: |
+          python3 - <<'PY'
+          import ast,pathlib,re,textwrap
+          source=pathlib.Path('.github/workflows/publish-quality-preview.yml').read_text()
+          blocks=re.findall(r"(?m)^([ ]*)python3 - <<'PY'\n(.*?)^\1PY[ \t]*$",source,re.S)
+          assert len(blocks)==4,len(blocks)
+          for _,body in blocks:ast.parse(textwrap.dedent(body))
+          for p in ('scripts/package-mobile-release.py','scripts/test-mobile-installation.py','scripts/audit-commercial-quality.py'):
+              ast.parse(pathlib.Path(p).read_text())
+          assert "'tests':65" in source and "'app':44" in source and "versionCode']==21" in source
+          assert 'coexistsWith0810' in source and 'SECURITY_RUN' in source and 'commercialReady' in source
+          assert 'PLACEHOLDER' not in source
+          print('QUALITY_PUBLICATION_SCRIPTS_VALID',len(blocks))
+          PY
