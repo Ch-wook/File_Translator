@@ -16,13 +16,13 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_SHA: 9463d4dc6dda303d94869019d33dedac1b37c579
-      VERIFIED_RUN: '40814068640'
-      PERFORMANCE_RUN: '40814067767'
-      PERFORMANCE_SHA: 9463d4dc6dda303d94869019d33dedac1b37c579
-      SECURITY_RUN: '40814067745'
-      UI_DRIVER_RUN: '40814067760'
-      UI_DRIVER_SHA: 9463d4dc6dda303d94869019d33dedac1b37c579
+      VERIFIED_SHA: 6005441343e4215d90d4722a3140150bebd832d7
+      VERIFIED_RUN: '40817420620'
+      PERFORMANCE_RUN: '40817420619'
+      PERFORMANCE_SHA: 6005441343e4215d90d4722a3140150bebd832d7
+      SECURITY_RUN: '40817420807'
+      UI_DRIVER_RUN: '40817420856'
+      UI_DRIVER_SHA: 6005441343e4215d90d4722a3140150bebd832d7
       NODE_AUDIT_RUN: '40814205396'
       NODE_AUDIT_SHA: 09a8bb7eb8c9151c840c5cacfce8cb86a2abfea1
       PREVIEW_TAG: v0.8.11-preview
@@ -155,6 +155,13 @@ jobs:
                   recovered=json.loads(z.read('artifacts/ci/packaging-recovery.json'))
                   assert recovered['apkBuildCommit']==sha and recovered['originalTestRun']==int(run) and recovered['packagingRun']==int(package_run)
                   assert recovered['originalTestsPassed'] is True and recovered['apkRebuilt'] is False,recovered
+              independent=json.loads(z.read('artifacts/native-android/native-common-ui/recovery-independent-stores.json'))
+              assert independent['signaturePaneIndependentFromPendingDocumentStore'] is True,independent
+              search_paste=json.loads(z.read('artifacts/native-android/native-office-mode-smoke/docx-view.json'))
+              assert search_paste['result']=='passed' and search_paste['viewSearchClipboardPaste'] is True,search_paste
+              runtime=z.read('artifacts/ci/android-all-processes.log').decode(errors='replace')
+              import re
+              assert not re.search(r'ANR in kr\\.documentstudio\\.qualitypreview(?=[: /\\n])',runtime),'Document application ANR remains a publication blocker'
               regression=json.loads(z.read('artifacts/ci/open-regression/summary.json'))
               assert regression=={'before':{'tests':3,'failures':3,'errors':0,'skipped':0},'after':{'tests':3,'failures':0,'errors':0,'skipped':0}},regression
               for name in ('metadata-free-hwp.json','metadata-free-hwpx.json','distribution-read-only.json'):
