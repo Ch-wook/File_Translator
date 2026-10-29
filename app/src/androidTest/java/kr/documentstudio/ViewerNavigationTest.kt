@@ -97,6 +97,11 @@ class ViewerNavigationTest {
                 .putExtra("workingPath",working.absolutePath).putExtra("displayName",name))
             waitFor("Actual native engine loads all logical pages or sheets",150000){JSONObject(eval(kind,state)).getInt(total)==count}
             assertEquals(count,JSONObject(eval(kind,state)).getInt(total))
+            if(kind=="office")waitFor("Host tools finish initial viewport restoration"){
+                eval(kind,"window.studioOffice.ready===true && window.studioOffice.initialIntentHandled===true")=="true"
+            }else waitFor("Hangul reader has finished opening"){
+                eval(kind,"document.body.dataset.state==='READING' && !document.getElementById('mode').disabled")=="true"
+            }
             if(name.endsWith(".hwpx")||name.endsWith(".docx")){
                 val r=documentBounds();device.swipe(r.centerX(),r.top+r.height()*3/4,r.centerX(),r.top+r.height()/3,30)
                 waitFor("Actual one-finger scrolling reaches another page"){JSONObject(eval(kind,state)).getInt(index)>0}
@@ -180,7 +185,7 @@ class ViewerNavigationTest {
             runCatching {probeClient.close()}
             if(!completed)runCatching {
                 record.put("observedState",JSONObject(eval(kind,state)))
-                if(kind=="office")record.put("officeGeometry",JSONObject(eval(kind,"JSON.stringify({layout:app.activeDocument?.activeLayout?.type,view:app.activeDocument?.activeLayout?.viewedRectangle,zoom:app.map.getZoom(),address:(document.querySelector('#addressInput input')||document.querySelector('input#addressInput'))?.value,cellAddress:app.map.stateChangeHandler.getItemValue('.uno:CellAddress'),changed:window.studioOffice.changed,dpiScale:app.dpiScale,twipsToPixels:app.twipsToPixels,frame:app.activeDocument?.activeLayout?.frameSize,fileSize:app.activeDocument?.fileSize,firstPart:app.impress?.partList?.[0],pageRects:app.file?.writer?.pageRectangleList?.slice(0,2)})")))
+                if(kind=="office")record.put("officeGeometry",JSONObject(eval(kind,"JSON.stringify({hostReady:window.studioOffice.ready,initialIntentHandled:window.studioOffice.initialIntentHandled,layout:app.activeDocument?.activeLayout?.type,view:app.activeDocument?.activeLayout?.viewedRectangle,zoom:app.map.getZoom(),address:(document.querySelector('#addressInput input')||document.querySelector('input#addressInput'))?.value,cellAddress:app.map.stateChangeHandler.getItemValue('.uno:CellAddress'),changed:window.studioOffice.changed,dpiScale:app.dpiScale,twipsToPixels:app.twipsToPixels,frame:app.activeDocument?.activeLayout?.frameSize,fileSize:app.activeDocument?.fileSize,firstPart:app.impress?.partList?.[0],pageRects:app.file?.writer?.pageRectangleList?.slice(0,2)})")))
             }
             record.put("completed",completed);File(evidence,name+".json").writeText(record.toString(2))
             if(!completed){
