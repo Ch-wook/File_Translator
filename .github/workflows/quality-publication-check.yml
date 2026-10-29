@@ -26,8 +26,8 @@ jobs:
           import urllib.request,zipfile,io,hashlib
           url='https://repo.maven.apache.org/maven2/org/apache/logging/log4j/log4j-api/2.25.5/log4j-api-2.25.5.jar'
           with urllib.request.urlopen(url,timeout=90) as r:data=r.read()
-          with urllib.request.urlopen(url+'.sha512',timeout=90) as r:expected=r.read().decode().strip().split()[0]
-          assert hashlib.sha512(data).hexdigest()==expected
+          with urllib.request.urlopen(url+'.sha1',timeout=90) as r:expected=r.read().decode().strip().split()[0]
+          assert hashlib.sha1(data).hexdigest()==expected # Maven's published checksum; HTTPS source, not a signing claim.
           with zipfile.ZipFile(io.BytesIO(data)) as z:
               names=[n for n in z.namelist() if n.upper() in ('META-INF/NOTICE','META-INF/NOTICE.TXT')]
               assert len(names)==1

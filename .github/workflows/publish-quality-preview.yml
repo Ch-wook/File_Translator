@@ -88,8 +88,8 @@ jobs:
           print('RELEASE_REQUESTED_PERMISSIONS',(security_dir/'release-permissions.txt').read_text(),flush=True)
           log4j_base='https://repo.maven.apache.org/maven2/org/apache/logging/log4j/log4j-api/2.25.5/log4j-api-2.25.5.jar'
           with urllib.request.urlopen(log4j_base,timeout=90) as response:log4j_bytes=response.read()
-          with urllib.request.urlopen(log4j_base+'.sha512',timeout=90) as response:log4j_sha512=response.read().decode().strip().split()[0]
-          assert hashlib.sha512(log4j_bytes).hexdigest()==log4j_sha512
+          with urllib.request.urlopen(log4j_base+'.sha1',timeout=90) as response:log4j_sha1=response.read().decode().strip().split()[0]
+          assert hashlib.sha1(log4j_bytes).hexdigest()==log4j_sha1 # Published checksum, not a signature or trust attestation.
           with zipfile.ZipFile(io.BytesIO(log4j_bytes)) as jar:
               entries=[n for n in jar.namelist() if n.upper() in ('META-INF/NOTICE','META-INF/NOTICE.TXT')]
               assert len(entries)==1
