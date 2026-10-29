@@ -51,7 +51,8 @@
   let attempts = 0;
   const UI=window.StudioEditorUI;
   let bar,actions,hint,tabs,modeButton,modeLabel,saveButton,header,bottom,sheet,undoButton,redoButton,cellActions,picker,groupOpen=false,fontList=false,contextName='',previousContext='',partsSignature='';
-  let navigationBar,navigationLabel,navigationPrevious,navigationNext,navigationZoom;
+  let navigationBar,navigationLabel,navigationPrevious,navigationNext,navigationZoom,slideFitZoom=null;
+  let stableReadViewport=null,stableReadWidth=0,rotationGeneration=0;
   let transitionViewport, persistTimer, lastViewport='',reader,updateFrame=0,viewSampler;
   let activeTab = '글자';
   let modeTransition=false, transitionGeneration=0, ownedNativeRestore=null;
@@ -89,7 +90,7 @@
       }
     }
     return {family,index:Math.max(0,Math.min(count-1,index)),count,
-      zoomPercent:Math.round((m?.getZoomScale?.(m.getZoom(),10)||1)*100)};
+      zoomPercent:typeof app.activeDocument?.getZoomScale==='function'?Math.round(app.activeDocument.getZoomScale(m.getZoom(),10)*100):null};
   }
   function updateNavigation(){
     if(!navigationBar)return;
@@ -101,7 +102,7 @@
     attribute(navigationLabel,'aria-label',s.family==='spreadsheet'?'시트 목록':'페이지 이동');
     sync(navigationPrevious,'disabled',modeTransition||s.index===0);
     sync(navigationNext,'disabled',modeTransition||s.index===s.count-1);
-    sync(navigationZoom,'textContent',s.zoomPercent+'%');
+    sync(navigationZoom,'textContent',s.zoomPercent===null?'맞춤':s.zoomPercent+'%');
     sync(navigationZoom,'hidden',s.family==='spreadsheet'||typeof map()._docLayer?._fitWidthZoom!=='function');
   }
   function navigateTo(index){
@@ -119,7 +120,76 @@
     if(value===null)return;const index=Number(value)-1;
     if(!navigateTo(index))UI.toast('1부터 '+s.count+' 사이의 번호를 입력하세요.',true);
   }
+  function presentationFitTarget(){
+    const doc=app.activeDocument,layout=doc?.activeLayout,layer=map()?._docLayer,index=map()?.getCurrentPartNumber?.()||0;
+    if(!doc||!layout||typeof doc.getScaleZoom!=='function')return null;
+    const size=typeof layout.getPartSizeTwips==='function'?layout.getPartSizeTwips(index):
+      {w:layer?.getPartWidth?.(index)||layer?._partWidthTwips,h:layer?.getPartHeight?.(index)||layer?._partHeightTwips};
+    const frame=layout.frameSize,ratio=app.twipsToPixels,gap=24*(app.dpiScale||1);
+    if(!frame||![size.w,size.h,ratio,frame.pX,frame.pY].every(n=>Number.isFinite(n)&&n>0))return null;
+    const factor=Math.min((frame.pX-gap)/(size.w*ratio),(frame.pY-gap)/(size.h*ratio));
+    return factor>0?Math.max(0,Math.min(30,doc.getScaleZoom(factor,map().getZoom()))):null;
+  }
+  function fitPresentation(){
+    const target=presentationFitTarget();if(target===null)return;
+    const index=map().getCurrentPartNumber?.()||0;
+    slideFitZoom=target;releaseViewportPin();
+    if(Math.abs(map().getZoom()-target)>.001)app.activeDocument.activeLayout.applyZoom(target);
+    const finish=()=>{map()._docLayer?._preview?._scrollViewToPartPosition?.(index);rememberViewport();updateNavigation();};
+    if(app.layoutingService?.onDrain)app.layoutingService.onDrain(finish);else requestAnimationFrame(finish);
+  }
+  function installPresentationFit(){
+    if(map().getDocType()!=='presentation')return;
+    const layer=map()._docLayer,original=layer._fitWidthZoom;
+    if(typeof original==='function')layer._fitWidthZoom=function(...args){
+      if(app.file?.fileBasedView&&!editable()){
+        // The native helper fits the height of the entire stacked file. Use
+        // actual per-slide geometry, and retain a user's manual reading zoom.
+        if(slideFitZoom===null||Math.abs(map().getZoom()-slideFitZoom)<.02)fitPresentation();
+        return;
+      }
+      return original.apply(this,args);
+    };
+    let gesture=null;
+    document.addEventListener('touchstart',event=>{
+      const target=event.target;
+      if(!target?.closest?.('#document-container')||event.touches.length!==1||editable()||modeTransition||!initialViewportRestored
+          ||slideFitZoom===null||map().getZoom()>slideFitZoom+.05
+          ||target?.closest?.('#studio-office-header,#studio-office-bottom,#studio-office-pages,.studio-ui-popup,a,input,button,[role=dialog]')){
+        gesture=null;return;
+      }
+      const touch=event.touches[0];gesture={x:touch.clientX,y:touch.clientY,time:event.timeStamp,index:navigationState()?.index};
+    },{passive:true,capture:true});
+    document.addEventListener('touchend',event=>{
+      const start=gesture;gesture=null;if(!start||event.touches.length||!event.changedTouches.length)return;
+      const touch=event.changedTouches[0],dx=touch.clientX-start.x,dy=touch.clientY-start.y;
+      if(Math.abs(dx)<70||Math.abs(dx)<Math.abs(dy)*1.8||event.timeStamp-start.time>800)return;
+      requestAnimationFrame(()=>{
+        if(!editable()&&!modeTransition&&navigationState()?.index===start.index)navigateTo(start.index+(dx<0?1:-1));
+      });
+    },{passive:true,capture:true});
+    document.addEventListener('touchcancel',()=>gesture=null,{passive:true});
+  }
+  function rememberRotationView(){
+    const width=document.getElementById('document-container')?.clientWidth||innerWidth;
+    if(!stableReadWidth)stableReadWidth=width;
+    if(width===stableReadWidth&&!modeTransition){const value=snapshot();if(validViewport(value))stableReadViewport=value;}
+  }
+  window.addEventListener('resize',()=>{
+    if(!policy.ready||!initialViewportRestored||modeTransition||!stableReadViewport)return;
+    const width=document.getElementById('document-container')?.clientWidth||innerWidth;
+    if(Math.abs(width-stableReadWidth)<1)return;
+    const value=stableReadViewport,generation=++rotationGeneration;stableReadWidth=width;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      if(generation!==rotationGeneration)return;
+      restore(value,()=>{
+        if(generation!==rotationGeneration)return;
+        holdViewport(snapshot());stableReadViewport=snapshot();update();persistViewport();
+      });
+    }));
+  });
   function fitWidth(){
+    if(map()?.getDocType()==='presentation'){fitPresentation();return;}
     if(typeof map()?._docLayer?._fitWidthZoom!=='function')return;
     releaseViewportPin();map()._docLayer._fitWidthZoom(null,null,true);rememberViewport();updateNavigation();
   }
@@ -241,6 +311,7 @@
     document.addEventListener(name,cancelModeRestore,true);
   function persistViewport() {
     if(!initialViewportRestored) return;
+    rememberRotationView();
     let value;
     try { value=(modeTransition && validViewport(transitionViewport) ? transitionViewport : snapshot()) || {error:'layout-unavailable',family:map()?.getDocType?.()}; }
     catch(error) { value={error:String(error.message || error),family:map()?.getDocType?.()}; }
@@ -255,6 +326,7 @@
   }
   policy.flushView=persistViewport;
   function rememberViewport() {
+    rememberRotationView();
     clearTimeout(persistTimer); persistTimer=setTimeout(persistViewport,250);
   }
   function installModeGate() {
@@ -510,7 +582,7 @@
       {label:'슬라이드 목록',hidden:map().getDocType()!=='presentation',action:()=>openSheet('슬라이드 목록')},
       {label:editable()?'읽기 모드로 전환':'편집하기',hidden:Boolean(bridge()?.isStudioConversionOnly?.())||!policy.modeSupported||new URLSearchParams(location.search).get('permission')!=='edit',disabled:modeTransition||!initialViewportRestored,action:()=>editable()?map().setPermission('readonly'):map()._switchToEditMode()},
       {label:editable()?'찾기·바꾸기':'찾기',disabled:!editable()&&!searchService(),action:()=>editable()?uno('SearchDialog'):openSheet('찾기')},
-      {label:'확대 '+Math.round((map().getZoomScale?.(map().getZoom(),10)||1)*100)+'%',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(map().getZoom()+1);}},
+      {label:'확대 '+(navigationState()?.zoomPercent??'—')+'%',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(map().getZoom()+1);}},
       {label:'축소',action:()=>{releaseViewportPin();window.app.activeDocument.activeLayout.applyZoom(Math.max(0,map().getZoom()-1));}},
       {label:map().uiManager?.isRulerVisible?.()?'눈금자 숨기기':'눈금자 표시',hidden:family!=='text',action:()=>{map().uiManager.toggleRuler();refreshLayout();}},
       {label:groupOpen?'도구 접기':'도구 펼치기',hidden:!editable(),action:()=>groupOpen?closeSheet():openSheet(activeTab)},
@@ -523,13 +595,13 @@
       if(window.L?.DomEvent?.disableClickPropagation)L.DomEvent.disableClickPropagation(element);
       else for(const name of ['mousedown','touchstart','pointerdown','dblclick','contextmenu'])element.addEventListener(name,event=>event.stopPropagation());
     }
-    policy.modeSupported=installModeGate();
+    policy.modeSupported=installModeGate();installPresentationFit();
     map().on('commandstatechanged',event=>{if(event.commandName==='.uno:ModifiedStatus'&&String(event.state)==='true'&&policy.wasAuthorized)policy.changed=true;update();});
     app.events.on('contextchange',event=>{contextName=String(event.detail?.context||event.context||'');update();});
     app.events.on('updatepermission',()=>{update();refreshLayout();if(modeTransition)restore(transitionViewport,undefined,transitionGeneration);});
     map().on('moveend zoomend updateparts pagenumberchanged updatestatepagenumber',()=>{rememberViewport();update();});
     for(const name of ['pointerup','input','keyup','compositionend'])document.addEventListener(name,()=>{if(editable())update();},{passive:true});
-    try{const saved=JSON.parse(bridge()?.getStudioViewState?.()||'{}');restore(saved,()=>{if(validViewport(saved))holdViewport(snapshot());initialViewportRestored=true;update();persistViewport();if(bridge()?.isStudioConversionOnly?.())setTimeout(()=>window.postMobileMessage('DOCUMENT_STUDIO_CONVERT_PDF'),300);});}catch(ignore){initialViewportRestored=true;}
+    try{const saved=JSON.parse(bridge()?.getStudioViewState?.()||'{}');restore(saved,()=>{if(validViewport(saved))holdViewport(snapshot());initialViewportRestored=true;if(family==='presentation'){if(!validViewport(saved))fitPresentation();else slideFitZoom=presentationFitTarget();}update();persistViewport();if(bridge()?.isStudioConversionOnly?.())setTimeout(()=>window.postMobileMessage('DOCUMENT_STUDIO_CONVERT_PDF'),300);});}catch(ignore){initialViewportRestored=true;}
     render();policy.ready=true;return true;
   }
   const timer=setInterval(() => {
@@ -560,5 +632,5 @@
     }
     if(++attempts>=300 && !policy.ready) clearInterval(timer);
   },200);
-  window.addEventListener('pagehide',()=>{persistViewport();clearInterval(timer);clearInterval(viewSampler);cancelAnimationFrame(updateFrame);clearTimeout(persistTimer);},{once:true});
+  window.addEventListener('pagehide',()=>{++rotationGeneration;persistViewport();clearInterval(timer);clearInterval(viewSampler);cancelAnimationFrame(updateFrame);clearTimeout(persistTimer);},{once:true});
 })();
