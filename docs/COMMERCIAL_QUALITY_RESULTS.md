@@ -72,7 +72,7 @@ SAF 제공자의 readback은 현재 읽히는 바이트 확인이다. 모든 제
 | 저장 보호 1차 단위 | 6e2aa4e: 앱 31건, 실패·오류·건너뜀 0; Actions 40790105362 |
 | 저장·서명·최근 원본·안내 2차 단위 | 13732287: 앱 44건, 실패·오류·건너뜀 0; Actions 40791609058 |
 | 초기 Android 안전성/UI | 13732287: 10건 중 9건 통과, 큰 글자 설정 버튼 영역 1건 실패; Actions 40791609092 |
-| Android 안전성/UI 재검증 | 실행 중; 실패한 검사를 제거하지 않고 버튼 영역/검사 대상을 보완 |
+| Android 안전성/UI 재검증 | dafa596e: 11건, 실패·오류·건너뜀 0; Actions 40792709912. 저장 프로세스 종료3·UI/진단3·백업3·암호화2 |
 | 전체 회귀/설치/재열기 | 실행 중; 목표 Android 65건·전체 단위·브라우저·파서 |
 | 동일 에뮬레이터 성능 비교 | 실행 중; 0.8.10 aa3414f와 후보 비교 |
 | unsigned Release/의존성 | 실행 중; 정식 배포 서명이 된 Release로 오인하지 않음 |
@@ -111,4 +111,6 @@ Android 조건은 API35 x86_64 Pixel7 에뮬레이터, SwiftShader, RAM3072MiB�
 
 ## 보안 검사 후 추가 수정
 
-157개 release Maven 좌표 조회에서 Log4j API 2.24.3의 GHSA-qv9r-c865-cp47 / CVE-2026-49844가 일치했습니다. 공개 권고의 수정 버전 2.25.5를 고정하고 NaN·Infinity·-Infinity의 JSON 출력 재현 검사를 추가합니다. 이전 검사에서 일치가 0개였다고 보고하지 않으며, 갱신된 의존성·APK·회귀 검사를 다시 실행합니다. [공개 권고](https://github.com/advisories/GHSA-qv9r-c865-cp47). 이는 Log4Shell 판정과 다른 권고입니다.
+157개 release Maven 좌표 조회에서 Log4j API 2.24.3의 GHSA-qv9r-c865-cp47 / CVE-2026-49844가 일치했습니다. 공개 권고의 수정 버전 2.25.5를 고정하고 NaN·Infinity·-Infinity의 JSON 출력 재현 검사를 추가합니다. 이전 검사에서 일치가 0개였다고 보고하지 않으며, 갱신된 의존성·APK·회귀 검사를 다시 실행합니다. [공개 권고](https://github.com/advisories/GHSA-qv9r-c865-cp47). 
+
+추가 보안 수정 이후 provider readback의 크기 상한과 저장 공간 부족(ENOSPC) 안내 우선순위도 보완했습니다. 최종 회귀에는 Log4j JSON 재현 1건과 저장 공간 안내 1건을 추가하며 전체 단위 검사의 실제 합계를 결과로 확인합니다.
