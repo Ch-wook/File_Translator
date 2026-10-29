@@ -35,3 +35,13 @@ html[data-studio-fullscreen=true] .studio-ui-header{display:none!important}
 html[data-studio-fullscreen=true] #toolbar-wrapper{min-height:0!important}
 .studio-reader-reveal{position:fixed;right:8px;top:max(8px,env(safe-area-inset-top));z-index:60;background:#fffc;box-shadow:0 2px 8px #0002}
 .studio-reader-reveal[hidden]{display:none!important}
+
+/* Dark chrome and accessible focus never recolor document pages or saved ink. */
+@media(prefers-color-scheme:dark){
+ [data-studio-ui]{--studio-accent:#a8c9ff;--studio-line:#465163;--studio-ink:#edf1f8;--studio-paper:#202631}
+ .studio-ui-popup button:hover,.studio-ui-font-option[aria-selected=true],.studio-ui-dock button[aria-selected=true],.studio-ui-icon[aria-pressed=true]{background:#334660;color:#dbe8ff}
+ .studio-ui-sheet input,.studio-ui-sheet select{color:var(--studio-ink);background:var(--studio-paper);border-color:var(--studio-line)}
+}
+.studio-ui-icon:focus-visible,.studio-ui-dock button:focus-visible,.studio-ui-popup button:focus-visible,.studio-ui-font-option:focus-visible{outline:2px solid var(--studio-accent);outline-offset:-3px}
+@media(prefers-reduced-motion:reduce){.studio-ui-sheet,.studio-ui-popup,.studio-ui-dock,.studio-ui-header{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media(pointer:coarse){.studio-ui-icon{width:48px;min-width:48px;height:48px;min-height:48px}.studio-ui-dock button{min-height:48px;height:48px}.studio-ui-sheet-head button{height:48px;min-height:48px}}

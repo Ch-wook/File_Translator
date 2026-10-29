@@ -27,7 +27,7 @@ class ConversionPreviewActivity: ComponentActivity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         val uri=intent.data
-        setContent {MaterialTheme(colorScheme=lightColorScheme(primary=WorkspaceFamily.of(Format.PDF).accent)){
+        setContent {kr.documentstudio.ui.StudioTheme(WorkspaceFamily.of(Format.PDF).accent){
             var session by remember {mutableStateOf<Session?>(null)}
             var error by remember {mutableStateOf<String?>(null)}
             var page by rememberSaveable {mutableIntStateOf(0)}
@@ -48,7 +48,7 @@ class ConversionPreviewActivity: ComponentActivity() {
                     }
                 }
                 catch(e:kotlinx.coroutines.CancellationException){throw e}
-                catch(e:Exception){error=e.message ?: "PDF를 열지 못했습니다."}
+                catch(e:Exception){error=kr.documentstudio.data.UserProblems.explain(e).let {it.title+" · "+it.advice}}
             }
             Surface {Column(Modifier.fillMaxSize().systemBarsPadding()){
                 Row(Modifier.fillMaxWidth().heightIn(min=48.dp),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically){

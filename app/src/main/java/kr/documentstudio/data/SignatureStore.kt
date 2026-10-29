@@ -34,10 +34,10 @@ class SignatureStore(private val context: Context) {
             val png=s.getString("png");require(png.startsWith(PREFIX))
             val bytes=Base64.decode(png.substring(PREFIX.length),Base64.DEFAULT)
             require(bytes.size>=8 && bytes.copyOfRange(0,8).contentEquals(byteArrayOf(-119,80,78,71,13,10,26,10)))
+            require(bytes.takeLast(12).toByteArray().contentEquals(byteArrayOf(0,0,0,0,73,69,78,68,-82,66,96,-126)))
             val bounds=BitmapFactory.Options().apply {inJustDecodeBounds=true}
             BitmapFactory.decodeByteArray(bytes,0,bytes.size,bounds)
             require(bounds.outWidth in 1..1200 && bounds.outHeight in 1..700)
-            require(bytes.takeLast(12).toByteArray().contentEquals(byteArrayOf(0,0,0,0,73,69,78,68,-82,66,96,-126)))
             val decoded=BitmapFactory.decodeByteArray(bytes,0,bytes.size) ?: throw IllegalArgumentException("서명 그림을 확인하지 못했습니다.")
             try {require(decoded.width==bounds.outWidth && decoded.height==bounds.outHeight)} finally {decoded.recycle()}
             require(s.getInt("w")==bounds.outWidth && s.getInt("h")==bounds.outHeight)
@@ -56,7 +56,8 @@ class SignatureStore(private val context: Context) {
         return value
     }
     private fun preserveDamaged() {
-        if(current.isFile && current.length()<=LIMIT){
+        if(current.isFile){
+            require(current.length()<=128L*1024*1024) {"큰 서명 보관함은 원본 자료를 먼저 보존해야 합니다."}
             val target=File(damaged,DocumentRepository.digest(current)+".json")
             if(!target.exists())DocumentRepository.atomicCopy(current,target)
         }

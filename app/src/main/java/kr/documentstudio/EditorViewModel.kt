@@ -17,7 +17,7 @@ data class Settings(val stylusOnly: Boolean=false,val fontSize: Float=16f,val en
 data class OfficeLaunchRequest(val sessionId: String,val openIntent: OpenIntent=OpenIntent.VIEW,val token: String=java.util.UUID.randomUUID().toString())
 
 data class UiState(val tabs: List<Session> = emptyList(),val active: String?=null,val recents: List<Recent> = emptyList(),
-    val busy: Boolean=false,val message: String?=null,val settings: Settings=Settings(),val lockedBackupUri: String?=null,val officeLaunch: OfficeLaunchRequest?=null,val saveRequest: String?=null,val presentations: Map<String,PresentationState> = emptyMap()) {
+    val busy: Boolean=false,val message: String?=null,val problem: UserProblem?=null,val settings: Settings=Settings(),val lockedBackupUri: String?=null,val officeLaunch: OfficeLaunchRequest?=null,val saveRequest: String?=null,val presentations: Map<String,PresentationState> = emptyMap()) {
     val session get() = tabs.firstOrNull { it.id==active }
     fun presentation(id: String) = presentations[id] ?: PresentationState.READING
 }
@@ -41,12 +41,14 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     init { viewModelScope.launch {
         try {
             val preferences=withContext(Dispatchers.IO) { application.getSharedPreferences("settings",0).let { p -> Settings(p.getBoolean("stylusOnly",false),p.getFloat("fontSize",16f),p.getString("encoding","UTF-8")!!,p.getString("penTool","PEN")!!,p.getInt("penColor",0xFF294E46.toInt()),p.getFloat("penWidth",0.004f),p.getFloat("penOpacity",1f),p.getBoolean("wrapLines",true),p.getBoolean("partialEraser",false),p.getFloat("eraserRadius",0.025f).coerceIn(0.005f,0.08f)).let {InkPreferences.extend(it,p)} } }
-            val recents=repository.recents()
+            val recents=repository.recents(includeHidden=true)
             mutable.value=mutable.value.copy(recents=recents,settings=if(settingsChanged) mutable.value.settings else preferences)
         } catch(e: CancellationException) {throw e}
-        catch(e: Exception) { message("작업 목록을 읽을 수 없습니다: ${e.message}") }
+        catch(e: Exception) {report(e)}
     } }
     fun message(text: String?) { mutable.value=mutable.value.copy(message=text) }
+    fun dismissProblem(){mutable.value=mutable.value.copy(problem=null)}
+    private fun report(e: Throwable) {val p=UserProblems.explain(e);mutable.value=mutable.value.copy(problem=p,message=p.title+" · "+p.advice)}
     private fun action(block: suspend () -> Unit) {
         if(mutable.value.busy) return
         checkpointJob?.cancel()
@@ -60,7 +62,8 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
             }
             catch(e: CancellationException) {throw e}
             catch(e: BackupPasswordRequired) {mutable.value=mutable.value.copy(lockedBackupUri=e.uri.toString(),message=null)}
-            catch(e: Exception) { mutable.value.active?.takeIf {mutable.value.presentation(it)==PresentationState.LOADING}?.let {setPresentation(it,PresentationState.ERROR)};message(e.message ?: "작업에 실패했습니다.") }
+            catch(e: Exception) { mutable.value.active?.takeIf {mutable.value.presentation(it)==PresentationState.LOADING}?.let {setPresentation(it,PresentationState.ERROR)};report(e) }
+            catch(e: OutOfMemoryError) {report(e)}
             finally { mutable.value=mutable.value.copy(busy=officeActive!=null) }
         }
     }
@@ -117,7 +120,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
     }
     fun open(uri: Uri,visual: Boolean=false,openIntent: OpenIntent=OpenIntent.VIEW) = action {
         mutable.value=mutable.value.copy(officeLaunch=null)
-        mutable.value.tabs.firstOrNull {it.uri==uri.toString()}?.let {
+        mutable.value.tabs.firstOrNull {DocumentUris.same(it.uri,uri.toString()) && it.dirty}?.let {
             lastTextEdit=0;mutable.value=mutable.value.copy(active=it.id);setPresentation(it.id,if(it.readOnlyReason==null) PresentationState.READING else PresentationState.READ_ONLY);requestVisual(it,visual,openIntent);return@action
         }
         val s=repository.open(uri,mutable.value.settings.encoding); attach(s);requestVisual(s,visual,openIntent)
@@ -144,6 +147,16 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         val s=mutable.value.tabs.firstOrNull {it.id==id} ?: repository.restore(id).also {attach(it)}
         lastTextEdit=0;mutable.value=mutable.value.copy(active=id);setPresentation(s.id,if(s.readOnlyReason==null) PresentationState.READING else PresentationState.READ_ONLY);requestVisual(s,visual)
     }
+    fun reopenRecent(id: String,visual: Boolean=true) = action {
+        val checked=repository.reopenRecent(id,mutable.value.settings.encoding)
+        val current=mutable.value.tabs.firstOrNull {it.id==id}
+        val s=if(current!=null && current.sourceHash==checked.sourceHash && current.base==checked.base) {
+            checked.recoveryWarning?.let(::message);current
+        } else checked.also {attach(it)}
+        lastTextEdit=0;mutable.value=mutable.value.copy(active=s.id)
+        setPresentation(s.id,if(s.readOnlyReason==null)PresentationState.READING else PresentationState.READ_ONLY);requestVisual(s,visual)
+    }
+    fun hideRecent(id: String,hidden: Boolean) = action {repository.hideRecent(id,hidden)}
     fun home() { if(mutable.value.busy) return; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=null,officeLaunch=null) }
     fun select(id: String) { if(mutable.value.busy || mutable.value.tabs.none {it.id==id}) return; if(mutable.value.active==id){lastTextEdit=0;return}; flush(); lastTextEdit=0; mutable.value=mutable.value.copy(active=id) }
     fun close(id: String) = action {
@@ -200,7 +213,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         val target=id ?: officeActive
         officeActive=null;mutable.value=mutable.value.copy(busy=false)
         if(target==null) return
-        if(error!=null) {document(target)?.let {replace(it.copy(recoveryWarning="문서를 표시하지 못했습니다. 작업 파일을 보존했습니다: $error"))};setPresentation(target,PresentationState.ERROR);message(error);return}
+        if(error!=null) {document(target)?.let {replace(it.copy(recoveryWarning="문서를 표시하지 못했습니다. 작업 파일은 보존했습니다. 파일을 다시 선택하거나 저장 복구를 확인하세요."))};setPresentation(target,PresentationState.ERROR);message("문서를 표시하지 못했습니다. 파일을 다시 선택하거나 저장 복구를 확인하세요.");return}
         action {
             val s=mutable.value.tabs.firstOrNull {it.id==target} ?: repository.restore(target).also {attach(it)}
             run {
@@ -211,7 +224,7 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
                 }
                 catch(e: CancellationException) {throw e}
                 catch(e: Exception) {
-                    replace(s.copy(recoveryWarning="정밀 편집 결과를 가져오지 못했습니다. 이전 작업과 복구 파일을 보존했습니다: ${e.message}"))
+                    replace(s.copy(recoveryWarning="정밀 편집 결과를 가져오지 못했습니다. 이전 작업과 복구 파일을 보존했습니다."))
                     throw e
                 }
                 if(result!=s) {if(result.base!=s.base) histories.getValue(s.id).record(s);replace(result)}
@@ -318,15 +331,15 @@ class EditorViewModel(application: Application): AndroidViewModel(application) {
         if(refresh && changed) refreshRecents()
     }
     private suspend fun refreshRecents() {
-        // Read the flow after IO: copy(recents=repository.recents()) captures its
+        // Read the flow after IO: copy(recents=repository.recents(includeHidden=true)) captures its
         // receiver before suspension and can restore an obsolete tab or edit.
-        val recents=repository.recents()
+        val recents=repository.recents(includeHidden=true)
         mutable.value=mutable.value.copy(recents=recents)
     }
     private suspend fun recoverySafely() {
         try {flushInternal()}
         catch(e: CancellationException) {throw e}
-        catch(e: Exception) {message("자동 복구 저장 실패: ${e.message}")}
+        catch(e: Exception) {report(e);message("자동 복구본을 저장하지 못했습니다. 원본 저장도 완료된 상태가 아닙니다. 여유 공간을 확인하고 사본을 저장하세요.")}
     }
     fun flush() { checkpointJob?.cancel(); checkpointJob=viewModelScope.launch {recoverySafely()} }
 }

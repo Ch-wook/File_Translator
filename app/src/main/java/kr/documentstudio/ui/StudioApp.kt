@@ -84,6 +84,8 @@ fun StudioApp(vm: EditorViewModel) {
     }
     var newDialog by remember { mutableStateOf(false) }
     var settingsDialog by remember { mutableStateOf(false) }
+    var recoveryDialog by remember {mutableStateOf(false)}
+    var problemDialog by remember {mutableStateOf(false)}
     var splitLeft by rememberSaveable {mutableStateOf<String?>(null)}
     var splitRight by rememberSaveable {mutableStateOf<String?>(null)}
     var pendingSaveId by rememberSaveable {mutableStateOf<String?>(null)}
@@ -161,12 +163,17 @@ fun StudioApp(vm: EditorViewModel) {
             focus.clearFocus(force=true)
         }
     }
-    LaunchedEffect(state.message) { state.message?.let { snackbar.showSnackbar(it); vm.message(null) } }
+    LaunchedEffect(state.message) { state.message?.let {message->
+        val answer=snackbar.showSnackbar(message,actionLabel=if(state.problem!=null)"자세히" else null,withDismissAction=true)
+        if(answer==SnackbarResult.ActionPerformed)problemDialog=true
+        vm.message(null)
+    } }
     BackHandler(state.session!=null && !state.busy) { if(state.active?.let {state.presentation(it).allowsMutation}==true) vm.readDocument() else vm.home() }
     val accent=state.session?.let {WorkspaceFamily.of(it.format).accent} ?: Green
-    MaterialTheme(colorScheme=lightColorScheme(primary=accent,secondary=Color(0xFF596A82),background=Cream,surface=Color.White,surfaceContainer=Color(0xFFEEF1F7))) {
+    StudioTheme(accent) {
         Scaffold(topBar={
             if(state.session==null) TopAppBar(title={ Text("문서 스튜디오",fontWeight=FontWeight.Bold) },actions={
+                IconButton(onClick={recoveryDialog=true}) {Icon(Icons.Default.Restore,"저장 복구")}
                 IconButton(onClick={settingsDialog=true}) { Icon(Icons.Default.Settings,"설정") }
             }) else if(!fullScreen || editing) {
                 val s=state.session!!
@@ -188,6 +195,7 @@ fun StudioApp(vm: EditorViewModel) {
                                 DropdownMenuItem(text={Text("전체 화면 보기")},onClick={menu=false;fullScreen=true})
                                 DropdownMenuItem(text={Text("보기 설정")},onClick={menu=false;reader.settings()})
                             }
+                            DropdownMenuItem(text={Text("저장 복구")},onClick={menu=false;recoveryDialog=true})
                             DropdownMenuItem(text={Text("파일 정보")},onClick={menu=false;info=true})
                             DropdownMenuItem(text={Text(if(state.presentation(s.id).allowsMutation) "읽기 모드로 전환" else "편집하기")},enabled=state.presentation(s.id)!=PresentationState.READ_ONLY,onClick={menu=false;if(state.presentation(s.id).allowsMutation) vm.readDocument() else vm.beginEditing()})
                             DropdownMenuItem(text={Text(if(s.dirty) "원본에 미저장 · 기기에 복구본 자동 보관" else "원본 파일에 저장됨")},enabled=false,onClick={})
@@ -241,7 +249,7 @@ fun StudioApp(vm: EditorViewModel) {
             }
             if(fullScreen && !editing && state.session!=null) Popup(alignment=Alignment.TopEnd,
                 properties=PopupProperties(focusable=false,dismissOnBackPress=false,dismissOnClickOutside=false)) {
-                IconButton({fullScreen=false},Modifier.padding(8.dp).background(Color.White.copy(alpha=.9f),RoundedCornerShape(8.dp))) {Icon(Icons.Default.MoreVert,"메뉴 표시")}
+                IconButton({fullScreen=false},Modifier.padding(8.dp).background(MaterialTheme.colorScheme.surface.copy(alpha=.95f),RoundedCornerShape(8.dp))) {Icon(Icons.Default.MoreVert,"메뉴 표시")}
             }
             SnackbarHost(snackbar,Modifier.align(Alignment.TopCenter).padding(horizontal=8.dp,vertical=6.dp))
             }
@@ -254,7 +262,11 @@ fun StudioApp(vm: EditorViewModel) {
             if(vm.prepareEncryptedBackup(id,password)) encryptedBackup.launch((name ?: "문서").substringBeforeLast('.')+"-백업.dsbackup")
             encryptedDialogId=null
         },onDismiss={encryptedDialogId=null})}
-        if(settingsDialog) SettingsDialog(state.settings,vm::settings,vm::cleanupTemporary) {settingsDialog=false}
+        if(settingsDialog) SettingsDialog(state.settings,vm::settings,vm::cleanupTemporary,{settingsDialog=false;recoveryDialog=true}) {settingsDialog=false}
+        if(recoveryDialog) SaveRecoveryDialog(vm.repository,vm::message) {recoveryDialog=false}
+        if(problemDialog && state.problem!=null) AlertDialog(onDismissRequest={problemDialog=false},title={Text(state.problem!!.title)},
+            text={Text(state.problem!!.advice)},confirmButton={TextButton({problemDialog=false;recoveryDialog=true}){Text("저장 복구")}},
+            dismissButton={TextButton({problemDialog=false;vm.dismissProblem()}){Text("닫기")}})
         if(showBrowser && browserUri!=null) FolderBrowser(Uri.parse(browserUri),state.busy,{vm.openExternal(it)},{treePicker.launch(Uri.parse(browserUri))}) {showBrowser=false}
     }
 }
@@ -276,7 +288,7 @@ private fun EditorPane(s: Session,state: UiState,model: EditorViewModel,openOffi
 }
 
 @Composable
-private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: ()->Unit,close: ()->Unit) {
+private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: ()->Unit,recovery: ()->Unit,close: ()->Unit) {
     var licenses by remember {mutableStateOf(false)}
     var officeLicenses by remember {mutableStateOf(false)}
     AlertDialog(onDismissRequest=close,title={Text("편집 설정")},text={Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState())) {
@@ -291,6 +303,8 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
         Row {listOf("UTF-8","MS949").forEach {e -> FilterChip(settings.encoding==e,{change(settings.copy(encoding=e))},label={Text(e)},modifier=Modifier.padding(end=8.dp))}}
         Text("BOM 인코딩을 우선하고 저장 시 인코딩과 원래 줄바꿈을 유지합니다. 자동 저장은 원본을 덮어쓰지 않습니다.",style=MaterialTheme.typography.bodySmall)
         TextButton(onClick={licenses=true}) {Text("오픈소스·SDK 라이선스")}
+        Text("화면 색상은 기기의 밝게·어둡게 설정을 따릅니다. 문서 원본의 글자색과 용지는 바꾸지 않습니다.",style=MaterialTheme.typography.bodySmall)
+        TextButton(recovery) {Text("저장·서명 복구")}
         TextButton(cleanup) {Text("임시 변환 파일 정리")}
         TextButton(onClick={officeLicenses=true}) {Text("정밀 오피스 엔진 고지")}
     }},confirmButton={TextButton(onClick=close){Text("완료")}})

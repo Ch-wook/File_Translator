@@ -68,10 +68,10 @@ private fun Modifier.selectableTab(selected: Boolean,enabled: Boolean,click: ()-
 
 @Composable
 fun WorkspaceStatus(left: String,right: String="") {
-    Surface(color=Color(0xFFF8F9FC)) {
+    Surface(color=MaterialTheme.colorScheme.surfaceContainer) {
         Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=7.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text(left,style=MaterialTheme.typography.labelSmall,color=Color(0xFF606B7B),modifier=Modifier.weight(1f),maxLines=1)
-            if(right.isNotEmpty()) Text(right,style=MaterialTheme.typography.labelSmall,color=Color(0xFF606B7B),maxLines=1)
+            Text(left,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.weight(1f),maxLines=2)
+            if(right.isNotEmpty()) Text(right,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1)
         }
     }
 }
