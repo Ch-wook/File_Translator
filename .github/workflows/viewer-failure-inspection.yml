@@ -24,6 +24,9 @@ jobs:
               markers=('FATAL EXCEPTION','Fatal signal','ANR in','Invalid private Office','Background activity','background activity','BAL_BLOCK','BackgroundActivityStart','Uncaught','studio-policy','Cannot access','TypeError','ReferenceError','depends on provider','depending on provider','stable provider','No Unicode mapping','GlyphList','PDFont','Process crashed')
               for i,line in enumerate(lines):
                   if any(m in line for m in markers):print('VIEWER_RUNTIME_FAILURE','\n'.join(lines[max(0,i-2):i+16]),flush=True)
+              # Inspect the first PPTX launch through its early app-request finish.
+              ppt=[l for l in lines if '09:56:' in l and any(t in l for t in (' 2473 ','LOActivity','LibreOffice','Collabora','CHROMIUM','chromium','kit','studio','load','Load'))]
+              print('PPTX_EARLY_NATIVE_LOAD', '\n'.join(ppt),flush=True)
               activity=[l for l in lines if ('ActivityTaskManager' in l or 'wm_' in l) and any(t in l for t in ('kr.documentstudio','StudioOfficeActivity','HangulEditorActivity'))]
               print('VIEWER_ACTIVITY_LIFECYCLE','\n'.join(activity[-120:]),flush=True)
           for file in Path('viewer-failure').rglob('*.json'):
