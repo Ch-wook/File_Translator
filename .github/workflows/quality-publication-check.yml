@@ -23,7 +23,7 @@ jobs:
           assert "'tests':66" in source and "'app':45" in source and "versionCode']==21" in source
           assert 'coexistsWith0810' in source and 'SECURITY_RUN' in source and 'commercialReady' in source
           assert 'PLACEHOLDER' not in source
-          anr_pattern=re.search(r"assert not re.search\\(r'([^']+)'",source).group(1)
+          anr_pattern=source.split("assert not re.search(r'",1)[1].split("'",1)[0]
           assert re.search(anr_pattern,'ActivityManager: ANR in kr.documentstudio.qualitypreview:office (native)')
           assert re.search(anr_pattern,'ActivityManager: ANR in kr.documentstudio.qualitypreview (host)')
           assert not re.search(anr_pattern,'ActivityManager: ANR in com.android.launcher3 (launcher)')
