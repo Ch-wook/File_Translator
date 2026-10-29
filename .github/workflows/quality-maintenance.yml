@@ -16,9 +16,9 @@ jobs:
           python3 - <<'PY'
           import json,os,subprocess
           repo=os.environ['GITHUB_REPOSITORY']
-          for run in (40796076300,):
+          for run,expected_sha in [[40806236812,"303584d1ee3b7ec4d1301b07d76654f4ea28f4b5"],[40806236837,"303584d1ee3b7ec4d1301b07d76654f4ea28f4b5"],[40806236843,"303584d1ee3b7ec4d1301b07d76654f4ea28f4b5"],[40805454272,"ec90da38a01540c069a61e772e957dedf2d40d39"],[40805454135,"ec90da38a01540c069a61e772e957dedf2d40d39"]]:
               info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{run}']))
-              assert info['head_sha']=='ee4e923fffe5fff2a70907f4614e10a0d0023fa9'
+              assert info['head_sha']==expected_sha
               assert info['head_branch']=='codex/hangul-mobile-editing' and info['event']=='push'
               if info['status'] in ('queued','in_progress'):subprocess.run(['gh','api',f'repos/{repo}/actions/runs/{run}/cancel','--method','POST'],check=True)
           print('ONLY_UNPATCHED_PREVIEW_RUNS_CANCELLED')
