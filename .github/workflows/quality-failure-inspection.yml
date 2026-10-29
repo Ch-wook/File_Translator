@@ -13,31 +13,21 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
-      - name: Read only the failed candidate's saved logs and reports
+      - name: Read the exact recovery UI failure and semantics tree
         run: |
-          pip install Pillow
-          gh run download 40802046698 --name mobile-release-logs-ea111b8dcceef56b57d9febe6fd44dbc491ac862 --dir failed-quality
+          gh run download 40814067760 --name quality-storage-ui-9463d4dc6dda303d94869019d33dedac1b37c579 --dir failed-quality
           python3 - <<'PY'
-          import pathlib,re,xml.etree.ElementTree as E,base64,io
-          from PIL import Image
+          import pathlib,xml.etree.ElementTree as E
           root=pathlib.Path('failed-quality')
           for p in root.rglob('TEST-*.xml'):
               if 'androidTest-results' not in p.as_posix():continue
               for c in E.parse(p).getroot().iter('testcase'):
-                  for f in list(c.findall('failure'))+list(c.findall('error')):print('SAVED_ANDROID_FAILURE',c.attrib,(f.text or '')[:18000])
-          candidates=list(root.rglob('android-runtime.log'))+list(root.rglob('android-all-processes.log'))
-          for p in candidates:
-              lines=p.read_text(errors='replace').splitlines()
-              print('SAVED_RUNTIME_LOG',p,len(lines))
-              selected=set()
-              for n,line in enumerate(lines):
-                  if 'qualitypreview' in line and re.search(r'START |Displayed |wm_on_|died|FATAL|Finish|finish|has died|Start proc|fatal',line):
-                      selected.add(n)
-                  if re.search(r'Fatal signal|FATAL EXCEPTION',line):selected.update(range(max(0,n-8),min(len(lines),n+125)))
-              for n in sorted(selected):print('SAVED_RUNTIME_LINE',n,lines[n])
-          for name in ('pptx-page1.png','mobile-pdf-conversion-menu-must-exist-failure.png','hwp-keyboard-format.png','hwp-failure.png'):
-              matches=list(root.rglob(name))
-              if not matches:continue
-              im=Image.open(matches[0]);im.thumbnail((432,960));buf=io.BytesIO();im.save(buf,format='PNG')
-              print('INSPECTION_IMAGE',name,base64.b64encode(buf.getvalue()).decode())
+                  for f in list(c.findall('failure'))+list(c.findall('error')):print('SAVED_ANDROID_FAILURE',c.attrib,(f.text or '')[:12000])
+          for p in root.rglob('quality-ui-failure.txt'):
+              print('RECOVERY_UI_SEMANTICS_TREE_START',p,flush=True)
+              print(p.read_text(),flush=True)
+              print('RECOVERY_UI_SEMANTICS_TREE_END',flush=True)
+          for p in root.rglob('android-runtime.log'):
+              for line in p.read_text(errors='replace').splitlines():
+                  if 'QUALITY_RECOVERY_UI_FAILURE' in line:print('RUNTIME_UI_DIAGNOSTIC',line,flush=True)
           PY
