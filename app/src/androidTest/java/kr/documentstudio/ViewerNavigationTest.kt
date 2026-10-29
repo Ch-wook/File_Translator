@@ -79,7 +79,7 @@ class ViewerNavigationTest {
         val total=if(kind=="hangul")"pages" else "count"
         val closed=File(working.path+".closed");var completed=false
         val record=JSONObject().put("file",name).put("expectedCount",count)
-        val probeClient=checkNotNull(context.contentResolver.acquireContentProviderClient(Uri.parse("content://"+context.packageName+"."+kind+"probe")))
+        val probeClient=checkNotNull(context.contentResolver.acquireUnstableContentProviderClient(Uri.parse("content://"+context.packageName+"."+kind+"probe")))
         try{
             // Provider lifecycle observation must be registered before Activity
             // creation. Resolving the provider after onCreate can miss that event.
@@ -154,7 +154,7 @@ class ViewerNavigationTest {
         }finally{
             runCatching {device.setOrientationNatural();device.unfreezeRotation()}
             runCatching {probeClient.close()}
-            runCatching {
+            if(!completed)runCatching {
                 record.put("observedState",JSONObject(eval(kind,state)))
                 if(kind=="office")record.put("officeGeometry",JSONObject(eval(kind,"JSON.stringify({layout:app.activeDocument?.activeLayout?.type,view:app.activeDocument?.activeLayout?.viewedRectangle,zoom:app.map.getZoom(),address:document.querySelector('#addressInput input,#addressInput')?.value,cellAddress:app.map.stateChangeHandler.getItemValue('.uno:CellAddress'),changed:window.studioOffice.changed})")))
             }

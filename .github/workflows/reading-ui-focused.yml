@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   android:
-    if: contains(github.event.head_commit.message, '[reading-ui-test]')
+    if: contains(github.event.head_commit.message, '[reading-ui-test]') || contains(github.event.head_commit.message, '[viewer-native-test]')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     defaults:
@@ -78,7 +78,7 @@ jobs:
         continue-on-error: true
         env:
           STUDIO_ABI: x86_64
-          MODE_TEST_CLASSES: kr.documentstudio.ReadingUxTest,kr.documentstudio.ViewerNavigationTest
+          MODE_TEST_CLASSES: ${{ contains(github.event.head_commit.message, '[viewer-native-test]') && 'kr.documentstudio.ViewerNavigationTest' || 'kr.documentstudio.ReadingUxTest,kr.documentstudio.ViewerNavigationTest' }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -92,13 +92,14 @@ jobs:
       - name: Require actual Android success and all selected tests
         env:
           ACTUAL_ANDROID_OUTCOME: ${{ steps.android-tests.outcome }}
+          EXPECTED_TEST_COUNT: ${{ contains(github.event.head_commit.message, '[viewer-native-test]') && '4' || '10' }}
         run: |
           python3 - <<'PY'
           import json,os,pathlib
           summary=json.loads(pathlib.Path('artifacts/ci/android-summary.json').read_text())
           print('ACTUAL_ANDROID_OUTCOME',os.environ['ACTUAL_ANDROID_OUTCOME'])
           print('MOBILE_ANDROID_SUMMARY',json.dumps(summary))
-          assert os.environ['ACTUAL_ANDROID_OUTCOME']=='success' and summary=={'tests':10,'failures':0,'errors':0,'skipped':0},summary
+          assert os.environ['ACTUAL_ANDROID_OUTCOME']=='success' and summary=={'tests':int(os.environ['EXPECTED_TEST_COUNT']),'failures':0,'errors':0,'skipped':0},summary
           PY
       - uses: actions/upload-artifact@v4
         if: always()
