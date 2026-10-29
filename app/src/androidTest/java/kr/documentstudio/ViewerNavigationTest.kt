@@ -79,6 +79,16 @@ class ViewerNavigationTest {
                 .putExtra("workingPath",working.absolutePath).putExtra("displayName",name))
             waitFor("Actual native engine loads all logical pages or sheets",150000){JSONObject(eval(kind,state)).getInt(total)==count}
             assertEquals(count,JSONObject(eval(kind,state)).getInt(total))
+            if(name.endsWith(".hwpx")||name.endsWith(".docx")){
+                val r=documentBounds();device.swipe(r.centerX(),r.top+r.height()*3/4,r.centerX(),r.top+r.height()/3,30)
+                waitFor("Actual one-finger scrolling reaches another page"){JSONObject(eval(kind,state)).getInt(index)>0}
+                record.put("actualAndroidContinuousScroll",true)
+            }
+            if(name.endsWith(".pptx")){
+                val r=documentBounds();device.swipe(r.left+r.width()*3/4,r.top+r.height()/2,r.left+r.width()/4,r.top+r.height()/2,25)
+                waitFor("Native horizontal gesture reaches next slide"){JSONObject(eval(kind,state)).getInt(index)>0}
+                record.put("actualAndroidSlideSwipe",true)
+            }
             if(name.endsWith(".xlsx")){
                 tap("문서 메뉴");tap("시트 목록");tap("Viewer 3")
                 waitFor("Third native sheet selected"){JSONObject(eval(kind,state)).getInt(index)==2}
@@ -121,6 +131,10 @@ class ViewerNavigationTest {
             completed=true
         }finally{
             runCatching {device.setOrientationNatural();device.unfreezeRotation()}
+            runCatching {
+                record.put("observedState",JSONObject(eval(kind,state)))
+                if(kind=="office")record.put("officeGeometry",JSONObject(eval(kind,"JSON.stringify({layout:app.activeDocument?.activeLayout?.type,view:app.activeDocument?.activeLayout?.viewedRectangle,zoom:app.map.getZoom(),address:document.querySelector('#addressInput input,#addressInput')?.value,cellAddress:app.map.stateChangeHandler.getItemValue('.uno:CellAddress'),changed:window.studioOffice.changed})")))
+            }
             record.put("completed",completed);File(evidence,name+".json").writeText(record.toString(2))
             if(!completed){
                 runCatching {device.dumpWindowHierarchy(File(evidence,name+"-failure.xml"));device.takeScreenshot(File(evidence,name+"-failure.png"))}

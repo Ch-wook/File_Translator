@@ -167,7 +167,7 @@ fun PdfContinuousReader(s: Session,page: Int,navigationRequest: Int,busy: Boolea
                 },state=list,contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp),userScrollEnabled=!busy) {
                     items(count,key={it}) {index->
                         Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.TopCenter) {
-                            ContinuousPage(s,index,busy,onEditPage?.let {callback->{callback(index)}},Modifier.width(documentWidth))
+                            ContinuousPage(s,index,busy,renderer,onEditPage?.let {callback->{callback(index)}},Modifier.width(documentWidth))
                         }
                     }
                 }
