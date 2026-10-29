@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict');
 /** Pause a real engine export; both save failure and overlapping close must retain data. */
-module.exports=async({page,prepareLatest})=>{
+module.exports=async({page,prepareLatest,repairLatest})=>{
  await page.waitForFunction(()=>!document.getElementById('save').disabled);
  await page.evaluate(()=>{
   const e=document.getElementById('engine').contentWindow.rhwpStudio.documentStudio;
@@ -34,8 +34,16 @@ module.exports=async({page,prepareLatest})=>{
  else await page.evaluate(()=>document.getElementById('engine').contentWindow.rhwpStudio.documentStudio.mobile.char({spacings:Array(7).fill(12)}));
  await page.evaluate(()=>{document.getElementById('save').click();document.getElementById('save').click();window.__releaseExport();});
  console.log('CLOSE_RACE_REQUEST_WHILE_EXPORT_HELD');
+ if(prepareLatest){
+  await page.waitForFunction(()=>{const s=documentStudioHost.operationState();return !s.closing&&!s.pending;});
+  assert.equal(await page.evaluate(()=>Boolean(window.__closed)),false,'A failed stale formatting command must block closing');
+  assert.equal(await page.evaluate(()=>document.getElementById('status').dataset.error),'true','Explain the failed formatting request');
+  assert.equal(await page.evaluate(()=>window.__closeCalls),0);
+  await repairLatest();
+  await page.evaluate(()=>{document.getElementById('save').click();document.getElementById('save').click();});
+ }
  await page.waitForFunction(()=>window.__closed,null,{timeout:15000});
  assert.equal(await page.evaluate(()=>window.__closeCalls),1,'Overlapping save/close requests close exactly once');
  assert.equal(await page.evaluate(()=>window.__saveOriginal),true);
- return {queuedCloseJoinsAutosave:true,failedClosePreservesWork:true,duplicateCloseCoalesced:true};
+ return {queuedCloseJoinsAutosave:true,failedClosePreservesWork:true,duplicateCloseCoalesced:true,failedFormatBlocksClose:Boolean(prepareLatest)};
 };

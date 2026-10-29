@@ -106,7 +106,14 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   const openPanel=page.getByRole('button',{name:'설정 닫기',exact:true});if(await openPanel.isVisible())await openPanel.click();
   await page.locator('#groups').getByRole('button',{name:'글자',exact:true}).click();
   await page.waitForFunction(()=>!document.getElementById('save').disabled);
-  const closeRace=await require('./hangul-close-race.cjs')({page,prepareLatest:()=>page.evaluate(()=>{const input=document.querySelector('[aria-label="자간(%)"]');input.value='12';input.dispatchEvent(new Event('input',{bubbles:true}));})});
+  const closeRace=await require('./hangul-close-race.cjs')({
+   page,
+   prepareLatest:()=>page.evaluate(()=>{const input=document.querySelector('[aria-label="자간(%)"]');input.value='12';input.dispatchEvent(new Event('input',{bubbles:true}));}),
+   repairLatest:async()=>{
+    await call('find','나다');
+    await page.evaluate(()=>{const input=document.querySelector('[aria-label="자간(%)"]');input.blur();input.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));input.focus();input.value='12';input.dispatchEvent(new Event('input',{bubbles:true}));});
+   }
+  });
   await page.waitForFunction(()=>window.__closed,null,{timeout:60000});
   const exported=await page.evaluate(()=>({data:window.__saved,report:window.__report,saveOriginal:window.__saveOriginal}));
   assert.equal(exported.report.count,0);assert.equal(exported.saveOriginal,true);

@@ -5,16 +5,18 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
  const sheetHead=UI.sheet(sheet,'글자',()=>closePanel());
  const names=['글자','문단','목록','표','그림','삽입','찾기','스타일','쪽','클립보드'];
  let group='글자',expanded=false,target=null,state={},queue=Promise.resolve(),rendering=false,lastContext='body';
+ let actionFailure=null;
  const fields=new Map(),timers=new Map();let searchInfo={count:0,current:0},recent=[];
  try{recent=JSON.parse(localStorage.getItem('studio-colors')||'[]').filter(v=>/^#[0-9a-f]{6}$/i.test(v)).slice(0,8);}catch{}
  const api=()=>getEditor()?.mobile;
  const remember=()=>{if(api())target=api().capture();};
  function execute(action,{capture=false,focus=false}={}) {
    if(capture)remember();
+   actionFailure=null;
    queue=queue.then(async()=>{
      if(!api())return;
      try{const answer=await action(api());if(answer?.selection)target=answer.selection;if(focus)api().focus();update();}
-     catch(e){message(String(e.message||e),true);}
+     catch(e){actionFailure=e;message(String(e.message||e),true);}
    });return queue;
  }
  function button(label,action,parent=tools,{command,mutates=true}={}) {
@@ -202,7 +204,7 @@ export function createMobileTools({groups,tools,panel,getEditor,isEditable,messa
    if(['bold','underline'].includes(name)){remember();return execute(m=>m.dispatch('format:'+name,undefined,target));}
    if(name==='colors'||name==='character'){remember();group='글자';expanded=true;render();}
  }
- async function flush(){for(const value of timers.values()){clearTimeout(value.timer);value.commit();}timers.clear();await queue;if(panel.querySelector('[aria-invalid="true"]'))throw new Error('입력한 서식 값의 범위를 확인하세요.');}
+ async function flush(){for(const value of timers.values()){clearTimeout(value.timer);value.commit();}timers.clear();await queue;if(actionFailure)throw actionFailure;if(panel.querySelector('[aria-invalid="true"]'))throw new Error('입력한 서식 값의 범위를 확인하세요.');}
  async function history(name){try{await flush();return execute(m=>m.dispatch('edit:'+name));}catch(error){message(String(error.message||error),true);}}
  return {render,update,action,flush,history,open:choose,selectionChanged(){remember();update();},context(name){remember();if(state.object||name==='그림'){group='그림';expanded=false;render();}else update();},
    showSearch(){choose('찾기');},closePanel};

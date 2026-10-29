@@ -161,7 +161,7 @@ jobs:
               mobile=result['mobileEngineTests']
               assert len(mobile)==2 and {r['format'] for r in mobile}=={'hwp','hwpx'}
               for r in mobile:
-                  assert r['partialSelection'] and r['savedAndReopened'] and r['autosave'] and r['atomicPasteUndoRedo'] and r['queuedCloseJoinsAutosave'] and r['failedClosePreservesWork'] and r['duplicateCloseCoalesced'],r
+                  assert r['partialSelection'] and r['savedAndReopened'] and r['autosave'] and r['atomicPasteUndoRedo'] and r['queuedCloseJoinsAutosave'] and r['failedClosePreservesWork'] and r['duplicateCloseCoalesced'] and r['failedFormatBlocksClose'],r
                   assert r['structure']['mergeSplitCycles']==3 and all(v is True or k=='mergeSplitCycles' for k,v in r['structure'].items()),r
           apks=result['apks'];assert {a['abi'] for a in apks}=={'arm64-v8a','x86_64'}
           assert len({a['certificateSHA256'] for a in apks})==1

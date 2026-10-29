@@ -13,6 +13,10 @@ try:
     before=subprocess.run(['node','scripts/tests/hangul-mobile.cjs'],env=env,capture_output=True,text=True,timeout=240)
     (out/'before.log').write_text(before.stdout+before.stderr)
     assert before.returncode!=0 and 'CLOSE_RACE_REQUEST_WHILE_EXPORT_HELD' in before.stdout and 'Timeout 15000ms exceeded' in before.stderr,before.stdout+before.stderr
+    expected=out/'before';expected.mkdir(exist_ok=True)
+    for name in ('failure.json','failure.png','failure-dom.html'):
+        file=root/'artifacts/hangul-mobile'/name
+        if file.is_file():file.replace(expected/name)
     runtime.write_bytes(current)
     after=subprocess.run(['node','scripts/tests/hangul-mobile.cjs'],env=env,capture_output=True,text=True,timeout=240)
     (out/'after.log').write_text(after.stdout+after.stderr)
