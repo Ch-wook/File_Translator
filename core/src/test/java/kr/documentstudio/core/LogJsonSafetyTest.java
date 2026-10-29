@@ -10,12 +10,12 @@ public class LogJsonSafetyTest {
     public void nonFiniteNumbersCannotProduceBareInvalidJsonTokens() {
         for (double value : new double[]{Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
             MapMessage message = new MapMessage();
-            message.put("value", value);
+            message.with("value", value);
             String json = message.getFormattedMessage(new String[]{"JSON"});
             assertTrue(json, json.matches("\\{\\s*\"value\"\\s*:\\s*(?:null|\"(?:NaN|-?Infinity)\")\\s*\\}"));
         }
         MapMessage finite = new MapMessage();
-        finite.put("value", 1.25);
+        finite.with("value", 1.25);
         assertTrue(finite.getFormattedMessage(new String[]{"JSON"}).matches("\\{\\s*\"value\"\\s*:\\s*1\\.25\\s*\\}"));
     }
 }
