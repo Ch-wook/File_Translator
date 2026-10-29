@@ -20,7 +20,7 @@ jobs:
           for _,body in blocks:ast.parse(textwrap.dedent(body))
           for p in ('scripts/package-mobile-release.py','scripts/test-mobile-installation.py','scripts/audit-commercial-quality.py'):
               ast.parse(pathlib.Path(p).read_text())
-          assert "'tests':66" in source and "'app':45" in source and "versionCode']==21" in source
+          assert "'tests':70" in source and "'app':45" in source and "versionCode']==21" in source
           assert 'coexistsWith0810' in source and 'SECURITY_RUN' in source and 'commercialReady' in source
           assert 'PLACEHOLDER' not in source
           anr_pattern=source.split("assert not re.search(r'",1)[1].split("'",1)[0]

@@ -114,16 +114,28 @@ jobs:
           assert ui_info['head_sha']==ui_sha and ui_info['status']=='completed' and ui_info['conclusion']=='success',ui_info
           ui_delta=subprocess.check_output(['git','diff','--name-only',sha,ui_sha],text=True).splitlines()
           assert all(n=='app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt' or n=='README.md' or n.startswith(('docs/','.github/workflows/')) for n in ui_delta),ui_delta
-          subprocess.run(['gh','run','download',ui_run,'--name','quality-storage-ui-'+ui_sha,'--dir','ui-driver'],check=True)
-          ui_dir=pathlib.Path('ui-driver');ui_summaries=list(ui_dir.rglob('android-summary.json'));assert len(ui_summaries)==1
+          ui_dir=pathlib.Path('ui-driver')
+          if ui_run==run:
+              ui_dir.mkdir()
+              with zipfile.ZipFile(delivery/'document-studio-0.8.11-preview-verification.zip') as ui_zip:
+                  for name in ui_zip.namelist():
+                      if name.startswith('app/build/outputs/androidTest-results/') and name.endswith('.xml') or name=='artifacts/ci/android-summary.json':
+                          target=ui_dir/name
+                          assert target.resolve().is_relative_to(ui_dir.resolve())
+                          target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(ui_zip.read(name))
+          else:
+              subprocess.run(['gh','run','download',ui_run,'--name','quality-storage-ui-'+ui_sha,'--dir',str(ui_dir)],check=True)
+          ui_summaries=list(ui_dir.rglob('android-summary.json'));assert len(ui_summaries)==1
           ui_summary=json.loads(ui_summaries[0].read_text())
-          assert ui_summary=={'tests':11,'failures':0,'errors':0,'skipped':0},ui_summary
-          ui_cases=[]
+          assert ui_summary=={'tests':70 if ui_run==run else 11,'failures':0,'errors':0,'skipped':0},ui_summary
+          ui_selected=[];ui_cases=[]
           for file in ui_dir.rglob('TEST-*.xml'):
               if 'androidTest-results' not in file.as_posix():continue
-              ui_cases.extend(c for c in ET.parse(file).getroot().iter('testcase') if c.get('classname')=='kr.documentstudio.QualityUiTest')
-          assert len(ui_cases)==3 and all(not any(c.find(k) is not None for k in ('failure','error','skipped')) for c in ui_cases)
-          ui_proof={'apkBuildCommit':sha,'uiDriverCommit':ui_sha,'run':int(ui_run),'tests':ui_summary,'qualityUiCases':3,'applicationCodeUnchanged':True,'nonApplicationChanges':ui_delta,'notAddedToFull66Count':True}
+              for case in ET.parse(file).getroot().iter('testcase'):
+                  if case.get('classname') in ('kr.documentstudio.SaveProcessRecoveryTest','kr.documentstudio.QualityUiTest','kr.documentstudio.BackupSafetyTest','kr.documentstudio.EncryptedBackupIntegrationTest'):ui_selected.append(case)
+                  if case.get('classname')=='kr.documentstudio.QualityUiTest':ui_cases.append(case)
+          assert len(ui_selected)==11 and len(ui_cases)==3 and all(not any(c.find(k) is not None for k in ('failure','error','skipped')) for c in ui_selected)
+          ui_proof={'apkBuildCommit':sha,'uiDriverCommit':ui_sha,'run':int(ui_run),'sourceReport':ui_summary,'selectedPassingStorageCases':11,'qualityUiCases':3,'applicationCodeUnchanged':True,'nonApplicationChanges':ui_delta,'notAddedToFull70Count':True}
           print('SUPPLEMENTAL_UI_DRIVER_VERIFIED',json.dumps(ui_proof),flush=True)
           node_run=os.environ['NODE_AUDIT_RUN'];node_sha=os.environ['NODE_AUDIT_SHA']
           node_info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{node_run}']))
@@ -150,11 +162,22 @@ jobs:
               assert z.testzip() is None
               result=json.loads(z.read('artifacts/ci/summary.json'))
               assert result['commit']==sha and result['androidEmulatorOutcome']=='success' and result['physicalDeviceTested'] is False,result
-              assert result['androidTests']=={'tests':66,'failures':0,'errors':0,'skipped':0},result
+              assert result['androidTests']=={'tests':70,'failures':0,'errors':0,'skipped':0},result
               if package_run!=run:
                   recovered=json.loads(z.read('artifacts/ci/packaging-recovery.json'))
                   assert recovered['apkBuildCommit']==sha and recovered['originalTestRun']==int(run) and recovered['packagingRun']==int(package_run)
                   assert recovered['originalTestsPassed'] is True and recovered['apkRebuilt'] is False,recovered
+              viewer=result['viewerBrowser'];pdf_viewer=result['pdf100Viewer']
+              assert viewer['pages']==20 and viewer['uniqueRenderedPages']==20 and viewer['documentWrites']==0 and viewer['originalUnchanged'],viewer
+              assert all(viewer[k] for k in ('continuousScroll','directLastPage','actualChromiumTouchPinch','panAfterZoom','modeSwitchPagePreserved','phoneLandscapeViewport','fitPage','retry')),viewer
+              assert pdf_viewer['pages']==100 and all(pdf_viewer[k] for k in ('mixedSizesAndRotation','actualTwoPointerZoom','doubleTapZoom','page100ReachedAndRestored','sourceHashUnchanged')),pdf_viewer
+              assert result['nativeMultiPageFormats']==4
+              for filename in ('viewer-20.hwpx','viewer-12.docx','viewer-30.pptx','viewer-large.xlsx'):
+                  v=json.loads(z.read('artifacts/native-android/native-viewer/'+filename+'.json'))
+                  assert all(v[k] for k in ('completed','workingUnchanged','originalUnchanged','actualAndroidPinch','nativeRotation')),v
+                  if filename.endswith(('.hwpx','.docx')):assert v['actualAndroidContinuousScroll'] is True
+                  if filename.endswith('.pptx'):assert v['actualAndroidSlideSwipe'] is True
+                  if filename.endswith('.xlsx'):assert v['distantCell']=='CV5000'
               independent=json.loads(z.read('artifacts/native-android/native-common-ui/recovery-independent-stores.json'))
               assert independent['signaturePaneIndependentFromPendingDocumentStore'] is True,independent
               search_paste=json.loads(z.read('artifacts/native-android/native-office-mode-smoke/docx-view.json'))
