@@ -1,0 +1,30 @@
+name: Inspect actual viewer failures
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    if: contains(github.event.head_commit.message, '[viewer-failure-inspection]')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read exact native launch and failure logs
+        run: |
+          gh run download 40844099638 --name focused-reading-ui-2c7482629c4515b4f91d43240c0095ae147d6f8b --dir viewer-failure
+          python3 - <<'PY'
+          from pathlib import Path
+          for file in Path('viewer-failure').rglob('android-all-processes.log'):
+              lines=file.read_text(errors='replace').splitlines()
+              markers=('FATAL EXCEPTION','Fatal signal','ANR in','Invalid private Office','Background activity','background activity','BAL_BLOCK','BackgroundActivityStart','Uncaught','studio-policy','Cannot access','TypeError','ReferenceError')
+              for i,line in enumerate(lines):
+                  if any(m in line for m in markers):print('VIEWER_RUNTIME_FAILURE','\n'.join(lines[max(0,i-2):i+16]),flush=True)
+              activity=[l for l in lines if ('ActivityTaskManager' in l or 'wm_' in l) and any(t in l for t in ('kr.documentstudio','StudioOfficeActivity','HangulEditorActivity'))]
+              print('VIEWER_ACTIVITY_LIFECYCLE','\n'.join(activity[-120:]),flush=True)
+          for file in Path('viewer-failure').rglob('*.json'):
+              if 'native-viewer' in str(file):print('VIEWER_OBSERVED_NATIVE_STATE',file,file.read_text(),flush=True)
+          PY
