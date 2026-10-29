@@ -23,6 +23,8 @@ jobs:
       SECURITY_RUN: '40814067745'
       UI_DRIVER_RUN: '40814067760'
       UI_DRIVER_SHA: 9463d4dc6dda303d94869019d33dedac1b37c579
+      NODE_AUDIT_RUN: '40814205396'
+      NODE_AUDIT_SHA: 09a8bb7eb8c9151c840c5cacfce8cb86a2abfea1
       PREVIEW_TAG: v0.8.11-preview
     steps:
       - uses: actions/checkout@v4
@@ -123,6 +125,16 @@ jobs:
           assert len(ui_cases)==3 and all(not any(c.find(k) is not None for k in ('failure','error','skipped')) for c in ui_cases)
           ui_proof={'apkBuildCommit':sha,'uiDriverCommit':ui_sha,'run':int(ui_run),'tests':ui_summary,'qualityUiCases':3,'applicationCodeUnchanged':True,'nonApplicationChanges':ui_delta,'notAddedToFull66Count':True}
           print('SUPPLEMENTAL_UI_DRIVER_VERIFIED',json.dumps(ui_proof),flush=True)
+          node_run=os.environ['NODE_AUDIT_RUN'];node_sha=os.environ['NODE_AUDIT_SHA']
+          node_info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{node_run}']))
+          assert node_info['head_sha']==node_sha and node_info['conclusion']=='success',node_info
+          assert not subprocess.check_output(['git','diff','--name-only',sha,node_sha,'--','web/hangul/engine-lock.json','scripts/prepare-hangul-engine.py'],text=True).strip()
+          subprocess.run(['gh','run','download',node_run,'--name','quality-node-'+node_sha,'--dir','quality-node'],check=True)
+          node_dir=pathlib.Path('quality-node');node_summary=json.loads((node_dir/'summary.json').read_text())
+          assert node_summary['pinnedRhwpCommit']=='1a76570e833917d15817415a53c09ad61ab3203f'
+          assert node_summary['packageScriptsExecuted'] is False
+          assert node_summary['audits']['production']['metadata']['vulnerabilities']['total']==0,'Review runtime npm findings before distribution'
+          print('PINNED_NODE_AUDIT_WITH_UNRESOLVED_BUILD_TOOL_FINDINGS',json.dumps(node_summary),flush=True)
           comparison=json.loads((performance/'comparison.json').read_text())
           assert comparison['candidateCommit']==measured_sha and comparison['baselineCommit']=='aa3414f1fae89f5f98d10dabb64df85bfd7fc1df',comparison
           assert set(comparison['records'])=={'baseline','candidate'}
@@ -233,6 +245,8 @@ jobs:
               z.writestr(entry,json.dumps(provenance,indent=2));z.writestr('artifacts/ci/published-layout-validation.json',json.dumps(layoutProof,indent=2));assert z.testzip() is None
           verification=delivery/'document-studio-0.8.11-preview-verification.zip'
           with zipfile.ZipFile(verification,'a',zipfile.ZIP_DEFLATED) as z:
+              for p in node_dir.rglob('*'):
+                  if p.is_file():z.write(p,'artifacts/quality-node/'+p.relative_to(node_dir).as_posix())
               for p in performance.rglob('*'):
                   if p.is_file() and p.suffix!='.apk':z.write(p,'artifacts/reading-performance/'+p.relative_to(performance).as_posix())
               assert z.testzip() is None
@@ -257,6 +271,7 @@ jobs:
           print('PUBLISHED_SOURCE_MATCHES_TAG_AND_TESTED_APP',json.dumps(provenance),flush=True)
           units={key:sum(counts[key] for counts in result['unitTests'].values()) for key in ('tests','failures','errors','skipped')}
           notes=(delivery/'README.txt').read_text()
+          notes+='추가 npm 검사: 실행 의존성 권고 일치0건, 개발·빌드 도구 포함16건(높음8) 미해결. 전체 보안/상용 출시 완료가 아닙니다. 검증 ZIP의 quality-node와 작업 보고서를 확인하세요.\n'
           notes+='\n실행 검증: Android '+str(result['androidTests']['tests'])+'건, 단위 '+str(units['tests'])+'건 — 실패·오류·건너뜀 0건.\n'
           notes+='이름/MIME 조회 회귀: 동일 3건에서 수정 전 3건 실패 → 수정 후 3건 통과.\n'
           notes+='실제 엔진 브라우저 9개 시나리오, JavaScript 28건, TypeScript·lint, HWP/HWPX 독립 저장 파서 검사 통과.\n'
