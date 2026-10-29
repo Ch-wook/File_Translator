@@ -96,7 +96,7 @@ class NativeHangulEditingTest {
             revealControl(label)
             val next=json("(function(){const e=Array.from(document.querySelectorAll('button,input,select')).find(e=>e.getAttribute('aria-label')==="+JSONObject.quote(label)+"||e.textContent==="+JSONObject.quote(label)+");if(!e)return {};const r=e.getBoundingClientRect(),panel=document.getElementById('detail-sheet'),b=panel.getBoundingClientRect(),h=panel.querySelector('.studio-ui-sheet-head')?.getBoundingClientRect(),p=panel.contains(e)?{top:Math.max(b.top,h?.bottom||b.top),bottom:Math.min(b.bottom,innerHeight)}:{top:0,bottom:innerHeight},x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return {x,y,visible:r.width>0&&r.height>0&&y>=p.top&&y<=p.bottom&&y<innerHeight&&x>=0&&x<innerWidth,hit:hit===e||e.contains(hit),disabled:e.disabled,width:innerWidth,height:innerHeight};})()")
             val visible=next.optBoolean("visible")&&next.optBoolean("hit")&&!next.optBoolean("disabled")
-            val same=visible&&kotlin.math.abs(next.optDouble("x")-bounds.optDouble("x",Double.NaN))<1&&kotlin.math.abs(next.optDouble("y")-bounds.optDouble("y",Double.NaN))<1
+            val same=visible&&bounds.optBoolean("visible")&&bounds.optBoolean("hit")&&!bounds.optBoolean("disabled")&&kotlin.math.abs(next.optDouble("x")-bounds.optDouble("x",Double.NaN))<1&&kotlin.math.abs(next.optDouble("y")-bounds.optDouble("y",Double.NaN))<1
             if(!same)stableSince=if(visible)SystemClock.uptimeMillis() else 0L
             bounds=next;lastControl=JSONObject().put("label",label).put("bounds",next)
             same&&stableSince>0&&SystemClock.uptimeMillis()-stableSince>=200
