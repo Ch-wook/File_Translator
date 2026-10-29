@@ -16,7 +16,7 @@ jobs:
           python3 - <<'PY'
           import json,os,subprocess
           repo=os.environ['GITHUB_REPOSITORY']
-          for run,expected_sha in [[40809916631,"27cac07d340ab842751df0a02a5952f3b534c1e8"],[40809916473,"27cac07d340ab842751df0a02a5952f3b534c1e8"],[40810241901,"a54c7dcb27f22f9e10722f62ee9e1efa95bd8051"],[40810241492,"a54c7dcb27f22f9e10722f62ee9e1efa95bd8051"]]:
+          for run,expected_sha in [[40817089622,"e8ba7bdd73e2d65d2a59cfb03136c9d8827bceea"],[40817089486,"e8ba7bdd73e2d65d2a59cfb03136c9d8827bceea"],[40817089637,"e8ba7bdd73e2d65d2a59cfb03136c9d8827bceea"],[40817089494,"e8ba7bdd73e2d65d2a59cfb03136c9d8827bceea"]]:
               info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{run}']))
               assert info['head_sha']==expected_sha
               assert info['head_branch']=='codex/hangul-mobile-editing' and info['event']=='push'

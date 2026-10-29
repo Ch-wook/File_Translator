@@ -27,6 +27,7 @@ fun SaveRecoveryDialog(repository: DocumentRepository,message: (String)->Unit,cl
     var busy by remember {mutableStateOf(false)}
     var loading by remember {mutableStateOf(true)}
     var signatureLoading by remember {mutableStateOf(true)}
+    var signatureError by remember {mutableStateOf<String?>(null)}
     var status by remember {mutableStateOf("")}
     var signatures by remember {mutableStateOf(false)}
     var signatureBad by remember {mutableStateOf(false)}
@@ -55,7 +56,7 @@ fun SaveRecoveryDialog(repository: DocumentRepository,message: (String)->Unit,cl
     // Signature recovery must remain usable while the document transaction/index
     // is busy. These stores have independent locks and no shared write operation.
     LaunchedEffect(generation) {
-        signatureLoading=true
+        signatureLoading=true;signatureError=null
         try {
             val state=withContext(Dispatchers.IO) {
                 val store=SignatureStore(context)
@@ -64,7 +65,7 @@ fun SaveRecoveryDialog(repository: DocumentRepository,message: (String)->Unit,cl
             }
             signatures=state.first;signatureBad=state.second;previous=state.third
         } catch(e: kotlinx.coroutines.CancellationException){throw e}
-        catch(e: Exception){status=UserProblems.explain(e).advice}
+        catch(e: Exception){signatureError=UserProblems.explain(e).advice;status=signatureError.orEmpty()}
         finally {signatureLoading=false}
     }
     val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) {uri->
@@ -92,7 +93,7 @@ fun SaveRecoveryDialog(repository: DocumentRepository,message: (String)->Unit,cl
                 TextButton({discard=r},enabled=!busy) {Text("이 복구 기록 삭제…")}
             }
             HorizontalDivider();Text("내 서명 보관함",style=MaterialTheme.typography.titleSmall)
-            Text(if(signatureLoading)"서명 자료를 확인하고 있습니다." else if(signatureBad)"보관함을 읽지 못했습니다. 손상 자료를 보존하고 새 덮어쓰기를 차단했습니다." else if(signatures)"서명 자료는 앱 내부에 보관됩니다." else "보관한 서명이 없습니다.",style=MaterialTheme.typography.bodySmall)
+            Text(if(signatureLoading)"서명 자료를 확인하고 있습니다." else if(signatureError!=null)signatureError!! else if(signatureBad)"보관함을 읽지 못했습니다. 손상 자료를 보존하고 새 덮어쓰기를 차단했습니다." else if(signatures)"서명 자료는 앱 내부에 보관됩니다." else "보관한 서명이 없습니다.",style=MaterialTheme.typography.bodySmall)
             if(signatures && !signatureLoading)TextButton({signatureExport.launch("자필서명-복구자료.zip")},enabled=!busy) {Text("서명 자료 내보내기")}
             if(previous && !signatureLoading)TextButton({restore=true},enabled=!busy) {Text("이전 정상 서명 보관함 복원…")}
             if(status.isNotEmpty())Text(status,style=MaterialTheme.typography.bodySmall)

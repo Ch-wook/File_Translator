@@ -307,6 +307,22 @@ class NativeOfficeModeSmokeTest {
                 SystemClock.sleep(1_000)
                 visible("편집하기")
                 assertFalse("Attempted input in VIEW must not create approved output", edited.exists())
+                if (format == Format.DOCX) {
+                    // Actual common search UI, physical Ctrl+V: the readonly
+                    // document guard must preserve clipboard input in UI fields.
+                    tap("찾기")
+                    val search=device.wait(Until.findObject(By.pkg(context.packageName).desc("찾을 내용")),10000)
+                        ?: device.wait(Until.findObject(By.pkg(context.packageName).clazz("android.widget.EditText")),5000)
+                        ?: throw AssertionError("Native view search input missing")
+                    search.click()
+                    device.pressKeyCode(KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON)
+                    await("VIEW search must still accept clipboard text",10000) {
+                        eval("document.querySelector('#studio-office-actions input[aria-label=\"찾을 내용\"]')?.value || ''") == "읽기 상태 붙여넣기 차단"
+                    }
+                    tap("설정 닫기")
+                    record.put("viewSearchClipboardPaste",true)
+                    assertFalse("Search input cannot approve document edits",edited.exists())
+                }
             }
 
             device.dumpWindowHierarchy(File(evidence, "$label.xml"))

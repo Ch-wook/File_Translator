@@ -6,7 +6,7 @@
   const reportUiTextFocus=()=>{
     const target=document.activeElement;
     const allowed=Boolean(target?.matches?.('input:not([disabled]):not([readonly]),textarea:not([disabled]):not([readonly])')
-      && target.closest('#toolbar-search,#studio-office-tools,[role="dialog"]'));
+      && target.closest('#toolbar-search,#studio-office-tools,#studio-office-bottom,[role="dialog"]'));
     try {bridge()?.studioSetUiTextFocus?.(allowed);} catch(ignore) {}
   };
   document.addEventListener('focusin',reportUiTextFocus,true);
