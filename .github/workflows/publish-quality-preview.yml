@@ -16,10 +16,10 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_SHA: de555a63a90da96506cffe3152afa058218a4728
-      VERIFIED_RUN: '40794168389'
-      PERFORMANCE_RUN: '40794168634'
-      SECURITY_RUN: '40794168603'
+      VERIFIED_SHA: 4fb3d357ecbb474c4e773637674cbde1bdf7c3e2
+      VERIFIED_RUN: '40795033209'
+      PERFORMANCE_RUN: '40795033317'
+      SECURITY_RUN: '40795033392'
       PREVIEW_TAG: v0.8.11-preview
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +42,7 @@ jobs:
         run: |
           pip install Pillow
           python3 - <<'PY'
-          import hashlib,json,os,pathlib,subprocess,zipfile,io
+          import hashlib,json,os,pathlib,subprocess,zipfile,io,urllib.request
           from PIL import Image
           repo=os.environ['GITHUB_REPOSITORY'];sha=os.environ['VERIFIED_SHA'];run=os.environ['VERIFIED_RUN']
           previous=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/releases/tags/v0.8.10-preview']))
@@ -85,6 +85,18 @@ jobs:
           assert security_summary['releaseUnsignedBuild'] and security_summary['releaseDebugFixturesAbsent'] and security_summary['advisoryQueryCompleted']
           assert security_summary['releaseInternetPermission'] is False and security_summary['commercialReady'] is False
           print('LIMITED_RELEASE_SECURITY_EVIDENCE',json.dumps(security_summary),flush=True)
+          print('RELEASE_REQUESTED_PERMISSIONS',(security_dir/'release-permissions.txt').read_text(),flush=True)
+          log4j_base='https://repo.maven.apache.org/maven2/org/apache/logging/log4j/log4j-api/2.25.5/log4j-api-2.25.5.jar'
+          with urllib.request.urlopen(log4j_base,timeout=90) as response:log4j_bytes=response.read()
+          with urllib.request.urlopen(log4j_base+'.sha512',timeout=90) as response:log4j_sha512=response.read().decode().strip().split()[0]
+          assert hashlib.sha512(log4j_bytes).hexdigest()==log4j_sha512
+          with zipfile.ZipFile(io.BytesIO(log4j_bytes)) as jar:
+              entries=[n for n in jar.namelist() if n.upper() in ('META-INF/NOTICE','META-INF/NOTICE.TXT')]
+              assert len(entries)==1
+              notice=jar.read(entries[0]).decode()
+          bundled=pathlib.Path('app/src/main/assets/licenses/Upstream-Apache-NOTICES.txt').read_text()
+          assert ''.join(notice.split()) in ''.join(bundled.split()),'Check updated Log4j API notice before publication'
+          print('LOG4J_API_UPDATED_NOTICE_ALREADY_PRESERVED',hashlib.sha256(notice.encode()).hexdigest(),flush=True)
           comparison=json.loads((performance/'comparison.json').read_text())
           assert comparison['candidateCommit']==sha and comparison['baselineCommit']=='aa3414f1fae89f5f98d10dabb64df85bfd7fc1df',comparison
           assert set(comparison['records'])=={'baseline','candidate'}
