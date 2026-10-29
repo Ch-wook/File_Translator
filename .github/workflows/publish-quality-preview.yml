@@ -16,11 +16,11 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_SHA: 4fb3d357ecbb474c4e773637674cbde1bdf7c3e2
-      VERIFIED_RUN: '40795033209'
-      PERFORMANCE_RUN: '40795033317'
-      PERFORMANCE_SHA: 4fb3d357ecbb474c4e773637674cbde1bdf7c3e2
-      SECURITY_RUN: '40795033392'
+      VERIFIED_SHA: 8cae9b06f84ca7ea6d8b21a2e1c38d028562b244
+      VERIFIED_RUN: '40797189929'
+      PERFORMANCE_RUN: '40797189817'
+      PERFORMANCE_SHA: 8cae9b06f84ca7ea6d8b21a2e1c38d028562b244
+      SECURITY_RUN: '40797189982'
       PREVIEW_TAG: v0.8.11-preview
     steps:
       - uses: actions/checkout@v4
@@ -107,7 +107,7 @@ jobs:
           assert set(comparison['records'])=={'baseline','candidate'}
           for item in comparison['records'].values():assert item['viewport-memory']['allClosedBitmapsRecycled'] and item['viewport-memory']['pdfOriginalUnchanged']
           assert comparison['records']['candidate']['viewport-memory']['rasters'],comparison
-          measurement_proof={'measuredAppCommit':measured_sha,'apkBuildCommit':sha,'changes':measurement_delta,'applicationCodeUnchanged':True,'limitation':'A separate license notice and publication documentation were added after measuring; benchmarks do not measure the license dialog.'}
+          measurement_proof={'measuredAppCommit':measured_sha,'apkBuildCommit':sha,'changes':measurement_delta,'applicationCodeUnchanged':True,'limitation':'Only license notices, documentation and publication workflows may differ after measuring. Benchmarks do not measure the license dialog.'}
           print('SAME_APPLICATION_CODE_PERFORMANCE_PROVENANCE',json.dumps(measurement_proof),flush=True)
           print('SAME_EMULATOR_PERFORMANCE_VERIFIED',json.dumps(comparison),flush=True)
           for line in (delivery/'SHA256SUMS').read_text().splitlines():
