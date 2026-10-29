@@ -161,7 +161,7 @@ jobs:
               assert search_paste['result']=='passed' and search_paste['viewSearchClipboardPaste'] is True,search_paste
               runtime=z.read('artifacts/ci/android-all-processes.log').decode(errors='replace')
               import re
-              assert not re.search(r'ANR in kr\\.documentstudio\\.qualitypreview(?=[: /\\n])',runtime),'Document application ANR remains a publication blocker'
+              assert not re.search(r'ANR in kr[.]documentstudio[.]qualitypreview(?:[: /]|$)',runtime),'Document application ANR remains a publication blocker'
               regression=json.loads(z.read('artifacts/ci/open-regression/summary.json'))
               assert regression=={'before':{'tests':3,'failures':3,'errors':0,'skipped':0},'after':{'tests':3,'failures':0,'errors':0,'skipped':0}},regression
               for name in ('metadata-free-hwp.json','metadata-free-hwpx.json','distribution-read-only.json'):
