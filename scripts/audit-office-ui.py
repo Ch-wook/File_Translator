@@ -12,11 +12,11 @@ with zipfile.ZipFile(apk) as z:
     ids=re.findall(r'<[^>]*\bid="(?:toolbar[^"]*|document[^"]*|main[^"]*|map|formula[^"]*|spreadsheet[^"]*|presentation[^"]*|mobile[^"]*|closebutton|sidebar[^"]*)"[^>]*>',html)
     print('OFFICE_DOM',json.dumps(ids,ensure_ascii=False))
     text=z.read('assets/dist/bundle.js').decode()
-    needles=["o.L.Map.include({setPart:function","goToPage:function","_scrollViewToPartPosition:function","this.type=\"ViewLayoutFileBased\"","getZoom:function","zoomFactorToZoomLevel","zoomLevelToZoomFactor","zoomLevelToScale","getScaleForZoom","getZoomScale","_recalcZoom:function","applyZoom(e){","get twipsToPixels","twipsToPixels:"]
+    needles=["_onDoubleTap","_onDoubleClick","doubletap","applyZoom(e){","addHandler\",\"touchGesture"]
     report={}
     for needle in needles:
         hits=list(re.finditer(re.escape(needle),text))
-        report[needle]=[text[max(0,m.start()-180):m.end()+9000] for m in hits[:2]]
+        report[needle]=[text[max(0,m.start()-180):m.end()+4500] for m in hits[:2]]
         print('OFFICE_API',json.dumps({'name':needle,'count':len(hits),'snippets':report[needle]},ensure_ascii=False))
     (out/'api.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
     (out/'dom.json').write_text(json.dumps(ids,ensure_ascii=False,indent=2))

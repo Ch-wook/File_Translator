@@ -139,11 +139,12 @@ class ReadingUxTest {
         val before=prefs.getFloat(id+":zoom",1f)
         compose.onRoot().performTouchInput {
             val point=center
-            pinch(point+androidx.compose.ui.geometry.Offset(-45f,0f),point+androidx.compose.ui.geometry.Offset(45f,0f),
-                  point+androidx.compose.ui.geometry.Offset(-95f,0f),point+androidx.compose.ui.geometry.Offset(95f,0f),500)
+            pinch(start0=point+androidx.compose.ui.geometry.Offset(-45f,0f),end0=point+androidx.compose.ui.geometry.Offset(-95f,0f),
+                  start1=point+androidx.compose.ui.geometry.Offset(45f,0f),end1=point+androidx.compose.ui.geometry.Offset(95f,0f),durationMillis=500)
         }
         compose.waitUntil(15000){prefs.getFloat(id+":zoom",1f)>before*1.4f}
         val pinched=prefs.getFloat(id+":zoom",1f)
+        assertTrue("A 90→190 px two-finger spread must produce a natural scale",pinched/before in 1.7f..2.5f)
         pages.assertExists()
         // Zooming is view-only, and the same logical page remains near the focal point.
         assertTrue(prefs.getInt(id+":page",0) in 59..61)
