@@ -16,9 +16,10 @@ jobs:
           python3 - <<'PY'
           import json,os,subprocess
           repo=os.environ['GITHUB_REPOSITORY']
-          for run,expected_sha in [[40818056726,"4218c053db7f6815177f9206b6237663985f3217"],[40818056773,"4218c053db7f6815177f9206b6237663985f3217"],[40818056775,"4218c053db7f6815177f9206b6237663985f3217"],[40818056709,"4218c053db7f6815177f9206b6237663985f3217"]]:
+          for run,expected_sha in [[40845361882,"841af8b3356de2725fd0b22741d19ce5b92b571e"],[40845720166,"a9b3d3fbece9c06c166719d46abc04367c5e2433"],[40847149132,"3565e99d7fd10c58181c96f0fafebd0225d10423"]]:
               info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{run}']))
               assert info['head_sha']==expected_sha
+              assert info['name']=='Focused reading UI Android acceptance'
               assert info['head_branch']=='codex/hangul-mobile-editing' and info['event']=='push'
               if info['status'] in ('queued','in_progress'):subprocess.run(['gh','api',f'repos/{repo}/actions/runs/{run}/cancel','--method','POST'],check=True)
           print('ONLY_UNPATCHED_PREVIEW_RUNS_CANCELLED')
