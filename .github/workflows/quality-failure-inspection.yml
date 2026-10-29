@@ -15,9 +15,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Read only the failed candidate's saved logs and reports
         run: |
-          gh run download 40797189929 --name mobile-release-logs-8cae9b06f84ca7ea6d8b21a2e1c38d028562b244 --dir failed-quality
+          pip install Pillow
+          gh run download 40802046698 --name mobile-release-logs-ea111b8dcceef56b57d9febe6fd44dbc491ac862 --dir failed-quality
           python3 - <<'PY'
-          import pathlib,re,xml.etree.ElementTree as E
+          import pathlib,re,xml.etree.ElementTree as E,base64,io
+          from PIL import Image
           root=pathlib.Path('failed-quality')
           for p in root.rglob('TEST-*.xml'):
               if 'androidTest-results' not in p.as_posix():continue
@@ -29,9 +31,13 @@ jobs:
               print('SAVED_RUNTIME_LOG',p,len(lines))
               selected=set()
               for n,line in enumerate(lines):
-                  if re.search(r'Fatal signal|Abort message|backtrace:| F DEBUG|FATAL EXCEPTION',line):
-                      selected.update(range(max(0,n-35),min(len(lines),n+160)))
-                  if re.search(r'01:08:4[89]|01:08:5[0-9]|01:09:|01:10:3[3-9]|01:10:40',line) and re.search(r'2962|3387|Fatal|crash|blocked|studio|Exception|abort|denied',line):
+                  if 'qualitypreview' in line and re.search(r'START |Displayed |wm_on_|died|FATAL|Finish|finish|has died|Start proc|fatal',line):
                       selected.add(n)
-              for n in sorted(selected)[:1700]:print('SAVED_RUNTIME_LINE',n,lines[n])
+                  if re.search(r'Fatal signal|FATAL EXCEPTION',line):selected.update(range(max(0,n-8),min(len(lines),n+125)))
+              for n in sorted(selected):print('SAVED_RUNTIME_LINE',n,lines[n])
+          for name in ('pptx-page1.png','mobile-pdf-conversion-menu-must-exist-failure.png','hwp-keyboard-format.png','hwp-failure.png'):
+              matches=list(root.rglob(name))
+              if not matches:continue
+              im=Image.open(matches[0]);im.thumbnail((432,960));buf=io.BytesIO();im.save(buf,format='PNG')
+              print('INSPECTION_IMAGE',name,base64.b64encode(buf.getvalue()).decode())
           PY
