@@ -102,6 +102,9 @@ class ViewerNavigationTest {
             }else waitFor("Hangul reader has finished opening"){
                 eval(kind,"document.body.dataset.state==='READING' && !document.getElementById('mode').disabled")=="true"
             }
+            // Observe fixture input from the window capture phase, before engine
+            // handlers. Only test-generated files are included in these diagnostics.
+            eval(kind,"(()=>{const d="+(if(kind=="hangul")"document.getElementById('engine').contentDocument" else "document")+";const w=d.defaultView;w.__viewerInput=[];for(const name of ['touchstart','touchmove','touchend','touchcancel','pointerdown','pointerup'])w.addEventListener(name,e=>{const list=e.touches?.length?e.touches:e.changedTouches;const p=list?.[0];let target=e.target;const ancestry=[];while(target&&ancestry.length<8){ancestry.push(target.id||target.tagName);target=target.parentElement;}if(w.__viewerInput.length<80)w.__viewerInput.push({type:name,touches:e.touches?.length,time:e.timeStamp,x:p?.clientX,y:p?.clientY,ancestry});},{capture:true,passive:true});return true})()")
             if(name.endsWith(".hwpx")||name.endsWith(".docx")){
                 val r=documentBounds();device.swipe(r.centerX(),r.top+r.height()*3/4,r.centerX(),r.top+r.height()/3,30)
                 waitFor("Actual one-finger scrolling reaches another page"){JSONObject(eval(kind,state)).getInt(index)>0}
@@ -184,6 +187,7 @@ class ViewerNavigationTest {
             runCatching {device.setOrientationNatural();device.unfreezeRotation()}
             runCatching {probeClient.close()}
             if(!completed)runCatching {
+                record.put("touchInput",org.json.JSONArray(eval(kind,if(kind=="hangul")"JSON.stringify(document.getElementById('engine').contentWindow.__viewerInput||[])" else "JSON.stringify(window.__viewerInput||[])")))
                 record.put("observedState",JSONObject(eval(kind,state)))
                 if(kind=="office")record.put("officeGeometry",JSONObject(eval(kind,"JSON.stringify({hostReady:window.studioOffice.ready,initialIntentHandled:window.studioOffice.initialIntentHandled,layout:app.activeDocument?.activeLayout?.type,view:app.activeDocument?.activeLayout?.viewedRectangle,zoom:app.map.getZoom(),address:(document.querySelector('#addressInput input')||document.querySelector('input#addressInput'))?.value,cellAddress:app.map.stateChangeHandler.getItemValue('.uno:CellAddress'),changed:window.studioOffice.changed,dpiScale:app.dpiScale,twipsToPixels:app.twipsToPixels,frame:app.activeDocument?.activeLayout?.frameSize,fileSize:app.activeDocument?.fileSize,firstPart:app.impress?.partList?.[0],pageRects:app.file?.writer?.pageRectangleList?.slice(0,2)})")))
             }

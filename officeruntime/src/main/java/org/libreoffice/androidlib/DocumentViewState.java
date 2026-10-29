@@ -54,12 +54,24 @@ public final class DocumentViewState {
         }
     }
     public static synchronized void lifecycle(File directory, String stage) {
-        if (stage == null || !stage.matches("[a-z-]{1,40}")) return;
+        if (stage == null || !stage.matches("[a-zA-Z0-9-]{1,128}")) return;
         AtomicFile state = new AtomicFile(new File(directory, "office-lifecycle.json"));
         FileOutputStream out = null;
         try {
+            JSONObject value = new JSONObject();
+            try (java.io.FileInputStream input = state.openRead()) {
+                if (input.getChannel().size() <= 8192) value = new JSONObject(new String(input.readAllBytes(), StandardCharsets.UTF_8));
+            } catch (Exception absentOrInvalidDiagnostic) { /* This is bounded lifecycle metadata, never document recovery data. */ }
+            org.json.JSONArray previous = value.optJSONArray("trace"), trace = new org.json.JSONArray();
+            if (previous != null) for (int i = Math.max(0, previous.length()-31); i < previous.length(); i++) {
+                String entry = previous.optString(i);
+                if (entry.matches("[a-zA-Z0-9-]{1,128}")) trace.put(entry);
+            }
+            if (trace.length()==0 || !stage.equals(trace.optString(trace.length()-1))) trace.put(stage);
+            value.put("stage",stage).put("trace",trace);
+            if ((stage.contains("failed") || stage.startsWith("native-load-error")) && !value.has("firstFailure")) value.put("firstFailure",stage);
             out = state.startWrite();
-            out.write(new JSONObject().put("stage", stage).toString().getBytes(StandardCharsets.UTF_8));
+            out.write(value.toString().getBytes(StandardCharsets.UTF_8));
             out.getFD().sync(); state.finishWrite(out);
         } catch (Exception ignored) { if (out != null) state.failWrite(out); }
     }
