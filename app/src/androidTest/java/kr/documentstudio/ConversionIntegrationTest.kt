@@ -27,7 +27,25 @@ class ConversionIntegrationTest {
     private val instrumentation=InstrumentationRegistry.getInstrumentation()
     private val device=UiDevice.getInstance(instrumentation)
     private val output get()=File(context.getExternalFilesDir(null),"native-conversion").apply {mkdirs()}
-    private fun await(label: String,timeout: Long=60000,condition: ()->Boolean){val end=SystemClock.uptimeMillis()+timeout;while(SystemClock.uptimeMillis()<end){NativeUiActions.refresh();if(runCatching(condition).getOrDefault(false))return;SystemClock.sleep(200)};device.takeScreenshot(File(output,"failure.png"));device.dumpWindowHierarchy(File(output,"failure.xml"));error(label)}
+    private fun await(label: String,timeout: Long=60000,condition: ()->Boolean) {
+        val end=SystemClock.uptimeMillis()+timeout
+        while(SystemClock.uptimeMillis()<end){NativeUiActions.refresh();if(runCatching(condition).getOrDefault(false))return;SystemClock.sleep(200)}
+        val stem=label.lowercase().replace(Regex("[^a-z0-9]+"),"-").take(96)
+        runCatching {device.takeScreenshot(File(output,stem+"-failure.png"))}
+        runCatching {device.dumpWindowHierarchy(File(output,stem+"-failure.xml"))}
+        val pid=device.executeShellCommand("pidof "+context.packageName+":office").trim()
+        val state=JSONObject().put("label",label).put("officePid",pid)
+        if(pid.isNotBlank())runCatching {
+            state.put("native",probe("state").toString())
+            state.put("web",probe("eval","JSON.stringify({ready:window.studioOffice?.ready,loaded:window.app?.map?._docLoaded,family:window.app?.map?.getDocType?.(),header:!!document.getElementById('studio-office-header'),buttons:[...document.querySelectorAll('#studio-office-header button')].map(e=>({id:e.id,hidden:e.hidden,rect:e.getBoundingClientRect().toJSON()})),policy:window.COOLMessageHandler?.getStudioViewState?.(),focus:document.hasFocus()})")?.getString("result"))
+        }
+        File(output,stem+"-failure.json").writeText(state.toString(2));error(label)
+    }
+    private fun closeOffice() {
+        // Acquiring a provider after its Activity died starts an empty new process.
+        if(device.executeShellCommand("pidof "+context.packageName+":office").trim().isNotEmpty())runCatching {probe("close")}
+        await("Office process must exit after conversion",30000){device.executeShellCommand("pidof "+context.packageName+":office").trim().isEmpty()}
+    }
     private fun probe(method: String,arg: String?=null)=context.contentResolver.acquireUnstableContentProviderClient(Uri.parse("content://"+context.packageName+".officeprobe")).use {requireNotNull(it).call(method,arg,null)}
     private fun uri(file: File)=FileProvider.getUriForFile(context,context.packageName+if(file.canonicalPath.startsWith(File(context.cacheDir,"conversions").canonicalPath+"/"))".conversionfiles" else ".testfiles",file)
     @Test fun failedNativePdfWriteRetainsPreviousAndLatestPdfAndAllowsSafeSaveAs()=runBlocking {
@@ -41,6 +59,7 @@ class ConversionIntegrationTest {
         ExportEngine.blank(target);val previousHash=DocumentRepository.digest(target)
         val destination=Uri.parse("content://"+context.packageName+".faults/output.pdf")
         var recoveryId: String?=null
+        var primaryFailure: Throwable?=null
         context.startActivity(Intent().setClassName(context.packageName,"org.libreoffice.androidlib.StudioOfficeActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             .putExtra("sessionId",source.id).putExtra("workingPath",working.absolutePath).putExtra("displayName",source.name).putExtra("originalUri",uri(original).toString()))
         try {
@@ -67,11 +86,11 @@ class ConversionIntegrationTest {
             NativeUiActions.tap(device,context.packageName,"닫기")
             File(output,"office-publish-recovery.json").writeText(JSONObject().put("previousPdfPreserved",true).put("latestPdfRetained",true)
                 .put("unsafeRetryBlocked",true).put("saveAsRetryVerified",true).put("originalUnchanged",true).put("commonHostBridge",true).toString(2))
-        } finally {
+        } catch(failure: Throwable) {primaryFailure=failure;throw failure}
+        finally {
             FailingProvider.remainingFailures=0
             recoveryId?.let {runCatching {writes.discard(it)}}
-            runCatching {probe("close")}
-            await("Office process must exit after recovery test",30000){device.executeShellCommand("pidof "+context.packageName+":office").trim().isEmpty()}
+            try {closeOffice()} catch(cleanup: Throwable) {if(primaryFailure!=null)primaryFailure.addSuppressed(cleanup) else throw cleanup}
             runCatching {repo.acceptOffice(source)}
         }
     }

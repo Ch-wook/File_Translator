@@ -30,7 +30,7 @@ class OfficeProbeProvider: ContentProvider() {
     override fun call(method: String,arg: String?,extras: Bundle?): Bundle {
         val activity=current.get() ?: return Bundle().apply {putBoolean("ready",false)}
         fun field(name: String)=LOActivity::class.java.getDeclaredField(name).apply {isAccessible=true}.get(activity)
-        val output=Bundle().apply {putBoolean("ready",field("documentLoaded") as Boolean);putBoolean("editing",field("mIsEditModeActive") as Boolean);putBoolean("editable",field("isDocEditable") as Boolean)}
+        val output=Bundle().apply {putBoolean("ready",(field("officeLoadFinished") as Boolean) && !(field("officeLoadFailed") as Boolean) && (field("documentLoaded") as Boolean));putBoolean("loadingUrl",field("documentLoaded") as Boolean);putInt("pid",android.os.Process.myPid());putBoolean("editing",field("mIsEditModeActive") as Boolean);putBoolean("editable",field("isDocEditable") as Boolean)}
         if(method=="pdf-state")return output.apply {putBoolean("busy",field("studioPdfBusy") as Boolean);putString("error",field("studioPdfError") as String?)}
         if(method=="state") return output
         require(android.os.Looper.myLooper()!=android.os.Looper.getMainLooper())

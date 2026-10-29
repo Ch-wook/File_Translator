@@ -1277,6 +1277,7 @@ public class LOActivity extends AppCompatActivity {
     }
 
     private void finishWithProgress() {
+        if (studioPdfBusy) { Toast.makeText(this, "파일을 저장·검증하는 중입니다. 완료 후 닫아 주세요.", Toast.LENGTH_SHORT).show(); return; }
         onOfficeLifecycle("close-requested");
         if (!documentLoaded) {
             finish();
@@ -1984,6 +1985,12 @@ public class LOActivity extends AppCompatActivity {
     /** Direct native PDF filter; no print UI, original ownership or screenshot conversion. */
     private void convertStudioPdf(Uri destination) {
         if(studioPdfBusy)return;
+        // Loading the WebView URL is not completion of native document loading.
+        // The JNI filter dereferences the document; never call it before status:.
+        if (!officeLoadFinished || officeLoadFailed || !documentLoaded || closeSave != null || isFinishing()) {
+            studioPdfError="문서를 아직 준비하지 못했습니다. 문서가 표시된 뒤 다시 변환하세요.";
+            Toast.makeText(this,studioPdfError,Toast.LENGTH_LONG).show();return;
+        }
         if(getApplication() instanceof StudioDocumentHost && ((StudioDocumentHost)getApplication()).sameDocument(destination.toString(),getIntent().getStringExtra("originalUri"))){
             Toast.makeText(this,"원본과 다른 파일을 선택하세요.",Toast.LENGTH_LONG).show();return;
         }
