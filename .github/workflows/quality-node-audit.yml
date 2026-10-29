@@ -1,0 +1,48 @@
+name: Inspect pinned Rhwp npm dependency findings
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: contains(github.event.head_commit.message, '[quality-node-audit]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Audit pinned dependencies without executing package scripts
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/edwardkim/rhwp.git /tmp/studio-rhwp-audit
+          git -C /tmp/studio-rhwp-audit sparse-checkout set rhwp-studio
+          git -C /tmp/studio-rhwp-audit checkout 1a76570e833917d15817415a53c09ad61ab3203f
+          python3 - <<'PY'
+          import json,pathlib,subprocess
+          root=pathlib.Path('/tmp/studio-rhwp-audit/rhwp-studio')
+          out=pathlib.Path('artifacts/quality-node');out.mkdir(parents=True,exist_ok=True)
+          subprocess.run(['npm','ci','--ignore-scripts'],cwd=root,check=True)
+          results={}
+          for name,args in [('all',[]),('production',['--omit=dev'])]:
+              result=subprocess.run(['npm','audit','--json',*args],cwd=root,capture_output=True,text=True)
+              assert result.returncode in (0,1),(result.returncode,result.stderr)
+              data=json.loads(result.stdout);assert 'vulnerabilities' in data,data
+              (out/(name+'-audit.json')).write_text(json.dumps(data,indent=2))
+              findings=[]
+              for package,v in data['vulnerabilities'].items():
+                  findings.append({'package':package,'severity':v['severity'],'isDirect':v['isDirect'],'range':v['range'],'fixAvailable':v['fixAvailable'],
+                      'advisories':[{'name':a.get('name'),'title':a.get('title'),'url':a.get('url'),'severity':a.get('severity')} if isinstance(a,dict) else a for a in v['via']]})
+              results[name]={'metadata':data['metadata'],'findings':findings}
+          summary={'pinnedRhwpCommit':'1a76570e833917d15817415a53c09ad61ab3203f','packageScriptsExecuted':False,
+              'audits':results,'limitation':'npm advisory metadata only. Production graph does not prove bundled reachability or Wasm/native safety; build-only findings still need supply-chain review. No package updates applied.'}
+          (out/'summary.json').write_text(json.dumps(summary,indent=2))
+          print('PINNED_RHWP_NODE_AUDIT',json.dumps(summary),flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-node-${{ github.sha }}
+          path: artifacts/quality-node/
+          if-no-files-found: error
