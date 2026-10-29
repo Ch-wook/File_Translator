@@ -44,6 +44,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
     var encoding by remember {mutableStateOf(false)}
     var ocr by remember {mutableStateOf(false)}
     val textController=remember(s.id) {NativeEditorController()}
+    val markdownController=remember(s.id){MarkdownReaderController()}
     val pdfController=remember(s.id) {PdfEditorController()}
     val viewerScope=rememberCoroutineScope()
     val context=LocalContext.current
@@ -89,7 +90,7 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                 editing && ink->DrawingPage(s,null,page,settings,vm,busy)
                 s.format==Format.PDF && !editing && continuous && (s.pdf?.pages ?: 0)>1->PdfContinuousReader(s,page,navigationRequest,busy,onVisiblePage=updatePage,onEditPage=null,initialZoom=readingZoom,onZoomChanged={readingZoom=it;pdfController.zoom=it},initialOffset=readingOffset,initialAnchorPage=readingAnchorPage,onPositionChanged={index,offset->readingAnchorPage=index;readingOffset=offset},controller=pdfController)
                 s.format==Format.PDF->PdfCanvasEditor(s,page,vm,busy,readOnly=!editing,controller=pdfController,initialZoom=readingZoom,onZoomChanged={readingZoom=it},initialOffset=if(readingAnchorPage==page)readingOffset else 0,onPositionChanged={readingAnchorPage=page;readingOffset=it})
-                preview && s.format==Format.MD->MarkdownPreview(s.edits.text,busy || !editing,vm::text,viewportKey=s.id,dark=dark)
+                preview && s.format==Format.MD->MarkdownPreview(s.edits.text,busy || !editing,vm::text,viewportKey=s.id,dark=dark,displaySize=displaySize,displayFont=displayFont,controller=markdownController)
                 else->NativeTextEditor(s.edits.text,displaySize,busy,wrap,vm::focus,vm::text,s.format==Format.MD,readOnly=!editing,controller=textController,showToolbar=false,fontFamily=displayFont,showLineNumbers=lineNumbers,viewportKey=s.id,dark=dark)
             }
         }
@@ -118,13 +119,13 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                 actualFonts.sortedBy {if(it in recent)recent.indexOf(it) else 5}.filter {EditorFonts.label(it).contains(fontQuery,true) && when(fontCategory) {"즐겨찾기"->it in favorites;"한국어"->it in EditorFonts.korean;"영문·기타"->it !in EditorFonts.korean;else->true}}.forEach {name->
                     val face=remember(name) {EditorFonts.face(context,name)}
                     Row(verticalAlignment=Alignment.CenterVertically) {
-                        TextButton({displayFont=name;preferences.edit().putString("font",name).putString("recent",name).putString("recentList",(listOf(name)+recent.filter {it!=name}).take(5).joinToString("\n")).apply();fontList=false;textController.restore()},modifier=Modifier.weight(1f)) {
+                        TextButton({displayFont=name;preferences.edit().putString("font",name).putString("recent",name).putString("recentList",(listOf(name)+recent.filter {it!=name}).take(5).joinToString("\n")).apply();fontList=false;if(s.format!=Format.MD||!preview)textController.restore()},modifier=Modifier.weight(1f)) {
                             Column(Modifier.weight(1f)) {Text((if(name==displayFont)"✓ " else "")+EditorFonts.label(name)+(if(name in recent)" · 최근" else ""));Text("가나다 Aa 123",fontFamily=androidx.compose.ui.text.font.FontFamily(face))}
                         }
                         IconToggleButton(name in favorites,{checked->favorites=if(checked)favorites+name else favorites-name;preferences.edit().putStringSet("favorites",favorites).apply()}) {Icon(if(name in favorites)Icons.Default.Star else Icons.Default.StarBorder,name+" 즐겨찾기")}
                     }
                 }
-                Tool("기본 보기 글꼴") {displayFont="고정폭";preferences.edit().putString("font",displayFont).apply();fontList=false;textController.restore()}
+                Tool("기본 보기 글꼴") {displayFont="고정폭";preferences.edit().putString("font",displayFont).apply();fontList=false;if(s.format!=Format.MD||!preview)textController.restore()}
               } else {
                 Tool("글꼴 · $displayFont") {fontList=true}
                 var sizeText by remember(displaySize) {mutableStateOf(displaySize.toInt().toString())}
@@ -161,16 +162,16 @@ fun FormatWorkspace(s: Session,settings: Settings,vm: DocumentActions,busy: Bool
                 if(editing) Tool("보기") {vm.readDocument();panel=null}
                 if(editing)Tool("별도 필기"){ink=!ink;panel=null}
                 if(s.format!=Format.PDF) {
-                    Row(Modifier.horizontalScroll(rememberScrollState())) {Tool("복사"){textController.clipboard(android.R.id.copy)};if(editing)Tool("잘라내기"){textController.clipboard(android.R.id.cut)};Tool("전체 선택"){textController.clipboard(android.R.id.selectAll)}}
+                    if(s.format!=Format.MD||!preview) Row(Modifier.horizontalScroll(rememberScrollState())) {Tool("복사"){textController.clipboard(android.R.id.copy)};if(editing)Tool("잘라내기"){textController.clipboard(android.R.id.cut)};Tool("전체 선택"){textController.clipboard(android.R.id.selectAll)}}
                     if(editing)Tool("검색·바꾸기"){search=true}
-                    Row {Tool("문서 맨 위"){textController.navigate(false)};Tool("문서 맨 아래"){textController.navigate(true)}}
+                    Row {Tool("문서 맨 위"){if(s.format==Format.MD&&preview)markdownController.navigate(false) else textController.navigate(false)};Tool("문서 맨 아래"){if(s.format==Format.MD&&preview)markdownController.navigate(true) else textController.navigate(true)}}
                     if(s.format==Format.MD) Tool(if(preview)if(editing)"원문 편집" else "원본 Markdown 보기" else "미리보기"){preview=!preview;panel=null}
                     if(editing)Tool("저장 인코딩"){encoding=true}
                     Tool("보기 글꼴·크기"){panel="글자"}
-                    Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(wrap,{wrap=it;preferences.edit().putBoolean("wrap",it).apply()});Text("자동 줄바꿈")}
+                    if(s.format!=Format.MD||!preview) Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(wrap,{wrap=it;preferences.edit().putBoolean("wrap",it).apply()});Text("자동 줄바꿈")}
                     Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(dark,{dark=it;preferences.edit().putBoolean("dark",it).apply()});Text("어두운 보기")}
                     TextButton({preferences.edit().remove("dark").apply();dark=systemDark}){Text("기기 색상 설정 따르기")}
-                    Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(lineNumbers,{lineNumbers=it;preferences.edit().putBoolean("lineNumbers",it).apply()});Text("줄 번호")}
+                    if(s.format!=Format.MD||!preview) Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(lineNumbers,{lineNumbers=it;preferences.edit().putBoolean("lineNumbers",it).apply()});Text("줄 번호")}
                     Text("${textStats.first}자 · ${textStats.second}줄",style=MaterialTheme.typography.bodySmall)
                 } else {
                     if(!editing) Row(verticalAlignment=Alignment.CenterVertically) {Checkbox(continuous,{readingAnchorPage=page;readingOffset=0;continuous=it;readerPreferences.edit().putString(s.id+":pdf-layout-v2",if(it)"continuous" else "single").apply()},modifier=Modifier.testTag("pdf-continuous-toggle"));Text("연속 페이지 보기")}

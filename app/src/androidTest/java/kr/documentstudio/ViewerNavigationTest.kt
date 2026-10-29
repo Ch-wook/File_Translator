@@ -66,8 +66,6 @@ class ViewerNavigationTest {
     @Test fun spreadsheetAllThreeSheetsAndDistantCellRemainAccessible()=exercise("viewer-large.xlsx","office",3)
     private fun exercise(name: String,kind: String,count: Int)=runBlocking {
         device.wakeUp();device.executeShellCommand("am force-stop com.android.launcher3")
-        // Exercise the normal foreground host → private engine flow.
-        val foreground=instrumentation.startActivitySync(Intent(context,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         val original=File(context.cacheDir,"tests/viewer-"+UUID.randomUUID()+"-"+name).apply {parentFile!!.mkdirs()}
         instrumentation.context.assets.open(name).use {input->original.outputStream().use {input.copyTo(it)}}
         val uri=FileProvider.getUriForFile(context,context.packageName+".testfiles",original)
@@ -104,11 +102,18 @@ class ViewerNavigationTest {
             if(name.endsWith(".xlsx")){
                 tap("문서 메뉴");tap("시트 목록");tap("Viewer 3")
                 waitFor("Third native sheet selected"){JSONObject(eval(kind,state)).getInt(index)==2}
-                // Existing native address command must navigate to actual populated CV5000.
-                eval(kind,"app.map.sendUnoCommand('.uno:GoToCell',{ToPoint:{type:'string',value:'CV5000'}});true")
-                waitFor("Native cell address reaches far populated data"){
-                    eval(kind,"String((document.querySelector('#addressInput input')||document.querySelector('input#addressInput'))?.value||app.map.stateChangeHandler.getItemValue('.uno:CellAddress')||'')").contains("CV5000")
+                // Use the actual readonly search UI, not an edit-only UNO address
+                // command rejected by the native frontend's readonly policy.
+                tap("문서 메뉴");tap("찾기")
+                val input=device.wait(Until.findObject(By.pkg(context.packageName).desc("찾을 내용")),10000)
+                    ?: device.wait(Until.findObject(By.pkg(context.packageName).clazz("android.widget.EditText")),10000)
+                    ?: throw AssertionError("Actual readonly cell search field missing")
+                input.text="CELL_CV5000_S3"
+                tap("다음 결과");tap("설정 닫기")
+                waitFor("Native search reaches the distant populated cell"){
+                    eval(kind,"app.activeDocument.activeLayout.viewedRectangle.x1>10000 && app.activeDocument.activeLayout.viewedRectangle.y1>100000")=="true"
                 }
+                record.put("distantCellReachedBySearch",true)
                 record.put("distantCell","CV5000")
             }else{
                 tap("문서 메뉴");tap("마지막 페이지")
@@ -156,10 +161,9 @@ class ViewerNavigationTest {
             runCatching {probeClient.close()}
             if(!completed)runCatching {
                 record.put("observedState",JSONObject(eval(kind,state)))
-                if(kind=="office")record.put("officeGeometry",JSONObject(eval(kind,"JSON.stringify({layout:app.activeDocument?.activeLayout?.type,view:app.activeDocument?.activeLayout?.viewedRectangle,zoom:app.map.getZoom(),address:(document.querySelector('#addressInput input')||document.querySelector('input#addressInput'))?.value,cellAddress:app.map.stateChangeHandler.getItemValue('.uno:CellAddress'),changed:window.studioOffice.changed})")))
+                if(kind=="office")record.put("officeGeometry",JSONObject(eval(kind,"JSON.stringify({layout:app.activeDocument?.activeLayout?.type,view:app.activeDocument?.activeLayout?.viewedRectangle,zoom:app.map.getZoom(),address:(document.querySelector('#addressInput input')||document.querySelector('input#addressInput'))?.value,cellAddress:app.map.stateChangeHandler.getItemValue('.uno:CellAddress'),changed:window.studioOffice.changed,dpiScale:app.dpiScale,twipsToPixels:app.twipsToPixels,frame:app.activeDocument?.activeLayout?.frameSize,fileSize:app.activeDocument?.fileSize,firstPart:app.impress?.partList?.[0],pageRects:app.file?.writer?.pageRectangleList?.slice(0,2)})")))
             }
             record.put("completed",completed);File(evidence,name+".json").writeText(record.toString(2))
-            instrumentation.runOnMainSync {if(!foreground.isFinishing)foreground.finish()}
             if(!completed){
                 runCatching {device.dumpWindowHierarchy(File(evidence,name+"-failure.xml"));device.takeScreenshot(File(evidence,name+"-failure.png"))}
                 // Preserve documents and metadata; stop only the isolated failed engine.

@@ -81,7 +81,8 @@
     if(!Number.isInteger(count)||count<1)return null;
     let index=family==='text'?Number(layer?._currentPage||0):Number(m?.getCurrentPartNumber?.()||0);
     if(family==='text'){
-      const y=app.activeDocument?.activeLayout?.viewedRectangle?.y1;
+      const rect=app.activeDocument?.activeLayout?.viewedRectangle;
+      const y=rect?rect.y1+rect.height/2:undefined;
       if(Number.isFinite(y)){
         const found=rectangles.findIndex(r=>Number(r[1])+Number(r[3])>y+40);
         if(found>=0)index=found;

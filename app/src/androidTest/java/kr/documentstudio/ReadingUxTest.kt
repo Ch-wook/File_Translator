@@ -27,6 +27,19 @@ class ReadingUxTest {
         if(root is ViewGroup)for(i in 0 until root.childCount)find(root.getChildAt(i),type)?.let {return it}
         return null
     }
+    private fun viewportHash(view: View): String {
+        val done=java.util.concurrent.CountDownLatch(1);var status=-1
+        lateinit var image: android.graphics.Bitmap
+        compose.runOnUiThread {
+            val point=IntArray(2);view.getLocationInWindow(point)
+            image=android.graphics.Bitmap.createBitmap(view.width,view.height,android.graphics.Bitmap.Config.ARGB_8888)
+            val rect=android.graphics.Rect(point[0],point[1],point[0]+view.width,point[1]+view.height)
+            android.view.PixelCopy.request(compose.activity.window,rect,image,{result->status=result;done.countDown()},android.os.Handler(android.os.Looper.getMainLooper()))
+        }
+        assertTrue(done.await(10,java.util.concurrent.TimeUnit.SECONDS));assertEquals(android.view.PixelCopy.SUCCESS,status)
+        return try{val bytes=java.nio.ByteBuffer.allocate(image.byteCount);image.copyPixelsToBuffer(bytes);java.security.MessageDigest.getInstance("SHA-256").digest(bytes.array()).joinToString(""){"%02x".format(it)}}
+        finally{image.recycle()}
+    }
     private fun save(ext: String): File {
         val file=File(compose.activity.cacheDir,"tests/reading-${UUID.randomUUID()}.$ext").apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}
         val uri=FileProvider.getUriForFile(compose.activity,compose.activity.packageName+".testfiles",file)
@@ -163,19 +176,62 @@ class ReadingUxTest {
             .put("sourceHashUnchanged",true).put("zoomBefore",before).put("zoomAfterPinch",pinched).toString(2))
     }
     @Test fun markdownStartsFormattedAndSaveFailureKeepsEditableRecovery(){
+        val source="# 제목\n\n한글 **굵게**\n\n"+(0 until 100).joinToString("\n\n") {"MD_SECTION_"+it+" 한글 읽기 문단"}
         compose.runOnUiThread {vm.create(Format.MD)};ready()
         compose.waitUntil(15000){var found=false;compose.runOnUiThread {found=find(compose.activity.window.decorView,WebView::class.java)!=null};found}
         compose.onNodeWithTag("edit-document").performClick();compose.waitForIdle()
-        compose.runOnUiThread {assertNotNull(find(compose.activity.window.decorView,EditText::class.java));vm.text("# 제목\n\n한글 **굵게**")}
+        compose.runOnUiThread {assertNotNull(find(compose.activity.window.decorView,EditText::class.java));vm.text(source)}
         compose.runOnUiThread {vm.save(android.net.Uri.parse("content://invalid.document.studio/test"))}
         compose.waitUntil(30000){!vm.state.value.busy}
         assertTrue(vm.state.value.presentation(vm.state.value.session!!.id).allowsMutation)
-        assertEquals("# 제목\n\n한글 **굵게**",runBlocking {vm.repository.restore(vm.state.value.session!!.id).edits.text})
+        assertEquals(source,runBlocking {vm.repository.restore(vm.state.value.session!!.id).edits.text})
         val original=save("md");assertNull("Successful save must clear the previous failure detail",vm.state.value.problem)
         compose.runOnUiThread {vm.readDocument()};compose.waitForIdle()
         compose.waitUntil(15000){var found=false;compose.runOnUiThread {found=find(compose.activity.window.decorView,WebView::class.java)?.progress==100};found}
         compose.onNodeWithTag("mobile-editor-dock").assertDoesNotExist()
-        assertEquals("# 제목\n\n한글 **굵게**",original.readText())
+        assertEquals(source,original.readText())
+        val hash=DocumentRepository.digest(original)
+        compose.waitUntil(15000){var loaded=false;compose.runOnUiThread {loaded=(find(compose.activity.window.decorView,WebView::class.java)?.contentHeight?:0)>1500};loaded}
+        lateinit var preview: WebView
+        compose.runOnUiThread {preview=find(compose.activity.window.decorView,WebView::class.java)!!;assertFalse(preview.settings.javaScriptEnabled)}
+        if(compose.onAllNodesWithContentDescription("Dismiss").fetchSemanticsNodes().isNotEmpty())compose.onNodeWithContentDescription("Dismiss").performClick()
+        fun settings(){compose.onNodeWithContentDescription("문서 메뉴").performClick();compose.onNodeWithText("보기 설정").performClick()}
+        settings();compose.onNodeWithText("문서 맨 아래").performScrollTo().performClick()
+        compose.waitUntil(10000){var y=0;compose.runOnUiThread {y=preview.scrollY};y>500}
+        compose.onNodeWithText("문서 맨 위").performScrollTo().performClick()
+        compose.waitUntil(10000){var y=-1;compose.runOnUiThread {y=preview.scrollY};y==0}
+        compose.onNodeWithContentDescription("설정 닫기").performClick();compose.waitForIdle()
+        var targetFont="NanumMyeongjo"
+        compose.runOnUiThread {if(preview.settings.standardFontFamily==targetFont)targetFont="NanumGothic"}
+        val targetLabel=if(targetFont=="NanumMyeongjo")"나눔명조 · NanumMyeongjo" else "나눔고딕 · NanumGothic"
+        val targetFile=if(targetFont=="NanumMyeongjo")"NanumMyeongjo-Regular.ttf" else "NanumGothic-Regular.ttf"
+        val before=viewportHash(preview)
+        settings();compose.onNodeWithText("보기 글꼴·크기").performScrollTo().performClick()
+        compose.onNodeWithText("글꼴 ·",substring=true).performScrollTo().performClick()
+        compose.onNodeWithText(targetLabel,substring=true).performScrollTo().performClick()
+        compose.onNodeWithContentDescription("설정 닫기").performClick();compose.waitForIdle()
+        compose.waitUntil(15000){
+            var supplied=false
+            compose.runOnUiThread {
+                assertSame(preview,find(compose.activity.window.decorView,WebView::class.java))
+                assertEquals(targetFont,preview.settings.standardFontFamily)
+                val client=preview.webViewClient
+                val field=client.javaClass.getDeclaredField("providedFonts").apply {isAccessible=true}
+                supplied=(field.get(client) as Set<*>).contains(targetFile)
+            };supplied
+        }
+        assertNotEquals("A bundled font must change actual viewport pixels",before,viewportHash(preview))
+        var initialZoom=0
+        compose.runOnUiThread {initialZoom=preview.settings.textZoom}
+        val targetSize=if(kotlin.math.abs(initialZoom-150*compose.activity.resources.configuration.fontScale)<1)32 else 24
+        settings();compose.onNodeWithText("보기 글꼴·크기").performScrollTo().performClick()
+        compose.onNodeWithText("보기 크기(sp)").performScrollTo().performTextReplacement(targetSize.toString())
+        compose.onNodeWithContentDescription("설정 닫기").performClick();compose.waitForIdle()
+        compose.runOnUiThread {assertSame(preview,find(compose.activity.window.decorView,WebView::class.java));assertNotEquals(initialZoom,preview.settings.textZoom);assertFalse(preview.settings.javaScriptEnabled);assertTrue(preview.settings.blockNetworkLoads)}
+        assertEquals(hash,DocumentRepository.digest(original));assertEquals(source,vm.state.value.session!!.edits.text)
+        val evidence=File(compose.activity.getExternalFilesDir(null),"native-reading-ux").apply {mkdirs()}
+        File(evidence,"markdown-reader-tools.json").writeText(org.json.JSONObject().put("nativeTopBottomNavigation",true).put("bundledFontSupplied",true)
+            .put("fontChangesViewportPixels",true).put("displayZoomAppliedWithoutReplacingWebView",true).put("scriptsAndNetworkDisabled",true).put("sourceUnchanged",true).toString(2))
     }
 
     @Test fun textModeAndToolsKeepTheNativeViewSelectionAndBlockReadingMutations(){
