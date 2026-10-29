@@ -23,5 +23,17 @@ jobs:
           assert "'tests':65" in source and "'app':45" in source and "versionCode']==21" in source
           assert 'coexistsWith0810' in source and 'SECURITY_RUN' in source and 'commercialReady' in source
           assert 'PLACEHOLDER' not in source
+          import urllib.request,zipfile,io,hashlib
+          url='https://repo.maven.apache.org/maven2/org/apache/logging/log4j/log4j-api/2.25.5/log4j-api-2.25.5.jar'
+          with urllib.request.urlopen(url,timeout=90) as r:data=r.read()
+          with urllib.request.urlopen(url+'.sha512',timeout=90) as r:expected=r.read().decode().strip().split()[0]
+          assert hashlib.sha512(data).hexdigest()==expected
+          with zipfile.ZipFile(io.BytesIO(data)) as z:
+              names=[n for n in z.namelist() if n.upper() in ('META-INF/NOTICE','META-INF/NOTICE.TXT')]
+              assert len(names)==1
+              notice=z.read(names[0]).decode()
+          preserved=pathlib.Path('app/src/main/assets/licenses/Upstream-Apache-NOTICES.txt').read_text()
+          assert ''.join(notice.split()) in ''.join(preserved.split()),'Updated API notice must be retained'
+          print('UPDATED_LOG4J_API_NOTICE_MATCHES_EXISTING_BUNDLED_TEXT',hashlib.sha256(notice.encode()).hexdigest())
           print('QUALITY_PUBLICATION_SCRIPTS_VALID',len(blocks))
           PY
