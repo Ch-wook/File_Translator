@@ -15,7 +15,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Read the exact recovery UI failure and semantics tree
         run: |
-          gh run download 40814067760 --name quality-storage-ui-9463d4dc6dda303d94869019d33dedac1b37c579 --dir failed-quality
+          gh run watch 40815284243 --interval 15 --exit-status || true
+          gh run download 40815284243 --name quality-storage-ui-acd2b5077957cc25aa9fe229bc14c10452d2c7dc --dir failed-quality
+          gh run download 40814067745 --name quality-security-9463d4dc6dda303d94869019d33dedac1b37c579 --dir release-audit
           python3 - <<'PY'
           import pathlib,xml.etree.ElementTree as E
           root=pathlib.Path('failed-quality')
@@ -27,6 +29,11 @@ jobs:
               print('RECOVERY_UI_SEMANTICS_TREE_START',p,flush=True)
               print(p.read_text(),flush=True)
               print('RECOVERY_UI_SEMANTICS_TREE_END',flush=True)
+          for p in root.rglob('quality-ui-threads.txt'):
+              print('RECOVERY_THREADS_START',p,flush=True)
+              print(p.read_text()[:160000],flush=True)
+              print('RECOVERY_THREADS_END',flush=True)
+          print('ACTUAL_RELEASE_PERMISSIONS',pathlib.Path('release-audit/release-permissions.txt').read_text(),flush=True)
           for p in root.rglob('android-runtime.log'):
               for line in p.read_text(errors='replace').splitlines():
                   if 'QUALITY_RECOVERY_UI_FAILURE' in line:print('RUNTIME_UI_DIAGNOSTIC',line,flush=True)
