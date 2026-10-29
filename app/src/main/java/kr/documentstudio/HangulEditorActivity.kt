@@ -194,7 +194,15 @@ class HangulEditorActivity: ComponentActivity() {
             val zoom=view.optDouble("zoom",1.0)
             val top=view.optDouble("scrollTop",0.0);val left=view.optDouble("scrollLeft",0.0)
             if(!zoom.isFinite() || zoom !in 0.1..5.0 || !top.isFinite() || !left.isFinite() || top<0 || left<0) return
-            val state=JSONObject().put("zoom",zoom).put("scrollTop",top).put("scrollLeft",left).toString()
+            val saved=JSONObject().put("zoom",zoom).put("scrollTop",top).put("scrollLeft",left)
+            val page=view.optInt("page",-1)
+            val width=view.optDouble("viewportWidth",Double.NaN);val height=view.optDouble("viewportHeight",Double.NaN)
+            val offset=view.optDouble("pageOffset",Double.NaN);val x=view.optDouble("pageX",Double.NaN)
+            if(page in 0..100000 && width.isFinite() && width in 1.0..100000.0 && height.isFinite() && height in 1.0..100000.0
+                && offset.isFinite() && kotlin.math.abs(offset)<=1e9 && x.isFinite() && kotlin.math.abs(x)<=1e9){
+                saved.put("page",page).put("viewportWidth",width).put("viewportHeight",height).put("pageOffset",offset).put("pageX",x)
+            }
+            val state=saved.toString()
             val atomic=AtomicFile(File(working.parentFile,"hangul-view-state.json"))
             var stream: FileOutputStream?=null
             try {stream=atomic.startWrite();stream.write(state.toByteArray(Charsets.UTF_8));atomic.finishWrite(stream)}

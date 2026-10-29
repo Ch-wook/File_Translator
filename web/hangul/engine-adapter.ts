@@ -5,8 +5,13 @@ import { installStudioTouch } from './studio-touch';
 const studioFrame = document.getElementById('scroll-container');
 function studioFrameTick(): Promise<void> { return new Promise(resolve => requestAnimationFrame(() => resolve())); }
 function studioCaptureView() {
-  const viewport = canvasView?.getViewportManager();
-  return {zoom:viewport?.getZoom() ?? 1, scrollTop:studioFrame?.scrollTop ?? 0, scrollLeft:studioFrame?.scrollLeft ?? 0};
+  const viewport=canvasView?.getViewportManager(),vs=canvasView?.getVirtualScroll(),zoom=viewport?.getZoom()??1;
+  const top=studioFrame?.scrollTop??0,left=studioFrame?.scrollLeft??0;
+  const width=studioFrame?.clientWidth??0,height=studioFrame?.clientHeight??0;
+  const page=studioPageState().page,content=studioFrame?.querySelector('#scroll-content') as HTMLElement|null;
+  return {zoom,scrollTop:top,scrollLeft:left,viewportWidth:width,viewportHeight:height,page,
+    pageOffset:vs?(top+height/2-vs.getPageOffset(page))/zoom:0,
+    pageX:vs?(left+width/2-vs.getPageLeftResolved(page,content?.clientWidth??width))/zoom:0};
 }
 async function studioRestoreView(state: any): Promise<void> {
   if (!state || !canvasView || !studioFrame) return;
@@ -14,7 +19,16 @@ async function studioRestoreView(state: any): Promise<void> {
   const zoom = Number(state.zoom);
   if (Number.isFinite(zoom) && zoom >= 0.1 && zoom <= 5 && Math.abs(zoom-viewport.getZoom()) > 0.0001) viewport.setZoom(zoom);
   await studioFrameTick(); await studioFrameTick();
-  const top = Math.max(0, Number(state.scrollTop) || 0), left = Math.max(0, Number(state.scrollLeft) || 0);
+  let top=Math.max(0,Number(state.scrollTop)||0),left=Math.max(0,Number(state.scrollLeft)||0);
+  if(Number.isFinite(state.viewportWidth)&&Math.abs(state.viewportWidth-studioFrame.clientWidth)>1
+      &&Number.isInteger(state.page)&&state.page>=0&&state.page<wasm.pageCount&&Number.isFinite(state.pageOffset)){
+    const vs=canvasView.getVirtualScroll(),z=viewport.getZoom();
+    top=Math.max(0,vs.getPageOffset(state.page)+state.pageOffset*z-studioFrame.clientHeight/2);
+    if(Number.isFinite(state.pageX)){
+      const content=studioFrame.querySelector('#scroll-content') as HTMLElement|null;
+      left=Math.max(0,vs.getPageLeftResolved(state.page,content?.clientWidth??studioFrame.clientWidth)+state.pageX*z-studioFrame.clientWidth/2);
+    }
+  }
   viewport.setScrollTop(top); viewport.setScrollLeft(left);
   studioFrame.scrollTop=top; studioFrame.scrollLeft=left;
 }
@@ -45,8 +59,25 @@ async function studioFitPage() {
   canvasView.getViewportManager().setZoom(zoom);
   await studioFrameTick();await studioFrameTick();await studioGoToPage(index);
 }
+let studioStableView:any=null,studioStableWidth=0;
+function studioRememberView(){
+  const view=studioCaptureView();
+  if(!view.viewportWidth)return;
+  if(!studioStableWidth)studioStableWidth=view.viewportWidth;
+  if(Math.abs(view.viewportWidth-studioStableWidth)<1)studioStableView=view;
+}
+let studioRotation=0;
+eventBus.on('viewport-resize',()=>{
+  if(!studioFrame||!studioStableView||Math.abs(studioFrame.clientWidth-studioStableWidth)<1)return;
+  const generation=++studioRotation,view=studioStableView;
+  void (async()=>{
+    await studioFrameTick();await studioFrameTick();if(generation!==studioRotation)return;
+    await studioRestoreView(view);studioStableWidth=studioFrame!.clientWidth;studioRememberView();studioNotifyPage();
+  })();
+});
 function studioNotifyPage() {
   if(!canvasView||!wasm.pageCount)return;
+  studioRememberView();
   (window.parent as any).documentStudioHost?.pageChanged?.(studioPageState());
 }
 let studioPageFrame=0;

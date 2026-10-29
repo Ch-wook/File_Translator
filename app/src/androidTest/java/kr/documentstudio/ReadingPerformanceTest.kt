@@ -56,9 +56,23 @@ class ReadingPerformanceTest {
         val geometry=JSONArray()
         repeat(20){geometry.put(timed {assertTrue(PdfEngine.displaySize(pdf,it*3).first>0)})}
         val renders=JSONArray();repeat(3){renders.put(timed {PdfEngine.render(pdf,it,annotationPages=emptySet()).recycle()})}
+        val sequential=JSONArray();val reused=JSONArray()
+        val rendererClass=runCatching {Class.forName("kr.documentstudio.data.PdfReadRenderer")}.getOrNull()
+        val pdfSession=repo.open(uri(pdf))
+        repeat(5){
+            sequential.put(timed {repeat(10){index->PdfEngine.renderForViewport(pdf,index,800,2_000_000,emptySet()).recycle()}})
+            if(rendererClass!=null){
+                reused.put(timed {
+                    val companion=rendererClass.getField("Companion").get(null)
+                    val reader=companion.javaClass.getMethod("open",Session::class.java).invoke(companion,pdfSession) as java.io.Closeable
+                    try{repeat(10){index->(rendererClass.getMethod("render",Int::class.javaPrimitiveType,Int::class.javaPrimitiveType).invoke(reader,index,800) as android.graphics.Bitmap).recycle()}}
+                    finally{reader.close()}
+                })
+            }
+        }
         val memory=Debug.MemoryInfo().also {Debug.getMemoryInfo(it)}
         record("repository",JSONObject().put("textBytes",source.length()).put("pdfPages",80).put("openMs",opens).put("checkpointMs",checkpoints).put("checkpointStateWrites",writes)
-            .put("unchangedOriginalSaveMs",unchangedSaves).put("modifiedOriginalSaveMs",changedSaves).put("pdfGeometryMs",geometry).put("pdfPageRenderMs",renders).put("processPssKiB",memory.totalPss).put("originalUnchanged",true))
+            .put("unchangedOriginalSaveMs",unchangedSaves).put("modifiedOriginalSaveMs",changedSaves).put("pdfGeometryMs",geometry).put("pdfPageRenderMs",renders).put("legacyTenPageBatchMs",sequential).put("reusedTenPageBatchMs",reused).put("rendererReuseAvailable",rendererClass!=null).put("pageBatchConditions","10 of 80 blank pages, 800 px, 2M pixel limit; parse included; not complex document performance").put("processPssKiB",memory.totalPss).put("originalUnchanged",true))
     }
     @Test fun textControlsAndRecoveryAfterSaveFailure(){
         compose.runOnUiThread {vm.create(Format.TXT)};ready()
@@ -102,7 +116,9 @@ class ReadingPerformanceTest {
         val phases=JSONArray();val rasters=JSONArray()
         phases.put(JSONObject().put("phase","home-before").put("memory",settledMemory()))
         repeat(3){cycle->
-            compose.runOnUiThread {vm.open(uri(pdf))};ready()
+            val seeded=runBlocking {vm.repository.open(uri(pdf))}
+            context.getSharedPreferences("reading-position",0).edit().putString(seeded.id+":pdf-layout-v2","single").commit()
+            compose.runOnUiThread {vm.restore(seeded.id)};ready()
             compose.waitUntil(30000){var ok=false;compose.runOnUiThread {ok=native(context.window.decorView,kr.documentstudio.ui.PdfObjectCanvas::class.java)?.bitmap!=null};ok}
             compose.waitForIdle();SystemClock.sleep(350)
             lateinit var bitmap: android.graphics.Bitmap
@@ -125,6 +141,6 @@ class ReadingPerformanceTest {
         }
         phases.put(JSONObject().put("phase","text-after").put("memory",settledMemory()))
         assertEquals(originalHash,DocumentRepository.digest(pdf))
-        record("viewport-memory",JSONObject().put("gcRequestedBeforeEachSample",true).put("phases",phases).put("rasters",rasters).put("largeTextModeDriverMs",times).put("textBytes",txt.length()).put("allClosedBitmapsRecycled",true).put("pdfOriginalUnchanged",true))
+        record("viewport-memory",JSONObject().put("explicitSinglePageModeForComparableRasterLifecycle",true).put("gcRequestedBeforeEachSample",true).put("phases",phases).put("rasters",rasters).put("largeTextModeDriverMs",times).put("textBytes",txt.length()).put("allClosedBitmapsRecycled",true).put("pdfOriginalUnchanged",true))
     }
 }
