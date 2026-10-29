@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 90
     env:
       GH_TOKEN: ${{ github.token }}
-      BASELINE_SHA: 0faea43c3395e4e9e26757f621842650a59da0ce
+      BASELINE_SHA: aa3414f1fae89f5f98d10dabb64df85bfd7fc1df
     steps:
       - uses: actions/checkout@v4
         with:

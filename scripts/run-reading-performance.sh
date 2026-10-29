@@ -43,7 +43,7 @@ root=pathlib.Path('artifacts/reading-performance')
 data={label:{p.stem:json.loads(p.read_text()) for p in (root/label).glob('*.json')} for label in ('baseline','candidate')}
 def med(label,group,key):return round(statistics.median(data[label][group][key]),3)
 metrics={}
-for group,key in [('repository','openMs'),('repository','checkpointMs'),('repository','unchangedOriginalSaveMs'),('repository','pdfGeometryMs'),('repository','pdfPageRenderMs'),('text-ui','modeDriverRoundTripMs'),('text-ui','menuDriverRoundTripMs'),('viewport-memory','largeTextModeDriverMs')]:
+for group,key in [('repository','openMs'),('repository','checkpointMs'),('repository','unchangedOriginalSaveMs'),('repository','modifiedOriginalSaveMs'),('repository','pdfGeometryMs'),('repository','pdfPageRenderMs'),('text-ui','modeDriverRoundTripMs'),('text-ui','menuDriverRoundTripMs'),('viewport-memory','largeTextModeDriverMs')]:
     values={label:med(label,group,key) for label in data}
     metrics[key]=values|{'changePercent':round((values['candidate']/values['baseline']-1)*100,1)}
 startup={label:[int(re.search(r'TotalTime:\s*(\d+)',p.read_text()).group(1)) for p in (root/label).glob('startup-*.txt')] for label in data}

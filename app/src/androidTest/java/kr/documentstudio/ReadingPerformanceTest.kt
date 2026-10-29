@@ -43,6 +43,14 @@ class ReadingPerformanceTest {
         repeat(20){assertTrue(state.setLastModified(1000));checkpoints.put(timed {runBlocking {repo.checkpoint(session)}});if(state.lastModified()!=1000L)writes++}
         val unchangedSaves=JSONArray();repeat(5){unchangedSaves.put(timed {runBlocking {repo.save(session,uri(source))}})}
         assertEquals(sourceHash,DocumentRepository.digest(source))
+        val changedSource=file("txt").apply {writeText(text)}
+        var changed=repo.open(uri(changedSource));val changedSaves=JSONArray()
+        repeat(5){index->
+            changed=changed.copy(edits=changed.edits.copy(text=text+"수정 "+index))
+            changedSaves.put(timed {changed=runBlocking {repo.save(changed,uri(changedSource))}})
+            assertFalse(changed.dirty);assertEquals(changed.edits.text,changedSource.readText())
+            assertEquals(changed.edits,repo.restore(changed.id).edits)
+        }
         val pdf=file("pdf")
         com.tom_roush.pdfbox.pdmodel.PDDocument().use {doc->repeat(80){doc.addPage(com.tom_roush.pdfbox.pdmodel.PDPage())};doc.save(pdf)}
         val geometry=JSONArray()
@@ -50,7 +58,7 @@ class ReadingPerformanceTest {
         val renders=JSONArray();repeat(3){renders.put(timed {PdfEngine.render(pdf,it,annotationPages=emptySet()).recycle()})}
         val memory=Debug.MemoryInfo().also {Debug.getMemoryInfo(it)}
         record("repository",JSONObject().put("textBytes",source.length()).put("pdfPages",80).put("openMs",opens).put("checkpointMs",checkpoints).put("checkpointStateWrites",writes)
-            .put("unchangedOriginalSaveMs",unchangedSaves).put("pdfGeometryMs",geometry).put("pdfPageRenderMs",renders).put("processPssKiB",memory.totalPss).put("originalUnchanged",true))
+            .put("unchangedOriginalSaveMs",unchangedSaves).put("modifiedOriginalSaveMs",changedSaves).put("pdfGeometryMs",geometry).put("pdfPageRenderMs",renders).put("processPssKiB",memory.totalPss).put("originalUnchanged",true))
     }
     @Test fun textControlsAndRecoveryAfterSaveFailure(){
         compose.runOnUiThread {vm.create(Format.TXT)};ready()

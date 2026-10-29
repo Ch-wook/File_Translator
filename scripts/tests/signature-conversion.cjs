@@ -10,9 +10,11 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   const page=await context.newPage(),errors=[],external=[],engineErrors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'){console.error('ENGINE_CONSOLE',m.text());if(/\[EventBus\]|\[table\]|커맨드 실행 실패/.test(m.text()))engineErrors.push(m.text());}});
   await context.addInitScript(({format})=>{
-   let chunks=[];window.__clip={text:'',html:''};window.__writeCount=0;
+   let chunks=[];window.__clip={text:'',html:''};window.__writeCount=0;window.__signatureLibrary='[]';window.__signatureWriteFails=false;
    window.DocumentStudio={describe:()=>JSON.stringify({name:'모바일 서식.'+format,format,openIntent:'VIEW'}),
     loaded:()=>window.__ready=true,loadFailed:e=>window.__failure=e,requestDiscard:()=>{},
+    readSignatures:()=>window.__signatureLibrary,
+    writeSignatures:value=>{if(window.__signatureWriteFails)return false;window.__signatureLibrary=value;return true;},
     setEditing:v=>{window.__editing=v;return true;},saveViewState:v=>window.__view=JSON.parse(v),
     writeClipboard:v=>{window.__clip=JSON.parse(v);return true;},readClipboard:()=>JSON.stringify(window.__clip),
     beginWrite:n=>{if(!window.__editing)return false;chunks=[];window.__writeCount++;return true;},
@@ -33,6 +35,11 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   await page.locator('#mode').click();await page.waitForFunction(()=>document.body.dataset.state==='EDITING'&&!document.getElementById('mode').disabled);
   const call=(method,...args)=>frame.evaluate(({method,args})=>window.rhwpStudio.documentStudio.mobile[method](...args),{method,args});
 
+  await page.evaluate(()=>{window.__signatureLibrary='{"error":"damaged"}';window.documentStudioHost.signature();});
+  await page.locator('.studio-signature').getByRole('alert').filter({hasText:'서명 보관함을 확인하지 못했습니다.'}).waitFor({state:'visible'});
+  assert.equal(await page.locator('.studio-signature').getByRole('button',{name:'내 서명에 저장',exact:true}).isDisabled(),true);
+  await page.locator('.studio-signature').getByRole('button',{name:'취소',exact:true}).click();
+  await page.evaluate(()=>window.__signatureLibrary='[]');
   await call('navigate',true);await call('plainText','\nSIGNATURE_TEXT_PRESERVE\n');await call('createTable',2,2);
   await call('plainText','SIGNATURE_CELL');await call('moveCell',true);await call('plainText','OTHER_CELL_PRESERVE');
   await call('find','SIGNATURE_CELL');await call('focus');
@@ -50,6 +57,23 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   await draw({x:box.x+80,y:box.y+60},{x:box.x+box.width-70,y:box.y+180});
   await page.locator('.studio-signature').getByRole('button',{name:'실행 취소',exact:true}).click();
   await page.locator('.studio-signature').getByRole('button',{name:'다시 실행',exact:true}).click();
+  page.once('dialog',d=>d.accept('검증 서명'));
+  await page.locator('.studio-signature').getByRole('button',{name:'내 서명에 저장',exact:true}).click();
+  assert.equal(await page.locator('.studio-signature img[alt="검증 서명"]').count(),1);
+  await page.evaluate(()=>window.__signatureWriteFails=true);
+  page.once('dialog',d=>d.accept('저장 실패 서명'));
+  await page.locator('.studio-signature').getByRole('button',{name:'내 서명에 저장',exact:true}).click();
+  assert.equal(await page.evaluate(()=>JSON.parse(window.__signatureLibrary).length),1);
+  assert.equal(await page.locator('.studio-signature img').count(),1);
+  page.once('dialog',d=>d.accept());
+  await page.locator('.studio-signature').getByRole('button',{name:'삭제',exact:true}).click();
+  assert.equal(await page.locator('.studio-signature img').count(),1);
+  assert.equal(await page.evaluate(()=>JSON.parse(window.__signatureLibrary).length),1);
+  await page.evaluate(()=>window.__signatureWriteFails=false);
+  page.once('dialog',d=>d.accept());
+  await page.locator('.studio-signature').getByRole('button',{name:'삭제',exact:true}).click();
+  assert.equal(await page.locator('.studio-signature img').count(),0);
+  assert.equal(await page.evaluate(()=>JSON.parse(window.__signatureLibrary).length),0);
   await page.locator('.studio-signature').getByRole('button',{name:'완료',exact:true}).click();
   await frame.waitForFunction(()=>window.rhwpStudio.documentStudio.mobile.state().placement);
   const bounds=await page.locator('#engine').boundingBox();const start={x:Math.max(bounds.x+40,Math.min(bounds.x+bounds.width-100,insertion.x+10)),y:Math.max(bounds.y+40,Math.min(bounds.y+bounds.height-100,insertion.y+10))};
@@ -83,7 +107,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.wasm
   assert.equal(await frame.evaluate(()=>window.rhwpStudio.documentStudio.isEditing()),true);
   await page.evaluate(()=>window.setTimeout=window.__originalTimeout);
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-  results.push({format,signatureTouch:true,visibleSignatureErrors:true,pdfCancellation:true,exportMutationLocked:true,tableTextPreserved:true,tableStructurePreserved:true,pages:afterPages.length,savedAndReopened:true});
+  results.push({format,signatureTouch:true,damagedLibraryBlocked:true,failedLibraryPersistenceRetainsVisibleAndSavedEntries:true,visibleSignatureErrors:true,pdfCancellation:true,exportMutationLocked:true,tableTextPreserved:true,tableStructurePreserved:true,pages:afterPages.length,savedAndReopened:true});
   await context.close();
  }
  fs.writeFileSync(path.join(out,'signature-results.json'),JSON.stringify(results,null,2));console.log('SIGNATURE_RESULTS',JSON.stringify(results));

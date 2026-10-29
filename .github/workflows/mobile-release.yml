@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: mobile-release-0810-${{ github.sha }}
+  group: mobile-release-0811-${{ github.sha }}
   cancel-in-progress: false
 jobs:
   verify:
@@ -132,8 +132,8 @@ jobs:
         continue-on-error: true
         env:
           STUDIO_ABI: x86_64
-          STUDIO_PACKAGE: kr.documentstudio.performancepreview
-          MODE_TEST_CLASSES: kr.documentstudio.ReadingUxTest,kr.documentstudio.DocumentTreeTest,kr.documentstudio.ConversionIntegrationTest,kr.documentstudio.PdfAnnotationsTest,kr.documentstudio.PdfImageEditingTest,kr.documentstudio.PdfInkAppearanceTest,kr.documentstudio.PdfMarkupUiTest,kr.documentstudio.MarkdownUiTest,kr.documentstudio.CommonMobileUiTest,kr.documentstudio.NativeOfficeFontTest,kr.documentstudio.DocumentOpenRegressionTest,kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest
+          STUDIO_PACKAGE: kr.documentstudio.qualitypreview
+          MODE_TEST_CLASSES: kr.documentstudio.SaveProcessRecoveryTest,kr.documentstudio.QualityUiTest,kr.documentstudio.BackupSafetyTest,kr.documentstudio.EncryptedBackupIntegrationTest,kr.documentstudio.ReadingUxTest,kr.documentstudio.DocumentTreeTest,kr.documentstudio.ConversionIntegrationTest,kr.documentstudio.PdfAnnotationsTest,kr.documentstudio.PdfImageEditingTest,kr.documentstudio.PdfInkAppearanceTest,kr.documentstudio.PdfMarkupUiTest,kr.documentstudio.MarkdownUiTest,kr.documentstudio.CommonMobileUiTest,kr.documentstudio.NativeOfficeFontTest,kr.documentstudio.DocumentOpenRegressionTest,kr.documentstudio.P0ModeUiTest,kr.documentstudio.OfficeDefaultRoutingTest,kr.documentstudio.NativeHangulModeSmokeTest,kr.documentstudio.NativeOfficeModeSmokeTest,kr.documentstudio.NativeHangulEditingTest
           STUDIO_STORE_PASSWORD: ${{ secrets.STUDIO_STORE_PASSWORD }}
           STUDIO_KEY_ALIAS: ${{ secrets.STUDIO_KEY_ALIAS }}
           STUDIO_KEY_PASSWORD: ${{ secrets.STUDIO_KEY_PASSWORD }}
