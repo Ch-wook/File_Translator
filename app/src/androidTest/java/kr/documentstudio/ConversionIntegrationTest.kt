@@ -110,6 +110,7 @@ class ConversionIntegrationTest {
             assertTrue("Office header must clear the system status bar",geometry.getInt("top")>=geometry.getInt("barTop"))
             assertTrue("Office content must clear display cutouts",geometry.getInt("left")>=geometry.getInt("barLeft"))
             await("Mobile PDF conversion menu must exist"){device.findObject(By.desc("문서 메뉴"))!=null || device.findObject(By.text("문서 메뉴"))!=null}
+            assertEquals("Every visible Office header button needs a 48 CSS pixel target","true",probe("eval","[...document.querySelectorAll('#studio-office-header > button')].filter(e=>!e.hidden).every(e=>{const r=e.getBoundingClientRect();return r.width>=47.9&&r.height>=47.9})")?.getString("result"))
             NativeUiActions.tap(device,context.packageName,"문서 메뉴")
             await("PDF conversion action must be visible",10000){device.findObject(By.text("PDF로 변환"))!=null || device.findObject(By.desc("PDF로 변환"))!=null}
             val pdf=File(dir,"result.pdf").apply {writeBytes(byteArrayOf())};probe("convert-pdf",uri(pdf).toString())

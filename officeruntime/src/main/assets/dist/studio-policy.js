@@ -15,6 +15,8 @@
     html[data-studio-office-host] #document-container.readonly.mobile{position:relative!important;top:auto!important;min-height:0}
     #studio-office-tools{display:contents;--studio-accent:#2858a5;--studio-line:#dfe5ed;--studio-ink:#26364a;--studio-paper:#fff}
     #studio-office-header{width:100%;color:#26364a;background:#fff}
+    #studio-office-header > button:not([hidden]){min-width:48px;min-height:48px;align-self:stretch;flex-shrink:0}
+    #studio-office-header > .studio-office-action{border:0;background:transparent;color:inherit;font:inherit;padding:0 8px;border-radius:8px}
     #studio-office-bottom{display:flex;flex-direction:column;flex:none;z-index:30;min-height:0;background:#fff;padding-bottom:env(safe-area-inset-bottom)}
     #studio-office-actions .studio-ui-fields{padding:4px 8px}
     #studio-office-actions .studio-office-action{min-height:44px;min-width:44px;padding:5px 9px;margin:2px;border:0;border-radius:7px;background:#edf2f9;color:#26364a;font:12px system-ui}
