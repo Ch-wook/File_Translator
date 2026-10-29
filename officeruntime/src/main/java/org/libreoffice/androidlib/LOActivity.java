@@ -920,31 +920,7 @@ public class LOActivity extends AppCompatActivity {
                     OutputStream outputStream = null;
                     try {
                         try {
-                            inputStream = new FileInputStream(mTempFile);
-
-                            int len = inputStream.available();
-                            if (len <= 0)
-                                // empty for some reason & do not write it back
-                                return;
-
-                            Uri uri = getIntent().getData();
-                            try {
-                                outputStream = contentResolver.openOutputStream(uri, "wt");
-                            }
-                            catch (FileNotFoundException e) {
-                                PrivateLog.i(TAG, "failed with the 'wt' mode, trying without: " + e.getMessage());
-                                outputStream = contentResolver.openOutputStream(uri);
-                            }
-
-                            byte[] buffer = new byte[1024];
-                            int length;
-                            long bytes = 0;
-                            while ((length = inputStream.read(buffer)) != -1) {
-                                outputStream.write(buffer, 0, length);
-                                bytes += length;
-                            }
-
-                            PrivateLog.i(TAG, "Success copying " + bytes + " bytes from " + mTempFile + " to " + uri);
+                            studioPublishNativeOutput(mTempFile,getIntent().getData());
                         } finally {
                             if (inputStream != null)
                                 inputStream.close();
@@ -1127,37 +1103,19 @@ public class LOActivity extends AppCompatActivity {
                     mPendingExportSourcePath = null;
                     return;
                 }
-                File srcFile = new File(mPendingExportSourcePath);
+                final File srcFile = new File(mPendingExportSourcePath);
+                final Uri destination=intent.getData();
                 mPendingExportSourcePath = null;
-                InputStream inputStream = null;
-                OutputStream outputStream = null;
-                try {
-                    inputStream = new FileInputStream(srcFile);
-                    try {
-                        outputStream = getContentResolver().openOutputStream(intent.getData(), "wt");
-                    } catch (FileNotFoundException e) {
-                        PrivateLog.i(TAG, "failed with the 'wt' mode, trying without: " + e.getMessage());
-                        outputStream = getContentResolver().openOutputStream(intent.getData());
-                    }
-                    byte[] buffer = new byte[4096];
-                    int len;
-                    while ((len = inputStream.read(buffer)) != -1) {
-                        outputStream.write(buffer, 0, len);
-                    }
-                    outputStream.flush();
-                } catch (Exception e) {
-                    Toast.makeText(this, "Something went wrong while exporting: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    
-                } finally {
-                    try {
-                        if (inputStream != null)
-                            inputStream.close();
-                        if (outputStream != null)
-                            outputStream.close();
-                    } catch (Exception e) {
-                    }
-                    srcFile.delete();
-                }
+                if(studioPdfBusy){Toast.makeText(this,"현재 저장이 끝난 뒤 다시 시도하세요.",Toast.LENGTH_LONG).show();return;}
+                studioPdfBusy=true;
+                final android.app.ProgressDialog progress=new android.app.ProgressDialog(this);
+                progress.setMessage("파일 저장·검증 중");progress.setCancelable(false);progress.show();
+                mWebView.setEnabled(false);
+                new Thread(()->{
+                    try {studioPublishNativeOutput(srcFile,destination);srcFile.delete();}
+                    catch(Exception failure){final String message=studioOutputError(failure);runOnUiThread(()->Toast.makeText(this,message,Toast.LENGTH_LONG).show());}
+                    finally {runOnUiThread(()->{studioPdfBusy=false;if(mWebView!=null)mWebView.setEnabled(true);if(!isFinishing())progress.dismiss();});}
+                },"studio-output-publication").start();
                 return;
             }
             case REQUEST_SAVEAS_PDF:
@@ -1184,23 +1142,10 @@ public class LOActivity extends AppCompatActivity {
                         final File tempFile = File.createTempFile("CollaboraOffice", "." + format, this.getCacheDir());
                         LOActivity.this.saveAs(tempFile.toURI().toString(), format, requestCopy ? "TakeOwnership" : null);
 
-                        inputStream = new FileInputStream(tempFile);
-                        try {
-                            outputStream = getContentResolver().openOutputStream(intent.getData(), "wt");
-                        } catch (FileNotFoundException e) {
-                            PrivateLog.i(TAG, "failed with the 'wt' mode, trying without: " + e.getMessage());
-                            outputStream = getContentResolver().openOutputStream(intent.getData());
-                        }
-
-                        byte[] buffer = new byte[4096];
-                        int len;
-                        while ((len = inputStream.read(buffer)) != -1) {
-                            outputStream.write(buffer, 0, len);
-                        }
-                        outputStream.flush();
+                        studioPublishNativeOutput(tempFile,intent.getData());
                         _tempFile = tempFile;
                     } catch (Exception e) {
-                        Toast.makeText(this, "Something went wrong while Saving as: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, studioOutputError(e), Toast.LENGTH_SHORT).show();
                         
                     } finally {
                         try {
@@ -2017,12 +1962,24 @@ public class LOActivity extends AppCompatActivity {
         startActivityForResult(intent, REQUEST_EXPORT_FILE);
     }
 
+    private StudioDocumentHost studioStorage() throws java.io.IOException {
+        if(!(getApplication() instanceof StudioDocumentHost))throw new java.io.IOException("안전한 저장 호스트를 확인하지 못했습니다.");
+        return (StudioDocumentHost)getApplication();
+    }
+    private void studioPublishNativeOutput(File file,Uri destination) throws Exception {
+        if(destination==null)throw new java.io.IOException("저장할 파일을 선택하세요.");
+        studioStorage().publishResult(file,destination,getIntent().getStringExtra("originalUri"));
+    }
+    private String studioOutputError(Throwable failure) {
+        try {return studioStorage().describeFailure(failure);}
+        catch(Exception ignored){return "저장을 완료하지 못했습니다. 작업 파일을 보존했습니다. 저장 복구 또는 다른 이름으로 저장을 선택하세요.";}
+    }
     private boolean studioPdfBusy;
     private volatile String studioPdfError;
     /** Direct native PDF filter; no print UI, original ownership or screenshot conversion. */
     private void convertStudioPdf(Uri destination) {
         if(studioPdfBusy)return;
-        if(destination.toString().equals(getIntent().getStringExtra("originalUri"))){
+        if(getApplication() instanceof StudioDocumentHost && ((StudioDocumentHost)getApplication()).sameDocument(destination.toString(),getIntent().getStringExtra("originalUri"))){
             Toast.makeText(this,"원본과 다른 파일을 선택하세요.",Toast.LENGTH_LONG).show();return;
         }
         onPdfConversionStarted();
@@ -2031,10 +1988,17 @@ public class LOActivity extends AppCompatActivity {
         final android.app.ProgressDialog progress=new android.app.ProgressDialog(this);
         progress.setMessage("PDF 변환 중 · 전체 문서 레이아웃 처리");progress.setCancelable(false);
         final java.util.concurrent.atomic.AtomicBoolean cancelled=new java.util.concurrent.atomic.AtomicBoolean(false);
-        progress.setButton(android.content.DialogInterface.BUTTON_NEGATIVE,"변환 취소",(dialog,which)->cancelled.set(true));progress.show();
+        final java.util.concurrent.atomic.AtomicBoolean publishing=new java.util.concurrent.atomic.AtomicBoolean(false);
+        progress.setButton(android.content.DialogInterface.BUTTON_NEGATIVE,"변환 취소",(dialog,which)->{});progress.show();
+        progress.getButton(android.content.DialogInterface.BUTTON_NEGATIVE).setOnClickListener(view->{
+            synchronized(cancelled) {
+                if(publishing.get()){Toast.makeText(this,"파일을 저장·검증하는 중입니다. 완료 후 닫아 주세요.",Toast.LENGTH_SHORT).show();return;}
+                cancelled.set(true);progress.setMessage("변환 취소 요청을 확인하는 중입니다.");
+            }
+        });
         mWebView.setEnabled(false);
         new Thread(() -> {
-            File stage=null,backup=null,check=null;boolean backed=false;
+            File stage=null;
             try {
                 stage=File.createTempFile("studio-pdf-",".pdf",getCacheDir());
                 saveAs(stage.toURI().toString(),"pdf",null);
@@ -2048,19 +2012,12 @@ public class LOActivity extends AppCompatActivity {
                         try{page.render(bitmap,null,null,android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);}finally{bitmap.recycle();}
                     }
                 }
-                if(cancelled.get())throw new java.io.IOException("변환을 취소했습니다.");
-                backup=File.createTempFile("studio-output-backup-",".bin",getCacheDir());
-                try(InputStream input=getContentResolver().openInputStream(destination);OutputStream out=new FileOutputStream(backup)){
-                    if(input!=null){studioCopyStream(input,out);backed=true;}
-                }catch(java.io.FileNotFoundException ignored){}
-                try(InputStream input=new FileInputStream(stage);OutputStream out=getContentResolver().openOutputStream(destination,"rwt")){
-                    if(out==null)throw new java.io.IOException("결과 파일 쓰기 실패");studioCopyStream(input,out);
+                synchronized(cancelled) {
+                    if(cancelled.get())throw new java.io.IOException("변환을 취소했습니다.");
+                    publishing.set(true);
                 }
-                check=File.createTempFile("studio-pdf-readback-",".pdf",getCacheDir());
-                try(InputStream input=getContentResolver().openInputStream(destination);OutputStream out=new FileOutputStream(check)){
-                    if(input==null)throw new java.io.IOException("저장 결과 읽기 실패");studioCopyStream(input,out);
-                }
-                if(!studioFileDigest(stage).equals(studioFileDigest(check)))throw new java.io.IOException("저장 결과 검증 실패");
+                runOnUiThread(()->{progress.setMessage("PDF 저장·검증 중");progress.getButton(android.content.DialogInterface.BUTTON_NEGATIVE).setEnabled(false);});
+                studioPublishNativeOutput(stage,destination);
                 final int count=pages;runOnUiThread(()->{
                     onPdfConversionCompleted(destination);
                     new AlertDialog.Builder(this).setTitle("PDF 변환 완료").setMessage(count+"쪽 PDF를 저장하고 다시 읽어 검증했습니다.").setPositiveButton("결과 열기",(d,w)->{
@@ -2068,11 +2025,10 @@ public class LOActivity extends AppCompatActivity {
                     }).setNegativeButton("닫기",null).show();
                 });
             }catch(Exception failure){
-                studioPdfError=String.valueOf(failure.getMessage());
-                if(backed && backup!=null)try(InputStream input=new FileInputStream(backup);OutputStream out=getContentResolver().openOutputStream(destination,"rwt")){if(out!=null)studioCopyStream(input,out);}catch(Exception ignored){}
-                runOnUiThread(()->Toast.makeText(this,"PDF 변환 실패: "+failure.getMessage(),Toast.LENGTH_LONG).show());
+                studioPdfError=cancelled.get() && !publishing.get() ? "변환을 취소했습니다. 원본은 변경하지 않았습니다." : studioOutputError(failure);
+                runOnUiThread(()->Toast.makeText(this,studioPdfError,Toast.LENGTH_LONG).show());
             }finally{
-                if(stage!=null)stage.delete();if(backup!=null)backup.delete();if(check!=null)check.delete();
+                if(stage!=null)stage.delete();
                 runOnUiThread(()->{studioPdfBusy=false;if(mWebView!=null)mWebView.setEnabled(true);if(!isFinishing())progress.dismiss();});
             }
         },"studio-pdf-conversion").start();
