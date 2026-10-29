@@ -16,13 +16,13 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_SHA: 6005441343e4215d90d4722a3140150bebd832d7
-      VERIFIED_RUN: '40817420620'
-      PERFORMANCE_RUN: '40817420619'
-      PERFORMANCE_SHA: 6005441343e4215d90d4722a3140150bebd832d7
-      SECURITY_RUN: '40817420807'
-      UI_DRIVER_RUN: '40817420856'
-      UI_DRIVER_SHA: 6005441343e4215d90d4722a3140150bebd832d7
+      VERIFIED_SHA: 17e080fbb00758d0a74f0802b871c8350e9bd7fe
+      VERIFIED_RUN: '40818123497'
+      PERFORMANCE_RUN: '40818123689'
+      PERFORMANCE_SHA: 17e080fbb00758d0a74f0802b871c8350e9bd7fe
+      SECURITY_RUN: '40818123668'
+      UI_DRIVER_RUN: '40818123564'
+      UI_DRIVER_SHA: 17e080fbb00758d0a74f0802b871c8350e9bd7fe
       NODE_AUDIT_RUN: '40814205396'
       NODE_AUDIT_SHA: 09a8bb7eb8c9151c840c5cacfce8cb86a2abfea1
       PREVIEW_TAG: v0.8.11-preview
@@ -158,7 +158,7 @@ jobs:
               independent=json.loads(z.read('artifacts/native-android/native-common-ui/recovery-independent-stores.json'))
               assert independent['signaturePaneIndependentFromPendingDocumentStore'] is True,independent
               search_paste=json.loads(z.read('artifacts/native-android/native-office-mode-smoke/docx-view.json'))
-              assert search_paste['result']=='passed' and search_paste['viewSearchClipboardPaste'] is True,search_paste
+              assert search_paste['result']=='passed' and search_paste['viewSearchClipboardPaste'] is True and search_paste['documentPasteBlockedAfterSearchClosed'] is True,search_paste
               runtime=z.read('artifacts/ci/android-all-processes.log').decode(errors='replace')
               import re
               assert not re.search(r'ANR in kr[.]documentstudio[.]qualitypreview(?:[: /]|$)',runtime),'Document application ANR remains a publication blocker'
