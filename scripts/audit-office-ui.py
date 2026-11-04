@@ -28,3 +28,15 @@ with zipfile.ZipFile(apk) as z:
             hits=list(re.finditer(re.escape('postMobileError'),content))
             if hits:
                 print('BROWSER_DIAGNOSTIC_CALLS',json.dumps({'file':name,'count':len(hits),'snippets':[content[max(0,m.start()-180):m.end()+650] for m in hits[-4:]]},ensure_ascii=False))
+
+    for method in ('canvasToDocumentPoint','documentToViewY','documentToViewX','applyZoom','_onPinchStart','_onPinchEnd'):
+        pattern=re.escape(method)+r'(?:\([^)]*\)\s*\{|:function\([^)]*\)\s*\{)'
+        hits=list(re.finditer(pattern,text))
+        print('OFFICE_COORD_API',json.dumps({'name':method,'count':len(hits),'snippets':[text[m.start():m.end()+4500] for m in hits[:4]]},ensure_ascii=False))
+    for layout in ('ViewLayoutFileBased','ViewLayout'):
+        needle='this.type="'+layout+'"'
+        hit=text.find(needle)
+        if hit>=0:
+            start=text.rfind('class ',0,hit)
+            end=text.find('class ',hit)
+            print('OFFICE_LAYOUT_CLASS',json.dumps({'name':layout,'source':text[start:min(end if end>=0 else len(text),start+25000)]},ensure_ascii=False))

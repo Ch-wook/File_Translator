@@ -85,6 +85,13 @@ class ViewerNavigationTest {
         val total=if(kind=="hangul")"pages" else "count"
         val closed=File(working.path+".closed");var completed=false
         val record=JSONObject().put("file",name).put("expectedCount",count)
+        fun slideStage(label: String){
+            if(!name.endsWith(".pptx"))return
+            eval(kind,"window.__viewerSettled=false;app.layoutingService.onDrain(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>window.__viewerSettled=true)));true")
+            waitFor("Slide layout has drained: "+label){eval(kind,"window.__viewerSettled===true")=="true"}
+            val script="JSON.stringify({index:app.map.getCurrentPartNumber(),zoom:app.map.getZoom(),ratio:app.twipsToPixels,view:app.activeDocument.activeLayout.viewedRectangle,scroll:app.activeDocument.activeLayout.scrollProperties,frame:app.activeDocument.activeLayout.frameSize,parts:app.activeDocument.activeLayout.viewRectangles?.slice(-2)})"
+            record.put(label,JSONObject(eval(kind,script)))
+        }
         val probeClient=checkNotNull(context.contentResolver.acquireUnstableContentProviderClient(Uri.parse("content://"+context.packageName+"."+kind+"probe")))
         try{
             // Provider lifecycle observation must be registered before Activity
@@ -147,8 +154,10 @@ class ViewerNavigationTest {
                 tap("다음 페이지");waitFor("Actual next page"){JSONObject(eval(kind,state)).getInt(index)==count-1}
             }
             val zoom=if(kind=="hangul")api+".captureView().zoom" else "app.map.getZoom()"
+            slideStage("beforePinch")
             val before=eval(kind,zoom).toDouble();pinch()
             waitFor("Actual Android two-finger input changes display scale"){eval(kind,zoom).toDouble()>before+.01}
+            slideStage("afterPinch")
             record.put("zoomBefore",before).put("zoomAfter",eval(kind,zoom).toDouble()).put("actualAndroidPinch",true)
             if(kind=="hangul"){
                 SystemClock.sleep(800) // Ignore the completed pinch's compatibility taps.
@@ -167,6 +176,7 @@ class ViewerNavigationTest {
                 assertEquals("false",eval(kind,"window.studioOffice.authorized"))
                 record.put("readingDoubleTapZoom",true).put("doubleTapStaysReadonly",true)
             }
+            slideStage("afterDoubleTap")
             if(name.endsWith(".docx")){
                 tap("문서 메뉴");tap("첫 페이지")
                 waitFor("First page"){JSONObject(eval(kind,state)).getInt(index)==0}
@@ -179,8 +189,13 @@ class ViewerNavigationTest {
             val rotationToken=UUID.randomUUID().toString();eval(kind,"window.__viewerRotationToken="+JSONObject.quote(rotationToken))
             device.setOrientationLeft();SystemClock.sleep(1000)
             waitFor("Viewer survives native landscape rotation"){eval(kind,"innerWidth>innerHeight")=="true" && JSONObject(eval(kind,state)).getInt(total)==count}
+            slideStage("afterLandscape")
             device.setOrientationNatural()
             waitFor("Viewer is ready after returning to portrait"){eval(kind,"innerWidth<innerHeight")=="true" && JSONObject(eval(kind,state)).getInt(total)==count}
+            slideStage("afterPortrait")
+            if(name.endsWith(".pptx"))for(stage in listOf("beforePinch","afterPinch","afterDoubleTap","afterLandscape","afterPortrait")){
+                assertEquals("Slide position must remain at thirty: "+stage,29,record.getJSONObject(stage).getInt("index"))
+            }
             assertFalse(File(working.path+".edited").exists())
             assertEquals(workingHash,DocumentRepository.digest(working));assertEquals(originalHash,DocumentRepository.digest(original))
             if(kind=="hangul"){
