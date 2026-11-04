@@ -127,7 +127,7 @@ class ConversionIntegrationTest {
             NativeUiActions.tap(device,context.packageName,"닫기")
             var latestEditVerified=false
             if(ext=="pptx"){
-                probe("eval","app.map._switchToEditMode()")
+                NativeUiActions.tap(device,context.packageName,"편집하기")
                 await("PPTX editing must be explicitly enabled"){probe("state")?.getBoolean("editing")==true}
                 probe("uno",".uno:InsertPage")
                 await("Native slide edit must be applied"){org.json.JSONTokener(probe("eval","app.map.getNumberOfParts()")!!.getString("result")!!).nextValue().toString()=="11"}

@@ -12,7 +12,7 @@ with zipfile.ZipFile(apk) as z:
     ids=re.findall(r'<[^>]*\bid="(?:toolbar[^"]*|document[^"]*|main[^"]*|map|formula[^"]*|spreadsheet[^"]*|presentation[^"]*|mobile[^"]*|closebutton|sidebar[^"]*)"[^>]*>',html)
     print('OFFICE_DOM',json.dumps(ids,ensure_ascii=False))
     text=z.read('assets/dist/bundle.js').decode()
-    needles=["_onDoubleTap","_onDoubleClick","doubletap","applyZoom(e){","addHandler\",\"touchGesture"]
+    needles=["postMobileError","postMobileDebug","_fitWidthZoom:function","getPartSizeTwips(e)"]
     report={}
     for needle in needles:
         hits=list(re.finditer(re.escape(needle),text))
@@ -21,3 +21,10 @@ with zipfile.ZipFile(apk) as z:
     (out/'api.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
     (out/'dom.json').write_text(json.dumps(ids,ensure_ascii=False,indent=2))
 
+
+    for name in z.namelist():
+        if name.startswith('assets/dist/') and name.endswith(('.js','.html')):
+            content=z.read(name).decode(errors='replace')
+            hits=list(re.finditer(re.escape('postMobileError'),content))
+            if hits:
+                print('BROWSER_DIAGNOSTIC_CALLS',json.dumps({'file':name,'count':len(hits),'snippets':[content[max(0,m.start()-180):m.end()+650] for m in hits[:4]]},ensure_ascii=False))

@@ -155,9 +155,9 @@
       const start=down;down=null;
       if(!start||event.touches.length||!event.changedTouches.length||editable()||modeTransition)return;
       const touch=event.changedTouches[0];
-      if(event.timeStamp-start.time>220||Math.hypot(touch.clientX-start.x,touch.clientY-start.y)>10){lastTap=null;return;}
+      if(event.timeStamp-start.time>350||Math.hypot(touch.clientX-start.x,touch.clientY-start.y)>10){lastTap=null;return;}
       const previous=lastTap;lastTap={x:touch.clientX,y:touch.clientY,time:event.timeStamp};
-      if(!previous||event.timeStamp-previous.time>320||Math.hypot(touch.clientX-previous.x,touch.clientY-previous.y)>28)return;
+      if(!previous||start.time-previous.time>320||Math.hypot(touch.clientX-previous.x,touch.clientY-previous.y)>28)return;
       lastTap=null;
       const before=map().getZoom();
       requestAnimationFrame(()=>{
@@ -211,7 +211,7 @@
     document.addEventListener('touchend',event=>{
       const start=gesture;gesture=null;if(!start||event.touches.length||!event.changedTouches.length)return;
       const touch=event.changedTouches[0],dx=touch.clientX-start.x,dy=touch.clientY-start.y;
-      if(Math.abs(dx)<70||Math.abs(dx)<Math.abs(dy)*1.8||event.timeStamp-start.time>800)return;
+      if(Math.abs(dx)<70||Math.abs(dx)<Math.abs(dy)*1.8||objectSelected()||app.activeDocument?.activeView?.hasTextSelection)return;
       requestAnimationFrame(()=>{
         if(!editable()&&!modeTransition&&navigationState()?.index===start.index)navigateTo(start.index+(dx<0?1:-1));
       });

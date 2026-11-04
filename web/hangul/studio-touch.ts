@@ -143,9 +143,9 @@ export function installStudioTouch(getInput:()=>any,eventBus:any) {
  },{passive:false,capture:true});
  document.addEventListener('touchend',e=>{
    const p=readPan;readPan=null;const ih=input();
-   if(!p||!ih||studioIsEditing()||e.touches.length||p.moved||e.timeStamp-p.time>220||Date.now()<suppressUntil)return;
+   if(!p||!ih||studioIsEditing()||e.touches.length||p.moved||e.timeStamp-p.time>350||Date.now()<suppressUntil)return;
    const t=e.changedTouches[0];if(!t||Math.hypot(t.clientX-p.x,t.clientY-p.y)>10)return;
-   if(readTap&&e.timeStamp-readTap.time<300&&Math.hypot(t.clientX-readTap.x,t.clientY-readTap.y)<32){
+   if(readTap&&p.time-readTap.time<300&&Math.hypot(t.clientX-readTap.x,t.clientY-readTap.y)<32){
      const box=ih.container.getBoundingClientRect(),vp=ih.viewportManager;
      vp.setZoom(vp.getZoom()<1.2?2:.8,{x:(t.clientX-box.left)/box.width,y:(t.clientY-box.top)/box.height});
      readTap=null;e.preventDefault();e.stopImmediatePropagation();refresh();(window.parent as any).documentStudioHost?.toolsChanged?.();

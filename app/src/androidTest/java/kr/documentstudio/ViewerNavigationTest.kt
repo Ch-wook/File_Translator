@@ -144,7 +144,16 @@ class ViewerNavigationTest {
             val before=eval(kind,zoom).toDouble();pinch()
             waitFor("Actual Android two-finger input changes display scale"){eval(kind,zoom).toDouble()>before+.01}
             record.put("zoomBefore",before).put("zoomAfter",eval(kind,zoom).toDouble()).put("actualAndroidPinch",true)
+            if(kind=="hangul"){
+                SystemClock.sleep(800) // Ignore the completed pinch's compatibility taps.
+                val beforeDouble=eval(kind,zoom).toDouble();val r=documentBounds()
+                device.click(r.centerX(),r.top+r.height()*2/5);SystemClock.sleep(100);device.click(r.centerX(),r.top+r.height()*2/5)
+                waitFor("Hangul reading double tap changes display zoom"){kotlin.math.abs(eval(kind,zoom).toDouble()-beforeDouble)>.1}
+                assertEquals("READING",eval(kind,"document.body.dataset.state"))
+                record.put("readingDoubleTapZoom",true).put("doubleTapStaysReadonly",true)
+            }
             if(kind=="office"){
+                waitFor("Native pinch animation has settled"){eval(kind,"app.map._docLayer._isZooming!==true")=="true"}
                 val beforeDouble=eval(kind,zoom).toDouble();val r=documentBounds()
                 device.click(r.centerX(),r.top+r.height()*2/5);SystemClock.sleep(100);device.click(r.centerX(),r.top+r.height()*2/5)
                 waitFor("Office reading double tap zooms without entering editing"){eval(kind,zoom).toDouble()>beforeDouble+.01}

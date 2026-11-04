@@ -163,6 +163,13 @@ public class LOActivity extends AppCompatActivity {
     private volatile boolean officeSavedApproved = false;
     private volatile boolean officeLoadFinished = false;
     private volatile boolean officeLoadFailed = false;
+    private volatile boolean officeBrowserDiagnosticSeen = false;
+    private final Runnable officeLoadTimeout = () -> {
+        if (!officeLoadFinished && !officeLoadFailed && !isFinishing()) {
+            onOfficeLifecycle("office-load-timeout");
+            reportOfficeLoadFailure("문서를 여는 데 시간이 오래 걸립니다. 파일을 다시 선택해 주세요.");
+        }
+    };
     private volatile boolean studioUiTextInputFocused = false;
 
     private ClipboardManager clipboardManager;
@@ -1017,6 +1024,7 @@ public class LOActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        getMainHandler().removeCallbacks(officeLoadTimeout);
         stopWatchingForHardwareKeyboard();
 
         if (!documentLoaded) {
@@ -1410,6 +1418,10 @@ public class LOActivity extends AppCompatActivity {
             finalUrlToLoad += "&darkTheme=true";
         }
 
+        // Browser diagnostics can be recoverable during cold startup. Only a
+        // native load error, main-resource failure or a real timeout ends loading.
+        getMainHandler().removeCallbacks(officeLoadTimeout);
+        getMainHandler().postDelayed(officeLoadTimeout, 90_000L);
         // load the page
         mWebView.loadUrl(finalUrlToLoad);
 
@@ -1497,7 +1509,13 @@ public class LOActivity extends AppCompatActivity {
      */
     @JavascriptInterface
     public void postMobileError(String message) {
-        if (!officeLoadFinished) { onOfficeLifecycle("browser-start-failed"); reportOfficeLoadFailure("오피스 엔진을 시작하지 못했습니다."); }
+        // This is a browser diagnostic channel, not the native document-load
+        // result. A startup warning must not close an otherwise valid document.
+        // Persist only one fixed category; never log the message/document text.
+        if (!officeLoadFinished && !officeBrowserDiagnosticSeen) {
+            officeBrowserDiagnosticSeen = true;
+            onOfficeLifecycle("browser-diagnostic");
+        }
     }
 
     /**
@@ -1506,6 +1524,7 @@ public class LOActivity extends AppCompatActivity {
     public void reportOfficeLoadFailure(String error) {
         onOfficeLifecycle("office-load-failed");
         officeLoadFailed = true;
+        getMainHandler().removeCallbacks(officeLoadTimeout);
         runOnUiThread(() -> onOfficeLoadFailed(error));
     }
 
@@ -1547,7 +1566,10 @@ public class LOActivity extends AppCompatActivity {
     @UsedByNative // androidapp.cpp send2JS
     void rawCallFakeWebsocketOnMessage(final byte[] message) {
         // Native state is authoritative even when the browser closes its socket.
-        if (messageStartsWith(message, "status:")) officeLoadFinished = true;
+        if (messageStartsWith(message, "status:")) {
+            officeLoadFinished = true;
+            getMainHandler().removeCallbacks(officeLoadTimeout);
+        }
         if (messageStartsWith(message, "statechanged:")) {
             String state = new String(message, java.nio.charset.StandardCharsets.UTF_8).substring("statechanged:".length()).trim();
             String modified = null;
