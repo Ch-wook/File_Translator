@@ -16,15 +16,15 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
-      VERIFIED_SHA: 17e080fbb00758d0a74f0802b871c8350e9bd7fe
-      VERIFIED_RUN: '40818123497'
-      PERFORMANCE_RUN: '40818123689'
-      PERFORMANCE_SHA: 17e080fbb00758d0a74f0802b871c8350e9bd7fe
-      SECURITY_RUN: '40818123668'
-      UI_DRIVER_RUN: '40818123564'
-      UI_DRIVER_SHA: 17e080fbb00758d0a74f0802b871c8350e9bd7fe
-      NODE_AUDIT_RUN: '40814205396'
-      NODE_AUDIT_SHA: 09a8bb7eb8c9151c840c5cacfce8cb86a2abfea1
+      VERIFIED_SHA: '8fae41c228a6cf86178f5da33669ee3d6cc4a08c'
+      VERIFIED_RUN: '41819668794'
+      PERFORMANCE_RUN: '41819668944'
+      PERFORMANCE_SHA: '8fae41c228a6cf86178f5da33669ee3d6cc4a08c'
+      SECURITY_RUN: '41819669179'
+      UI_DRIVER_RUN: '41819668794'
+      UI_DRIVER_SHA: '8fae41c228a6cf86178f5da33669ee3d6cc4a08c'
+      NODE_AUDIT_RUN: '41813288172'
+      NODE_AUDIT_SHA: 'b68d31951ffa881c8784ad30897ddc8dfd0fd4de'
       PREVIEW_TAG: v0.8.11-preview
     steps:
       - uses: actions/checkout@v4
@@ -306,6 +306,7 @@ jobs:
           npm_counts=node_summary['audits']['all']['metadata']['vulnerabilities']
           notes+='추가 npm 검사: npm 실행 의존성 권고 일치0건, 개발·빌드 도구 포함'+str(npm_counts['total'])+'건(높음'+str(npm_counts['high'])+') 미해결. 전체 보안/상용 출시 완료가 아닙니다. 검증 ZIP의 quality-node와 작업 보고서를 확인하세요.\n'
           notes+='\n실행 검증: Android '+str(result['androidTests']['tests'])+'건, 단위 '+str(units['tests'])+'건 — 실패·오류·건너뜀 0건.\n'
+          notes+='다중 페이지 보기: HWPX20쪽·PDF100쪽·DOCX12쪽·PPTX30슬라이드·XLSX3시트/원거리 셀을 실제 엔진에서 검사했습니다. 핀치·읽기 더블 탭·회전·원본 보존, PPT 실제 가시 슬라이드와 확대 중심 좌표를 확인했습니다. PDF 고배율 래스터는 페이지당2M픽셀 예산으로 제한됩니다.\n'
           notes+='이름/MIME 조회 회귀: 동일 3건에서 수정 전 3건 실패 → 수정 후 3건 통과.\n'
           notes+='실제 엔진 브라우저 9개 시나리오, JavaScript 28건, TypeScript·lint, HWP/HWPX 독립 저장 파서 검사 통과.\n'
           notes+='설치·기존 0.8.10 APK/개인 데이터 보존·재설치 확인. 실제 ARM64 휴대폰 검증은 미완료.\n'
@@ -344,7 +345,7 @@ jobs:
                   obj=json.loads(ref.stdout)['object'];assert obj['type']=='commit';same_app(obj['sha'])
               else:assert '404' in ref.stderr,ref.stderr
               subprocess.run(['gh','release','create',tag,*[str(p) for p in sorted(expected.values())],
-                              '--draft','--prerelease','--target',sha,'--title','문서 스튜디오 0.8.11-preview · 저장 복구·서명 보호·모바일 품질 개선',
+                              '--draft','--prerelease','--target',sha,'--title','문서 스튜디오 0.8.11-preview · 전체 페이지·확대·안전한 저장',
                               '--notes-file','release-notes.md'],check=True)
               release=next(r for r in api(f'repos/{repo}/releases?per_page=100') if r['tag_name']==tag)
           assets=api(f"repos/{repo}/releases/{release['id']}/assets?per_page=100")
