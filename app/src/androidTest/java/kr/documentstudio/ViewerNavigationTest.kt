@@ -215,6 +215,35 @@ class ViewerNavigationTest {
                 record.put("rotationPageAndZoomPreserved",true)
             }
             record.put("finalState",JSONObject(eval(kind,state))).put("nativeRotation",true).put("workingUnchanged",true).put("originalUnchanged",true)
+            if(name.endsWith(".pptx")){
+                device.takeScreenshot(File(evidence,name+"-zoom.png"))
+                val enlarged=eval(kind,zoom).toDouble()
+                tap("화면 너비 맞춤")
+                waitFor("Fit restores a real last slide after zoom"){
+                    JSONObject(eval(kind,state)).getInt(index)==count-1 && eval(kind,zoom).toDouble()<enlarged-.1
+                }
+                var ink=0
+                waitFor("The fitted slide actually paints text, not only a page counter",20000){
+                    val box=JSONObject(eval(kind,"JSON.stringify(document.getElementById('document-canvas').getBoundingClientRect().toJSON())"))
+                    val bounds=documentBounds();val scale=bounds.width()/eval(kind,"innerWidth").toDouble()
+                    val screenshot=File(evidence,name+"-fit.png");device.takeScreenshot(screenshot)
+                    val bitmap=android.graphics.BitmapFactory.decodeFile(screenshot.path)
+                    try{
+                        val left=(bounds.left+box.getDouble("left")*scale+8).toInt().coerceIn(0,bitmap.width-1)
+                        val top=(bounds.top+box.getDouble("top")*scale+8).toInt().coerceIn(0,bitmap.height-1)
+                        val right=(bounds.left+box.getDouble("right")*scale-8).toInt().coerceIn(left+1,bitmap.width)
+                        val bottom=(bounds.top+box.getDouble("bottom")*scale-8).toInt().coerceIn(top+1,bitmap.height)
+                        ink=0
+                        for(y in top until bottom step 2)for(x in left until right step 2){
+                            val color=bitmap.getPixel(x,y)
+                            if(android.graphics.Color.red(color)<80 && android.graphics.Color.green(color)<80 && android.graphics.Color.blue(color)<80)ink++
+                        }
+                    }finally{bitmap.recycle()}
+                    ink>100
+                }
+                record.put("fitAfterZoomRestoresLastSlide",true).put("fittedSlideBodyDarkPixels",ink)
+                    .put("fittedState",JSONObject(eval(kind,state)))
+            }
             device.takeScreenshot(File(evidence,name+".png"))
             device.pressBack()
             if(kind=="office")waitFor("Office close request"){File(working.path+".close-request").isFile}
