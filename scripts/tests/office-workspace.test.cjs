@@ -35,6 +35,7 @@ function workspace(family = 'text', permission = 'edit', intent = 'VIEW', grant 
     LOUtil: {}, events: { on: (name, fn) => { listeners[name]=fn; } }, twipsToPixels: 0.1,
     activeDocument: { activeLayout: {
       type: family === 'text' ? 'ViewLayoutWriter' : 'ViewLayoutCalc',
+      frameSize: {x:800,y:600},
       get viewedRectangle() {return {x1:x,y1:y};},
       scrollProperties:{viewX:x*0.1,viewY:y*0.1},
       refreshVisibleAreaRectangle() {x=this.scrollProperties.viewX/0.1;y=this.scrollProperties.viewY/0.1;},
@@ -188,7 +189,7 @@ test('reading close persists viewport without exporting or saving the original',
  s.click('문서 메뉴');s.click('찾기');
  const input=s.w.document.querySelector('[aria-label="찾을 내용"]');input.value='선택';
  s.click('다음 결과');s.click('이전 결과');assert.deepEqual(searches,[['선택',false],['선택',true]]);
- s.click('설정 닫기');s.click('돌아가기');assert.deepEqual(s.mobile,['BYE']);assert.equal(s.persisted.length,1);assert.deepEqual(s.persisted[0],s.viewport());assert.equal(s.commands.length,0);
+ s.click('설정 닫기');s.click('돌아가기');assert.deepEqual(s.mobile,['BYE']);assert.equal(s.persisted.length,1);assert.deepEqual(s.persisted[0],{...s.viewport(),frameWidth:800,frameHeight:600,layoutType:'ViewLayoutWriter'});assert.equal(s.commands.length,0);
  }finally{s.close();}
 });
 test('native caret restoration remains pinned until actual document input releases it',()=>{
