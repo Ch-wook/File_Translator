@@ -120,7 +120,7 @@ for filename in ('viewer-20.hwpx','viewer-12.docx','viewer-30.pptx','viewer-larg
     proof=json.loads((root/'artifacts/native-android/native-viewer'/(filename+'.json')).read_text())
     assert all(proof[k] for k in ('completed','workingUnchanged','originalUnchanged','actualAndroidPinch','nativeRotation','readingDoubleTapZoom','doubleTapStaysReadonly')),proof
     if filename.endswith(('.hwpx','.docx')):assert proof['actualAndroidContinuousScroll'] is True
-    if filename.endswith('.pptx'):assert proof['actualAndroidSlideSwipe'] is True and proof['middlePageReached'] is True and proof['slidePositionPreserved'] is True and proof['finalState']['index']==29 and .8 <= proof['fitViewportCoverage'] <= 1.05
+    if filename.endswith('.pptx'):assert proof['actualAndroidSlideSwipe'] is True and proof['middlePageReached'] is True and proof['slidePositionPreserved'] is True and proof['documentFocalPointPreserved'] is True and proof['finalState']['index']==29 and .8 <= proof['fitViewportCoverage'] <= 1.05
     if filename.endswith('.xlsx'):assert proof['distantCell']=='CV5000' and proof['distantCellReachedBySearch'] is True
 reports={}
 for module in ('core','officeruntime','app'):

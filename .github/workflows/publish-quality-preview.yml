@@ -178,7 +178,7 @@ jobs:
                   v=json.loads(z.read('artifacts/native-android/native-viewer/'+filename+'.json'))
                   assert all(v[k] for k in ('completed','workingUnchanged','originalUnchanged','actualAndroidPinch','nativeRotation','readingDoubleTapZoom','doubleTapStaysReadonly')),v
                   if filename.endswith(('.hwpx','.docx')):assert v['actualAndroidContinuousScroll'] is True
-                  if filename.endswith('.pptx'):assert v['actualAndroidSlideSwipe'] is True and v['middlePageReached'] is True and v['slidePositionPreserved'] is True and v['finalState']['index']==29 and .8 <= v['fitViewportCoverage'] <= 1.05
+                  if filename.endswith('.pptx'):assert v['actualAndroidSlideSwipe'] is True and v['middlePageReached'] is True and v['slidePositionPreserved'] is True and v['documentFocalPointPreserved'] is True and v['finalState']['index']==29 and .8 <= v['fitViewportCoverage'] <= 1.05
                   if filename.endswith('.xlsx'):assert v['distantCell']=='CV5000'
               independent=json.loads(z.read('artifacts/native-android/native-common-ui/recovery-independent-stores.json'))
               assert independent['signaturePaneIndependentFromPendingDocumentStore'] is True,independent
