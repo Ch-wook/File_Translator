@@ -111,7 +111,7 @@ class ViewerNavigationTest {
             }
             // Observe fixture input from the window capture phase, before engine
             // handlers. Only test-generated files are included in these diagnostics.
-            eval(kind,"(()=>{const d="+(if(kind=="hangul")"document.getElementById('engine').contentDocument" else "document")+";const w=d.defaultView;w.__viewerInput=[];for(const name of ['touchstart','touchmove','touchend','touchcancel','pointerdown','pointerup'])w.addEventListener(name,e=>{const list=e.touches?.length?e.touches:e.changedTouches;const p=list?.[0];let target=e.target;const ancestry=[];while(target&&ancestry.length<8){ancestry.push(target.id||target.tagName);target=target.parentElement;}if(w.__viewerInput.length<80)w.__viewerInput.push({type:name,touches:e.touches?.length,time:e.timeStamp,x:p?.clientX,y:p?.clientY,ancestry});},{capture:true,passive:true});return true})()")
+            eval(kind,"(()=>{const d="+(if(kind=="hangul")"document.getElementById('engine').contentDocument" else "document")+";const w=d.defaultView;w.__viewerInput=[];for(const name of ['touchstart','touchmove','touchend','touchcancel','pointerdown','pointerup'])w.addEventListener(name,e=>{const list=e.touches?.length?e.touches:e.changedTouches;const p=list?.[0];let target=e.target;const ancestry=[];while(target&&ancestry.length<8){ancestry.push(target.id||target.tagName);target=target.parentElement;}w.__viewerInput.push({type:name,touches:e.touches?.length,time:e.timeStamp,x:p?.clientX,y:p?.clientY,ancestry});if(w.__viewerInput.length>32)w.__viewerInput.shift();},{capture:true,passive:true});return true})()")
             if(name.endsWith(".hwpx")||name.endsWith(".docx")){
                 val r=documentBounds();device.swipe(r.centerX(),r.top+r.height()*3/4,r.centerX(),r.top+r.height()/3,30)
                 waitFor("Actual one-finger scrolling reaches another page"){JSONObject(eval(kind,state)).getInt(index)>0}
@@ -193,8 +193,11 @@ class ViewerNavigationTest {
             device.setOrientationNatural()
             waitFor("Viewer is ready after returning to portrait"){eval(kind,"innerWidth<innerHeight")=="true" && JSONObject(eval(kind,state)).getInt(total)==count}
             slideStage("afterPortrait")
-            if(name.endsWith(".pptx"))for(stage in listOf("beforePinch","afterPinch","afterDoubleTap","afterLandscape","afterPortrait")){
-                assertEquals("Slide position must remain at thirty: "+stage,29,record.getJSONObject(stage).getInt("index"))
+            if(name.endsWith(".pptx")){
+                for(stage in listOf("beforePinch","afterPinch","afterDoubleTap","afterLandscape","afterPortrait")){
+                    assertEquals("Slide position must remain at thirty: "+stage,29,record.getJSONObject(stage).getInt("index"))
+                }
+                record.put("slidePositionPreserved",true)
             }
             assertFalse(File(working.path+".edited").exists())
             assertEquals(workingHash,DocumentRepository.digest(working));assertEquals(originalHash,DocumentRepository.digest(original))
