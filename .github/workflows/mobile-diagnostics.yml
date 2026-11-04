@@ -1,0 +1,196 @@
+name: Inspect mobile saved-file evidence
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    if: contains(github.event.head_commit.message, '[diagnose-083]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect the retained input and output without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 40371961174 --repo Ch-wook/File_Translator --name mobile-release-logs-64bae1978a511159ca1168da9e5e75dae44d289e --dir previous
+          python3 - <<'PY'
+          import pathlib,zipfile,xml.etree.ElementTree as ET
+          for name in ('fixture.hwpx','mobile-formatting.hwpx'):
+              p=next(pathlib.Path('previous').rglob(name))
+              with zipfile.ZipFile(p) as z:
+                  body=ET.fromstring(z.read('Contents/section0.xml'))
+              local=lambda e:e.tag.rsplit('}',1)[-1]
+              print('DOCUMENT',name)
+              print('ALL_TEXT',repr(''.join(e.text or '' for e in body.iter() if local(e)=='t')))
+              for e in body.iter():
+                  if local(e)=='run':
+                      direct=''.join(''.join(c.itertext()) for c in e if local(c)=='t')
+                      print('RUN',e.attrib,repr(direct))
+              for e in body.iter():
+                  if local(e)=='tc':
+                      print('CELL',e.attrib,repr(''.join(t.text or '' for t in e.iter() if local(t)=='t')))
+          PY
+
+  probe:
+    if: contains(github.event.head_commit.message, '[probe-083]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: hangul-public-tools-${{ runner.os }}-129dc5ef1d8d0ee37256d9094f6c2e78be374443
+          restore-keys: hangul-public-tools-${{ runner.os }}-
+      - name: Reuse unchanged fixture inputs and build the current engine
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download 40374075011 --repo Ch-wook/File_Translator --name mobile-release-logs-129dc5ef1d8d0ee37256d9094f6c2e78be374443 --dir previous
+          python3 - <<'PY'
+          import pathlib,shutil
+          source=next(pathlib.Path('previous').rglob('fixture.hwp')).parent
+          shutil.copytree(source,'core/build/visual-fixtures',dirs_exist_ok=True)
+          pathlib.Path('artifacts/ci').mkdir(parents=True,exist_ok=True)
+          PY
+          python3 scripts/prepare-hangul-engine.py 2>&1 | tee artifacts/ci/probe-prepare.log
+          npm ci --prefix scripts/tests
+          (cd scripts/tests && npx playwright install chromium)
+          node scripts/tests/hangul-mobile.cjs 2>&1 | tee artifacts/ci/probe-mobile.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-engine-probe-${{ github.sha }}
+          path: |
+            artifacts/ci/
+            artifacts/hangul-mobile/
+            core/build/visual-fixtures/
+
+  open:
+    if: contains(github.event.head_commit.message, '[open-diagnose]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: android-gradle-${{ runner.os }}-open
+          restore-keys: android-gradle-${{ runner.os }}-
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: hangul-public-tools-${{ runner.os }}-open
+          restore-keys: hangul-public-tools-${{ runner.os }}-
+      - name: Verify and download pinned public HWP examples
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,pathlib,urllib.request,urllib.parse
+          data=json.loads(pathlib.Path('scripts/tests/open-corpus.json').read_text())
+          root=pathlib.Path('artifacts/open-corpus');root.mkdir(parents=True,exist_ok=True)
+          for i,item in enumerate(data['files']):
+              url='https://raw.githubusercontent.com/'+data['repository']+'/'+data['commit']+'/'+urllib.parse.quote(item['path'])
+              body=urllib.request.urlopen(url).read()
+              blob=b'blob '+str(len(body)).encode()+b'\0'+body
+              assert hashlib.sha1(blob).hexdigest()==item['sha'] and len(body)==item['size']
+              (root/(str(i).zfill(2)+'-'+pathlib.PurePosixPath(item['path']).name)).write_bytes(body)
+          PY
+      - name: Compare host parser and real engine admission
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :core:inspectDocumentOpen --configure-on-demand --max-workers=2 --console=plain
+          cat artifacts/open-corpus/host-results.tsv
+          python3 scripts/prepare-hangul-engine.py
+          npm ci --prefix scripts/tests
+          (cd scripts/tests && npx playwright install chromium)
+          node scripts/tests/hangul-open-corpus.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: document-open-diagnostics-${{ github.sha }}
+          path: |
+            artifacts/open-corpus/*.tsv
+            artifacts/open-corpus/*.json
+            core/build/test-results/
+
+  open-test-report:
+    if: contains(github.event.head_commit.message, '[inspect-open-test]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read the failed negative-test assertion from retained evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 40423000942 --repo Ch-wook/File_Translator --name mobile-release-logs-62784feb0246ec5f72eeb181fd3cb04b7ec12c9f --dir retained
+          python3 - <<'PY'
+          import pathlib
+          for p in pathlib.Path('retained').rglob('*'):
+              if not p.is_file():continue
+              if p.name=='android-all-processes.log':
+                  lines=p.read_text(errors='replace').splitlines()
+                  selected=[(i,line) for i,line in enumerate(lines) if any(key.lower() in line.lower() for key in
+                      ('kr.documentstudio','lmkd','am_kill','am_anr','am_crash','fatal signal','Fatal Exception','ANR in','Force stopping','Killing','out of memory','excessive'))]
+                  print('PROCESS_EVENTS',p)
+                  for i,line in selected[-550:]:print(i,line)
+              elif p.name=='android-runtime.log' or p.name.endswith('-failure.txt') or p.name.endswith('-failure.xml'):
+                  print('RETAINED_REPORT',p);print(p.read_text(errors='replace')[:30000])
+          PY
+
+  validate-publication:
+    if: contains(github.event.head_commit.message, '[validate-publish]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate publication syntax and unchanged application source
+        run: |
+          python3 - <<'PY'
+          import ast,pathlib,re,subprocess,textwrap
+          source=pathlib.Path('.github/workflows/publish-mobile-preview.yml').read_text()
+          blocks=re.findall(r"(?m)^([ ]*)python3 - <<'PY'\n(.*?)^\1PY[ \t]*$",source,re.S)
+          assert len(blocks)==4,len(blocks)
+          for _,block in blocks:ast.parse(textwrap.dedent(block))
+          sha=re.search(r'^      VERIFIED_SHA: ([0-9a-f]{40})$',source,re.M).group(1)
+          subprocess.run(['git','merge-base','--is-ancestor',sha,'HEAD'],check=True)
+          paths=subprocess.check_output(['git','diff','--name-only',sha,'HEAD'],text=True).splitlines()
+          assert all(p=='README.md' or p.startswith(('docs/','.github/workflows/')) for p in paths),paths
+          print('PUBLICATION_PREFLIGHT_PASSED',sha,len(blocks),paths)
+          PY

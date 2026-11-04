@@ -1,3 +1,9 @@
+# 0.7.0-preview 한글 엔진 추가 (2026-10-24)
+
+Rhwp 0.8.7 MIT Rust/WASM 파서·페이지 렌더러·편집기를 APK에 포함합니다. [고정 버전·출처·로컬 수정](../web/hangul/PROVENANCE.md). 한컴 엔진은 아닙니다. 기존 hwplib/hwpxlib는 작업 가져오기/독립 파싱·변환·레거시 복구에도 사용하며 더 이상 기본 한글 추출 텍스트 편집 UI를 제공하지 않습니다.
+
+CanvasKit 0.42.0 BSD-3-Clause와 폰트(SIL OFL 1.1/GUST)의 원문 고지를 `app/src/main/assets/licenses`에 추가했습니다. Rhwp MIT·업스트림 전이 의존성 목록도 보존합니다. Cafe24/Happiness 폰트는 제외합니다. 다음 내용은 이전 버전에서 채택한 라이브러리의 기록이며 현재 사용자 편집 동작은 [지원표](SUPPORT_MATRIX.md)를 따릅니다.
+
 # 라이브러리·라이선스·제약 — 0.5.0
 
 검토일: 2026-10-17. 고지·라이선스 원문은 app/src/main/assets/licenses에 포함하고 앱 설정에서 표시합니다.
@@ -8,13 +14,13 @@
 | AndroidX/Compose/Material | BOM 2025.09.01 / Activity 1.11.0 / Lifecycle 해결 2.9.4 | Apache 2.0, Android UI |
 | PDFBox Android / FontBox | 2.0.27.0 포트 | Apache 2.0, PDF 읽기/쓰기 |
 | Apache POI / scratchpad | 5.4.1 | Apache 2.0, DOC/XLS/PPT 런타임 |
-| hwplib | 1.1.10 | Apache 2.0, HWP 런타임, 자체 재배치 POI 포함 |
+| hwplib | 1.1.11 | Apache 2.0, HWP 런타임, 자체 재배치 POI 포함 |
 | hwp2hwpx | edc05278506b663d5bdd98050a51f54b7ff5e0bc | Apache 2.0, 소스 포함 및 5개 결함 수정. [출처/변경](HANGUL_CONVERTER_PROVENANCE.md) |
 | hwpxlib | 1.0.9 | Apache 2.0, HWPX 변환 모델·쓰기 런타임 및 독립 읽기 검사 |
 | HWPX 빈 문서 | hwpxlib upstream commit f9fd2255ac0fc57414e0b657d115e7de51d31c65 | Apache 2.0, 템플릿 자산 |
 | Commons IO / Codec | 2.20.0 / 1.18.0 | Apache 2.0 |
 | Commons Collections4 / Math3 | 4.4 / 3.6.1 | Apache 2.0 |
-| Log4j API / SparseBitSet | 2.24.3 / 1.3 | Apache 2.0 |
+| Log4j API / SparseBitSet | 2.25.5 / 1.3 | Apache 2.0 |
 | CommonMark Java/GFM Tables | 0.25.0 | BSD 2-Clause |
 | LiberationSans-Regular | 2.1.5, 포트 내장 | SIL OFL 1.1, PDFBox fallback 폰트 |
 | POI OOXML | 5.4.1, JVM 테스트 전용 | Apache 2.0, 독립 저장 검증 |
@@ -28,7 +34,7 @@
 
 Android 검사 전용 legacy.doc는 Apache POI REL_5_4_1의 test-data/document/simple.doc(Apache 2.0)이며 release 앱에 들어가지 않습니다. legacy.ppt는 프로젝트에서 생성한 검사 자료입니다.
 
-**본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.** HWP는 hwplib를 사용한 제한 텍스트 편집이며 한컴 조판 엔진은 아닙니다. [공식 명세](https://www2.hancom.com/support/downloadCenter/hwpOwpml).
+**본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.** HWP/HWPX 원본 표시와 직접 편집은 Rhwp를 사용하며, hwplib/hwpxlib는 가져오기·저장 파일의 독립 검사와 변환에 사용합니다. 한컴 조판 엔진은 아닙니다. [공식 명세](https://www2.hancom.com/support/downloadCenter/hwpOwpml).
 
 ## 비용과 대안
 
@@ -57,6 +63,6 @@ ZIP/XML/텍스트/OLE 용량 제한·DTD/엔티티 차단·매크로/전자서�
 
 ## 2026-10-17 OCR 추가
 
-Google ML Kit Korean/Latin Text Recognition 16.0.1과 모델을 앱에 번들로 포함한다. 모델은 오픈소스 라이선스가 아니며 [ML Kit 약관](https://developers.google.com/ml-kit/terms)과 Google APIs 약관을 따른다. 공식 [Android 통합 문서](https://developers.google.com/ml-kit/vision/text-recognition/v2/android)의 번들 방식을 사용한다. 이미지·인식 결과는 기기에서 처리하고, SDK 통계 전송도 불가능하도록 최종 manifest에서 INTERNET 권한을 제거한다. 앱 고지에 SDK 특성과 약관 링크를 표시한다. 런타임 모델 다운로드/클라우드 OCR은 사용하지 않는다.
+Google ML Kit Korean/Latin Text Recognition 16.0.1과 모델을 앱에 번들로 포함한다. 모델은 오픈소스 라이선스가 아니며 [ML Kit 약관](https://developers.google.com/ml-kit/terms)과 Google APIs 약관을 따른다. 공식 [Android 통합 문서](https://developers.google.com/ml-kit/vision/text-recognition/v2/android)의 번들 방식을 사용한다. 이미지·인식 결과는 기기에서 처리하고, 최종 manifest에서 INTERNET 권한을 제거하여 앱 UID의 직접 네트워크 접근을 차단한다. Google Play 서비스 IPC와 운영체제를 포함한 SDK 전체의 통계 처리·개인정보 동작은 별도로 검토해야 하며, 이 권한 검사만으로 SDK 통계 수집이 전혀 없다고 단정하지 않는다. 앱 고지에 SDK 특성과 약관 링크를 표시한다. 런타임 모델 다운로드/클라우드 OCR은 사용하지 않는다.
 
 검색 텍스트의 한글 글꼴은 변경하지 않은 Noto Sans KR(Google Fonts b38c5c93af322c45f633e17ac440ec1e6c94d489), SIL OFL 1.1이다. 10,414,588바이트이며 SHA-256 `194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252`, 원문 라이선스는 assets/licenses/NotoSansKR-OFL.txt에 있다. PDF에는 필요한 글리프를 subset 임베딩한다. SDK/글꼴 고지는 앱 라이선스 화면에도 포함한다.

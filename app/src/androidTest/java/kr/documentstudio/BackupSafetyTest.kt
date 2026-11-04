@@ -19,7 +19,7 @@ class BackupSafetyTest {
     private lateinit var repo: DocumentRepository
     @Before fun setup() {context=ApplicationProvider.getApplicationContext();PDFBoxResourceLoader.init(context);repo=DocumentRepository(context)}
     private fun file(ext: String)=File(context.cacheDir,"tests/${UUID.randomUUID()}.$ext").apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}
-    private fun uri(f: File)=FileProvider.getUriForFile(context,"kr.documentstudio.testfiles",f)
+    private fun uri(f: File)=FileProvider.getUriForFile(context,context.packageName+".testfiles",f)
     @Test fun importedOfficeRecoveryAndProviderOriginalSurviveRepeatedBackups() = runBlocking {
         val s=repo.create(Format.DOCX)
         val working=repo.prepareOffice(s).apply {writeText("interrupted native write")}

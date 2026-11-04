@@ -1,0 +1,40 @@
+name: Inspect actual viewer failures
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    if: contains(github.event.head_commit.message, '[viewer-failure-inspection]')
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read exact native launch and failure logs
+        run: |
+          gh run download 40852680836 --name focused-reading-ui-b8a32103fe61e6466f18f3f283ecbb53eefe0b93 --dir viewer-failure/native
+          gh run download 40852810159 --name focused-reading-ui-be53c4e3f9fe63a232cf8c220df60d75b1fb8080 --dir viewer-failure/markdown
+          python3 - <<'PY'
+          from pathlib import Path
+          for file in Path('viewer-failure').rglob('android-all-processes.log'):
+              lines=file.read_text(errors='replace').splitlines()
+              markers=('FATAL EXCEPTION','Fatal signal','ANR in','Invalid private Office','Background activity','background activity','BAL_BLOCK','BackgroundActivityStart','Uncaught','studio-policy','Cannot access','TypeError','ReferenceError','depends on provider','depending on provider','stable provider','No Unicode mapping','GlyphList','PDFont','Process crashed')
+              for i,line in enumerate(lines):
+                  if any(m in line for m in markers):print('VIEWER_RUNTIME_FAILURE','\n'.join(lines[max(0,i-2):i+16]),flush=True)
+              # Inspect the first PPTX launch through its early app-request finish.
+              ppt=[l for l in lines if '09:56:' in l and any(t in l for t in (' 2473 ','LOActivity','LibreOffice','Collabora','CHROMIUM','chromium','kit','studio','load','Load'))]
+              print('PPTX_EARLY_NATIVE_LOAD', '\n'.join(ppt),flush=True)
+              activity=[l for l in lines if ('ActivityTaskManager' in l or 'wm_' in l) and any(t in l for t in ('kr.documentstudio','StudioOfficeActivity','HangulEditorActivity'))]
+              print('VIEWER_ACTIVITY_LIFECYCLE','\n'.join(activity[-120:]),flush=True)
+          for file in Path('viewer-failure').rglob('*.json'):
+              if 'native-viewer' in str(file) or 'native-reading-ux' in str(file):print('VIEWER_OBSERVED_NATIVE_STATE',file,file.read_text(),flush=True)
+          import xml.etree.ElementTree as ET
+          for file in Path('viewer-failure').rglob('*failure.xml'):
+              try:
+                  nodes=ET.parse(file).getroot().iter('node')
+                  print('VIEWER_FAILURE_UI',str(file),[(n.attrib.get('text'),n.attrib.get('content-desc'),n.attrib.get('class'),n.attrib.get('bounds')) for n in nodes if n.attrib.get('text') or n.attrib.get('content-desc')],flush=True)
+              except Exception as error:print('UI_XML_ERROR',type(error).__name__)
+          PY

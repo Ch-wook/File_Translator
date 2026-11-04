@@ -11,6 +11,9 @@ import java.nio.channels.FileLock;
 /** Hosts only a validated private working copy; provider originals are never passed here. */
 public final class StudioOfficeActivity extends LOActivity {
     private File working;
+    private String conversionUri;
+    @Override protected void onPdfConversionStarted(){conversionUri=null;}
+    @Override protected void onPdfConversionCompleted(Uri uri){conversionUri=uri.toString();}
     private RandomAccessFile lockFile;
     private FileLock lock;
     private String sessionId;
@@ -38,17 +41,56 @@ public final class StudioOfficeActivity extends LOActivity {
         super.onCreate(state);
     }
 
+    @Override protected void onOfficeLifecycle(String stage) {
+        if (working != null) DocumentViewState.lifecycle(working.getParentFile(), stage);
+    }
+
+    @Override protected String readOfficeViewState() {
+        return working == null ? "{}" : DocumentViewState.read(working.getParentFile());
+    }
+
+    @Override protected void writeOfficeViewState(String state) {
+        if (working != null) DocumentViewState.write(working.getParentFile(), state);
+    }
+
+    @Override protected void onOfficeSaved() throws java.io.IOException {
+        // The native save callback has confirmed an actual, explicitly approved edit.
+        DocumentViewState.markEdited(working);
+    }
+
+    @Override protected void onOfficeLoadFailed(String error) {
+        setResult(RESULT_CANCELED, new Intent().putExtra("sessionId", sessionId).putExtra("error", error));
+        finish();
+    }
+
+    @Override protected void onOfficeBeforeClose() throws java.io.IOException {
+        DocumentViewState.requestClose(working, shouldSaveOriginal() && hasApprovedOfficeOutput());
+    }
+
     @Override protected void onOfficeClosed() {
         try {
             File marker = new File(working.getPath() + ".closed");
             try (FileOutputStream out = new FileOutputStream(marker)) { out.write(1); out.getFD().sync(); }
-            setResult(RESULT_OK, new Intent().putExtra("sessionId", sessionId));
+            setResult(RESULT_OK, new Intent().putExtra("sessionId", sessionId).putExtra("conversionUri",conversionUri).putExtra("saveOriginal", shouldSaveOriginal() && hasApprovedOfficeOutput()));
         } catch (Exception failure) {
             setResult(RESULT_CANCELED, new Intent().putExtra("sessionId", sessionId));
         }
     }
 
+    @Override protected void onPristineViewerClosed() {
+        // Called only after LOActivity proves that this successfully loaded reader
+        // never authorized editing and durably seals its private working bytes.
+        // Finish sends the result through ActivityTaskManager before the isolated
+        // process exits. Ending it here avoids WebView/window teardown waiting for
+        // the still-running native kit. Kernel cleanup releases the document lock;
+        // the parent still verifies that lock and the sealed hash before adoption.
+        onOfficeClosed();
+        finish();
+        android.os.Process.killProcess(android.os.Process.myPid());
+    }
+
     @Override protected void onDestroy() {
+        onOfficeLifecycle("activity-destroyed");
         super.onDestroy();
         try { if (lock != null) lock.release(); if (lockFile != null) lockFile.close(); }
         catch (Exception ignored) { }

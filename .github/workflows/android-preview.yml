@@ -1,0 +1,189 @@
+name: Android preview verification
+on:
+  push:
+    branches: [codex/original-view-reimplementation]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: original-view-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    if: "!contains(github.event.head_commit.message, '[publish-verified]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install pinned Android tools
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+          chmod +x gradlew
+          mkdir -p artifacts/ci
+          df -h .
+          free -h
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: android-gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: android-gradle-${{ runner.os }}-
+      - name: Prepare fixtures and real Rhwp engine
+        run: |
+          ./gradlew :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/fixtures.log
+          python3 scripts/prepare-hangul-engine.py 2>&1 | tee artifacts/ci/hangul-prepare.log
+      - name: JavaScript permissions and actual Rhwp browser tests
+        run: |
+          npm ci --prefix scripts/tests
+          node --test scripts/tests/*.test.cjs 2>&1 | tee artifacts/ci/javascript.log
+          cd scripts/tests
+          npx playwright install --with-deps chromium
+          npm run test:hangul 2>&1 | tee ../../artifacts/ci/hangul-browser.log
+      - name: TypeScript and independent saved-file parsers
+        run: |
+          (cd .engine-cache/hangul/source/rhwp-studio && npx tsc --noEmit) 2>&1 | tee artifacts/ci/typescript.log
+          ./gradlew :core:verifyVisualRoundTrip --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/roundtrip.log
+      - name: Unit tests and APK builds
+        run: |
+          ./gradlew :core:test :core:prepareVisualFixtures :officeruntime:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/gradle.log
+      - name: Enable emulator acceleration
+        run: |
+          ./gradlew --stop
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Android 35 emulator checks
+        id: android
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 3072
+          script: bash scripts/run-android-mode-tests.sh
+      - name: Verify debug APK and package reproducible evidence
+        env:
+          EMULATOR_OUTCOME: ${{ steps.android.outcome }}
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, shutil, subprocess, json, zipfile, hashlib, re, xml.etree.ElementTree as ET
+          root=pathlib.Path.cwd()
+          out=root/'artifacts/delivery'; out.mkdir(parents=True,exist_ok=True)
+          apk=root/'app/build/outputs/apk/debug/app-debug.apk'
+          tools=pathlib.Path(os.environ['ANDROID_HOME'])/'build-tools/35.0.0'
+          subprocess.run([str(tools/'apksigner'),'verify','--verbose',str(apk)],check=True,stdout=(root/'artifacts/ci/apk-signature.txt').open('w'),stderr=subprocess.STDOUT)
+          subprocess.run([str(tools/'zipalign'),'-c','-P','16','4',str(apk)],check=True)
+          manifest=subprocess.check_output([str(tools/'aapt2'),'dump','badging',str(apk)],text=True)
+          (root/'artifacts/ci/apk-manifest.txt').write_text(manifest)
+          name='document-studio-'+re.search("versionName='([^']+)'",manifest).group(1)
+          permissions=subprocess.check_output([str(tools/'aapt2'),'dump','permissions',str(apk)],text=True)
+          assert 'android.permission.INTERNET' not in permissions, permissions
+          with zipfile.ZipFile(apk) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              assert any(n.startswith('assets/hangul/') and n.endswith('.wasm') for n in names)
+              for abi in ('arm64-v8a','x86_64'): assert 'lib/'+abi+'/libandroidapp.so' in names
+              engine_assets=[]
+              for path in (root/'.engine-cache/hangul/runtime').rglob('*'):
+                  if not path.is_file(): continue
+                  apk_path='assets/'+path.relative_to(root/'.engine-cache/hangul/runtime').as_posix()
+                  assert apk_path in names,apk_path+' missing from APK'
+                  data=path.read_bytes()
+                  assert z.read(apk_path)==data,apk_path+' APK bytes differ from tested engine'
+                  engine_assets.append({'path':apk_path,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+              assert engine_assets
+              policy='officeruntime/src/main/assets/dist/studio-policy.js'
+              assert z.read('assets/dist/studio-policy.js')==(root/policy).read_bytes()
+              (root/'artifacts/ci/apk-engine-assets.json').write_text(json.dumps(engine_assets,indent=2))
+          shutil.copy2(apk,out/(name+'-debug.apk'))
+          subprocess.run(['git','archive','--format=zip','-o',str(out/(name+'-source.zip')),'HEAD'],check=True)
+          tracked={}
+          for entry in subprocess.check_output(['git','ls-tree','-r','-z','HEAD']).split(b'\0'):
+              if not entry: continue
+              meta,path=entry.split(b'\t',1)
+              mode,kind,sha=meta.split()
+              assert kind==b'blob',entry
+              tracked[path.decode()]=sha.decode()
+          with zipfile.ZipFile(out/(name+'-source.zip')) as archive:
+              assert archive.testzip() is None
+              assert {entry.filename for entry in archive.infolist() if not entry.is_dir()}==set(tracked)
+              for path,expected in tracked.items():
+                  data=archive.read(path)
+                  actual=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+                  assert actual==expected,'source ZIP differs from commit: '+path
+          with (out/(name+'-changes.patch')).open('wb') as f:
+              subprocess.run(['git','diff','--binary','2bfe225ab040e3cb9251a8cafce9578ea3d9b645','HEAD'],stdout=f,check=True)
+          subprocess.run(['git','bundle','create',str(out/(name+'-history.bundle')),'--all'],check=True)
+          subprocess.run(['git','bundle','verify',str(out/(name+'-history.bundle'))],check=True)
+          subprocess.run(['git','apply','--check','--reverse',str(out/(name+'-changes.patch'))],check=True)
+          reports={}
+          for module in ('core','officeruntime','app'):
+              suites=[]
+              for p in (root/module/'build/test-results').rglob('TEST-*.xml'):
+                  t=ET.parse(p).getroot()
+                  suites.append({k:int(t.get(k,0)) for k in ('tests','failures','errors','skipped')})
+              reports[module]={k:sum(x[k] for x in suites) for k in ('tests','failures','errors','skipped')}
+          for module,result in reports.items():
+              assert result['tests']>0 and result['failures']==0 and result['errors']==0,(module,result)
+          if '[publish-preview]' in os.environ.get('HEAD_COMMIT_MESSAGE',''):
+              assert "versionCode='11'" in manifest and "versionName='0.8.1-preview'" in manifest
+              android=json.loads((root/'artifacts/ci/android-summary.json').read_text())
+              assert android['tests']>=19 and android['failures']==0 and android['errors']==0 and android['skipped']==0,android
+          summary={'commit':os.environ['GITHUB_SHA'],'baseline':'2bfe225ab040e3cb9251a8cafce9578ea3d9b645','provenance':'reimplementation; previous unpushed 0.8.0 not recovered','physicalDeviceTested':False,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],'unitTests':reports,'apkBytes':apk.stat().st_size,'debugSigned':True}
+          (root/'artifacts/ci/summary.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2))
+          print(json.dumps(summary,ensure_ascii=False,indent=2))
+          with zipfile.ZipFile(out/(name+'-verification.zip'),'w',zipfile.ZIP_DEFLATED) as z:
+              for folder in ('artifacts/ci','artifacts/native-android','artifacts/document-engines','core/build/test-results','officeruntime/build/test-results','app/build/test-results','app/build/outputs/androidTest-results','app/build/reports','core/build/visual-fixtures'):
+                  for p in (root/folder).rglob('*'):
+                      if p.is_file(): z.write(p,p.relative_to(root))
+          text='문서 스튜디오 '+name.removeprefix('document-studio-')+' — 검증용 프리뷰\n\n기준 원격 커밋 2bfe225에서 재구현했습니다. 이전 미푸시 0.8.0 소스는 복구하지 못했습니다.\n개발/디버그 서명 APK · arm64-v8a 및 x86_64 · Android 10 이상(Office는 Android 11 이상).\n실제 Android 휴대폰 종합 검증은 수행하지 않았습니다. 에뮬레이터 결과: '+os.environ['EMULATOR_OUTCOME']+'\nJUnit 결과: '+json.dumps(reports,ensure_ascii=False)+'\n실행한 검사·입출력 샘플·제한은 verification ZIP을 확인하세요. 모든 문서의 서식 보존을 보장하지 않습니다.\n기존 설치와 서명이 다르면 바로 업데이트되지 않습니다. 앱의 기존 작업을 보존한 상태에서 확인하세요.\n\n커밋: '+os.environ['GITHUB_SHA']+'\n'
+          (out/'README.txt').write_text(text)
+          lines=[]
+          for p in sorted(out.iterdir()):
+              if p.is_file():
+                  with p.open('rb') as f: digest=hashlib.file_digest(f,'sha256').hexdigest()
+                  lines.append(digest+'  '+p.name)
+          (out/'SHA256SUMS').write_text('\n'.join(lines)+'\n')
+          PY
+      - name: Upload build outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: document-studio-preview-${{ github.sha }}
+          path: artifacts/delivery/
+          if-no-files-found: error
+          compression-level: 0
+      - name: Preserve failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-logs-${{ github.sha }}
+          path: |
+            artifacts/ci/
+            artifacts/document-engines/
+            artifacts/native-android/
+            app/build/reports/
+            app/build/outputs/androidTest-results/
+            core/build/test-results/
+            officeruntime/build/test-results/
+            app/build/test-results/
+          if-no-files-found: warn

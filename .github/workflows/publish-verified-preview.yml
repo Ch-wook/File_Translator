@@ -1,0 +1,158 @@
+name: Publish verified Android preview
+on:
+  push:
+    branches: [codex/original-view-reimplementation]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: publish-document-studio-081
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish-verified]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERIFIED_SHA: 2b1bfcd327a5eba2a48166adb33867dfee880938
+      VERIFIED_RUN: '40301009710'
+      PREVIEW_TAG: v0.8.1-preview
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reuse the exact fully verified APK and source artifacts
+        run: |
+          python3 - <<'PY'
+          import json,os,subprocess,pathlib,zipfile,hashlib
+          repo=os.environ['GITHUB_REPOSITORY']; sha=os.environ['VERIFIED_SHA']; run=os.environ['VERIFIED_RUN']
+          info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{run}']))
+          assert info['head_sha']==sha and info['status']=='completed' and info['conclusion']=='success',info
+          subprocess.run(['git','merge-base','--is-ancestor',sha,'HEAD'],check=True)
+          changes=subprocess.check_output(['git','diff','--name-only',sha,'HEAD'],text=True).splitlines()
+          assert all(p=='README.md' or p.startswith(('docs/','.github/workflows/')) for p in changes),changes
+          subprocess.run(['gh','run','download',run,'--name','document-studio-preview-'+sha,'--dir','delivery'],check=True)
+          delivery=pathlib.Path('delivery')
+          for line in (delivery/'SHA256SUMS').read_text().splitlines():
+              expected,name=line.split('  ',1)
+              p=delivery/name
+              assert p.is_file() and p.parent==delivery
+              with p.open('rb') as stream: actual=hashlib.file_digest(stream,'sha256').hexdigest()
+              assert actual==expected,name+' differs from verified build'
+          evidence=delivery/'document-studio-0.8.1-preview-verification.zip'
+          with zipfile.ZipFile(evidence) as z:
+              assert z.testzip() is None
+              summary=json.loads(z.read('artifacts/ci/summary.json'))
+              android=json.loads(z.read('artifacts/ci/android-summary.json'))
+              assert summary['commit']==sha and summary['androidEmulatorOutcome']=='success',summary
+              assert summary['debugSigned'] and summary['physicalDeviceTested'] is False,summary
+              assert android['tests']>=19 and android['failures']==0 and android['errors']==0 and android['skipped']==0,android
+              for module,result in summary['unitTests'].items():
+                  assert result['tests']>0 and result['failures']==0 and result['errors']==0 and result['skipped']==0,(module,result)
+              manifest=z.read('artifacts/ci/apk-manifest.txt').decode()
+              assert "versionCode='11'" in manifest and "versionName='0.8.1-preview'" in manifest
+          apk=delivery/'document-studio-0.8.1-preview-debug.apk'
+          assert apk.is_file() and apk.stat().st_size==summary['apkBytes'] and apk.stat().st_size>100000000
+          source=delivery/'document-studio-0.8.1-preview-source.zip'
+          with zipfile.ZipFile(source) as z:
+              assert z.testzip() is None
+              tracked={}
+              for entry in subprocess.check_output(['git','ls-tree','-r','-z',sha]).split(b'\0'):
+                  if not entry: continue
+                  meta,path=entry.split(b'\t',1);mode,kind,blob=meta.split()
+                  assert kind==b'blob'
+                  tracked[path.decode()]=blob.decode()
+              assert {p.filename for p in z.infolist() if not p.is_dir()}==set(tracked)
+              for path,expected in tracked.items():
+                  data=z.read(path)
+                  assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==expected,path
+          print('VERIFIED_ARTIFACTS',json.dumps({'commit':sha,'android':android,'unitTests':summary['unitTests'],'apkBytes':summary['apkBytes']},ensure_ascii=False))
+          notes=(delivery/'README.txt').read_text()+'\nAndroid 에뮬레이터: '+json.dumps(android,ensure_ascii=False)+'\n'
+          notes+='실제 Writer 쪽 나누기·Calc 열 삽입·Impress 슬라이드 추가 후 저장, 독립 파서 및 엔진 재열기를 검사했습니다.\n'
+          notes+='실제 휴대폰·한국어 IME 조합·모든 고급 요소/문서의 보존을 인증한 결과는 아닙니다.\n'
+          notes+='APK·소스의 빌드 커밋: '+sha+'\n태그 커밋: '+os.environ['GITHUB_SHA']+' (앱 코드 차이 없음; 배포 문서·CI만 추가)\n'
+          notes+='검증/지원 제한: https://github.com/'+repo+'/blob/codex/original-view-reimplementation/docs/ORIGINAL_VIEW_RESULTS.md\n'
+          pathlib.Path('release-notes.md').write_text(notes)
+          PY
+      - name: Upload a draft and verify every uploaded asset before publishing
+        run: |
+          python3 - <<'PY'
+          import json,os,subprocess,pathlib,hashlib,urllib.request,shutil
+          repo=os.environ['GITHUB_REPOSITORY'];tag=os.environ['PREVIEW_TAG'];sha=os.environ['GITHUB_SHA']
+          def api(path,*args):
+              return json.loads(subprocess.check_output(['gh','api',path,*args]))
+          releases=api(f'repos/{repo}/releases?per_page=100')
+          existing=[r for r in releases if r['tag_name']==tag]
+          ref=subprocess.run(['gh','api',f'repos/{repo}/git/ref/tags/{tag}'],capture_output=True,text=True)
+          if ref.returncode==0:
+              obj=json.loads(ref.stdout)['object']
+              assert obj['type']=='commit' and obj['sha']==sha,'existing tag points to another commit'
+          else:
+              assert '404' in ref.stderr,'tag lookup failed: '+ref.stderr
+          if existing:
+              assert len(existing)==1
+              draft=existing[0]
+              assert draft['id']==424157420 and draft['draft'] and draft['prerelease'],'inspect existing release before retry'
+              assert draft['author']['login']=='github-actions[bot]'
+              assert draft['target_commitish'] in ('0ad73b4c0800c0da6d41384b0bcff885e8766c3d',sha),'draft target changed'
+          else:
+              subprocess.run(['gh','release','create',tag,*[str(p) for p in sorted(pathlib.Path('delivery').iterdir()) if p.is_file()],
+                              '--draft','--prerelease','--target',sha,'--title','문서 스튜디오 0.8.1-preview · 원본 보기 우선 재구현',
+                              '--notes-file','release-notes.md'],check=True)
+              draft=next(r for r in api(f'repos/{repo}/releases?per_page=100') if r['tag_name']==tag)
+          assert draft['draft'] and draft['prerelease']
+          assets=api(f"repos/{repo}/releases/{draft['id']}/assets?per_page=100")
+          expected={p.name:p for p in pathlib.Path('delivery').iterdir() if p.is_file()}
+          assert {p['name'] for p in assets}==set(expected),'release asset names differ'
+          readback=pathlib.Path('upload-readback');readback.mkdir()
+          for asset in assets:
+              source=expected[asset['name']];dest=readback/source.name
+              assert asset['state']=='uploaded' and asset['size']==source.stat().st_size,asset['name']
+              assert asset['url'].startswith('https://api.github.com/repos/'+repo+'/releases/assets/')
+              request=urllib.request.Request(asset['url'],headers={'Accept':'application/octet-stream'})
+              # This header is used only on the API request, never forwarded to the asset CDN redirect.
+              request.add_unredirected_header('Authorization','Bearer '+os.environ['GH_TOKEN'])
+              with urllib.request.urlopen(request,timeout=120) as response,dest.open('wb') as out:
+                  shutil.copyfileobj(response,out,1024*1024)
+              with source.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
+              with dest.open('rb') as stream: uploaded=hashlib.file_digest(stream,'sha256').hexdigest()
+              assert dest.stat().st_size==source.stat().st_size and uploaded==digest,source.name+' upload mismatch'
+              if asset.get('digest'): assert asset['digest']=='sha256:'+digest,source.name+' API digest mismatch'
+          print('ALL_DRAFT_ASSETS_MATCH_VERIFIED_ARTIFACTS',len(expected))
+          published=api(f"repos/{repo}/releases/{draft['id']}",'--method','PATCH','-f','target_commitish='+sha,'-F','draft=false','-F','prerelease=true','-f','body='+pathlib.Path('release-notes.md').read_text())
+          assert not published['draft'] and published['prerelease']
+          PY
+      - name: Verify the published tag and anonymous public downloads
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,urllib.request,time
+          repo=os.environ['GITHUB_REPOSITORY']; tag=os.environ['PREVIEW_TAG']
+          with urllib.request.urlopen('https://api.github.com/repos/'+repo+'/git/ref/tags/'+tag,timeout=120) as response: ref=json.load(response)
+          assert ref['object']['type']=='commit' and ref['object']['sha']==os.environ['GITHUB_SHA'],ref
+          results=[]
+          for p in sorted(pathlib.Path('delivery').iterdir()):
+              if not p.is_file(): continue
+              with p.open('rb') as stream: expected=hashlib.file_digest(stream,'sha256').hexdigest()
+              url='https://github.com/'+repo+'/releases/download/'+tag+'/'+p.name
+              for attempt in range(4):
+                  try:
+                      digest=hashlib.sha256();size=0
+                      with urllib.request.urlopen(url,timeout=120) as response:
+                          while block:=response.read(1024*1024): digest.update(block);size+=len(block)
+                      assert size==p.stat().st_size and digest.hexdigest()==expected,p.name+' public download mismatch'
+                      break
+                  except Exception:
+                      if attempt==3: raise
+                      time.sleep(5)
+              results.append({'name':p.name,'bytes':size,'sha256':expected,'publicDownloadVerified':True})
+          pathlib.Path('release-download-verification.json').write_text(json.dumps({'verifiedBuildCommit':os.environ['VERIFIED_SHA'],'tagCommit':os.environ['GITHUB_SHA'],'assets':results},indent=2))
+          print(json.dumps(results,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-preview-download-verification
+          path: release-download-verification.json
+          if-no-files-found: warn

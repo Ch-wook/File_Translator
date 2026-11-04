@@ -25,6 +25,20 @@ class DocumentTreeTest {
         val sorted=DocumentTree {listOf(entry("z","z.txt"),entry("a","a.txt"),entry("d","폴더",true))}.list("root","",false)
         assertEquals(listOf("d","a","z"),sorted.entries.map {it.id})
     }
+    @Test fun repeatedQueriesReuseBoundedSnapshotsAndExpire()=runBlocking {
+        var clock=0L;var reads=0
+        val cache=CachedTreeSource(TreeSource {reads++;listOf(entry("one","한글.hwpx"),entry("two","notes.txt"))}) {clock}
+        val browser=DocumentTree(cache)
+        assertEquals(1,browser.list("root","한",false).entries.size)
+        assertEquals(1,browser.list("root","notes",false).entries.size)
+        assertEquals(1,reads)
+        clock=5001
+        assertEquals(2,browser.list("root","",false).entries.size);assertEquals(2,reads)
+        repeat(9){cache.children("folder-$it")}
+        cache.children("root");assertEquals(12,reads)
+        val large=CachedTreeSource(TreeSource {reads++;List(2001){entry("id$it","file$it")}}) {clock}
+        val before=reads;large.children("large");large.children("large");assertEquals(before+2,reads)
+    }
     @Test fun cancelledProviderSearchDoesNotContinueIntoOtherFolders() = runBlocking {
         var reads=0
         val browser=DocumentTree {reads++;delay(10000);emptyList()}

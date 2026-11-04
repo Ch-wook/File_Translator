@@ -30,7 +30,7 @@ fun FolderBrowser(tree: Uri,busy: Boolean,open: (Uri)->Unit,choose: ()->Unit,clo
     var query by rememberSaveable {mutableStateOf("")}
     var recursive by rememberSaveable {mutableStateOf(true)}
     var refresh by remember {mutableIntStateOf(0)}
-    val source=remember(tree,context) {DocumentTree(SafTreeSource(context.contentResolver,tree))}
+    val source=remember(tree,context,refresh) {DocumentTree(CachedTreeSource(SafTreeSource(context.contentResolver,tree)))}
     var failure by remember {mutableStateOf<String?>(null)}
     val listing by produceState<TreeListing?>(null,tree,parents.last(),query,recursive,refresh) {
         value=null;failure=null
@@ -38,13 +38,14 @@ fun FolderBrowser(tree: Uri,busy: Boolean,open: (Uri)->Unit,choose: ()->Unit,clo
             if(query.isNotEmpty()) delay(250)
             value=withContext(Dispatchers.Default) {source.list(parents.last(),query,recursive && query.isNotBlank())}
         } catch(e: CancellationException) {throw e}
-        catch(e: Exception) {failure=e.message ?: "폴더 접근 권한을 확인해 주세요."}
+        catch(e: Exception) {failure=kr.documentstudio.data.UserProblems.explain(e).advice}
     }
     Dialog(close,properties=DialogProperties(usePlatformDefaultWidth=false)) {
         Surface(Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.9f),shape=MaterialTheme.shapes.large) {
             Column(Modifier.padding(16.dp)) {
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     Text("폴더 탐색·파일 검색",style=MaterialTheme.typography.titleLarge,modifier=Modifier.weight(1f))
+                    IconButton({refresh++},enabled=!busy) {Icon(Icons.Default.Refresh,"폴더 새로고침")}
                     IconButton(close) {Icon(Icons.Default.Close,"폴더 탐색 닫기")}
                 }
                 Row(verticalAlignment=Alignment.CenterVertically) {

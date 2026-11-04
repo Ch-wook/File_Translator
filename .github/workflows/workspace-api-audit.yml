@@ -1,0 +1,41 @@
+name: Inspect native workspace controls
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: contains(github.event.head_commit.message, '[audit-native]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read exact released native UI
+        run: |
+          mkdir -p artifacts/workspace-audit
+          python3 - <<'PY'
+          import pathlib,urllib.request,hashlib,zipfile,re,json
+          root=pathlib.Path('artifacts/workspace-audit');apk=root/'released.apk'
+          with urllib.request.urlopen('https://github.com/Ch-wook/File_Translator/releases/download/v0.8.6-preview/document-studio-0.8.6-preview-x86_64.apk',timeout=120) as src,apk.open('wb') as dst:
+              while block:=src.read(1024*1024):dst.write(block)
+          with apk.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()=='9abf10fbcc28ab268d64daf5445c96961bea9d5448249aa1c26250a662ce8095'
+          with zipfile.ZipFile(apk) as z:
+              source=z.read('assets/dist/bundle.js').decode();html=z.read('assets/dist/cool.html').decode()
+              i=html.find('id="formulabar-row"');print('FORMULA_HTML',html[max(0,i-2800):i+2500])
+              needles=['movePage:function','moveSelectedParts','moveselectedclientparts','_moveSlide','MovePage','_moveSheetLR:function','setPart:function','formulabaredit','acceptformula','cancelformula','class Wl','_sendText:function','_onCellFormulaMsg:function','onFormulaBarFocus:function','getHiddenPartNameArray','getHiddenPartCount','isHiddenPart','getWinId:function','_partNames','focus:()=>!!(app.map.formulabar','focus(){','_onFormulaBar']
+              report={}
+              for needle in needles:
+                  matches=list(re.finditer(re.escape(needle),source))
+                  snippets=[source[max(0,m.start()-250):m.end()+1800] for m in matches[:3]]
+                  report[needle]=dict(count=len(matches),snippets=snippets)
+                  print('NATIVE_API',json.dumps(dict(needle=needle,**report[needle]),ensure_ascii=False))
+              (root/'apis.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+              (root/'cool.html').write_text(html)
+          apk.unlink()
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-workspace-audit
+          path: artifacts/workspace-audit/

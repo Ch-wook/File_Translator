@@ -32,6 +32,7 @@ object MarkdownRender {
                 is Heading -> {span(StyleSpan(Typeface.BOLD));span(RelativeSizeSpan(when(node.level) {1->1.8f;2->1.5f;else->1.2f}));result.append("\n\n")}
                 is StrongEmphasis -> span(StyleSpan(Typeface.BOLD))
                 is Emphasis -> span(StyleSpan(Typeface.ITALIC))
+                is org.commonmark.ext.gfm.strikethrough.Strikethrough -> span(StrikethroughSpan())
                 is Code,is FencedCodeBlock,is IndentedCodeBlock -> span(TypefaceSpan("monospace"))
                 is Link -> {span(UnderlineSpan());span(ForegroundColorSpan(android.graphics.Color.rgb(49,95,180)))}
                 is BlockQuote -> {span(LeadingMarginSpan.Standard(16));result.append('\n')}

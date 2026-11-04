@@ -1,0 +1,38 @@
+name: Inspect actual mobile editor baseline
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: contains(github.event.head_commit.message, '[ui-audit]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Read exact published APK assets and original native screenshots
+        run: python3 scripts/audit-mobile-ui.py
+      - name: Measure the existing real engine viewport
+        run: |
+          npm ci --prefix scripts/tests
+          (cd scripts/tests && npx playwright install chromium)
+          node scripts/tests/capture-ui-baseline.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-ui-baseline
+          path: |
+            artifacts/ui-audit/
+            core/build/visual-fixtures/
+          if-no-files-found: error

@@ -1,0 +1,184 @@
+# 문서 스튜디오 7종 편집기 점검 및 보완
+
+작성: 2026-10-27 UTC. 기준 원격: f660e477a830b09f5f584a29a1ccc9b06d18b08c.
+작업 브랜치: codex/hangul-mobile-editing. 앱: 0.8.6-preview / versionCode 16.
+이 문서는 기존 엔진을 사용하는 편집 경로와 실제 검증 범위를 구분한다.
+
+## 확인한 기반과 보존 원칙
+
+- Word·Excel·PowerPoint: 기존 오프라인 Collabora/LibreOffice Android 엔진.
+- HWP/HWPX: 고정된 Rhwp 0.8.7 엔진. 페이지·표·그림 모델과 원래 형식 직렬화를 유지한다.
+- PDF: 기존 PDFBox Android / Android PDF 렌더러와 본문·이미지·주석 편집 코드.
+- Markdown·TXT: 기존 Android EditText와 파일 인코딩/저장 코드. Markdown은 CommonMark 기반 미리보기.
+- 새로운 편집 앱이나 텍스트 추출 대체 편집기를 만들지 않았다. 네이티브 엔진 및 저장 경로를 유지했다.
+- 이전 미푸시 aa3be049… 소스의 복구를 확인한 것이 아니다. 확인 가능한 원격 코드에서 이어서 수정했다.
+- 원본 보기에서 시작하고, 명시적으로 편집을 허용한 뒤 작업 사본을 수정한다. 원본 저장과 복구본 자동 저장을 구분한다.
+
+## 발견한 문제와 실제 변경
+
+| 문제 | 변경 |
+| --- | --- |
+| Office 서식 도구가 Calc·Impress에도 문서 중심으로 배치됨 | 문서·셀·수식·시트·슬라이드·개체별 하단 탭으로 분리. 기존 UNO 및 엔진 part API 사용 |
+| Office 한국어 글꼴이 제한적임 | OFL 글꼴 6개 패밀리/15개 실제 TTF 추가. 원본 파일과 라이선스를 고정 커밋·Git blob·크기로 검사 |
+| 외부 표시명과 TTF 내부 패밀리 이름이 다름 | 실제 name 테이블로 NanumGothic / NanumMyeongjo 연결 확인. 임의의 이름을 엔진에 보내지 않음 |
+| 글꼴 버튼의 접근성 이름이 현재 선택 서식에 따라 변경됨 | 고정된 ‘글꼴 선택’ 접근성 이름과 별도 현재 글꼴 설명 사용. 혼합 크기를 0pt로 표시하지 않음 |
+| 숫자 입력을 비우는 동안 0이 명령으로 전달될 수 있음 | 비어 있는 숫자 값을 거부하고 올바른 값이 입력된 뒤에만 적용 |
+| 글꼴 검색에 즐겨찾기·분류가 없음 | 공통 Web 선택기에 검색·최근·즐겨찾기·한국어/영문·기타 분류 추가. native TXT/MD 보기 글꼴에도 실제 파일 목록과 동일한 탐색 방식 적용 |
+| Markdown 굵게/기울임을 반복하면 구분자를 중첩함 | 선택 내부/외부 구분자를 처리하는 해제 동작. 굵게·기울임·취소선의 독립 조합 |
+| Markdown 제목·목록 전환이 접두사를 계속 추가함 | 제목 1~6 전환/해제, 목록 변환/해제, 선택한 여러 항목의 번호 부여. 다음 문단 경계를 보호 |
+| Markdown 추가 구문이 부족함 | 취소선과 미리보기 확장, 이미지 링크·구분선·제목 수준·코드 구분자 처리 |
+| Markdown 미리보기 후 이전 EditText에 명령이 갈 수 있음 | 해제된 뷰를 분리하고, 편집 도구 선택 시 최신 원문 뷰를 다시 연결. 원문 선택 범위 복원 |
+| native 텍스트 명령이 매번 문서 전체를 교체함 | 바뀐 구간만 batch edit로 수정. TXT/MD 붙여넣기는 원문 텍스트로 처리 |
+| TXT 찾기 창에 결과 이동/한 건 교체가 없음 | 이전/다음 결과·결과 선택 및 스크롤·한 건 바꾸기·모두 바꾸기 연결 |
+| TXT 표시 정보/설정 접근이 부족함 | 문자·줄 수, 줄 번호/자동 줄바꿈 설정 보존. 표시 글꼴을 파일 서식으로 안내하지 않음 |
+| PDF 도구가 일반 문서와 섞임 | 선택·주석·텍스트·페이지 도구로 재배치. 원래 본문 변경과 새 텍스트 추가의 구분 유지 |
+| 과거 Android 테스트가 제거된 ribbon 또는 고정 provider 주소를 사용함 | 현행 편집 진입·하단 도구·실제 applicationId에 맞춰 테스트를 수정 |
+
+0.8.5에서 이미 수정된 Android clipboard 필터의 서식 인자 누락, 실제 검색 서비스, 원본 보기 보호와 파일 열기 회귀 수정은 유지한다. 이를 이번에 새로 구현했다고 중복 계산하지 않는다.
+
+## 실제 글꼴
+
+추가한 패밀리: NanumGothic(나눔고딕), NanumMyeongjo(나눔명조), Gowun Dodum(고운돋움), Gowun Batang(고운바탕), Lato, Cousine.
+한글 4개/영문 2개 패밀리이다. 기존 Noto 및 엔진 제공 글꼴을 제거하지 않는다.
+
+- source: google/fonts, commit a4c0b21f839d7ac65a7d8b49eb81bddd110774a3.
+- 고정 목록: config/studio-fonts.json. 빌드 수집: scripts/prepare-studio-fonts.py.
+- TTF name/OS2/cmap 검사로 실제 패밀리, 400/700 굵기, 한글 또는 영문 샘플 글리프를 확인한다.
+- 정상·굵게 글꼴 및 Lato/Cousine 기울임을 포함한다. Gowun Dodum에는 실제 제공되는 Regular만 포함한다.
+- native Office 등록 목록과 번들 파일을 별도로 확인한다. APK의 fonts 및 unpack/user/fonts 바이트를 대조한다.
+- OFL 원문과 출처/해시를 APK font-licenses에 포함한다.
+- 맑은 고딕·바탕·굴림·궁서·Arial 등의 파일을 새로 포함한 것으로 표시하지 않는다.
+- 글꼴 정보는 형식의 글꼴 속성으로 저장한다. 글꼴이 없는 다른 앱/기기에서 같은 모양을 보장하거나 모든 문서에 글꼴을 임베드한 것은 아니다.
+- Rhwp의 기존 번들 글꼴 목록은 유지한다. Office/native에 추가한 TTF가 Rhwp에도 새로 추가된 것으로 세지 않는다.
+
+## 형식별 경로와 제한
+
+| 형식 | 실제 엔진/저장 경로에 연결된 핵심 기능 | 부분 지원·미지원/미검증 |
+| --- | --- | --- |
+| DOCX | 선택 글자/이후 입력 서식, 글꼴·크기·색·굵게/기울임/밑줄, 문단, 표, 그림, 찾기·바꾸기, 쪽 나누기 | 고급 스타일·각주·목차·복잡한 개체/서식의 모든 조합을 검증한 것은 아님. 세부 도구는 native 대화상자 사용 |
+| HWPX | 한글 입력·선택, 글꼴·크기·색·자간·장평, 문단·목록·표·그림, 클립보드, undo/redo, 찾기·바꾸기 | 중첩 표 구조 편집 등 제한이 있으며 잘못된 명령은 차단. 모든 복잡한 HWP 요소의 무손실 변환을 보장하지 않음 |
+| XLSX | 실제 셀/범위 편집, native 셀 서식, 수식 입력줄/함수 마법사, 계산, 행·열, 시트 전환/추가/이름/복제/삭제/고정 | 시트 삭제는 별도 확인. 고급 차트·조건부 서식·자동 채우기 전체의 새 모바일 도구/종합 검증은 미완료 |
+| PPTX | 슬라이드 추가/복제/삭제, 글자 서식, 텍스트 상자/기본 도형/그림, native 위치·크기·앞뒤 배치 도구 | 다중 개체·회전·자르기·그룹·노트·테마·애니메이션 편집의 전체 검증은 미완료 |
+| PDF | 기존 페이지와 탐색·검색, 텍스트 선택·주석 관리, 기존 본문/그림의 지원 범위 내 직접 수정, 새 텍스트/그림 추가, 페이지 도구 | 기존 글꼴 교체·자유로운 문단 재배치를 제공하지 않음. 암호화/서명/클리핑 등 보호 경로와 제한을 유지 |
+| MD | 원문 입력, 굵게/기울임/취소선, 제목 1~6, 목록/체크리스트/인용, 코드/표/링크/이미지 링크/구분선, 미리보기 | 글꼴·색·장평을 원본 Markdown 서식으로 저장하지 않음. 외부 이미지 다운로드, 코드 문법 강조/완전한 자동 완성은 추가하지 않음 |
+| TXT | 원문 입력·선택·클립보드, undo/redo, 찾기·바꾸기, 줄 번호/줄바꿈/통계, 인코딩·복구 저장 | 글꼴·크기는 화면 표시 설정. 굵게·색 등 문서 서식을 TXT 파일에 저장하는 기능은 없음 |
+
+이 표는 코드와 엔진에 연결된 경로 설명이다. 각 항목의 모든 조합이 검증 완료라는 의미가 아니다. 아래 테스트 항목과 결과를 함께 확인한다. 형식 자체의 제한과 아직 추가하지 않은 기능을 구분한다.
+
+## 이번 실행 증거
+
+### 확인 완료
+
+- 글꼴 메타데이터·샘플 글리프·원본 무결성 검사: Actions 40541733455 성공.
+- JavaScript 25건, Rhwp TypeScript, 3가지 모바일 크기(상단/하단 각각 48px), 실제 Rhwp 편집/읽기/저장/재열기, 독립 HWP/HWPX 파서: Actions 40544571957 성공.
+- 이 Web 엔진 및 shared assets와 이후 native Kotlin 수정은 별개로 관리한다.
+
+### 실패도 기록함
+
+- 40540887097: Android 빌드 및 공통 UI 3건 성공, Office 글꼴의 외부/내부 이름 차이로 1건 실패. 내부 이름으로 수정.
+- 40542697777: 고정되지 않은 글꼴 접근성 이름으로 조작 실패. 뒤의 Calc 테스트 정리 코드가 대상 프로세스를 종료하여 실패 증거가 불완전했음. 고정 이름과 별도 프로세스 정리로 수정. 계산 기능이 통과한 것으로 계산하지 않음.
+- 40544572105: 새 PPTX 테스트의 timeout 인자 누락으로 Android 테스트 컴파일 실패. 실제 Android 검증을 실행하지 못한 결과이며 인자를 수정함.
+
+- 40547456175: 설치·기존 0.8.5 데이터 보존·양 ABI 빌드와 Android 39건 중 38건 성공. Markdown 테스트가 고정된 하단 미리보기 버튼에 performScrollTo를 호출하여 1건 실패했다. 실제 숫자 17pt 입력 포커스/18pt 빠른 선택, Word·Calc·PPTX 저장·재열기와 PDF 검사는 통과했다. 테스트를 실제 표시 여부 확인 후 터치하도록 수정했으며, 최종 포장 검사가 이 실패를 감지해 배포를 차단했다.
+
+### 최종 앱 검증 성공
+
+최종 실행 [40550785247](https://github.com/Ch-wook/File_Translator/actions/runs/40550785247)은 성공했다. 앱 빌드 커밋은 728892f6071d2274aea1f4ca309f2b0785377440이다.
+
+- Android 35 x86_64 에뮬레이터: 39건, 실패·오류·건너뜀 0건.
+- 단위: core 127건 + officeruntime 2건 + app 19건 = 148건, 실패·오류·건너뜀 0건.
+- JavaScript 25건, 실제 Rhwp 브라우저 7개 시나리오, TypeScript·lint 및 독립 저장 파서 검사 성공.
+- Office 입력칸의 17pt 입력 포커스 유지와 18pt 빠른 선택, 기존 서식 독립성, native 저장·재열기 성공.
+- 기존 0.8.5 APK·개인 데이터 보존, 별도 preview 설치·실행 및 동일 APK 재설치 후 데이터 보존 성공.
+- ARM64/x86_64 APK의 서명·ABI·testOnly 없음·INTERNET 없음·16KiB ELF/ZIP 정렬·엔진/shared/추가 글꼴 바이트 대조 성공.
+- 원격 기준 f660e477… 변경 패치, 전체 소스 ZIP 바이트 비교, Git bundle 검증 성공.
+
+아래 항목을 실제 수행했다. 각 항목 안의 검증한 시나리오에 한정한 결과이며 모든 고급 기능의 보장을 뜻하지 않는다.
+
+1. DOCX: 부분 선택 글꼴·18pt·굵게 토글·기울임·밑줄·색의 독립 적용, 비선택 내용 보존, native 저장/독립 파서/provider 저장/engine 재열기.
+2. XLSX: 실제 붙여넣기로 A1 변경, 셀 글꼴·크기·굵게, 15개 계산 결과, 새 시트, 저장/파서/engine 재열기. 계산 대상은 A1+B1와 SUM·AVERAGE·MIN·MAX·COUNT·COUNTA·IF·AND·OR·ROUND·COUNTIF·SUMIF·VLOOKUP·XLOOKUP이다.
+3. PPTX: 실제 슬라이드 글자 선택·글꼴·크기·굵게 및 슬라이드 추가, 저장 결과의 원래 슬라이드 텍스트/속성 검사.
+4. HWP/HWPX: 실제 Android 입력/IME·보기 보호·저장과 기존 browser/독립 파서 검사.
+5. PDF: 주석 좌표/appearance·회전/crop, 선택·밑줄·undo/redo·수정·삭제·provider 저장·재열기, 그림 선택 범위/삭제/이동 보호, 필기 appearance.
+6. MD: 선택 서식 구문 저장, 미리보기 체크리스트 undo/redo, 미리보기 뒤 편집이 최신 원문을 보존하는지 확인.
+7. TXT: 표시 글꼴 변경 시 바이트/선택 보존, 실제 찾기·바꾸기와 저장/재열기.
+8. ABI별 APK: 서명, testOnly 없음, INTERNET 권한 없음, 정확한 ABI, 16KiB ELF/ZIP 정렬, 엔진/shared/추가 글꼴 자산 일치.
+9. 설치: 기존 0.8.5 앱/개인 데이터 보존, 새 preview 설치·실행, 같은 APK 재설치 후 데이터 보존.
+10. 소스 ZIP 추적 파일 바이트 대조, 기준 f660e477… 패치 적용 검사, Git bundle 검증, Release 공개 다운로드 크기·해시는 배포 후 워크플로에서 따로 검사하고 확인서를 추가한다.
+
+## 저장과 배포 안내
+
+자동 저장은 분리된 작업 복구본이며 외부 원본에 대한 저장 성공과 다르다. 새 작업 복구본을 ‘저장 완료’로 오해하지 않게 표시를 정리했다. 기존 충돌 감지·백업·롤백·닫기 승인 표시는 유지한다.
+
+이전 앱 서명키를 확보하지 못했으므로 사용자 선택에 따라 별도 preview applicationId kr.documentstudio.editorspreview를 사용한다. 기존 앱과 비공개 복구본을 삭제하지 않는다. 기존 앱에서 문서를 다른 이름으로 저장한 뒤 새 앱에서 열 수 있다.
+
+ARM64 휴대폰용 APK와 x86_64 검증용 APK를 구분한다. 실제 휴대폰·삼성/Gboard 키보드 검증은 하지 못했다. Android x86_64 에뮬레이터와 정적 ARM64 패키지 검사로 물리 기기 검증을 대체했다고 표현하지 않는다.
+
+고급 차트·모든 개체 조작·고급 스타일/문서 구조·PDF 자유 재배치·모든 기존 문서의 무손실 호환성을 완성했다고 표시하지 않는다. 인쇄/인쇄 미리보기를 추가하지 않았다.
+
+## APK와 배포 출처
+
+| ABI | bytes | SHA-256 |
+| --- | ---: | --- |
+| arm64-v8a | 429635687 | `2af8228167f8be9fb1ae7e410e7b082c041f72dd4e5d93789ebdfcfb458ce1ce` |
+| x86_64 | 441522177 | `9abf10fbcc28ab268d64daf5445c96961bea9d5448249aa1c26250a662ce8095` |
+
+applicationId: `kr.documentstudio.editorspreview`, versionCode 16, versionName `0.8.6-preview`.
+개발 서명 인증서 SHA-256: `311ae1b51047c3aa5ddcd66d30bf978c2a9f394e275890f292955881011732dd`.
+앱 코드는 위 빌드 커밋의 산출물을 그대로 게시한다. 태그/소스 아카이브는 최종 문서·배포 CI만 추가한 후손 커밋이며, 워크플로가 앱 코드 차이 없음과 소스 ZIP의 태그 일치를 검사한다. 정확한 태그 커밋은 Release metadata의 sourceArchiveCommit과 공개 다운로드 확인서에서 확인한다.
+
+## 완료 판정과 남은 범위
+
+**정상 작동 확인**은 실제 테스트의 변경·저장·재열기·보존 검사까지 통과한 범위입니다. native 엔진에 연결되어 있어도 모든 선택·IME·객체·복잡한 기존 파일의 조합을 검증하지 못한 기능은 **부분 지원**으로 분류합니다.
+
+빈 숫자 값, 입력 중 포커스/빠른 크기 선택의 경합, Markdown 반복 서식과 미리보기 뒤 오래된 원문 연결은 수정했습니다. 모든 고급 기능을 구현한 것으로 표시하지 않습니다.
+
+**전용 도구 미구현/미확장**: 고급 차트·조건부 서식 패널, 전체 PPT 개체 그룹·테마·효과 편집, 자동 목차·각주·맞춤법·한자 전용 모바일 도구입니다. 기존 엔진이 제공하는 일부 대화상자 기능과 새 모바일 도구의 완성을 구분합니다.
+
+**형식/현재 엔진 범위에서 미지원**: TXT의 영속 글꼴·색·굵게, Markdown의 임의 글꼴·색·장평 저장, PDF의 워드프로세서 같은 자유 본문 재배치입니다.
+
+다음 우선순위는 실제 ARM64 휴대폰의 삼성/Gboard 조합·선택 핸들·IME 위 도구, 장문 성능, 고급 표/개체와 다양한 기존 문서의 왕복 보존 검사입니다.
+
+## 실제 변경 파일
+
+기준 f660e477…부터 검증 빌드 728892f6…까지 33개 파일입니다. 최종 배포 문서·워크플로 변경은 별도입니다.
+
+- `.github/workflows/common-ui-focused.yml` (수정)
+- `.github/workflows/editor-capability-audit.yml` (추가)
+- `.github/workflows/hangul-mobile.yml` (수정)
+- `.github/workflows/mobile-release.yml` (수정)
+- `app/build.gradle.kts` (수정)
+- `app/src/androidTest/java/kr/documentstudio/CommonMobileUiTest.kt` (수정)
+- `app/src/androidTest/java/kr/documentstudio/MarkdownUiTest.kt` (수정)
+- `app/src/androidTest/java/kr/documentstudio/NativeOfficeFontTest.kt` (수정)
+- `app/src/androidTest/java/kr/documentstudio/NativeOfficeModeSmokeTest.kt` (수정)
+- `app/src/androidTest/java/kr/documentstudio/PdfAnnotationsTest.kt` (수정)
+- `app/src/androidTest/java/kr/documentstudio/PdfMarkupUiTest.kt` (수정)
+- `app/src/main/AndroidManifest.xml` (수정)
+- `app/src/main/java/kr/documentstudio/data/MarkdownRender.kt` (수정)
+- `app/src/main/java/kr/documentstudio/data/MarkdownTasks.kt` (수정)
+- `app/src/main/java/kr/documentstudio/ui/EditorFonts.kt` (추가)
+- `app/src/main/java/kr/documentstudio/ui/FormatWorkspace.kt` (수정)
+- `app/src/main/java/kr/documentstudio/ui/LineNumberEditText.kt` (수정)
+- `app/src/main/java/kr/documentstudio/ui/MobileEditorControls.kt` (수정)
+- `app/src/main/java/kr/documentstudio/ui/StudioApp.kt` (수정)
+- `build.gradle.kts` (수정)
+- `config/studio-fonts.json` (추가)
+- `core/src/main/kotlin/kr/documentstudio/core/MarkdownEditing.kt` (수정)
+- `core/src/test/kotlin/kr/documentstudio/core/MarkdownEditingTest.kt` (수정)
+- `docs/EDITOR_COMPLETION_RESULTS.md` (추가)
+- `officeruntime/build.gradle.kts` (수정)
+- `officeruntime/src/main/assets/dist/studio-policy.js` (수정)
+- `scripts/package-mobile-release.py` (수정)
+- `scripts/prepare-studio-fonts.py` (추가)
+- `scripts/test-mobile-installation.py` (수정)
+- `scripts/tests/font-picker.test.cjs` (추가)
+- `scripts/tests/office-workspace.test.cjs` (수정)
+- `shared/editor-ui/dist/studio-editor-ui.css` (수정)
+- `shared/editor-ui/dist/studio-editor-ui.js` (수정)
+
+## 공개 배포 확인
+
+Release v0.8.6-preview의 자산 10개를 익명으로 다운로드해 크기와 SHA-256을 확인했다. 기존 v0.8.5-preview 태그 및 자산 12개도 그대로 유지됨을 대조했다. [공개 다운로드 확인서](releases/0.8.6-preview-download-verification.json).
+
+APK 빌드: 728892f6071d2274aea1f4ca309f2b0785377440. 태그/소스 아카이브: 3557852a18016c16eb61fc12e53818c4cff49ed2. 이 확인서 추가 커밋은 앱 코드·기존 Release 자산을 변경하지 않는다.

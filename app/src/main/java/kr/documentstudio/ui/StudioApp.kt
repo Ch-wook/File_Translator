@@ -51,7 +51,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kr.documentstudio.*
@@ -68,8 +73,19 @@ fun StudioApp(vm: EditorViewModel) {
     val context=LocalContext.current
     val focus=LocalFocusManager.current
     val view=LocalView.current
+    val reader=remember(state.active) {ReaderActions()}
+    var fullScreen by rememberSaveable(state.active) {mutableStateOf(false)}
+    var info by remember {mutableStateOf(false)}
+    val editing=state.active?.let {state.presentation(it).allowsMutation}==true
+    LaunchedEffect(editing,state.active) {
+        if(editing)fullScreen=false
+        else if(androidx.core.view.ViewCompat.getRootWindowInsets(view)?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())!=false)
+            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(view.windowToken,0)
+    }
     var newDialog by remember { mutableStateOf(false) }
-    var settingsDialog by remember { mutableStateOf(false) }
+    var settingsDialog by rememberSaveable { mutableStateOf(false) }
+    var recoveryDialog by rememberSaveable {mutableStateOf(false)}
+    var problemDialog by rememberSaveable {mutableStateOf(false)}
     var splitLeft by rememberSaveable {mutableStateOf<String?>(null)}
     var splitRight by rememberSaveable {mutableStateOf<String?>(null)}
     var pendingSaveId by rememberSaveable {mutableStateOf<String?>(null)}
@@ -100,22 +116,40 @@ fun StudioApp(vm: EditorViewModel) {
     val pdf=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) {uri -> if(uri!=null) pendingPdfId?.let {vm.exportPdf(uri,it)};pendingPdfId=null}
     val backup=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) {uri -> if(uri!=null) pendingBackupId?.let {vm.backup(uri,it)};pendingBackupId=null}
     val encryptedBackup=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) {uri->vm.finishEncryptedBackup(uri)}
-    val office=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {result -> vm.finishOffice(result.data?.getStringExtra("sessionId"))}
-    val openOffice: (String)->Unit = {id -> vm.openOffice(id) {s,file ->
-        office.launch(Intent(context,org.libreoffice.androidlib.StudioOfficeActivity::class.java)
-            .putExtra("sessionId",s.id).putExtra("workingPath",file.absolutePath).putExtra("displayName",s.name))
+    val office=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {result -> vm.finishOffice(result.data?.getStringExtra("sessionId"),result.data?.getBooleanExtra("saveOriginal",false)==true,result.data?.getStringExtra("error"))}
+    val launchOffice: (String,OpenIntent)->Unit = {id,intentMode -> vm.openOffice(id,intentMode) {s,file ->
+        office.launch(Intent(context,if(s.format in setOf(Format.HWP,Format.HWPX)) HangulEditorActivity::class.java else org.libreoffice.androidlib.StudioOfficeActivity::class.java)
+            .putExtra("sessionId",s.id).putExtra("workingPath",file.absolutePath).putExtra("displayName",s.name).putExtra("originalUri",s.uri).putExtra("openIntent",intentMode.name))
     }}
-    LaunchedEffect(state.officeLaunch,state.busy) {
+    val openOffice: (String)->Unit = {id -> launchOffice(id,OpenIntent.VIEW)}
+    val documentLaunchLifecycle=LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(state.officeLaunch,state.busy,documentLaunchLifecycle) {
         val request=state.officeLaunch
-        if(request!=null && !state.busy) {vm.consumeOfficeLaunch(request);openOffice(request.sessionId)}
+        if(request!=null && !state.busy) {
+            // External cold-start imports can finish before MainActivity is resumed.
+            // Keep the request until the host is foregrounded instead of launching
+            // a native window underneath the Activity that is still starting.
+            documentLaunchLifecycle.currentStateFlow.first {it.isAtLeast(Lifecycle.State.RESUMED)}
+            if(vm.state.value.officeLaunch==request && !vm.state.value.busy) {
+                vm.consumeOfficeLaunch(request);launchOffice(request.sessionId,request.openIntent)
+            }
+        }
     }
     val saveAs: ()->Unit = { state.session?.let { s -> pendingSaveId=s.id;saveLaunchers.getValue(s.format).launch(s.name.substringBeforeLast('.',s.name)+".${s.format.extension}") } }
     val save: ()->Unit = { state.session?.let { s -> if(s.uri==null || s.pdf?.archival==true) saveAs() else vm.save(Uri.parse(s.uri),s.id) } }
+    LaunchedEffect(state.saveRequest,state.busy) {
+        val id=state.saveRequest
+        if(id!=null && !state.busy) {
+            val target=state.tabs.firstOrNull {it.id==id}
+            vm.consumeSaveRequest(id)
+            if(target!=null) {pendingSaveId=id;saveLaunchers.getValue(target.format).launch(target.name)}
+        }
+    }
     val selectTab: (String)->Unit = {id ->
         if(splitLeft!=null && id!=splitLeft && id!=splitRight) {
             if(state.active==splitLeft) splitLeft=id else splitRight=id
         }
-        vm.select(id)
+        vm.restore(id,visual=true)
     }
     LaunchedEffect(state.tabs.map {it.id}) {
         if(state.tabs.none {it.id==splitLeft} || state.tabs.none {it.id==splitRight}) {splitLeft=null;splitRight=null}
@@ -129,47 +163,68 @@ fun StudioApp(vm: EditorViewModel) {
             focus.clearFocus(force=true)
         }
     }
-    LaunchedEffect(state.message) { state.message?.let { snackbar.showSnackbar(it); vm.message(null) } }
-    BackHandler(state.session!=null && !state.busy) { vm.home() }
+    LaunchedEffect(state.message) { state.message?.let {message->
+        val answer=snackbar.showSnackbar(message,actionLabel=if(state.problem!=null)"자세히" else null,withDismissAction=true)
+        if(answer==SnackbarResult.ActionPerformed)problemDialog=true
+        vm.message(null)
+    } }
+    BackHandler(state.session!=null && !state.busy) { if(state.active?.let {state.presentation(it).allowsMutation}==true) vm.readDocument() else vm.home() }
     val accent=state.session?.let {WorkspaceFamily.of(it.format).accent} ?: Green
-    MaterialTheme(colorScheme=lightColorScheme(primary=accent,secondary=Color(0xFF596A82),background=Cream,surface=Color.White,surfaceContainer=Color(0xFFEEF1F7))) {
-        Scaffold(snackbarHost={ SnackbarHost(snackbar) },topBar={
+    StudioTheme(accent) {
+        Scaffold(topBar={
             if(state.session==null) TopAppBar(title={ Text("문서 스튜디오",fontWeight=FontWeight.Bold) },actions={
-                IconButton(onClick={settingsDialog=true}) { Icon(Icons.Default.Settings,"설정") }
-            }) else {
+                IconButton(onClick={recoveryDialog=true}) {Icon(Icons.Default.Restore,"저장 복구")}
+                IconButton(onClick={settingsDialog=true},modifier=Modifier.size(48.dp).testTag("home-settings-button")) { Icon(Icons.Default.Settings,"설정") }
+            }) else if(!fullScreen || editing) {
                 val s=state.session!!
-                TopAppBar(title={ Column { Text(s.name,maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleMedium)
-                    Text(if(s.dirty) "수정됨 · 복구본 자동 저장" else "저장됨",style=MaterialTheme.typography.labelSmall,color=accent) } },
-                    navigationIcon={ IconButton(onClick=vm::home,enabled=!state.busy) { Icon(Icons.AutoMirrored.Filled.ArrowBack,"홈") } },actions={
+                TopAppBar(modifier=Modifier.statusBarsPadding().height(48.dp).testTag("mobile-editor-header"),windowInsets=WindowInsets(0,0,0,0),expandedHeight=48.dp,
+                    title={Text(s.name,maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleSmall)},
+                    navigationIcon={ IconButton(onClick={if(state.presentation(s.id).allowsMutation) vm.readDocument() else vm.home()},enabled=!state.busy) { Icon(Icons.AutoMirrored.Filled.ArrowBack,if(state.presentation(s.id).allowsMutation) "보기로" else "홈") } },actions={
+                        if(editing) {
                         IconButton(onClick={vm.undo()},enabled=!state.busy && vm.canUndo(s.id)) { Icon(Icons.AutoMirrored.Filled.Undo,"실행 취소") }
                         IconButton(onClick={vm.redo()},enabled=!state.busy && vm.canRedo(s.id)) { Icon(Icons.AutoMirrored.Filled.Redo,"다시 실행") }
-                        IconButton(onClick=save,enabled=!state.busy) { Icon(Icons.Default.Save,"저장") }
+                        IconButton(onClick=save,enabled=!state.busy && s.dirty) { Icon(Icons.Default.Save,"저장") }
+                        } else {
+                            if(s.format !in DocumentRepository.visualFormats)IconButton(onClick={reader.search()},enabled=!state.busy) {Icon(Icons.Default.Search,"문서 검색")}
+                            IconButton(onClick={vm.beginEditing()},enabled=!state.busy && state.presentation(s.id)!=PresentationState.READ_ONLY,modifier=Modifier.testTag("edit-document")) {Icon(Icons.Default.Edit,"편집하기")}
+                        }
                         var menu by remember { mutableStateOf(false) }
                         IconButton(onClick={menu=true},enabled=!state.busy) { Icon(Icons.Default.MoreVert,"문서 메뉴") }
                         DropdownMenu(expanded=menu,onDismissRequest={menu=false}) {
+                            if(!editing && s.format !in DocumentRepository.visualFormats) {
+                                DropdownMenuItem(text={Text("전체 화면 보기")},onClick={menu=false;fullScreen=true})
+                                DropdownMenuItem(text={Text("보기 설정")},onClick={menu=false;reader.settings()})
+                            }
+                            DropdownMenuItem(text={Text("저장 복구")},onClick={menu=false;recoveryDialog=true})
+                            DropdownMenuItem(text={Text("파일 정보")},onClick={menu=false;info=true})
+                            DropdownMenuItem(text={Text(if(state.presentation(s.id).allowsMutation) "읽기 모드로 전환" else "편집하기")},enabled=state.presentation(s.id)!=PresentationState.READ_ONLY,onClick={menu=false;if(state.presentation(s.id).allowsMutation) vm.readDocument() else vm.beginEditing()})
+                            DropdownMenuItem(text={Text(if(s.dirty) "원본에 미저장 · 기기에 복구본 자동 보관" else "원본 파일에 저장됨")},enabled=false,onClick={})
+                            state.tabs.filter {it.id!=s.id}.forEach {other->DropdownMenuItem(text={Text(other.name,maxLines=1,overflow=TextOverflow.Ellipsis)},onClick={menu=false;selectTab(other.id)})}
                             DropdownMenuItem(text={Text("새 문서")},onClick={menu=false;newDialog=true})
                             DropdownMenuItem(text={Text("파일 열기")},onClick={menu=false;open.launch(arrayOf("*/*"))})
-                            if(s.format in DocumentRepository.officeFormats) DropdownMenuItem(text={Text("정밀 오피스 편집")},onClick={menu=false;openOffice(s.id)})
-                            DropdownMenuItem(text={Text(if(splitLeft==null) "두 문서 나란히 편집" else "분할 편집 끝내기")},enabled=splitLeft!=null || state.tabs.size>=2,onClick={
+                            if(s.format in DocumentRepository.visualFormats) DropdownMenuItem(text={Text("원본 문서 보기")},onClick={menu=false;openOffice(s.id)})
+                            DropdownMenuItem(text={Text(if(splitLeft==null) "두 문서 나란히 편집" else "분할 편집 끝내기")},enabled=splitLeft!=null || (state.tabs.count {it.format !in DocumentRepository.visualFormats}>=2 && s.format !in DocumentRepository.visualFormats),onClick={
                                 menu=false
                                 if(splitLeft!=null) {splitLeft=null;splitRight=null}
-                                else {splitLeft=s.id;splitRight=state.tabs.last {it.id!=s.id}.id}
+                                else {splitLeft=s.id;splitRight=state.tabs.last {it.id!=s.id && it.format !in DocumentRepository.visualFormats}.id}
                             })
                             if(s.recoveryWarning!=null) DropdownMenuItem(text={Text("정밀 편집 복구본 보관 후 다시 시작")},onClick={menu=false;vm.archiveOfficeRecovery()})
+                            DropdownMenuItem(text={Text("파일 변환")},onClick={menu=false;vm.prepareConversion {id->context.startActivity(Intent(context,ConversionActivity::class.java).putExtra("sessionId",id))}})
                             DropdownMenuItem(text={Text("다른 이름으로 저장")},onClick={menu=false;saveAs()})
-                            DropdownMenuItem(text={Text("필기 포함 PDF 내보내기")},onClick={menu=false;pendingPdfId=s.id;pdf.launch(s.name.substringBeforeLast('.')+"-필기.pdf")})
+                            if(s.format !in EditorPolicy.visualFormats) DropdownMenuItem(text={Text("필기 포함 PDF 내보내기")},onClick={menu=false;pendingPdfId=s.id;pdf.launch(s.name.substringBeforeLast('.')+"-필기.pdf")})
                             DropdownMenuItem(text={Text("문서·필기 암호화 백업")},onClick={menu=false;encryptedDialogId=s.id})
                             DropdownMenuItem(text={Text("문서·필기 복구 ZIP 백업")},onClick={menu=false;pendingBackupId=s.id;backup.launch(s.name.substringBeforeLast('.')+"-백업.zip")})
                             DropdownMenuItem(text={Text("탭 닫기 (복구본 보존)")},onClick={menu=false;vm.close(s.id)})
-                            DropdownMenuItem(text={Text("본문·필기 인쇄")},onClick={menu=false;vm.print(context)})
+                            if(s.format !in EditorPolicy.visualFormats) DropdownMenuItem(text={Text("본문·필기 인쇄")},onClick={menu=false;vm.print(context)})
                             DropdownMenuItem(text={Text("설정")},onClick={menu=false;settingsDialog=true})
                         }
                     })
             }
         }) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
+            Box(Modifier.fillMaxSize().padding(padding)) {
+            Column(Modifier.fillMaxSize().imePadding()) {
                 if(state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                if(state.tabs.size>1 || (state.session==null && state.tabs.isNotEmpty())) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                if(state.session==null && state.tabs.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     state.tabs.forEach { s -> FilterChip(selected=state.active==s.id,onClick={if(!state.busy) selectTab(s.id)},label={Text((if(s.dirty) "• " else "")+s.name,maxLines=1)},enabled=!state.busy) }
                     AssistChip(onClick={newDialog=true},label={Text("새 문서")},enabled=!state.busy)
                 }
@@ -180,19 +235,26 @@ fun StudioApp(vm: EditorViewModel) {
                     val left=state.tabs.firstOrNull {it.id==splitLeft};val right=state.tabs.firstOrNull {it.id==splitRight}
                     if(left!=null && right!=null) BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                         if(maxWidth>=840.dp) Row(Modifier.fillMaxSize()) {
-                            EditorPane(left,state,vm,openOffice,true,Modifier.weight(1f).fillMaxHeight(),"왼쪽")
-                            EditorPane(right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxHeight(),"오른쪽")
+                            EditorPane(left,state,vm,openOffice,true,Modifier.weight(1f).fillMaxHeight(),"왼쪽",reader=if(state.active==left.id)reader else null)
+                            EditorPane(right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxHeight(),"오른쪽",reader=if(state.active==right.id)reader else null)
                         } else if(maxHeight>=680.dp) Column(Modifier.fillMaxSize()) {
-                            EditorPane(left,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),"왼쪽")
-                            EditorPane(right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),"오른쪽")
+                            EditorPane(left,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),"왼쪽",reader=if(state.active==left.id)reader else null)
+                            EditorPane(right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),"오른쪽",reader=if(state.active==right.id)reader else null)
                         } else Column(Modifier.fillMaxSize()) {
                             Row {TextButton({vm.select(left.id)},enabled=!state.busy) {Text("왼쪽 문서")};TextButton({vm.select(right.id)},enabled=!state.busy) {Text("오른쪽 문서")};Text("좁은 창 · 선택한 문서 표시",style=MaterialTheme.typography.labelSmall)}
-                            EditorPane(if(state.active==left.id) left else right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),if(state.active==left.id) "왼쪽" else "오른쪽")
+                            EditorPane(if(state.active==left.id) left else right,state,vm,openOffice,true,Modifier.weight(1f).fillMaxWidth(),if(state.active==left.id) "왼쪽" else "오른쪽",reader=reader)
                         }
-                    } else EditorPane(state.session!!,state,vm,openOffice,false,Modifier.weight(1f).fillMaxWidth())
+                    } else EditorPane(state.session!!,state,vm,openOffice,false,Modifier.weight(1f).fillMaxWidth(),reader=reader)
                 }
             }
+            if(fullScreen && !editing && state.session!=null) Popup(alignment=Alignment.TopEnd,
+                properties=PopupProperties(focusable=false,dismissOnBackPress=false,dismissOnClickOutside=false)) {
+                IconButton({fullScreen=false},Modifier.padding(8.dp).background(MaterialTheme.colorScheme.surface.copy(alpha=.95f),RoundedCornerShape(8.dp))) {Icon(Icons.Default.MoreVert,"메뉴 표시")}
+            }
+            SnackbarHost(snackbar,Modifier.align(Alignment.TopCenter).padding(horizontal=8.dp,vertical=6.dp))
+            }
         }
+        if(info && state.session!=null) AlertDialog(onDismissRequest={info=false},title={Text("파일 정보")},text={val s=state.session!!;Text(s.name+"\n"+s.format.extension.uppercase()+" · "+s.base.length()/1024+" KiB\n"+if(s.dirty)"원본에 저장되지 않은 변경이 있습니다." else "원본 파일에 저장됨")},confirmButton={TextButton({info=false}){Text("닫기")}})
         if(newDialog) NewDocumentDialog(state.busy,{newDialog=false;vm.create(it,visual=true)}) {newDialog=false}
         if(state.lockedBackupUri!=null) key(state.lockedBackupUri) {BackupPasswordDialog(false,state.busy,state.message,vm::unlockBackup,vm::cancelBackupUnlock)}
         encryptedDialogId?.let {id->BackupPasswordDialog(true,state.busy,onConfirm={password->
@@ -200,13 +262,17 @@ fun StudioApp(vm: EditorViewModel) {
             if(vm.prepareEncryptedBackup(id,password)) encryptedBackup.launch((name ?: "문서").substringBeforeLast('.')+"-백업.dsbackup")
             encryptedDialogId=null
         },onDismiss={encryptedDialogId=null})}
-        if(settingsDialog) SettingsDialog(state.settings,vm::settings,vm::cleanupTemporary) {settingsDialog=false}
-        if(showBrowser && browserUri!=null) FolderBrowser(Uri.parse(browserUri),state.busy,vm::openExternal,{treePicker.launch(Uri.parse(browserUri))}) {showBrowser=false}
+        if(settingsDialog) SettingsDialog(state.settings,vm::settings,vm::cleanupTemporary,{settingsDialog=false;recoveryDialog=true}) {settingsDialog=false}
+        if(recoveryDialog) SaveRecoveryDialog(vm.repository,vm::message) {recoveryDialog=false}
+        if(problemDialog && state.problem!=null) AlertDialog(onDismissRequest={problemDialog=false},title={Text(state.problem!!.title)},
+            text={Text(state.problem!!.advice)},confirmButton={TextButton({problemDialog=false;recoveryDialog=true}){Text("저장 복구")}},
+            dismissButton={TextButton({problemDialog=false;vm.dismissProblem()}){Text("닫기")}})
+        if(showBrowser && browserUri!=null) FolderBrowser(Uri.parse(browserUri),state.busy,{vm.openExternal(it)},{treePicker.launch(Uri.parse(browserUri))}) {showBrowser=false}
     }
 }
 
 @Composable
-private fun EditorPane(s: Session,state: UiState,model: EditorViewModel,openOffice: (String)->Unit,split: Boolean,modifier: Modifier,label: String="") {
+private fun EditorPane(s: Session,state: UiState,model: EditorViewModel,openOffice: (String)->Unit,split: Boolean,modifier: Modifier,label: String="",reader: ReaderActions?=null) {
     val actions=remember(model,s.id) {model.documentActions(s.id)}
     Column(modifier.then(if(split) Modifier.border(if(state.active==s.id) 2.dp else 1.dp,if(state.active==s.id) Green else Color.LightGray) else Modifier)
         .onFocusChanged {if(it.hasFocus && state.active!=s.id) actions.focus()}.focusGroup()
@@ -217,17 +283,18 @@ private fun EditorPane(s: Session,state: UiState,model: EditorViewModel,openOffi
             IconButton({model.undo(s.id)},enabled=!state.busy && model.canUndo(s.id)) {Icon(Icons.AutoMirrored.Filled.Undo,"$label 실행 취소")}
             IconButton({model.redo(s.id)},enabled=!state.busy && model.canRedo(s.id)) {Icon(Icons.AutoMirrored.Filled.Redo,"$label 다시 실행")}
         }
-        key(s.id) {FormatWorkspace(s,state.settings,actions,state.busy) {openOffice(s.id)}}
+        key(s.id) {FormatWorkspace(s,state.settings,actions,state.busy,presentation=state.presentation(s.id),reader=reader) {openOffice(s.id)}}
     }
 }
 
 @Composable
-private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: ()->Unit,close: ()->Unit) {
+private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: ()->Unit,recovery: ()->Unit,close: ()->Unit) {
     var licenses by remember {mutableStateOf(false)}
     var officeLicenses by remember {mutableStateOf(false)}
+    var privacy by remember {mutableStateOf(false)}
+    var diagnostics by remember {mutableStateOf(false)}
     AlertDialog(onDismissRequest=close,title={Text("편집 설정")},text={Column(Modifier.heightIn(max=420.dp).verticalScroll(rememberScrollState())) {
-        Row(verticalAlignment=Alignment.CenterVertically) {Text("오피스 파일을 실제 편집기로 바로 열기",modifier=Modifier.weight(1f));Switch(settings.visualOffice,{change(settings.copy(visualOffice=it))})}
-        Text("Word·Excel·PowerPoint · Android 11 이상. 기본 편집과 필기는 뒤로 돌아와 사용할 수 있습니다.",style=MaterialTheme.typography.bodySmall)
+        Text("한글은 전용 한글 엔진, Word·Excel·PowerPoint는 각 형식의 오피스 엔진에서 원본을 직접 편집합니다. 오피스 엔진은 Android 11 이상이 필요합니다.",style=MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment=Alignment.CenterVertically) {Text("펜 전용 필기",modifier=Modifier.weight(1f));Switch(settings.stylusOnly,{change(settings.copy(stylusOnly=it))})}
         Text("펜 전용 모드는 손가락 입력을 무시합니다. 정전식 펜은 손가락으로 인식될 수 있습니다.",style=MaterialTheme.typography.bodySmall)
@@ -238,9 +305,26 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
         Row {listOf("UTF-8","MS949").forEach {e -> FilterChip(settings.encoding==e,{change(settings.copy(encoding=e))},label={Text(e)},modifier=Modifier.padding(end=8.dp))}}
         Text("BOM 인코딩을 우선하고 저장 시 인코딩과 원래 줄바꿈을 유지합니다. 자동 저장은 원본을 덮어쓰지 않습니다.",style=MaterialTheme.typography.bodySmall)
         TextButton(onClick={licenses=true}) {Text("오픈소스·SDK 라이선스")}
+        Text("화면 색상은 기기의 밝게·어둡게 설정을 따릅니다. 문서 원본의 글자색과 용지는 바꾸지 않습니다.",style=MaterialTheme.typography.bodySmall)
+        TextButton(recovery) {Text("저장·서명 복구")}
+        TextButton({privacy=true}) {Text("문서·개인정보 보관 안내")}
+        TextButton({diagnostics=true}) {Text("이 기기의 오류 진단")}
         TextButton(cleanup) {Text("임시 변환 파일 정리")}
         TextButton(onClick={officeLicenses=true}) {Text("정밀 오피스 엔진 고지")}
     }},confirmButton={TextButton(onClick=close){Text("완료")}})
+    if(privacy) {
+        val context=LocalContext.current
+        AlertDialog(onDismissRequest={privacy=false},title={Text("문서·개인정보 보관")},
+            text={Text("문서 변환과 자필 서명은 기기에서 처리합니다. 앱이 문서나 서명을 서버로 보내는 기능은 없으며 INTERNET 권한도 요청하지 않습니다. OCR에는 번들 Google ML Kit를 사용합니다. SDK·운영체제 전체의 데이터 처리는 별도 검토 대상입니다.\n\n문서 복구본·서명·진단은 앱 내부에 보관합니다. 내부 저장소 전체를 별도 암호화하지는 않습니다. 암호화 백업을 선택한 경우에만 .dsbackup에 암호화합니다.\n\n앱 삭제나 기기 설정의 데이터 삭제는 복구본과 내 서명도 지웁니다. 중요한 자료는 먼저 파일로 저장·백업하세요. 외부에 저장·공유한 파일은 앱 데이터 삭제로 지워지지 않습니다.")},
+            confirmButton={TextButton({privacy=false}){Text("닫기")}},
+            dismissButton={TextButton({context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+context.packageName)))}){Text("기기 앱 설정")}})
+    }
+    if(diagnostics) {
+        val context=LocalContext.current
+        val text by produceState("진단 기록 확인 중") {value=withContext(Dispatchers.IO){SafeDiagnostics.text(context)}}
+        AlertDialog(onDismissRequest={diagnostics=false},title={Text("이 기기의 오류 진단")},text={Text(text,style=MaterialTheme.typography.bodySmall,modifier=Modifier.heightIn(max=320.dp).verticalScroll(rememberScrollState()))},
+            confirmButton={TextButton({diagnostics=false}){Text("닫기")}})
+    }
     if(licenses) {
         val context=LocalContext.current
         val notice by produceState("읽는 중…") {
@@ -262,123 +346,88 @@ private fun SettingsDialog(settings: Settings,change: (Settings)->Unit,cleanup: 
     }},confirmButton={TextButton(onClick={officeLicenses=false}){Text("닫기")}})
 }
 
+private class NativeTextBinding {
+    var editor: LineNumberEditText?=null
+    var keyListener: android.text.method.KeyListener?=null
+    var modelText: String?=null
+}
+
 @Composable
-internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false) {
+internal fun NativeTextEditor(text: String,fontSize: Float,busy: Boolean,wrap: Boolean,focused: ()->Unit,change: (String)->Unit,markdown: Boolean=false,readOnly: Boolean=true,controller: NativeEditorController?=null,showToolbar: Boolean=true,fontFamily: String="고정폭",showLineNumbers: Boolean=true,viewportKey: String?=null,dark: Boolean=false) {
+    val fontContext=LocalContext.current
+    val scrollPreferences=remember {fontContext.getSharedPreferences("reading-position",0)}
+    val desiredFace=remember(fontFamily,fontContext) {EditorFonts.face(fontContext,fontFamily)}
     val onChange by rememberUpdatedState(change)
     val onFocused by rememberUpdatedState(focused)
-    var editor by remember {mutableStateOf<LineNumberEditText?>(null)}
+    // Factory/update handles do not drive composition. Keep the immutable model reference
+    // so toolbar/mode changes never copy or compare the entire document again.
+    val binding=remember {NativeTextBinding()}
+    val acceptsInput by rememberUpdatedState(!busy && !readOnly)
     Column(Modifier.fillMaxSize()) {
-    if(markdown) MarkdownToolbar({editor},!busy)
+    if(markdown && !readOnly && showToolbar) MarkdownToolbar({binding.editor},!busy)
     AndroidView(factory={context -> LineNumberEditText(context).apply {
         gravity=android.view.Gravity.TOP or android.view.Gravity.START
-        setBackgroundColor(AndroidColor.WHITE);setPadding(92,24,28,24)
+        darkPage=dark
+        setBackgroundColor(if(dark)AndroidColor.rgb(27,30,36) else AndroidColor.WHITE)
+        setTextColor(if(dark)AndroidColor.rgb(231,234,240) else AndroidColor.rgb(32,38,48));setPadding(92,24,28,24)
         inputType=android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-        typeface=android.graphics.Typeface.MONOSPACE; setHorizontallyScrolling(false)
+        typeface=android.graphics.Typeface.MONOSPACE;setTextIsSelectable(true);setHorizontallyScrolling(false)
         addTextChangedListener(object: TextWatcher {
             override fun beforeTextChanged(s: CharSequence?,start: Int,count: Int,after: Int) {}
-            override fun onTextChanged(s: CharSequence?,start: Int,before: Int,count: Int) { if(tag!=true) onChange(s.toString()) }
+            override fun onTextChanged(s: CharSequence?,start: Int,before: Int,count: Int) { if(tag!=true && acceptsInput) onChange(s.toString()) }
             override fun afterTextChanged(s: Editable?) {}
         })
         contentDescription="문서 본문"
         setOnFocusChangeListener {_,hasFocus -> if(hasFocus) onFocused()}
-    }.also {editor=it} },update={view ->
-        view.textSize=fontSize;view.isEnabled=!busy;view.setHorizontallyScrolling(!wrap)
-        if(view.text.toString()!=text) {view.tag=true;val position=view.selectionStart.coerceAtLeast(0).coerceAtMost(text.length);view.setText(text);view.setSelection(position);view.tag=false}
-    },modifier=Modifier.fillMaxWidth().weight(1f))
+    }.also {binding.editor=it;it.onSelectionUpdate={a,b->if(controller?.editor===it)controller?.selectionChanged(a,b)};binding.keyListener=it.keyListener} },update={view ->
+        if(view.darkPage!=dark){view.darkPage=dark;view.setBackgroundColor(if(dark)AndroidColor.rgb(27,30,36) else AndroidColor.WHITE);view.setTextColor(if(dark)AndroidColor.rgb(231,234,240) else AndroidColor.rgb(32,38,48))}
+        if(view.showLineNumbers!=showLineNumbers){val x=view.scrollX;val y=view.scrollY;view.showLineNumbers=showLineNumbers;view.setPadding(if(showLineNumbers)92 else 24,24,28,24);view.scrollTo(x,y);view.invalidate()}
+        if(view.typeface!=desiredFace) {val a=view.selectionStart.coerceIn(0,view.length());val b=view.selectionEnd.coerceIn(0,view.length());val x=view.scrollX;val y=view.scrollY;view.typeface=desiredFace;view.setSelection(a,b);view.scrollTo(x,y)}
+        if(kotlin.math.abs(view.textSize/fontContext.resources.displayMetrics.scaledDensity-fontSize)>.01f)view.textSize=fontSize
+        if(view.isEnabled==busy)view.isEnabled=!busy
+        if(view.wrapLines!=wrap){view.wrapLines=wrap;view.setHorizontallyScrolling(!wrap)}
+
+        view.documentReadOnly=readOnly
+        val desiredKeyListener=if(readOnly) null else binding.keyListener
+        if(view.keyListener !== desiredKeyListener) {
+            val start=view.selectionStart.coerceIn(0,view.length());val end=view.selectionEnd.coerceIn(0,view.length())
+            val x=view.scrollX;val y=view.scrollY
+            view.keyListener=desiredKeyListener
+            view.setSelection(start,end);view.scrollTo(x,y)
+        }
+        if(view.showSoftInputOnFocus==readOnly)view.showSoftInputOnFocus=!readOnly
+        if(view.isCursorVisible==readOnly)view.isCursorVisible=!readOnly
+        if(!view.isFocusable)view.isFocusable=true
+        if(!view.isFocusableInTouchMode)view.isFocusableInTouchMode=true
+        if(binding.modelText!==text && !android.text.TextUtils.equals(view.text,text)) {
+            val start=view.selectionStart.coerceIn(0,text.length);val end=view.selectionEnd.coerceIn(0,text.length)
+            val x=view.scrollX;val y=view.scrollY
+            view.tag=true;view.setText(text);view.setSelection(start,end);view.tag=false;view.scrollTo(x,y)
+        }
+        binding.modelText=text
+        if(controller?.editor!==view && viewportKey!=null) {
+            val y=scrollPreferences.getInt(viewportKey+":textY",0);val x=scrollPreferences.getInt(viewportKey+":textX",0)
+            view.post {view.scrollTo(x,y)}
+        }
+        controller?.attach(view)
+    },onRelease={view->if(viewportKey!=null)scrollPreferences.edit().putInt(viewportKey+":textY",view.scrollY).putInt(viewportKey+":textX",view.scrollX).apply();controller?.detach(view)},modifier=Modifier.fillMaxWidth().weight(1f))
 }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun SheetEditor(s: Session,sec: Section,vm: DocumentActions,busy: Boolean,tab: String="홈") {
-    var style by remember {mutableStateOf(false)}
-    var editingCell by remember {mutableStateOf(false)}
-    var address by rememberSaveable(sec.id) {mutableStateOf("A1")}
-    var rowStart by rememberSaveable(sec.id) {mutableIntStateOf(1)}
-    var colStart by rememberSaveable(sec.id) {mutableIntStateOf(1)}
-    var windowRequest by remember {mutableIntStateOf(0)}
-    val maxRow=if(s.format==Format.XLS) 65536 else 1048576
-    val maxColumn=if(s.format==Format.XLS) 256 else 16384
-    val lastRow=minOf(rowStart+24,maxRow)
-    val lastColumn=minOf(colStart+19,maxColumn)
-    val addressValid=validAddress(address) && column(address)<=maxColumn && address.dropWhile {it.isLetter()}.toInt()<=maxRow
-    val input=s.edits.values[sec.id+"#"+address] ?: sec.cells[address] ?: ""
-    val focus=LocalFocusManager.current
-    val goToCell: ()->Unit = {
-        if(addressValid) {
-            rowStart=address.dropWhile {it.isLetter()}.toInt()
-            colStart=column(address)
-            windowRequest++
-            focus.clearFocus()
-        } else vm.message(if(s.format==Format.XLS) "XLS 셀 범위는 A1–IV65536입니다." else "올바른 셀 주소를 입력하세요.")
-    }
-    val cells=remember(sec,s.edits.values) {sec.cells+s.edits.values.filterKeys {it.startsWith(sec.id+"#")}.mapKeys {it.key.substringAfter('#')}}
-    val calculation by produceState(SheetCalculation(),sec,s.sections,s.edits.values,s.edits.styles,rowStart,colStart,address) {
-        value=SheetCalculation()
-        value=withContext(Dispatchers.Default) {
-            val formula=s.calculator(sec)
-            val addresses=(rowStart..lastRow).flatMap {r -> (colStart..lastColumn).map {c -> columnName(c)+r}}+listOfNotNull(address.takeIf {addressValid})
-            val raw=addresses.distinct().associateWith {formula.display(it)}
-            val formatted=raw.mapValues {(a,v) -> val styles=(sec.cellStyles[a] ?: emptyMap())+(s.edits.styles[sec.id+"#"+a] ?: emptyMap());CellFormatting.format(v,styles["numberFormat"],sec.date1904)}
-            SheetCalculation(raw,formatted)
-        }
-    }
-    Box(Modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxSize().background(Color.White)) {
-        Row(Modifier.padding(horizontal=8.dp,vertical=4.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-            OutlinedTextField(address,{address=it.uppercase()},label={Text("셀 주소")},singleLine=true,modifier=Modifier.width(80.dp),enabled=!busy,isError=!addressValid,
-                keyboardOptions=KeyboardOptions(imeAction=ImeAction.Go),keyboardActions=KeyboardActions(onGo={goToCell()}))
-            OutlinedTextField(input,{vm.field(sec.id+"#"+address,it)},label={Text("값 또는 =수식")},singleLine=true,modifier=Modifier.weight(1f),enabled=!busy && addressValid,
-                keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={focus.clearFocus()}))
-            FilledIconButton(onClick=goToCell,enabled=!busy){Icon(Icons.Default.Check,"셀로 이동")}
-        }
-        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-            Text("계산: ${if(addressValid) calculation.raw[address] ?: "계산 중…" else "주소 오류"}",style=MaterialTheme.typography.labelMedium,modifier=Modifier.weight(1f).padding(vertical=6.dp),maxLines=1,overflow=TextOverflow.Ellipsis)
-              if(tab=="수식" || tab=="홈") FormulaTools(input,!busy && addressValid) {vm.field(sec.id+"#"+address,it)}
-            if(s.format==Format.XLSX) TextButton(onClick={style=true},enabled=!busy && addressValid) {Text("선택 셀 서식")}
-        }
-        if(s.format==Format.XLSX && tab=="데이터") SheetRangeTools(s,sec,address,cells,vm,busy)
-        key(sec.id,rowStart,colStart,windowRequest) {
-        Box(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
-            LazyColumn {
-                stickyHeader { Row {CellBox("",false,{},mapOf("background" to "F4F6FA"),Modifier.width(44.dp));for(c in colStart..lastColumn) CellBox(columnName(c),false,{},mapOf("background" to "F4F6FA","bold" to "true"))} }
-                items((rowStart..lastRow).toList()) {r -> Row {
-                    CellBox(r.toString(),false,{},mapOf("background" to "F4F6FA"),Modifier.width(44.dp))
-                    for(c in colStart..lastColumn) {
-                        val a=columnName(c)+r;val styles=(sec.cellStyles[a] ?: emptyMap())+(s.edits.styles[sec.id+"#"+a] ?: emptyMap())
-                        if(a==address && editingCell) {
-                            val requester=remember {androidx.compose.ui.focus.FocusRequester()}
-                            androidx.compose.foundation.text.BasicTextField(cells[a] ?: "",{vm.field(sec.id+"#"+a,it)},enabled=!busy,singleLine=true,
-                                modifier=Modifier.width(112.dp).height(44.dp).border(2.dp,MaterialTheme.colorScheme.primary).padding(8.dp).focusRequester(requester).semantics {contentDescription="선택 셀 입력"},
-                                keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={editingCell=false;focus.clearFocus()}))
-                            LaunchedEffect(a) {requester.requestFocus()}
-                        } else CellBox(calculation.formatted[a] ?: "…",a==address,{if(!busy) {editingCell=a==address;address=a}},styles,Modifier.testTag("cell-"+a))
-                    }
-                } }
-            }
-        }
-        }
-    }
-    }
-    if(style) StyleDialog(sec.id+"#"+address,s.format,(sec.cellStyles[address] ?: emptyMap())+(s.edits.styles[sec.id+"#"+address] ?: emptyMap()),vm) {style=false}
-}
-private data class SheetCalculation(val raw: Map<String,String> = emptyMap(),val formatted: Map<String,String> = emptyMap())
-@Composable private fun CellBox(text: String,selected: Boolean,click: ()->Unit,styles: Map<String,String> = emptyMap(),modifier: Modifier=Modifier) {
-    val background=styles["background"]?.let {runCatching {Color(AndroidColor.parseColor("#$it"))}.getOrNull()} ?: Color.White
-    val color=styles["color"]?.let {runCatching {Color(AndroidColor.parseColor("#$it"))}.getOrNull()} ?: Color.Unspecified
-    val formatted=text
-    Box(modifier.width(112.dp).height(44.dp).border(if(selected) 2.dp else 0.5.dp,if(selected) Color(0xFF217346) else Color(0xFFE0E4EA)).background(if(selected) Color(0xFFEAF4EF) else background).clickable(onClick=click).padding(8.dp),contentAlignment=when(styles["align"]) {"center"->Alignment.Center;"right"->Alignment.CenterEnd;else->Alignment.CenterStart}) {
-        Text(formatted,maxLines=1,overflow=TextOverflow.Ellipsis,fontSize=(styles["size"]?.toFloatOrNull() ?: 13f).coerceIn(8f,28f).sp,color=color,fontWeight=if(styles["bold"]=="true") FontWeight.Bold else FontWeight.Normal)
-    }
-}
-
-@Composable
-internal fun SearchDialog(s: Session,vm: DocumentActions,close: ()->Unit) {
+internal fun SearchDialog(s: Session,vm: DocumentActions,controller: NativeEditorController?=null,readOnly: Boolean=false,close: ()->Unit) {
     var find by remember {mutableStateOf("")};var replacement by remember {mutableStateOf("")}
-    val count=remember(s.edits.text,find) {var count=0;var from=0;if(find.isNotEmpty()) while(true) {val next=s.edits.text.indexOf(find,from);if(next<0) break;count++;from=next+find.length};count}
+    var current by remember {mutableIntStateOf(-1)}
+    val matches=remember(s.edits.text,find) {buildList {var from=0;if(find.isNotEmpty())while(true) {val next=s.edits.text.indexOf(find,from);if(next<0)break;add(next);from=next+find.length}}}
+    fun move(backwards: Boolean) {if(matches.isNotEmpty()) {current=if(backwards)(if(current<=0)matches.lastIndex else current-1) else (current+1)%matches.size;controller?.select(matches[current],matches[current]+find.length)}}
     AlertDialog(onDismissRequest=close,title={Text("검색·바꾸기")},text={Column {
-        OutlinedTextField(find,{find=it},label={Text("찾을 문자열")},singleLine=true)
-        Text("일치 ${count}개",modifier=Modifier.padding(vertical=8.dp))
-        OutlinedTextField(replacement,{replacement=it},label={Text("바꿀 문자열")},singleLine=true)
-    }},confirmButton={TextButton(onClick={vm.text(s.edits.text.replace(find,replacement));close()},enabled=find.isNotEmpty() && count>0){Text("모두 바꾸기")}},dismissButton={TextButton(onClick=close){Text("닫기")}})
+        OutlinedTextField(find,{find=it;current=-1},label={Text("찾을 문자열")},singleLine=true)
+        Text("일치 ${matches.size}개"+if(current in matches.indices)" · ${current+1} / ${matches.size}" else "",modifier=Modifier.padding(vertical=8.dp))
+        Row {TextButton({move(true)},enabled=matches.isNotEmpty()){Text("이전 결과")};TextButton({move(false)},enabled=matches.isNotEmpty()){Text("다음 결과")}}
+        if(!readOnly) OutlinedTextField(replacement,{replacement=it},label={Text("바꿀 문자열")},singleLine=true)
+        if(!readOnly) TextButton({
+            if(current !in matches.indices)move(false)
+            if(current in matches.indices){val a=matches[current];val value=s.edits.text.replaceRange(a,a+find.length,replacement);if(controller!=null)controller.replace(value,a,a+replacement.length) else vm.text(value);current=-1}
+        },enabled=find.isNotEmpty() && matches.isNotEmpty()){Text("바꾸기")}
+    }},confirmButton={if(!readOnly)TextButton(onClick={val value=s.edits.text.replace(find,replacement);if(controller!=null)controller.replace(value,0,0) else vm.text(value);current=-1},enabled=find.isNotEmpty() && matches.isNotEmpty()){Text("모두 바꾸기")}},dismissButton={TextButton(onClick=close){Text("닫기")}})
 }

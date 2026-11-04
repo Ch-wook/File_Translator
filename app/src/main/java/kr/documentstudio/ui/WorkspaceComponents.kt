@@ -12,6 +12,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -34,10 +36,14 @@ enum class WorkspaceFamily(val title: String,val accent: Color,val icon: ImageVe
 }
 
 @Composable
+fun readableAccent(color: Color)=if(MaterialTheme.colorScheme.surface.luminance()<.3f)lerp(color,Color.White,.45f) else color
+
+@Composable
 fun FormatBadge(format: Format,modifier: Modifier=Modifier) {
     val family=WorkspaceFamily.of(format)
-    Surface(modifier.size(44.dp),shape=RoundedCornerShape(12.dp),color=family.accent.copy(alpha=0.10f)) {
-        Box(contentAlignment=Alignment.Center) {Icon(family.icon,null,tint=family.accent,modifier=Modifier.size(25.dp))}
+    val accent=readableAccent(family.accent)
+    Surface(modifier.size(44.dp),shape=RoundedCornerShape(12.dp),color=accent.copy(alpha=0.10f)) {
+        Box(contentAlignment=Alignment.Center) {Icon(family.icon,null,tint=accent,modifier=Modifier.size(25.dp))}
     }
 }
 
@@ -68,10 +74,10 @@ private fun Modifier.selectableTab(selected: Boolean,enabled: Boolean,click: ()-
 
 @Composable
 fun WorkspaceStatus(left: String,right: String="") {
-    Surface(color=Color(0xFFF8F9FC)) {
+    Surface(color=MaterialTheme.colorScheme.surfaceContainer) {
         Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=7.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text(left,style=MaterialTheme.typography.labelSmall,color=Color(0xFF606B7B),modifier=Modifier.weight(1f),maxLines=1)
-            if(right.isNotEmpty()) Text(right,style=MaterialTheme.typography.labelSmall,color=Color(0xFF606B7B),maxLines=1)
+            Text(left,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.weight(1f),maxLines=2)
+            if(right.isNotEmpty()) Text(right,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1)
         }
     }
 }

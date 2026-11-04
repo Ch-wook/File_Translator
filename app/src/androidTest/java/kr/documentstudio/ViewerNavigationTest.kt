@@ -1,0 +1,274 @@
+package kr.documentstudio
+
+import android.content.Intent
+import android.net.Uri
+import android.os.SystemClock
+import android.view.InputDevice
+import android.view.MotionEvent
+import androidx.core.content.FileProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
+import kotlinx.coroutines.runBlocking
+import kr.documentstudio.data.DocumentRepository
+import org.json.JSONObject
+import org.json.JSONTokener
+import org.junit.Assert.*
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.File
+import java.util.UUID
+
+/** Real isolated native engines, actual assets and Android touch events. No physical device claims. */
+@RunWith(AndroidJUnit4::class)
+class ViewerNavigationTest {
+    private val instrumentation get()=InstrumentationRegistry.getInstrumentation()
+    private val context get()=instrumentation.targetContext
+    private val device get()=UiDevice.getInstance(instrumentation)
+    private val evidence get()=File(context.getExternalFilesDir(null),"native-viewer").apply {mkdirs()}
+    private fun eval(kind: String,script: String): String {
+        val uri=Uri.parse("content://"+context.packageName+"."+kind+"probe")
+        val raw=context.contentResolver.acquireUnstableContentProviderClient(uri).use {client->
+            val reply=checkNotNull(client).call("eval",script,null)!!
+            checkNotNull(reply.getString("result")) {"Native "+kind+" probe is not ready (ready="+reply.getBoolean("ready")+")"}
+        }
+        return JSONTokener(raw).nextValue().toString()
+    }
+    private fun waitFor(label: String,timeout: Long=30000,condition: ()->Boolean) {
+        val end=SystemClock.uptimeMillis()+timeout
+        var lastFailure: Throwable?=null
+        while(SystemClock.uptimeMillis()<end){
+            try{if(condition())return}catch(failure: Throwable){lastFailure=failure}
+            SystemClock.sleep(100)
+        }
+        throw AssertionError(label,lastFailure)
+    }
+    private fun tap(label: String)=NativeUiActions.tap(device,context.packageName,label,20000)
+    private fun documentBounds()=requireNotNull(device.wait(Until.findObject(By.pkg(context.packageName).clazz("android.webkit.WebView")),15000)).visibleBounds
+    private fun pinch() {
+        val rect=documentBounds();val cx=rect.exactCenterX();val cy=rect.top+rect.height()*.42f
+        val down=SystemClock.uptimeMillis()
+        fun inject(action: Int,count: Int,spread: Float){
+            val properties=Array(count){i->MotionEvent.PointerProperties().apply {id=i;toolType=MotionEvent.TOOL_TYPE_FINGER}}
+            val points=Array(count){i->MotionEvent.PointerCoords().apply {x=cx+(if(i==0)-spread else spread);y=cy;pressure=1f;size=.1f}}
+            val event=MotionEvent.obtain(down,SystemClock.uptimeMillis(),action,count,properties,points,0,0,1f,1f,0,0,InputDevice.SOURCE_TOUCHSCREEN,0)
+            try{assertTrue(instrumentation.uiAutomation.injectInputEvent(event,true))}finally{event.recycle()};SystemClock.sleep(40)
+        }
+        inject(MotionEvent.ACTION_DOWN,1,40f);inject(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),2,40f)
+        for(spread in listOf(50f,65f,80f))inject(MotionEvent.ACTION_MOVE,2,spread)
+        inject(MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),2,80f);inject(MotionEvent.ACTION_UP,1,80f)
+    }
+    @Test fun hwpxTwentyPagesReachLastAndPinchWithoutDocumentWrites()=exercise("viewer-20.hwpx","hangul",20)
+    @Test fun wordTwelvePagesReachLastAndScrollWithoutDocumentWrites()=exercise("viewer-12.docx","office",12)
+    @Test fun presentationThirtySlidesReachLastWithoutDocumentWrites()=exercise("viewer-30.pptx","office",30)
+    @Test fun spreadsheetAllThreeSheetsAndDistantCellRemainAccessible()=exercise("viewer-large.xlsx","office",3)
+    private fun exercise(name: String,kind: String,count: Int)=runBlocking {
+        device.wakeUp();device.executeShellCommand("am force-stop com.android.launcher3")
+        // Match the real app entry flow without startActivitySync's idle wait:
+        // cold extraction/initial dialogs can otherwise race a headless launch.
+        instrumentation.runOnMainSync {
+            context.startActivity(Intent(context,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        }
+        waitFor("Application host is foreground before opening its isolated engine",30000){
+            device.currentPackageName==context.packageName && device.hasObject(By.pkg(context.packageName))
+        }
+        val original=File(context.cacheDir,"tests/viewer-"+UUID.randomUUID()+"-"+name).apply {parentFile!!.mkdirs()}
+        instrumentation.context.assets.open(name).use {input->original.outputStream().use {input.copyTo(it)}}
+        val uri=FileProvider.getUriForFile(context,context.packageName+".testfiles",original)
+        val repo=DocumentRepository(context);val session=repo.open(uri);val working=repo.prepareOffice(session)
+        val originalHash=DocumentRepository.digest(original);val workingHash=DocumentRepository.digest(working)
+        val api=if(kind=="hangul")"document.getElementById('engine')?.contentWindow?.rhwpStudio?.documentStudio" else "window.studioOffice"
+        val state=if(kind=="hangul")api+"?.pageState?.()" else api+"?.viewerState?.()"
+        val index=if(kind=="hangul")"page" else "index"
+        val total=if(kind=="hangul")"pages" else "count"
+        val closed=File(working.path+".closed");var completed=false
+        val record=JSONObject().put("file",name).put("expectedCount",count)
+        fun slideStage(label: String){
+            if(!name.endsWith(".pptx"))return
+            eval(kind,"window.__viewerSettled=false;app.layoutingService.onDrain(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>window.__viewerSettled=true)));true")
+            waitFor("Slide layout has drained: "+label){eval(kind,"window.__viewerSettled===true")=="true"}
+            val script="JSON.stringify({index:window.studioOffice.viewerState().index,visible:window.studioOffice.viewerState().viewportMeasured,nativeIndex:app.map.getCurrentPartNumber(),zoom:app.map.getZoom(),ratio:app.twipsToPixels,view:app.activeDocument.activeLayout.viewedRectangle,scroll:{x:app.activeDocument.activeLayout.scrollProperties.viewX,y:app.activeDocument.activeLayout.scrollProperties.viewY},frame:app.activeDocument.activeLayout.frameSize,focal42:(()=>{const l=app.activeDocument.activeLayout,r=document.getElementById('document-canvas').getBoundingClientRect(),p=l.frameSize.clone();p.pX=(innerWidth*.5-r.left)*app.dpiScale;p.pY=(innerHeight*.42-r.top)*app.dpiScale;const a=l.canvasToDocumentPoint(p);return{x:a.x,y:a.y}})(),focal40:(()=>{const l=app.activeDocument.activeLayout,r=document.getElementById('document-canvas').getBoundingClientRect(),p=l.frameSize.clone();p.pX=(innerWidth*.5-r.left)*app.dpiScale;p.pY=(innerHeight*.4-r.top)*app.dpiScale;const a=l.canvasToDocumentPoint(p);return{x:a.x,y:a.y}})(),parts:app.activeDocument.activeLayout.viewRectangles?.slice(-2)})"
+            record.put(label,JSONObject(eval(kind,script)))
+        }
+        val probeClient=checkNotNull(context.contentResolver.acquireUnstableContentProviderClient(Uri.parse("content://"+context.packageName+"."+kind+"probe")))
+        try{
+            // Provider lifecycle observation must be registered before Activity
+            // creation. Resolving the provider after onCreate can miss that event.
+            probeClient.call("eval","true",null)
+            record.put("probePrimedBeforeActivity",true)
+            val intent=if(kind=="hangul")Intent(context,HangulEditorActivity::class.java)
+                else Intent().setClassName(context.packageName,"org.libreoffice.androidlib.StudioOfficeActivity")
+            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("sessionId",session.id)
+                .putExtra("workingPath",working.absolutePath).putExtra("displayName",name))
+            waitFor("Actual native engine loads all logical pages or sheets",150000){JSONObject(eval(kind,state)).getInt(total)==count}
+            assertEquals(count,JSONObject(eval(kind,state)).getInt(total))
+            if(kind=="office")waitFor("Host tools finish initial viewport restoration"){
+                eval(kind,"window.studioOffice.ready===true && window.studioOffice.initialIntentHandled===true")=="true"
+            }else waitFor("Hangul reader has finished opening"){
+                eval(kind,"document.body.dataset.state==='READING' && !document.getElementById('mode').disabled")=="true"
+            }
+            // Observe fixture input from the window capture phase, before engine
+            // handlers. Only test-generated files are included in these diagnostics.
+            eval(kind,"(()=>{const d="+(if(kind=="hangul")"document.getElementById('engine').contentDocument" else "document")+";const w=d.defaultView;w.__viewerInput=[];for(const name of ['touchstart','touchmove','touchend','touchcancel','pointerdown','pointerup'])w.addEventListener(name,e=>{const list=e.touches?.length?e.touches:e.changedTouches;const p=list?.[0];let target=e.target;const ancestry=[];while(target&&ancestry.length<8){ancestry.push(target.id||target.tagName);target=target.parentElement;}w.__viewerInput.push({type:name,touches:e.touches?.length,time:e.timeStamp,x:p?.clientX,y:p?.clientY,ancestry});if(w.__viewerInput.length>32)w.__viewerInput.shift();},{capture:true,passive:true});return true})()")
+            if(name.endsWith(".hwpx")||name.endsWith(".docx")){
+                val r=documentBounds();device.swipe(r.centerX(),r.top+r.height()*3/4,r.centerX(),r.top+r.height()/3,30)
+                waitFor("Actual one-finger scrolling reaches another page"){JSONObject(eval(kind,state)).getInt(index)>0}
+                record.put("actualAndroidContinuousScroll",true)
+            }
+            if(name.endsWith(".pptx")){
+                val coverage="(()=>{const l=app.activeDocument.activeLayout,r=l.viewRectangles?.[0],f=l.frameSize;return r?Math.max(r.pWidth/f.pX,r.pHeight/f.pY):0})()"
+                waitFor("A real slide, rather than the whole stacked file, fits the viewport"){eval(kind,coverage).toDouble() in .8..1.05}
+                record.put("fitViewportCoverage",eval(kind,coverage).toDouble())
+                val r=documentBounds();device.swipe(r.left+r.width()*3/4,r.top+r.height()/2,r.left+r.width()/4,r.top+r.height()/2,25)
+                waitFor("Native horizontal gesture reaches next slide"){JSONObject(eval(kind,state)).getInt(index)>0}
+                record.put("actualAndroidSlideSwipe",true)
+                assertEquals("true",eval(kind,"window.studioOffice.navigate(14)"))
+                waitFor("Actual middle slide fifteen selected"){JSONObject(eval(kind,state)).getInt(index)==14}
+                record.put("middlePageReached",true)
+            }
+            if(name.endsWith(".xlsx")){
+                tap("문서 메뉴");tap("시트 목록");tap("Viewer 3")
+                waitFor("Third native sheet selected"){JSONObject(eval(kind,state)).getInt(index)==2}
+                // Use the actual readonly search UI, not an edit-only UNO address
+                // command rejected by the native frontend's readonly policy.
+                tap("문서 메뉴");tap("찾기")
+                // Calc also exposes an address EditText. Focus the exact host
+                // search element, then type through Android's focused field.
+                assertEquals("true",eval(kind,"(()=>{const q=document.getElementById('studio-office-search-query');q?.focus();return document.activeElement===q})()"))
+                val input=device.wait(Until.findObject(By.pkg(context.packageName).clazz("android.widget.EditText").focused(true)),10000)
+                    ?: throw AssertionError("Actual readonly cell search field missing")
+                input.text="CELL_CV5000_S3"
+                waitFor("Actual query receives the search text"){eval(kind,"document.getElementById('studio-office-search-query').value")=="CELL_CV5000_S3"}
+                tap("다음 결과");tap("설정 닫기")
+                waitFor("Native search reaches the distant populated cell"){
+                    eval(kind,"app.activeDocument.activeLayout.viewedRectangle.x1>10000 && app.activeDocument.activeLayout.viewedRectangle.y1>100000")=="true"
+                }
+                record.put("distantCellReachedBySearch",true)
+                record.put("distantCell","CV5000")
+            }else{
+                tap("문서 메뉴");tap("마지막 페이지")
+                waitFor("Actual last logical page selected"){JSONObject(eval(kind,state)).getInt(index)==count-1}
+                tap("이전 페이지");waitFor("Actual previous page"){JSONObject(eval(kind,state)).getInt(index)==count-2}
+                tap("다음 페이지");waitFor("Actual next page"){JSONObject(eval(kind,state)).getInt(index)==count-1}
+            }
+            val zoom=if(kind=="hangul")api+".captureView().zoom" else "app.map.getZoom()"
+            slideStage("beforePinch")
+            val before=eval(kind,zoom).toDouble();pinch()
+            waitFor("Actual Android two-finger input changes display scale"){eval(kind,zoom).toDouble()>before+.01}
+            slideStage("afterPinch")
+            record.put("zoomBefore",before).put("zoomAfter",eval(kind,zoom).toDouble()).put("actualAndroidPinch",true)
+            if(kind=="hangul"){
+                SystemClock.sleep(800) // Ignore the completed pinch's compatibility taps.
+                val beforeDouble=eval(kind,zoom).toDouble();val r=documentBounds()
+                device.click(r.centerX(),r.top+r.height()*2/5);SystemClock.sleep(100);device.click(r.centerX(),r.top+r.height()*2/5)
+                waitFor("Hangul reading double tap changes display zoom"){kotlin.math.abs(eval(kind,zoom).toDouble()-beforeDouble)>.1}
+                assertEquals("READING",eval(kind,"document.body.dataset.state"))
+                record.put("readingDoubleTapZoom",true).put("doubleTapStaysReadonly",true)
+            }
+            if(kind=="office"){
+                waitFor("Native pinch animation has settled"){eval(kind,"app.map._docLayer._isZooming!==true")=="true"}
+                val beforeDouble=eval(kind,zoom).toDouble();val r=documentBounds()
+                device.click(r.centerX(),r.top+r.height()*2/5);SystemClock.sleep(100);device.click(r.centerX(),r.top+r.height()*2/5)
+                waitFor("Office reading double tap zooms without entering editing"){eval(kind,zoom).toDouble()>beforeDouble+.01}
+                assertEquals("false",eval(kind,"app.map.isEditMode()"))
+                assertEquals("false",eval(kind,"window.studioOffice.authorized"))
+                record.put("readingDoubleTapZoom",true).put("doubleTapStaysReadonly",true)
+            }
+            slideStage("afterDoubleTap")
+            if(name.endsWith(".docx")){
+                tap("문서 메뉴");tap("첫 페이지")
+                waitFor("First page"){JSONObject(eval(kind,state)).getInt(index)==0}
+                val y=eval(kind,"app.activeDocument.activeLayout.viewedRectangle.y1").toDouble()
+                val r=documentBounds();device.swipe(r.centerX(),r.top+r.height()*3/4,r.centerX(),r.top+r.height()/3,30)
+                waitFor("Writer continuous layout scrolls beyond first page"){eval(kind,"app.activeDocument.activeLayout.viewedRectangle.y1").toDouble()>y+100}
+                record.put("continuousScroll",true)
+            }
+            val beforeRotation=JSONObject(eval(kind,state));val zoomBeforeRotation=eval(kind,zoom).toDouble()
+            val rotationToken=UUID.randomUUID().toString();eval(kind,"window.__viewerRotationToken="+JSONObject.quote(rotationToken))
+            device.setOrientationLeft();SystemClock.sleep(1000)
+            waitFor("Viewer survives native landscape rotation"){eval(kind,"innerWidth>innerHeight")=="true" && JSONObject(eval(kind,state)).getInt(total)==count}
+            slideStage("afterLandscape")
+            device.setOrientationNatural()
+            waitFor("Viewer is ready after returning to portrait"){eval(kind,"innerWidth<innerHeight")=="true" && JSONObject(eval(kind,state)).getInt(total)==count}
+            slideStage("afterPortrait")
+            if(name.endsWith(".pptx")){
+                for(stage in listOf("beforePinch","afterPinch","afterDoubleTap","afterLandscape","afterPortrait")){
+                    assertEquals("Slide position must remain at thirty: "+stage,29,record.getJSONObject(stage).getInt("index"))
+                    assertTrue("A real slide is visible: "+stage,record.getJSONObject(stage).getBoolean("visible"))
+                }
+                for((first,next,key) in listOf(Triple("beforePinch","afterPinch","focal42"),Triple("afterPinch","afterDoubleTap","focal40"))){
+                    val a=record.getJSONObject(first).getJSONObject(key);val b=record.getJSONObject(next).getJSONObject(key)
+                    assertEquals("Horizontal document focal point: "+key,a.getDouble("x"),b.getDouble("x"),40.0)
+                    assertEquals("Vertical document focal point: "+key,a.getDouble("y"),b.getDouble("y"),40.0)
+                }
+                record.put("slidePositionPreserved",true).put("documentFocalPointPreserved",true)
+            }
+            assertFalse(File(working.path+".edited").exists())
+            assertEquals(workingHash,DocumentRepository.digest(working));assertEquals(originalHash,DocumentRepository.digest(original))
+            if(kind=="hangul"){
+                assertEquals("Rotation must keep the same live engine",rotationToken,eval(kind,"window.__viewerRotationToken"))
+                record.put("sameEngineAcrossRotation",true)
+                assertEquals("Rotation keeps the document page",beforeRotation.getInt(index),JSONObject(eval(kind,state)).getInt(index))
+                assertEquals("Rotation keeps display zoom",zoomBeforeRotation,eval(kind,zoom).toDouble(),.002)
+                record.put("rotationPageAndZoomPreserved",true)
+            }
+            record.put("finalState",JSONObject(eval(kind,state))).put("nativeRotation",true).put("workingUnchanged",true).put("originalUnchanged",true)
+            if(name.endsWith(".pptx")){
+                device.takeScreenshot(File(evidence,name+"-zoom.png"))
+                val enlarged=eval(kind,zoom).toDouble()
+                tap("화면 너비 맞춤")
+                waitFor("Fit restores a real last slide after zoom"){
+                    JSONObject(eval(kind,state)).getInt(index)==count-1 && eval(kind,zoom).toDouble()<enlarged-.1
+                }
+                var ink=0
+                waitFor("The fitted slide actually paints text, not only a page counter",20000){
+                    val box=JSONObject(eval(kind,"JSON.stringify(document.getElementById('document-canvas').getBoundingClientRect().toJSON())"))
+                    val bounds=documentBounds();val scale=bounds.width()/eval(kind,"innerWidth").toDouble()
+                    val screenshot=File(evidence,name+"-fit.png");device.takeScreenshot(screenshot)
+                    val bitmap=android.graphics.BitmapFactory.decodeFile(screenshot.path)
+                    try{
+                        val left=(bounds.left+box.getDouble("left")*scale+8).toInt().coerceIn(0,bitmap.width-1)
+                        val top=(bounds.top+box.getDouble("top")*scale+8).toInt().coerceIn(0,bitmap.height-1)
+                        val right=(bounds.left+box.getDouble("right")*scale-8).toInt().coerceIn(left+1,bitmap.width)
+                        val bottom=(bounds.top+box.getDouble("bottom")*scale-8).toInt().coerceIn(top+1,bitmap.height)
+                        ink=0
+                        for(y in top until bottom step 2)for(x in left until right step 2){
+                            val color=bitmap.getPixel(x,y)
+                            if(android.graphics.Color.red(color)<80 && android.graphics.Color.green(color)<80 && android.graphics.Color.blue(color)<80)ink++
+                        }
+                    }finally{bitmap.recycle()}
+                    ink>100
+                }
+                record.put("fitAfterZoomRestoresLastSlide",true).put("fittedSlideBodyDarkPixels",ink)
+                    .put("fittedState",JSONObject(eval(kind,state)))
+            }
+            device.takeScreenshot(File(evidence,name+".png"))
+            device.pressBack()
+            if(kind=="office")waitFor("Office close request"){File(working.path+".close-request").isFile}
+            else waitFor("Hangul close"){closed.isFile}
+            if(kind=="office"){waitFor("Native Office exits"){device.executeShellCommand("pidof "+context.packageName+":office").trim().isEmpty()};assertFalse(repo.completeOfficeClose(session))}
+            assertEquals(originalHash,DocumentRepository.digest(original));assertFalse(File(working.path+".edited").exists())
+            completed=true
+        }finally{
+            runCatching {device.setOrientationNatural();device.unfreezeRotation()}
+            runCatching {probeClient.close()}
+            if(!completed)runCatching {
+                record.put("touchInput",org.json.JSONArray(eval(kind,if(kind=="hangul")"JSON.stringify(document.getElementById('engine').contentWindow.__viewerInput||[])" else "JSON.stringify(window.__viewerInput||[])")))
+                record.put("observedState",JSONObject(eval(kind,state)))
+                if(kind=="office")record.put("officeGeometry",JSONObject(eval(kind,"JSON.stringify({hostReady:window.studioOffice.ready,initialIntentHandled:window.studioOffice.initialIntentHandled,layout:app.activeDocument?.activeLayout?.type,view:app.activeDocument?.activeLayout?.viewedRectangle,zoom:app.map.getZoom(),address:(document.querySelector('#addressInput input')||document.querySelector('input#addressInput'))?.value,cellAddress:app.map.stateChangeHandler.getItemValue('.uno:CellAddress'),changed:window.studioOffice.changed,dpiScale:app.dpiScale,twipsToPixels:app.twipsToPixels,frame:app.activeDocument?.activeLayout?.frameSize,fileSize:app.activeDocument?.fileSize,firstPart:app.impress?.partList?.[0],pageRects:app.file?.writer?.pageRectangleList?.slice(0,2)})")))
+            }
+            record.put("completed",completed);File(evidence,name+".json").writeText(record.toString(2))
+            if(!completed){
+                runCatching {device.dumpWindowHierarchy(File(evidence,name+"-failure.xml"));device.takeScreenshot(File(evidence,name+"-failure.png"))}
+                for(metadata in listOf("office-lifecycle.json","office-view-state-error.json","office-view-state.json")){
+                val file=File(working.parentFile,metadata)
+                if(file.isFile)file.copyTo(File(evidence,name+"-"+metadata),overwrite=true)
+            }
+            // Preserve documents and metadata; stop only the isolated failed engine.
+                runCatching {device.executeShellCommand("pidof "+context.packageName+":"+kind).trim().split(Regex("\\s+")).mapNotNull {it.toIntOrNull()}.forEach {android.os.Process.killProcess(it)}}
+            }
+        }
+    }
+}

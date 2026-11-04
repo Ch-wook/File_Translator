@@ -107,3 +107,7 @@ Gradle 직접 호출에는 `-Pstudio.buildRoot=<절대 경로>`를 사용합니�
 ## GitHub 설치 파일
 
 설치 APK는 Git 소스 폴더가 아닌 [Releases](https://github.com/Ch-wook/File_Translator/releases)에 첨부합니다. 서명·검사를 마친 APK와 해당 파일의 SHA-256을 업로드하고, 공개 다운로드 응답·파일 크기·서버 SHA-256을 대조합니다. 새 버전은 별도의 태그/릴리스로 배포하며 기존 릴리스를 교체하지 않습니다.
+
+## 작업 브랜치의 Linux/macOS 빌드
+
+Windows의 기존 준비 스크립트를 유지하며, 다른 OS에서는 `python3 scripts/prepare-office-engine.py`가 동일한 엔진 APK를 검증·추출합니다. Python 3.11 이상, JDK 17과 위 Android SDK/NDK/CMake가 필요합니다. `ANDROID_HOME`을 지정한 뒤 `./gradlew :core:test :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug`를 실행합니다. 개발 APK는 출시 서명 APK와 다릅니다. [편집 변경·검증](EDITOR_WORKSPACE_20261024.md).

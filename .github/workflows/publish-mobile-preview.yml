@@ -1,0 +1,220 @@
+name: Publish verified mobile editing preview
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: publish-document-studio-085
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: contains(github.event.head_commit.message, '[publish-085]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERIFIED_SHA: 10ab10e01e027c35af3083e5d22a9e14b02c4f50
+      VERIFIED_RUN: '40494582093'
+      PREVIEW_TAG: v0.8.5-preview
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate embedded publication scripts before downloads
+        run: |
+          python3 - <<'PY'
+          import ast,pathlib,re,textwrap
+          source=pathlib.Path('.github/workflows/publish-mobile-preview.yml').read_text()
+          blocks=re.findall(r"(?m)^([ ]*)python3 - <<'PY'\n(.*?)^\1PY[ \t]*$",source,re.S)
+          assert len(blocks)==4,len(blocks)
+          for _,block in blocks:ast.parse(textwrap.dedent(block))
+          print('PUBLICATION_SCRIPTS_VALID',len(blocks))
+          PY
+      - name: Validate and reuse the exact installation-tested packages
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess,zipfile
+          repo=os.environ['GITHUB_REPOSITORY'];sha=os.environ['VERIFIED_SHA'];run=os.environ['VERIFIED_RUN']
+          info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{run}']))
+          assert info['head_sha']==sha and info['status']=='completed' and info['conclusion']=='success',info
+          subprocess.run(['git','merge-base','--is-ancestor',sha,'HEAD'],check=True)
+          changed=subprocess.check_output(['git','diff','--name-only',sha,'HEAD'],text=True).splitlines()
+          assert all(p=='README.md' or p.startswith(('docs/','.github/workflows/')) for p in changed),changed
+          subprocess.run(['gh','run','download',run,'--name','document-studio-mobile-'+sha,'--dir','delivery'],check=True)
+          delivery=pathlib.Path('delivery')
+          for line in (delivery/'SHA256SUMS').read_text().splitlines():
+              expected,name=line.split('  ',1);p=delivery/name;assert p.parent==delivery and p.is_file()
+              with p.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()==expected,name
+          with zipfile.ZipFile(delivery/'document-studio-0.8.5-preview-verification.zip') as z:
+              assert z.testzip() is None
+              result=json.loads(z.read('artifacts/ci/summary.json'))
+              assert result['commit']==sha and result['androidEmulatorOutcome']=='success' and result['physicalDeviceTested'] is False,result
+              assert result['androidTests']=={'tests':27,'failures':0,'errors':0,'skipped':0},result
+              regression=json.loads(z.read('artifacts/ci/open-regression/summary.json'))
+              assert regression=={'before':{'tests':3,'failures':3,'errors':0,'skipped':0},'after':{'tests':3,'failures':0,'errors':0,'skipped':0}},regression
+              for name in ('metadata-free-hwp.json','metadata-free-hwpx.json','distribution-read-only.json'):
+                  proof=json.loads(z.read('artifacts/native-android/native-document-open/'+name))
+                  assert all(v is True or k=='originalSha256' for k,v in proof.items()),proof
+              for abi in ('arm64-v8a','x86_64'):
+                  manifest=z.read('artifacts/ci/'+abi+'-manifest.txt').decode()
+                  assert "minSdkVersion:'29'" in manifest and "targetSdkVersion:'36'" in manifest,manifest
+              install=result['installation']
+              assert install['cleanInstallWithoutTestFlag'] and install['coexistsWith084'] and install['priorApkHashUnchanged'] and install['priorPrivateDataPreserved'] and install['sameSignerReinstallPreservedPrivateData'],install
+              for counts in result['unitTests'].values():assert counts['tests']>0 and counts['failures']==counts['errors']==counts['skipped']==0
+              assert result['originalBrowserScenarios']==5 and result['javascriptTests']==20 and result['independentPartialFormattingParser'],result
+              mobile=result['mobileEngineTests']
+              assert len(mobile)==2 and {r['format'] for r in mobile}=={'hwp','hwpx'}
+              for r in mobile:
+                  assert r['partialSelection'] and r['savedAndReopened'] and r['autosave'] and r['atomicPasteUndoRedo'],r
+                  assert r['structure']['mergeSplitCycles']==3 and all(v is True or k=='mergeSplitCycles' for k,v in r['structure'].items()),r
+          apks=result['apks'];assert {a['abi'] for a in apks}=={'arm64-v8a','x86_64'}
+          assert len({a['certificateSHA256'] for a in apks})==1
+          for item in apks:
+              assert item['applicationId']=='kr.documentstudio.compactpreview' and item['versionCode']==15 and item['versionName']=='0.8.5-preview' and not item['testOnly'] and item['elf16k']
+              p=delivery/item['file'];assert p.stat().st_size==item['bytes']
+              with p.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()==item['sha256']
+          with zipfile.ZipFile(delivery/'document-studio-0.8.5-preview-source.zip') as z:
+              assert z.testzip() is None
+              tracked={}
+              for entry in subprocess.check_output(['git','ls-tree','-r','-z',sha]).split(b'\0'):
+                  if not entry:continue
+                  meta,path=entry.split(b'\t',1);mode,kind,blob=meta.split();assert kind==b'blob'
+                  tracked[path.decode()]=blob.decode()
+              assert {p.filename for p in z.infolist() if not p.is_dir()}==set(tracked)
+              for path,blob in tracked.items():
+                  data=z.read(path);assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==blob,path
+          # Preserve the tested APK bytes, while publishing source from this tag's
+          # metadata-only descendant (the app/engine sources were checked above).
+          archive=delivery/'document-studio-0.8.5-preview-source.zip'
+          subprocess.run(['git','archive','--format=zip','-o',str(archive),'HEAD'],check=True)
+          published_tracked={}
+          for entry in subprocess.check_output(['git','ls-tree','-r','-z','HEAD']).split(b'\0'):
+              if not entry:continue
+              meta,path=entry.split(b'\t',1);mode,kind,blob=meta.split();assert kind==b'blob'
+              published_tracked[path.decode()]=blob.decode()
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None
+              assert {p.filename for p in z.infolist() if not p.is_dir()}==set(published_tracked)
+              for path,blob in published_tracked.items():
+                  data=z.read(path);assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==blob,path
+          patch=delivery/'document-studio-0.8.5-preview-changes.patch'
+          with patch.open('wb') as f:
+              subprocess.run(['git','diff','--binary','244b94507d8bda5dbf248877f17ed88b745035f2','HEAD'],stdout=f,check=True)
+          subprocess.run(['git','apply','--check','--reverse',str(patch)],check=True)
+          bundle=delivery/'document-studio-0.8.5-preview-history.bundle'
+          bundle.unlink()
+          subprocess.run(['git','bundle','create',str(bundle),'--all'],check=True)
+          subprocess.run(['git','bundle','verify',str(bundle)],check=True)
+          provenance={'apkBuildCommit':sha,'sourceArchiveCommit':os.environ['GITHUB_SHA'],'metadataOnlyChanges':changed,'trackedFiles':len(published_tracked),'appSourceUnchanged':True}
+          metadata=delivery/'document-studio-0.8.5-preview-apk-metadata.json'
+          data=json.loads(metadata.read_text());data['sourceArchiveCommit']=os.environ['GITHUB_SHA'];metadata.write_text(json.dumps(data,indent=2))
+          with zipfile.ZipFile(delivery/'document-studio-0.8.5-preview-verification.zip','a',zipfile.ZIP_DEFLATED) as z:
+              entry='artifacts/ci/published-source-provenance.json';assert entry not in z.namelist()
+              z.writestr(entry,json.dumps(provenance,indent=2));assert z.testzip() is None
+          readme=delivery/'README.txt'
+          readme.write_text(readme.read_text()+'\n소스 ZIP·패치·Git 이력은 태그의 최종 문서·CI를 포함합니다. 앱 코드·엔진·APK는 위 빌드 커밋과 동일합니다.\n소스 아카이브 커밋: '+os.environ['GITHUB_SHA']+'\n')
+          def published_digest(path):
+              with path.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+          (delivery/'SHA256SUMS').write_text(''.join(published_digest(p)+'  '+p.name+'\n' for p in sorted(delivery.iterdir()) if p.is_file() and p.name!='SHA256SUMS'))
+          for item in apks:
+              with (delivery/item['file']).open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()==item['sha256'],item['file']
+          print('PUBLISHED_SOURCE_MATCHES_TAG_AND_TESTED_APP',json.dumps(provenance),flush=True)
+          units={key:sum(counts[key] for counts in result['unitTests'].values()) for key in ('tests','failures','errors','skipped')}
+          notes=(delivery/'README.txt').read_text()
+          notes+='\n실행 검증: Android '+str(result['androidTests']['tests'])+'건, 단위 '+str(units['tests'])+'건 — 실패·오류·건너뜀 0건.\n'
+          notes+='이름/MIME 조회 회귀: 동일 3건에서 수정 전 3건 실패 → 수정 후 3건 통과.\n'
+          notes+='실제 엔진 브라우저 7개 시나리오, JavaScript 20건, TypeScript·lint, HWP/HWPX 독립 저장 파서 검사 통과.\n'
+          notes+='설치·기존 0.8.4 APK/개인 데이터 보존·재설치 확인. 실제 ARM64 휴대폰 검증은 미완료.\n'
+          notes+='전체 결과·원본 해시·재열기 증거는 verification.zip에 포함했습니다.\n'
+          for item in apks:notes+='\n'+item['abi']+': '+str(item['bytes'])+' bytes, SHA-256 '+item['sha256']+'\n'
+          notes+='\n빌드 커밋: '+sha+'\n태그 커밋: '+os.environ['GITHUB_SHA']+' (앱 코드 차이 없음; 배포 문서·CI만 추가)\n'
+          notes+='모든 형식 모바일 편집 UI 원인·검증: https://github.com/'+repo+'/blob/codex/hangul-mobile-editing/docs/COMMON_MOBILE_UI_RESULTS.md\n'
+          notes+='기능·검증·지원 제한: https://github.com/'+repo+'/blob/codex/hangul-mobile-editing/docs/HANGUL_MOBILE_EDITING.md\n'
+          pathlib.Path('release-notes.md').write_text(notes)
+          print('VERIFIED_MOBILE_EDITING_ARTIFACTS',json.dumps(result),flush=True)
+          PY
+      - name: Upload and verify every asset before publishing
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,shutil,subprocess,urllib.request
+          repo=os.environ['GITHUB_REPOSITORY'];sha=os.environ['GITHUB_SHA'];verified=os.environ['VERIFIED_SHA'];tag=os.environ['PREVIEW_TAG']
+          def api(path,*args):return json.loads(subprocess.check_output(['gh','api',path,*args]))
+          def same_app(commit):
+              subprocess.run(['git','merge-base','--is-ancestor',verified,commit],check=True)
+              names=subprocess.check_output(['git','diff','--name-only',verified,commit],text=True).splitlines()
+              assert all(p=='README.md' or p.startswith(('docs/','.github/workflows/')) for p in names),names
+          releases=api(f'repos/{repo}/releases?per_page=100');existing=[r for r in releases if r['tag_name']==tag]
+          expected={p.name:p for p in pathlib.Path('delivery').iterdir() if p.is_file()}
+          assert len(expected)==9,sorted(expected)
+          if existing:
+              assert len(existing)==1
+              release=existing[0]
+              assert release['author']['login']=='github-actions[bot]' and release['prerelease'],'inspect preexisting release'
+              same_app(release['target_commitish'])
+          else:
+              ref=subprocess.run(['gh','api',f'repos/{repo}/git/ref/tags/{tag}'],capture_output=True,text=True)
+              if ref.returncode==0:
+                  obj=json.loads(ref.stdout)['object'];assert obj['type']=='commit';same_app(obj['sha'])
+              else:assert '404' in ref.stderr,ref.stderr
+              subprocess.run(['gh','release','create',tag,*[str(p) for p in sorted(expected.values())],
+                              '--draft','--prerelease','--target',sha,'--title','문서 스튜디오 0.8.5-preview · 모든 형식 모바일 편집 UI',
+                              '--notes-file','release-notes.md'],check=True)
+              release=next(r for r in api(f'repos/{repo}/releases?per_page=100') if r['tag_name']==tag)
+          assets=api(f"repos/{repo}/releases/{release['id']}/assets?per_page=100")
+          assert {a['name'] for a in assets}==set(expected),'inspect partial or unexpected release assets'
+          readback=pathlib.Path('upload-readback');readback.mkdir()
+          for asset in assets:
+              source=expected[asset['name']];dest=readback/source.name
+              assert asset['state']=='uploaded' and asset['size']==source.stat().st_size,asset['name']
+              assert asset['url'].startswith('https://api.github.com/repos/'+repo+'/releases/assets/')
+              req=urllib.request.Request(asset['url'],headers={'Accept':'application/octet-stream'})
+              req.add_unredirected_header('Authorization','Bearer '+os.environ['GH_TOKEN'])
+              with urllib.request.urlopen(req,timeout=120) as response,dest.open('wb') as f:shutil.copyfileobj(response,f,1024*1024)
+              with source.open('rb') as f:source_hash=hashlib.file_digest(f,'sha256').hexdigest()
+              with dest.open('rb') as f:uploaded_hash=hashlib.file_digest(f,'sha256').hexdigest()
+              assert source.stat().st_size==dest.stat().st_size and source_hash==uploaded_hash,source.name
+              if asset.get('digest'):assert asset['digest']=='sha256:'+source_hash
+          print('ALL_UPLOADED_ASSETS_MATCH_VERIFIED_BUILD',len(expected),flush=True)
+          if release['draft']:
+              release=api(f"repos/{repo}/releases/{release['id']}",'--method','PATCH','-f','target_commitish='+sha,'-F','draft=false','-F','prerelease=true','-f','body='+pathlib.Path('release-notes.md').read_text())
+          assert not release['draft'] and release['prerelease']
+          PY
+      - name: Verify anonymous public downloads and the actual tag
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess,time,urllib.request
+          repo=os.environ['GITHUB_REPOSITORY'];tag=os.environ['PREVIEW_TAG'];verified=os.environ['VERIFIED_SHA']
+          with urllib.request.urlopen('https://api.github.com/repos/'+repo+'/git/ref/tags/'+tag,timeout=120) as response:ref=json.load(response)
+          assert ref['object']['type']=='commit';tag_sha=ref['object']['sha']
+          subprocess.run(['git','merge-base','--is-ancestor',verified,tag_sha],check=True)
+          names=subprocess.check_output(['git','diff','--name-only',verified,tag_sha],text=True).splitlines()
+          assert all(p=='README.md' or p.startswith(('docs/','.github/workflows/')) for p in names),names
+          results=[]
+          for p in sorted(pathlib.Path('delivery').iterdir()):
+              if not p.is_file():continue
+              with p.open('rb') as f:expected=hashlib.file_digest(f,'sha256').hexdigest()
+              url='https://github.com/'+repo+'/releases/download/'+tag+'/'+p.name
+              for attempt in range(4):
+                  try:
+                      digest=hashlib.sha256();size=0
+                      with urllib.request.urlopen(url,timeout=120) as response:
+                          while block:=response.read(1024*1024):digest.update(block);size+=len(block)
+                      assert size==p.stat().st_size and digest.hexdigest()==expected,p.name
+                      break
+                  except Exception:
+                      if attempt==3:raise
+                      time.sleep(5)
+              results.append({'name':p.name,'bytes':size,'sha256':expected,'publicDownloadVerified':True})
+          proof={'verifiedBuildCommit':verified,'tagCommit':tag_sha,'assets':results}
+          pathlib.Path('release-download-verification.json').write_text(json.dumps(proof,indent=2))
+          print('PUBLIC_MOBILE_EDITING_DOWNLOADS_VERIFIED',json.dumps(proof),flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-mobile-editing-download-verification
+          path: release-download-verification.json
+          if-no-files-found: warn

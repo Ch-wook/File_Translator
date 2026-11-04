@@ -52,12 +52,20 @@ object PdfImages {
             val (x,y,w,h)=r.map {it.toDouble()/100}
             require(x>=0 && y>=0 && w>0 && h>0 && x+w<=1.000001 && y+h<=1.000001) {"이미지 위치·크기가 페이지 범위를 벗어납니다."}
             val (display,width,height)=display(page)
-            display.times(Affine(a=w*width,d=h*height,e=x*width,f=(1-y-h)*height))
+            Affine(a=w*width,d=h*height,e=x*width,f=(1-y-h)*height)
         }
         val tokens=walk(page) {index,name,matrix -> if(index!=id) null else {
             require(fingerprint(name,matrix)==expected) {"이미지가 변경되었습니다. 목록을 다시 여세요."};found=true
             if(desired==null) emptyList() else {
-                val transform=matrix.inverse().times(desired)
+                val (display,_,_)=display(page)
+                val visible=display.inverse().times(matrix)
+                val corners=listOf(visible.point(0.0,0.0),visible.point(1.0,0.0),visible.point(0.0,1.0),visible.point(1.0,1.0))
+                val left=corners.minOf {it.first};val bottom=corners.minOf {it.second}
+                val oldWidth=corners.maxOf {it.first}-left;val oldHeight=corners.maxOf {it.second}-bottom
+                require(oldWidth>0 && oldHeight>0)
+                val sx=desired.a/oldWidth;val sy=desired.d/oldHeight
+                val adjusted=display.times(Affine(a=sx,d=sy,e=desired.e-left*sx,f=desired.f-bottom*sy)).times(visible)
+                val transform=matrix.inverse().times(adjusted)
                 require(transform.values().all {it.isFinite() && abs(it)<=1e9}) {"이미지 변환 범위를 초과했습니다."}
                 listOf(Operator.getOperator("q"))+transform.values().map {COSFloat(it.toFloat())}+listOf(Operator.getOperator("cm"),COSName.getPDFName(name),Operator.getOperator("Do"),Operator.getOperator("Q"))
             }

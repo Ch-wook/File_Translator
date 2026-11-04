@@ -1,0 +1,101 @@
+name: Hangul mobile editing verification
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hangul-mobile-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  web:
+    if: "!contains(github.event.head_commit.message, '[native-only]') && !contains(github.event.head_commit.message, '[audit-editors]') && !contains(github.event.head_commit.message, '[publish-') && !contains(github.event.head_commit.message, '[diagnose-083]') && !contains(github.event.head_commit.message, '[release-build]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Prepare tools
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;35.0.0"
+          chmod +x gradlew
+          mkdir -p artifacts/hangul-mobile artifacts/ci
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: android-gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: android-gradle-${{ runner.os }}-
+      - uses: actions/cache@v4
+        id: engine-cache
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: hangul-public-tools-${{ runner.os }}-${{ github.sha }}
+          restore-keys: hangul-public-tools-${{ runner.os }}-
+      - name: Prepare fixtures and the actual offline Rhwp engine
+        run: |
+          python3 scripts/prepare-open-fixtures.py
+          ./gradlew :core:test :core:prepareVisualFixtures --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/fixtures.log
+          python3 scripts/prepare-hangul-engine.py 2>&1 | tee artifacts/ci/hangul-prepare.log
+      - name: Bridge policies and mobile engine acceptance
+        run: |
+          npm ci --prefix scripts/tests
+          node --test --test-reporter=tap scripts/tests/*.test.cjs 2>&1 | tee artifacts/ci/javascript.log
+          cd scripts/tests
+          npx playwright install chromium
+          node mobile-ui-layout.cjs 2>&1 | tee ../../artifacts/ci/mobile-ui-layout.log
+          npm run test:hangul 2>&1 | tee ../../artifacts/ci/hangul-browser.log
+          TABLE_SAVE_DIAGNOSTIC=1 node hangul-mobile.cjs 2>&1 | tee ../../artifacts/ci/table-save-browser.log
+          (cd ../.. && ./gradlew :core:inspectTableSave --configure-on-demand --max-workers=2 --console=plain) 2>&1 | tee ../../artifacts/ci/table-save-records.log
+          node hangul-mobile.cjs 2>&1 | tee ../../artifacts/ci/hangul-mobile.log
+          node signature-conversion.cjs 2>&1 | tee ../../artifacts/ci/signature-conversion.log
+          pip install Pillow
+          (cd ../.. && python3 scripts/verify-signature-conversion.py)
+      - name: Independent saved-file parser checks
+        run: |
+          ./gradlew :core:verifyVisualRoundTrip :core:verifyMobileRoundTrip --configure-on-demand --max-workers=2 --console=plain 2>&1 | tee artifacts/ci/roundtrip.log
+      - uses: actions/cache/save@v4
+        if: always() && steps.engine-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: hangul-public-tools-${{ runner.os }}-${{ github.sha }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hangul-mobile-web-${{ github.sha }}
+          path: |
+            artifacts/hangul-mobile/
+            artifacts/signature-conversion/
+            artifacts/mobile-ui/
+            artifacts/ci/
+            artifacts/document-engines/
+            core/build/visual-fixtures/
+            core/build/test-results/
+          if-no-files-found: error

@@ -16,7 +16,7 @@ import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
-data class Field(val id: String, val label: String, val text: String, val bold: Boolean = false,val styles: Map<String,String> = emptyMap())
+data class Field(val id: String, val label: String, val text: String, val bold: Boolean = false,val styles: Map<String,String> = emptyMap(),val paragraph: String = id)
 data class Section(val id: String, val title: String, val fields: List<Field>, val cells: Map<String, String> = emptyMap(),val cellStyles: Map<String,Map<String,String>> = emptyMap(),val sourceName: String=title,val date1904: Boolean=false)
 
 object Xml {
@@ -87,10 +87,10 @@ class PackageDocument private constructor(val source: File, val format: Format, 
             val header=if(hwpx) Xml.parse(read("Contents/header.xml")) else null
             fun textSection(path: String, title: String): Section {
                 val doc = Xml.parse(read(path))
+                val paragraphs=Xml.elements(doc,"p").mapIndexed {i,p->p to "$path:p$i"}.toMap()
                   val tableNumbers=if(format==Format.HWPX) Xml.elements(doc,"tbl").mapIndexed {i,t->t to i+1}.toMap() else emptyMap()
                 val fields = Xml.elements(doc, "t").filter { e ->
-                    e.namespaceURI in listOf(W, A, "http://www.hancom.co.kr/hwpml/2011/paragraph") &&
-                        (0 until e.childNodes.length).none { e.childNodes.item(it) is Element }
+                    TextRuns.isText(e)
                 }.mapIndexed { i, e ->
                     val bold = if (format == Format.DOCX) Xml.child(e.parentNode as Element, "rPr")?.let { pr ->
                         Xml.child(pr, "b")?.getAttributeNS(W, "val")?.let { it !in listOf("0", "false", "off") } ?: false
@@ -103,6 +103,7 @@ class PackageDocument private constructor(val source: File, val format: Format, 
                             Xml.child(pr,"rFonts")?.getAttributeNS(W,"eastAsia")?.takeIf {it.isNotBlank()}?.let {put("font",it)}
                             listOf("italic" to "i","strike" to "strike").forEach {(key,name)->if(Xml.child(pr,name)!=null) put(key,(valOf(name) !in listOf("0","false","off")).toString())}
                             valOf("u")?.let {put("underline",(it!="none").toString())}
+                            valOf("highlight")?.let {put("highlight",it)}
                         } else if(format==Format.PPTX && pr!=null) {
                             pr.getAttribute("sz").toDoubleOrNull()?.let {put("size",(it/100).toString())};listOf("bold" to "b","italic" to "i").forEach {(key,name)->if(pr.hasAttribute(name)) put(key,(pr.getAttribute(name)=="1").toString())}
                             Xml.child(pr,"solidFill")?.let {Xml.child(it,"srgbClr")?.getAttribute("val")?.let {color->put("color",color)}}
@@ -111,6 +112,15 @@ class PackageDocument private constructor(val source: File, val format: Format, 
                             val ref=(e.parentNode as Element).getAttribute("charPrIDRef");val char=Xml.elements(header,"charPr").firstOrNull {it.getAttribute("id")==ref}
                             if(char!=null) {char.getAttribute("height").toDoubleOrNull()?.let {put("size",(it/100).toString())};char.getAttribute("textColor").takeIf {it.isNotBlank()}?.let {put("color",it.removePrefix("#"))};listOf("bold","italic").forEach {put(it,(Xml.child(char,it)!=null).toString())};Xml.child(char,"underline")?.let {put("underline",(it.getAttribute("type")!="NONE").toString())}}
                         }
+                        if(format==Format.DOCX) {
+                            val p=generateSequence(e.parentNode) {it.parentNode}.filterIsInstance<Element>().firstOrNull {it.localName=="p"}
+                            p?.let {Xml.child(it,"pPr")}?.let {ppr->
+                                Xml.child(ppr,"jc")?.getAttributeNS(W,"val")?.takeIf {it.isNotEmpty()}?.let {put("align",it)}
+                                Xml.child(ppr,"spacing")?.let {spacing->
+                                    if(spacing.getAttributeNS(W,"lineRule") in listOf("","auto")) spacing.getAttributeNS(W,"line").toFloatOrNull()?.let {put("lineSpacing",(it/240).toString())}
+                                }
+                            }
+                        }
                     }
                       val tc=if(format==Format.HWPX) generateSequence(e.parentNode) {it.parentNode}.filterIsInstance<Element>().firstOrNull {it.localName=="tc"} else null
                       val label=tc?.let {cell ->
@@ -118,7 +128,8 @@ class PackageDocument private constructor(val source: File, val format: Format, 
                           val table=generateSequence(cell.parentNode) {it.parentNode}.filterIsInstance<Element>().first {it.localName=="tbl"}
                           "표 ${tableNumbers[table]} · ${(address?.getAttribute("rowAddr")?.toIntOrNull() ?: 0)+1}행 ${(address?.getAttribute("colAddr")?.toIntOrNull() ?: 0)+1}열 · 텍스트 ${i+1}"
                       } ?: "텍스트 ${i + 1}"
-                      Field("$path#$i", label, e.textContent, bold,props)
+                      val paragraph=generateSequence(e.parentNode) {it.parentNode}.filterIsInstance<Element>().firstOrNull {it.localName=="p"}
+                      Field("$path#$i", label, TextRuns.read(e), bold,props,paragraphs[paragraph] ?: "$path#$i")
                 }
                 require(fields.size <= 10000) { "편집 가능한 텍스트 수 제한을 초과했습니다." }
                 return Section(path, title, fields)
@@ -186,6 +197,15 @@ class PackageDocument private constructor(val source: File, val format: Format, 
 
     fun write(destination: File, edits: Edits) {
         require(destination.canonicalPath != source.canonicalPath) { "임시 파일로만 저장할 수 있습니다." }
+        // Apply styles against the original IDs before line breaks can add text nodes.
+        if(format!=Format.XLSX && edits.styles.isNotEmpty()) {
+            val styled=File(destination.parentFile,"styled-${java.util.UUID.randomUUID()}.bin")
+            try {
+                PackageFeatures.apply(source,styled,edits.styles)
+                open(styled).write(destination,edits.copy(styles=emptyMap()))
+            } finally {styled.delete()}
+            return
+        }
         val replacements = mutableMapOf<String, ByteArray>()
         ZipFile(source).use { zip ->
             sections.forEach { section ->
@@ -197,14 +217,11 @@ class PackageDocument private constructor(val source: File, val format: Format, 
                     relevant.forEach { (key, value) -> putCell(doc, key.substringAfter('#'), value) }
                     Xml.elements(doc, "dimension").forEach { it.parentNode.removeChild(it) }
                 } else {
-                    val nodes = Xml.elements(doc, "t").filter { e -> e.namespaceURI in listOf(W, A, "http://www.hancom.co.kr/hwpml/2011/paragraph") &&
-                        (0 until e.childNodes.length).none { e.childNodes.item(it) is Element } }
+                    val nodes = Xml.elements(doc, "t").filter(TextRuns::isText)
                     nodes.forEachIndexed { i, node ->
                         val key = "${section.id}#$i"
                         relevant[key]?.let { value ->
-                            require(!value.contains('\n') && !value.contains('\r')) { "텍스트 런 안의 줄바꿈 편집은 지원하지 않습니다." }
-                            node.textContent = value
-                            node.setAttributeNS("http://www.w3.org/XML/1998/namespace", "xml:space", "preserve")
+                            TextRuns.write(node,value)
                         }
                         if (format == Format.DOCX) bold[key]?.let { enabled ->
                             val run = node.parentNode as Element

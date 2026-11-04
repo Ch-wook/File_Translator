@@ -1,0 +1,23 @@
+{
+  "source": "8fae41c228a6cf86178f5da33669ee3d6cc4a08c",
+  "run": 41819669179,
+  "result": {
+    "releaseUnsignedBuild": true,
+    "releaseDebugFixturesAbsent": true,
+    "releaseInternetPermission": false,
+    "credentialPatternFindings": 0,
+    "runtimeMavenModules": 157,
+    "advisoryQueryCompleted": true,
+    "advisoryMatches": 0,
+    "commercialReady": false,
+    "unsignedAPKBytes": 402139762,
+    "blockers": [
+      "Physical ARM64/device and TalkBack validation",
+      "Stable production signing and store/account setup",
+      "Full native/Wasm/advisory triage",
+      "PDFBox Android 2.0.27 security and malformed-file review",
+      "Privacy/ML Kit/system behavior and legal review",
+      "Crash/ANR and frame-time field evidence"
+    ]
+  }
+}

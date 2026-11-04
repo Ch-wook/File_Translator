@@ -28,13 +28,24 @@ object PackageFeatures {
                 val text=texts.getOrNull(index.toInt()) ?: error("텍스트 런이 없습니다.")
                 runStyle(doc,text,properties,format)
             } else if(format==Format.HWPX) {
-                val doc=xml(path);val text=Xml.elements(doc,"t").filter {e->e.namespaceURI==HP && (0 until e.childNodes.length).none {e.childNodes.item(it) is Element}}.getOrNull(index.toInt()) ?: error("한글 런이 없습니다.")
+                val doc=xml(path);val text=Xml.elements(doc,"t").filter {e->e.namespaceURI==HP && TextRuns.isText(e)}.getOrNull(index.toInt()) ?: error("한글 런이 없습니다.")
                 hangulStyle(xml("Contents/header.xml"),doc,text,properties)
             } else error("이 형식의 서식 편집은 지원하지 않습니다.")
         }
         if(change!=null) {
             val args=change.arguments
             when(change.type) {
+                "text.format" -> {
+                    require(format in listOf(Format.DOCX,Format.HWPX))
+                    val doc=xml(change.target)
+                    val paragraph=Xml.elements(doc,"p").getOrNull(args.getValue("paragraph").toInt()) ?: error("문단이 없습니다.")
+                    val props=args.filterKeys {it in setOf("bold","italic","underline","strike","size","font","color","highlight","position","spacing","scale","tracking","offset","align","lineSpacing","style","styleId","beforePt","afterPt","indentMm","firstLineMm","headingType","headingLevel","numberingId")}
+                    require(props.isNotEmpty())
+                    TextRangeFormatting.apply(paragraph,args.getValue("start").toInt(),args.getValue("end").toInt()) {text ->
+                        if(format==Format.HWPX) hangulStyle(xml("Contents/header.xml"),doc,text,props)
+                        else runStyle(doc,text,props,format)
+                    }
+                }
                 "hwpx.columns" -> {
                     require(format==Format.HWPX);val doc=xml(change.target);val columns=(args["columns"] ?: "1").toInt();require(columns in 1..4)
                     val gap=(args["gapMm"] ?: "8").toDouble();require(gap.isFinite() && gap in 0.0..30.0)
@@ -239,6 +250,7 @@ object PackageFeatures {
         val run=text.parentNode as Element;val pr=Xml.child(run,"rPr") ?: doc.element(ns,prefix+"rPr").also {run.insertBefore(it,run.firstChild)}
         fun property(name: String,value: String) {val e=Xml.child(pr,name) ?: doc.element(ns,prefix+name).also {pr.appendChild(it)};e.setAttributeNS(ns,prefix+"val",value)}
         if(format==Format.DOCX) {
+            props["bold"]?.let {property("b",if(it=="true") "1" else "0");property("bCs",if(it=="true") "1" else "0")}
             listOf("italic" to "i","underline" to "u","strike" to "strike").forEach {(key,name)->props[key]?.let {property(name,if(name=="u") if(it=="true") "single" else "none" else if(it=="true") "1" else "0")}}
             props["size"]?.let {val size=it.toDouble();require(size in 1.0..200.0);property("sz",(size*2).toInt().toString());property("szCs",(size*2).toInt().toString())}
             props["color"]?.let {property("color",hex(it))}

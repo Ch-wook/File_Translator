@@ -1,0 +1,444 @@
+{
+  "baseline": "aa3414f1fae89f5f98d10dabb64df85bfd7fc1df",
+  "applicationBuild": "f72c0aaa4f1c7fc15561eea9404ee372cd3488fa",
+  "metadataThrough": "72a451d40dadc67fbb8423f0f008481436e9d414",
+  "note": "Paths changed through this report commit. The source ZIP is checked against every tracked byte of its actual tag; subsequent publication and public-download proof commits only update documentation or CI. The application and engine code are unchanged after the verified APK build.",
+  "files": [
+    {
+      "path": ".github/workflows/mobile-release.yml",
+      "status": "modified"
+    },
+    {
+      "path": ".github/workflows/office-ui-audit.yml",
+      "status": "modified"
+    },
+    {
+      "path": ".github/workflows/publish-quality-preview.yml",
+      "status": "added"
+    },
+    {
+      "path": ".github/workflows/quality-android.yml",
+      "status": "added"
+    },
+    {
+      "path": ".github/workflows/quality-conversion.yml",
+      "status": "added"
+    },
+    {
+      "path": ".github/workflows/quality-failure-inspection.yml",
+      "status": "added"
+    },
+    {
+      "path": ".github/workflows/quality-foundation.yml",
+      "status": "added"
+    },
+    {
+      "path": ".github/workflows/quality-maintenance.yml",
+      "status": "added"
+    },
+    {
+      "path": ".github/workflows/quality-node-audit.yml",
+      "status": "added"
+    },
+    {
+      "path": ".github/workflows/quality-publication-check.yml",
+      "status": "added"
+    },
+    {
+      "path": ".github/workflows/quality-security.yml",
+      "status": "added"
+    },
+    {
+      "path": ".github/workflows/reading-performance.yml",
+      "status": "modified"
+    },
+    {
+      "path": ".github/workflows/reading-ui-focused.yml",
+      "status": "modified"
+    },
+    {
+      "path": ".github/workflows/ui-native-compile.yml",
+      "status": "modified"
+    },
+    {
+      "path": ".github/workflows/verify-viewer-screenshots.yml",
+      "status": "added"
+    },
+    {
+      "path": ".github/workflows/viewer-failure-inspection.yml",
+      "status": "added"
+    },
+    {
+      "path": ".github/workflows/viewer-pages.yml",
+      "status": "added"
+    },
+    {
+      "path": "README.md",
+      "status": "modified"
+    },
+    {
+      "path": "app/build.gradle.kts",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/BackupSafetyTest.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/ConversionIntegrationTest.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/EncryptedBackupIntegrationTest.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/NativeHangulEditingTest.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/NativeOfficeModeSmokeTest.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/ReadingPerformanceTest.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/ReadingUxTest.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/SaveProcessRecoveryTest.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/androidTest/java/kr/documentstudio/ViewerNavigationTest.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/debug/AndroidManifest.xml",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/debug/java/kr/documentstudio/OfficeProbeProvider.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/debug/java/kr/documentstudio/SaveCrashFixtureService.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/main/AndroidManifest.xml",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/assets/licenses/Log4j-API-2.25.5-NOTICE.txt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ConversionActivity.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ConversionPreviewActivity.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/EditorViewModel.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/HangulEditorActivity.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/StudioApplication.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/ConversionFiles.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/DocumentRepository.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/DocumentUris.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/PdfEngine.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/PdfReadRenderer.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/ProviderWrites.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/SafeDiagnostics.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/SignatureStore.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/data/UserProblems.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/FolderBrowser.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/FormatWorkspace.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/MarkdownPreview.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/PdfCanvasEditor.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/PdfContinuousReader.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/SaveRecoveryDialog.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/StudioApp.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/StudioTheme.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/WorkspaceComponents.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/java/kr/documentstudio/ui/WorkspaceHome.kt",
+      "status": "modified"
+    },
+    {
+      "path": "app/src/main/res/values-night/styles.xml",
+      "status": "added"
+    },
+    {
+      "path": "app/src/test/java/kr/documentstudio/ProviderWriteRecoveryTest.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/test/java/kr/documentstudio/RecentSourceSafetyTest.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/test/java/kr/documentstudio/SignatureStoreTest.kt",
+      "status": "added"
+    },
+    {
+      "path": "app/src/test/java/kr/documentstudio/UserProblemPrivacyTest.kt",
+      "status": "added"
+    },
+    {
+      "path": "core/build.gradle.kts",
+      "status": "modified"
+    },
+    {
+      "path": "core/src/test/java/kr/documentstudio/core/LogJsonSafetyTest.java",
+      "status": "added"
+    },
+    {
+      "path": "docs/COMMERCIAL_QUALITY_AUDIT.md",
+      "status": "added"
+    },
+    {
+      "path": "docs/COMMERCIAL_QUALITY_RESULTS.md",
+      "status": "added"
+    },
+    {
+      "path": "docs/NODE_DEPENDENCY_AUDIT_REVIEW.md",
+      "status": "added"
+    },
+    {
+      "path": "docs/SUPPORT_MATRIX.md",
+      "status": "modified"
+    },
+    {
+      "path": "docs/THIRD_PARTY.md",
+      "status": "modified"
+    },
+    {
+      "path": "docs/VIEWER_PAGES_AUDIT.md",
+      "status": "added"
+    },
+    {
+      "path": "docs/releases/0.8.11-preview-build-verification.json",
+      "status": "added"
+    },
+    {
+      "path": "docs/releases/0.8.11-preview-changed-files.json",
+      "status": "added"
+    },
+    {
+      "path": "docs/releases/0.8.11-preview-hwpx20-browser.json",
+      "status": "added"
+    },
+    {
+      "path": "docs/releases/0.8.11-preview-markdown-reader-android.json",
+      "status": "added"
+    },
+    {
+      "path": "docs/releases/0.8.11-preview-node-audit.json",
+      "status": "added"
+    },
+    {
+      "path": "docs/releases/0.8.11-preview-pdf100-android.json",
+      "status": "added"
+    },
+    {
+      "path": "docs/releases/0.8.11-preview-performance.json",
+      "status": "added"
+    },
+    {
+      "path": "docs/releases/0.8.11-preview-ppt-viewer.json",
+      "status": "added"
+    },
+    {
+      "path": "docs/releases/0.8.11-preview-security.json",
+      "status": "added"
+    },
+    {
+      "path": "docs/releases/0.8.11-preview-slide-fit-android.json",
+      "status": "added"
+    },
+    {
+      "path": "docs/releases/0.8.11-preview-viewer-focused-android.json",
+      "status": "added"
+    },
+    {
+      "path": "officeruntime/src/main/assets/dist/studio-policy.js",
+      "status": "modified"
+    },
+    {
+      "path": "officeruntime/src/main/java/org/libreoffice/androidlib/COWebView.java",
+      "status": "modified"
+    },
+    {
+      "path": "officeruntime/src/main/java/org/libreoffice/androidlib/DocumentViewState.java",
+      "status": "modified"
+    },
+    {
+      "path": "officeruntime/src/main/java/org/libreoffice/androidlib/LOActivity.java",
+      "status": "modified"
+    },
+    {
+      "path": "officeruntime/src/main/java/org/libreoffice/androidlib/StudioDocumentHost.java",
+      "status": "added"
+    },
+    {
+      "path": "scripts/audit-commercial-quality.py",
+      "status": "added"
+    },
+    {
+      "path": "scripts/audit-office-ui.py",
+      "status": "modified"
+    },
+    {
+      "path": "scripts/package-mobile-release.py",
+      "status": "modified"
+    },
+    {
+      "path": "scripts/prepare-viewer-fixtures.py",
+      "status": "added"
+    },
+    {
+      "path": "scripts/run-android-mode-tests.sh",
+      "status": "modified"
+    },
+    {
+      "path": "scripts/run-reading-performance.sh",
+      "status": "modified"
+    },
+    {
+      "path": "scripts/test-mobile-installation.py",
+      "status": "modified"
+    },
+    {
+      "path": "scripts/tests/hangul-close-race.cjs",
+      "status": "added"
+    },
+    {
+      "path": "scripts/tests/hangul-mobile.cjs",
+      "status": "modified"
+    },
+    {
+      "path": "scripts/tests/office-workspace.test.cjs",
+      "status": "modified"
+    },
+    {
+      "path": "scripts/tests/signature-conversion.cjs",
+      "status": "modified"
+    },
+    {
+      "path": "scripts/tests/viewer-pages.cjs",
+      "status": "added"
+    },
+    {
+      "path": "scripts/verify-hangul-close-race.py",
+      "status": "added"
+    },
+    {
+      "path": "scripts/verify-log-json-regression.py",
+      "status": "added"
+    },
+    {
+      "path": "shared/editor-ui/dist/studio-editor-ui.css",
+      "status": "modified"
+    },
+    {
+      "path": "web/hangul/engine-adapter.ts",
+      "status": "modified"
+    },
+    {
+      "path": "web/hangul/host.css",
+      "status": "modified"
+    },
+    {
+      "path": "web/hangul/host.js",
+      "status": "modified"
+    },
+    {
+      "path": "web/hangul/index.html",
+      "status": "modified"
+    },
+    {
+      "path": "web/hangul/mobile-tools.js",
+      "status": "modified"
+    },
+    {
+      "path": "web/hangul/signature.js",
+      "status": "modified"
+    },
+    {
+      "path": "web/hangul/studio-touch.ts",
+      "status": "modified"
+    }
+  ]
+}

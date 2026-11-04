@@ -1,0 +1,43 @@
+name: Independently inspect converted PDF layout
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  quality:
+    if: contains(github.event.head_commit.message, '[publish-layout-audit]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Read the actual native PDF renderer samples from the completed build
+        run: |
+          gh run download 40660629846 -R "$GITHUB_REPOSITORY" --name mobile-release-logs-92a380fe52ef87198517af2a907dfc61f42e47fa --dir evidence
+          pip install Pillow
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          import json
+          root=Path('evidence/artifacts/native-android/native-conversion')
+          def colored(name,predicate):
+              im=Image.open(root/(name+'-page1.png')).convert('RGB')
+              w,h=im.size
+              return im,[(i%w/w,i//w/h) for i,rgb in enumerate(im.getdata()) if predicate(rgb)]
+          ppt,blue=colored('pptx',lambda c:c[2]>200 and c[0]<60 and c[1]<90)
+          _,red=colored('pptx',lambda c:c[0]>150 and c[1]<90 and c[2]<100)
+          assert len(blue)>500 and sum(.06<x<.25 and .25<y<.55 for x,y in blue)/len(blue)>.9,('PPT image position',len(blue))
+          assert len(red)>500 and sum(.64<x<.87 and .25<y<.65 for x,y in red)/len(red)>.9,('PPT shape position',len(red))
+          bg=sum(abs(r-235)<8 and abs(g-240)<8 and abs(b-250)<8 for r,g,b in ppt.getdata())
+          assert bg/(ppt.width*ppt.height)>.4,('PPT background',bg,ppt.size)
+          _,docx=colored('docx',lambda c:c[2]>200 and c[0]<60 and c[1]<90)
+          _,yellow=colored('xlsx',lambda c:c[0]>200 and c[1]>200 and c[2]<80)
+          assert len(docx)>100 and len(yellow)>100,('DOCX picture or XLSX fill',len(docx),len(yellow))
+          print('INDEPENDENT_NATIVE_PDF_LAYOUT_VERIFIED',json.dumps({'pptImagePosition':True,'pptShapePosition':True,'pptBackground':True,'docxPicture':True,'xlsxCellFill':True}))
+          PY

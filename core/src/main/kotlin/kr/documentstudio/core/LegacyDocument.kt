@@ -38,7 +38,8 @@ class LegacyDocument private constructor(val source: File, val format: Format, v
                             val header = ByteArray(40); require(input.read(header)==40)
                             require(header.copyOfRange(0,17).toString(Charsets.US_ASCII)=="HWP Document File") { "HWP 헤더가 올바르지 않습니다." }
                             val flags = java.nio.ByteBuffer.wrap(header,36,4).order(java.nio.ByteOrder.LITTLE_ENDIAN).int
-                            require(flags and 0x6 == 0) { "암호·배포용 HWP는 편집하지 않습니다." }
+                            require(flags and 0x2 == 0) { "암호화된 HWP는 지원하지 않습니다." }
+                            require(flags and 0x4 == 0 || "ViewText" in names) { "배포용 HWP의 보기 데이터가 없습니다." }
                             if(flags and 1 != 0) {
                                 var total=0L
                                 val body=fs.root.getEntry("BodyText") as org.apache.poi.poifs.filesystem.DirectoryEntry
@@ -55,8 +56,18 @@ class LegacyDocument private constructor(val source: File, val format: Format, v
                 }
             }
         }
+        /** Opening a distributable HWP for viewing must not grant editing rights. */
+        fun hwpReadOnlyReason(file: File): String? = POIFSFileSystem(file,true).use { fs ->
+            fs.createDocumentInputStream("FileHeader").use {input ->
+                val header=ByteArray(40);require(input.read(header)==40) {"HWP 헤더가 잘렸습니다."}
+                require(header.copyOfRange(0,17).toString(Charsets.US_ASCII)=="HWP Document File") {"HWP 헤더가 올바르지 않습니다."}
+                val flags=java.nio.ByteBuffer.wrap(header,36,4).order(java.nio.ByteOrder.LITTLE_ENDIAN).int
+                if(flags and 0x4 != 0) "배포용 HWP는 읽기 전용으로만 볼 수 있습니다." else null
+            }
+        }
         fun open(file: File): LegacyDocument {
             val format = detect(file)
+            require(format!=Format.HWP || hwpReadOnlyReason(file)==null) {"배포용 HWP는 읽기 전용입니다. 본문 추출 편집을 허용하지 않습니다."}
             val sections = when (format) {
                 Format.XLS -> HSSFWorkbook(file.inputStream()).use { wb ->
                     (0 until wb.numberOfSheets).map { i ->

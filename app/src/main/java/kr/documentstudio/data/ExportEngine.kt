@@ -16,6 +16,7 @@ object ExportEngine {
         try { val page=doc.startPage(PdfDocument.PageInfo.Builder(595,842,1).create()); page.canvas.drawColor(Color.WHITE); doc.finishPage(page); destination.outputStream().use { doc.writeTo(it) } } finally {doc.close()}
     }
     fun document(s: Session,destination: File) {
+        require(s.format !in EditorPolicy.visualFormats) {"원본 문서의 PDF 출력·인쇄는 해당 원본 편집기의 파일 메뉴를 사용하세요. 추출 텍스트 출력은 제공하지 않습니다."}
         if(s.format==Format.PPTX) {SlideEngine.export(s,destination);PdfEngine.inspect(destination);return}
         val sections = if(s.sections.isNotEmpty()) s.sections.map { section ->
             val content = if(s.format in listOf(Format.XLSX,Format.XLS)) {

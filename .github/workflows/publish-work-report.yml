@@ -1,0 +1,180 @@
+name: Publish work report documents
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: document-studio-work-report-20261027-r1
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: contains(github.event.head_commit.message, '[publish-work-report]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPORT_TAG: v0.8.5-preview
+      REPORT_REVISION: 20261027-r1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate publication scripts
+        run: |
+          python3 - <<'PY'
+          import ast,pathlib,re,textwrap
+          source=pathlib.Path('.github/workflows/publish-work-report.yml').read_text()
+          blocks=re.findall(r"(?m)^([ ]*)python3 - <<'PY'\n(.*?)^\1PY[ \t]*$",source,re.S)
+          assert len(blocks)==2,len(blocks)
+          for _,block in blocks:ast.parse(textwrap.dedent(block))
+          print('WORK_REPORT_PUBLICATION_SCRIPTS_VALID',len(blocks))
+          PY
+      - name: Package, publish and verify the work documents
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess,time,urllib.request,zipfile
+          repo=os.environ['GITHUB_REPOSITORY'];tag=os.environ['REPORT_TAG'];revision=os.environ['REPORT_REVISION'];commit=os.environ['GITHUB_SHA']
+          assert repo=='Ch-wook/File_Translator' and tag=='v0.8.5-preview' and revision=='20261027-r1'
+          out=pathlib.Path('artifacts/work-report-delivery');out.mkdir(parents=True,exist_ok=True)
+          def api(path,*args):
+              return json.loads(subprocess.check_output(['gh','api',path,*args],text=True))
+          def sha(data):return hashlib.sha256(data).hexdigest()
+          baseline=json.loads(pathlib.Path('docs/releases/0.8.5-preview-download-verification.json').read_text())
+          build='10ab10e01e027c35af3083e5d22a9e14b02c4f50';source='8c1ddc7156136d191a94323c49b51847c554da6e'
+          assert baseline['verifiedBuildCommit']==build and baseline['tagCommit']==source and len(baseline['assets'])==9
+          run=api(f'repos/{repo}/actions/runs/40494582093')
+          assert run['head_sha']==build and run['status']=='completed' and run['conclusion']=='success'
+          changed=subprocess.check_output(['git','diff','--name-only',build,'HEAD'],text=True).splitlines()
+          assert all(p=='README.md' or p.startswith(('docs/','.github/workflows/')) for p in changed),changed
+          tag_before=api(f'repos/{repo}/git/ref/tags/{tag}')['object']
+          assert tag_before['type']=='commit' and tag_before['sha']==source,tag_before
+          release=api(f'repos/{repo}/releases/tags/{tag}')
+          assert not release['draft'] and release['prerelease']
+          release_id=release['id']
+          def assets():return api(f'repos/{repo}/releases/{release_id}/assets?per_page=100')
+          before=assets();by_name={a['name']:a for a in before};original={}
+          for expected in baseline['assets']:
+              a=by_name[expected['name']]
+              assert a['state']=='uploaded' and a['size']==expected['bytes'] and a.get('digest')=='sha256:'+expected['sha256'],a['name']
+              original[a['name']]={key:a[key] for key in ('id','name','size','digest','state')}
+          prefix=f'https://github.com/{repo}/releases/download/{tag}/'
+          with urllib.request.urlopen(prefix+'SHA256SUMS',timeout=60) as response:original_sums=response.read()
+          assert sha(original_sums)==next(a['sha256'] for a in baseline['assets'] if a['name']=='SHA256SUMS')
+          tracked={}
+          for entry in subprocess.check_output(['git','ls-tree','-r','-z','HEAD']).split(b'\0'):
+              if not entry:continue
+              meta,path=entry.split(b'\t',1);mode,kind,blob=meta.split()
+              if kind==b'blob':tracked[path.decode()]=blob.decode()
+          selected=[
+              'docs/WORK_REPORT_0.8.5-preview.md',
+              'docs/COMMON_MOBILE_UI_RESULTS.md','docs/COMMON_MOBILE_UI_AUDIT.md',
+              'docs/USER_GUIDE.md','docs/SUPPORT_MATRIX.md',
+              'docs/DOCUMENT_OPEN_FIX.md','docs/INSTALLATION_FIX.md',
+              'docs/releases/0.8.5-preview-download-verification.json',
+              'docs/screenshots/0.8.5-evidence.json',
+              'docs/screenshots/0.8.5-hwpx-android.png',
+              'docs/screenshots/0.8.5-docx-android.png',
+              'docs/screenshots/0.8.5-txt-android.png'
+          ]
+          payloads={};records=[]
+          for path in selected:
+              data=subprocess.check_output(['git','show',commit+':'+path])
+              blob=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+              assert tracked[path]==blob,path
+              payloads[path]=data;records.append({'path':path,'bytes':len(data),'sha256':sha(data),'gitBlobSha':blob})
+          names={
+              'report':f'document-studio-0.8.5-preview-work-report-{revision}.md',
+              'bundle':f'document-studio-0.8.5-preview-work-docs-{revision}.zip',
+              'sums':'WORK_REPORT_20261027_r1_SHA256SUMS'
+          }
+          report=out/names['report'];report.write_bytes(payloads['docs/WORK_REPORT_0.8.5-preview.md'])
+          index=('문서 스튜디오 0.8.5-preview 작업 문서 묶음\n\n'
+                 '먼저 docs/WORK_REPORT_0.8.5-preview.md를 확인하세요.\n'
+                 '구현·수정 파일·실패 원인·검증·미검증·후속 작업과 관련 보고서/실제 Android 화면을 포함합니다.\n'
+                 '이 ZIP은 작업 문서이며 독립 실행 프로젝트나 전체 앱 소스를 대신하지 않습니다.\n\n'
+                 '문서 커밋: '+commit+'\nAPK 빌드 커밋: '+build+'\n앱 소스/배포 태그 커밋: '+source+'\n'
+                 'Release: https://github.com/'+repo+'/releases/tag/'+tag+'\n'
+                 '전체 소스: '+prefix+'document-studio-0.8.5-preview-source.zip\n'
+                 '휴대폰 APK: '+prefix+'document-studio-0.8.5-preview-arm64-v8a.apk\n\n'
+                 '이번 작업은 문서 첨부입니다. 앱 재빌드·Android 검사 재실행을 수행한 것으로 기록하지 않습니다.\n'
+                 '실제 ARM64 휴대폰·삼성/Gboard 종합 검증은 미완료입니다.\n').encode('utf-8')
+          manifest={'reportCommit':commit,'apkBuildCommit':build,'appSourceArchiveCommit':source,
+                    'appSourceUnchangedSinceBuild':True,'applicationRebuilt':False,'files':records}
+          content={**payloads,'README.txt':index,'MANIFEST.json':(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n').encode('utf-8')}
+          bundle=out/names['bundle']
+          with zipfile.ZipFile(bundle,'w',compression=zipfile.ZIP_STORED) as z:
+              for path,data in sorted(content.items()):
+                  item=zipfile.ZipInfo(path,date_time=(2026,10,27,0,0,0));item.create_system=3;item.external_attr=0o100644<<16
+                  z.writestr(item,data)
+          with zipfile.ZipFile(bundle) as z:
+              assert z.testzip() is None and set(z.namelist())==set(content)
+              for path,data in content.items():assert z.read(path)==data,path
+          def digest(path):
+              with path.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+          sums=out/names['sums']
+          sums.write_text(''.join(digest(p)+'  '+p.name+'\n' for p in sorted([report,bundle])),encoding='utf-8')
+          publications=[report,bundle,sums];expected={p.name:{'bytes':p.stat().st_size,'sha256':digest(p)} for p in publications}
+          for p in publications:
+              current=next((a for a in assets() if a['name']==p.name),None)
+              if current:
+                  assert current['state']=='uploaded' and current['size']==expected[p.name]['bytes'] and current.get('digest')=='sha256:'+expected[p.name]['sha256'],'Preserve the existing document asset; use a new revision for different bytes'
+              else:
+                  subprocess.run(['gh','release','upload',tag,str(p),'--repo',repo],check=True)
+          public=[]
+          for p in publications:
+              url=prefix+p.name
+              for attempt in range(4):
+                  try:
+                      h=hashlib.sha256();size=0
+                      with urllib.request.urlopen(url,timeout=60) as response:
+                          while block:=response.read(1024*1024):h.update(block);size+=len(block)
+                      assert size==expected[p.name]['bytes'] and h.hexdigest()==expected[p.name]['sha256'],p.name
+                      break
+                  except Exception:
+                      if attempt==3:raise
+                      time.sleep(2)
+              public.append({'name':p.name,'url':url,'bytes':size,'sha256':h.hexdigest(),'publicDownloadVerified':True})
+          # Merge only this report section into the latest release notes.
+          latest=api(f'repos/{repo}/releases/{release_id}');body=latest.get('body') or ''
+          opening='<!-- studio-work-report-20261027-r1:start -->';closing='<!-- studio-work-report-20261027-r1:end -->'
+          section=(opening+'\n### 작업 보고서·인수인계 (2026-10-27)\n\n'
+                   '- [GitHub에서 문서 읽기](https://github.com/'+repo+'/blob/'+commit+'/docs/WORK_REPORT_0.8.5-preview.md)\n'
+                   '- [작업 보고서 Markdown 다운로드]('+prefix+names['report']+')\n'
+                   '- [관련 보고서·사용 안내·실제 Android 화면 묶음]('+prefix+names['bundle']+')\n'
+                   '- [작업 문서 SHA256SUMS]('+prefix+names['sums']+')\n\n'
+                   '구현·수정 파일·실패 원인·실행 검증·지원 제한·미검증·후속 작업을 구분했습니다. '
+                   '이번 첨부에서 앱을 재빌드하거나 기존 앱 검증을 새로 실행하지 않았습니다.\n\n'
+                   '문서 커밋: '+commit+'\n'+closing)
+          if opening in body:
+              assert closing in body
+              body=body[:body.index(opening)]+section+body[body.index(closing)+len(closing):]
+          else:body=body.rstrip()+'\n\n'+section+'\n'
+          update=out/'release-body-update.json';update.write_text(json.dumps({'body':body},ensure_ascii=False),encoding='utf-8')
+          updated=api(f'repos/{repo}/releases/{release_id}','--method','PATCH','--input',str(update))
+          assert updated['body']==body and not updated['draft'] and updated['prerelease']
+          after=assets();after_names={a['name']:a for a in after}
+          for name,snapshot in original.items():
+              assert {key:after_names[name][key] for key in snapshot}==snapshot,name
+          for name,value in expected.items():
+              a=after_names[name];assert a['state']=='uploaded' and a['size']==value['bytes']
+              if a.get('digest'):assert a['digest']=='sha256:'+value['sha256'],name
+          assert api(f'repos/{repo}/git/ref/tags/{tag}')['object']==tag_before
+          with urllib.request.urlopen(prefix+'SHA256SUMS',timeout=60) as response:assert response.read()==original_sums
+          proof={'release':updated['html_url'],'reportCommit':commit,'apkBuildCommit':build,'appSourceArchiveCommit':source,
+                 'applicationRebuilt':False,'originalAssetsUnchanged':True,'tagUnchanged':True,
+                 'originalAssetCount':len(original),'releaseAssetCount':len(after),'assets':public}
+          (out/'work-report-download-verification.json').write_text(json.dumps(proof,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          print('WORK_REPORT_RELEASE_VERIFIED',json.dumps(proof,ensure_ascii=False),flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: work-report-download-verification-20261027-r1
+          path: artifacts/work-report-delivery/work-report-download-verification.json
+          if-no-files-found: warn

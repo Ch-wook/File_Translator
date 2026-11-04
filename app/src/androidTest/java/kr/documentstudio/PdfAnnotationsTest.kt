@@ -24,7 +24,7 @@ class PdfAnnotationsTest {
     private val context=ApplicationProvider.getApplicationContext<Context>()
     @Before fun setup() {PDFBoxResourceLoader.init(context)}
     private fun file()=File(context.cacheDir,"tests/${UUID.randomUUID()}.pdf").apply {parentFile!!.mkdirs()}
-    private fun uri(f: File)=FileProvider.getUriForFile(context,"kr.documentstudio.testfiles",f)
+    private fun uri(f: File)=FileProvider.getUriForFile(context,context.packageName+".testfiles",f)
     private fun source(rotation: Int=0): File = file().also {out ->PDDocument().use {doc ->
         val page=PDPage(PDRectangle(430f,320f)).apply {cropBox=PDRectangle(20f,30f,350f,240f);this.rotation=rotation};doc.addPage(page)
         PDPageContentStream(doc,page).use {stream ->

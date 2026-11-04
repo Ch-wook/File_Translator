@@ -1,0 +1,72 @@
+name: Verify durable save recovery foundation
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+jobs:
+  foundation:
+    if: contains(github.event.head_commit.message, '[quality-foundation]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - run: sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.npm
+            .engine-cache/hangul/source
+            .engine-cache/hangul/rhwp-core-0.8.7.tgz
+          key: quality-foundation-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            android-gradle-${{ runner.os }}-
+            hangul-public-tools-${{ runner.os }}-
+      - name: Existing storage and new interrupted-write regressions
+        run: |
+          chmod +x gradlew
+          python3 scripts/prepare-open-fixtures.py
+          ./gradlew :core:prepareVisualFixtures :app:testDebugUnitTest --max-workers=2 --console=plain
+      - name: Show complete unit failure diagnostics
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import pathlib,xml.etree.ElementTree as E
+          for p in pathlib.Path('app/build/test-results').rglob('TEST-*.xml'):
+              for case in E.parse(p).getroot().iter('testcase'):
+                  for f in list(case.findall('failure'))+list(case.findall('error')):print('QUALITY_UNIT_FAILURE',case.attrib,(f.text or '')[:18000])
+          PY
+      - name: Require all app unit tests and recovery cases
+        run: |
+          python3 - <<'PY'
+          import pathlib,xml.etree.ElementTree as E,json
+          files=list(pathlib.Path('app/build/test-results').rglob('TEST-*.xml'));assert files
+          roots=[E.parse(p).getroot() for p in files]
+          counts={k:sum(int(r.get(k,0)) for r in roots) for k in ('tests','failures','errors','skipped')}
+          recovery=[r for r in roots if r.get('name','').endswith('ProviderWriteRecoveryTest')]
+          assert len(recovery)==1 and int(recovery[0].get('tests'))==7
+          assert counts['tests']>=45 and counts['failures']==counts['errors']==counts['skipped']==0,counts
+          for name,count in [('SignatureStoreTest',6),('RecentSourceSafetyTest',5),('UserProblemPrivacyTest',3)]:
+              selected=[r for r in roots if r.get('name','').endswith(name)];assert len(selected)==1 and int(selected[0].get('tests'))==count
+          print('QUALITY_FOUNDATION_VERIFIED',json.dumps(counts))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-foundation-${{ github.sha }}
+          path: |
+            app/build/test-results/
+            app/build/reports/tests/
+          if-no-files-found: error

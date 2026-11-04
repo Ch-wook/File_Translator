@@ -8,6 +8,7 @@ package org.libreoffice.androidlib;
 import android.net.Uri;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
+import android.webkit.WebResourceError;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
@@ -40,13 +41,35 @@ public class COWebViewClient extends WebViewClient {
     public void onPageFinished(WebView view, String url) {
         super.onPageFinished(view, url);
         if (url != null && url.startsWith("file:///android_asset/dist/cool.html")) {
-            try (InputStream input = view.getContext().getAssets().open("dist/studio-policy.js")) {
-                java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
-                byte[] buffer = new byte[4096]; int count;
-                while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
-                view.evaluateJavascript(new String(output.toByteArray(), java.nio.charset.StandardCharsets.UTF_8), null);
-            } catch (java.io.IOException ignored) { }
+            try {
+                java.io.ByteArrayOutputStream script = new java.io.ByteArrayOutputStream();
+                for (String asset : new String[]{"dist/studio-editor-ui.js", "dist/studio-policy.js"}) {
+                    try (InputStream input = view.getContext().getAssets().open(asset)) {
+                        byte[] buffer = new byte[8192]; int count;
+                        while ((count = input.read(buffer)) != -1) script.write(buffer, 0, count);
+                        script.write('\n');
+                    }
+                }
+                view.evaluateJavascript(new String(script.toByteArray(), java.nio.charset.StandardCharsets.UTF_8), null);
+            } catch (java.io.IOException failure) {
+                reportLoadFailure(view);
+            }
         }
+    }
+
+    private static void reportLoadFailure(WebView view) {
+        if (view.getContext() instanceof LOActivity)
+            ((LOActivity) view.getContext()).reportOfficeLoadFailure("오피스 화면을 불러오지 못했습니다.");
+    }
+
+    @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+        super.onReceivedError(view, request, error);
+        if (request.isForMainFrame()) reportLoadFailure(view);
+    }
+
+    @Override public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
+        super.onReceivedHttpError(view, request, response);
+        if (request.isForMainFrame()) reportLoadFailure(view);
     }
 
     public static WebResourceResponse response(int code, String reasonPhrase, InputStream data, Map<String, String> headers) {

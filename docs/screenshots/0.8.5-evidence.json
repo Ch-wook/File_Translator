@@ -1,0 +1,26 @@
+{
+  "apkBuildCommit": "10ab10e01e027c35af3083e5d22a9e14b02c4f50",
+  "workflowRun": 40494582093,
+  "android": "35 x86_64 emulator",
+  "physicalDeviceTested": false,
+  "images": [
+    {
+      "file": "0.8.5-hwpx-android.png",
+      "artifactPath": "artifacts/native-android/native-hangul-editing/hwpx-keyboard-format.png",
+      "run": "40494582093",
+      "gitBlobSha": "81a35a852f25643f65c921f3535f06a35c8ec638"
+    },
+    {
+      "file": "0.8.5-docx-android.png",
+      "artifactPath": "artifacts/native-android/native-office-font/docx-compact-font.png",
+      "run": "40494582093",
+      "gitBlobSha": "a8d5b6067a1b1f835ef735ebecd1f3f4136ab6d4"
+    },
+    {
+      "file": "0.8.5-txt-android.png",
+      "artifactPath": "artifacts/native-android/native-common-ui/text-character-panel.png",
+      "run": "40494582093",
+      "gitBlobSha": "eecadc75a139a2c3bd10b093181be8041a5e9bae"
+    }
+  ]
+}

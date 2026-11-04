@@ -16,7 +16,7 @@ import java.util.UUID
 class EncryptedBackupIntegrationTest {
     private val app=ApplicationProvider.getApplicationContext<Application>()
     private fun file(ext: String)=File(app.cacheDir,"tests/${UUID.randomUUID()}.$ext").apply {parentFile!!.mkdirs();writeBytes(byteArrayOf())}
-    private fun uri(f: File)=FileProvider.getUriForFile(app,"kr.documentstudio.testfiles",f)
+    private fun uri(f: File)=FileProvider.getUriForFile(app,app.packageName+".testfiles",f)
     private fun main(block: ()->Unit)=InstrumentationRegistry.getInstrumentation().runOnMainSync(block)
     private suspend fun ready(vm: EditorViewModel)=withTimeout(20000) {vm.state.first {!it.busy}}
     @Test fun encryptedArchivePreservesEditsLayersRecoveryAndRejectsCorruption()=runBlocking {
@@ -39,8 +39,8 @@ class EncryptedBackupIntegrationTest {
     @Test fun pendingExportRetainsDocumentAndUnlockErasesPasswordsAndKeepsRetry()=runBlocking {
         lateinit var vm: EditorViewModel;main {vm=EditorViewModel(app);vm.create(Format.TXT)};ready(vm);val id=vm.state.value.active!!
         val password="test backup 123!".toCharArray()
-        main {vm.text("FIRST_PRIVATE");assertTrue(vm.prepareEncryptedBackup(id,password));vm.create(Format.TXT)};ready(vm)
-        val second=vm.state.value.active;main {vm.text("SECOND_KEEP")}
+        main {vm.beginEditing();vm.text("FIRST_PRIVATE");assertTrue(vm.prepareEncryptedBackup(id,password));vm.create(Format.TXT)};ready(vm)
+        val second=vm.state.value.active;main {vm.beginEditing();vm.text("SECOND_KEEP")}
         val encrypted=file("dsbackup");main {vm.finishEncryptedBackup(uri(encrypted))};ready(vm)
         assertTrue(password.all {it=='\u0000'});assertEquals(second,vm.state.value.active)
         main {vm.open(uri(encrypted))};ready(vm);assertEquals(uri(encrypted).toString(),vm.state.value.lockedBackupUri)

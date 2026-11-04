@@ -1,0 +1,34 @@
+{
+  "release": "https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.5-preview",
+  "reportCommit": "497261e8ae51aba693772e51af8ecb10c8176760",
+  "apkBuildCommit": "10ab10e01e027c35af3083e5d22a9e14b02c4f50",
+  "appSourceArchiveCommit": "8c1ddc7156136d191a94323c49b51847c554da6e",
+  "applicationRebuilt": false,
+  "originalAssetsUnchanged": true,
+  "tagUnchanged": true,
+  "originalAssetCount": 9,
+  "releaseAssetCount": 12,
+  "assets": [
+    {
+      "name": "document-studio-0.8.5-preview-work-report-20261027-r1.md",
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-work-report-20261027-r1.md",
+      "bytes": 16818,
+      "sha256": "5d33707eb0125ddebdd97501f1d2a2feaf908c12e78aaf714676ef8b684149ed",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.5-preview-work-docs-20261027-r1.zip",
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/document-studio-0.8.5-preview-work-docs-20261027-r1.zip",
+      "bytes": 338885,
+      "sha256": "768237840762fffb93db434a1701f9715cb27a4cd8ae2a721168d84a091d5826",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "WORK_REPORT_20261027_r1_SHA256SUMS",
+      "url": "https://github.com/Ch-wook/File_Translator/releases/download/v0.8.5-preview/WORK_REPORT_20261027_r1_SHA256SUMS",
+      "bytes": 245,
+      "sha256": "e04b70bf831d66efd22f5512382cba4f4becddff7e634f1130c5e3044cdf6f3a",
+      "publicDownloadVerified": true
+    }
+  ]
+}

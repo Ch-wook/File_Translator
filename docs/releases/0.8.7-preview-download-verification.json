@@ -1,0 +1,75 @@
+{
+  "verifiedBuildCommit": "25ef2749c30203fa4b1e2d33cb7f23213a1a1edb",
+  "tagCommit": "bace7b3d7cfc8df96886b17c8b2f7bfa447b8a68",
+  "assets": [
+    {
+      "name": "README.txt",
+      "bytes": 3421,
+      "sha256": "d281388bdc82126cb6ef4d5311b0f07a1feb05d2a4841863025e96f3f84971e5",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "SHA256SUMS",
+      "bytes": 960,
+      "sha256": "1994540a1e9b752e887715bc9ddc1ec9b3b5a0b5c8da812e87384cd426ff4c4d",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.7-preview-apk-metadata.json",
+      "bytes": 1120,
+      "sha256": "2945af21a177f7e63b7a5e93848e48e703391f192cdd578f647f96e9d89d64df",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.7-preview-arm64-v8a.apk",
+      "bytes": 429636235,
+      "sha256": "4542081d6ec7e0c5fde9a4d6bb377742be6c21214acc4a70e59002137819f93f",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.7-preview-changes.patch",
+      "bytes": 66810,
+      "sha256": "600cd1077c5b38749fee9a94951f4289ffe5b5e640df9b8e59437e7e36c49201",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.7-preview-history.bundle",
+      "bytes": 8821928,
+      "sha256": "5984a1dbb1e08a3234738f44443fae2513744265e758c5395b4862175d5f8f69",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.7-preview-source.zip",
+      "bytes": 8454826,
+      "sha256": "5da4903a938e1670a9ef0aef053a68c574652a4d88d8ff8ab27e98992a390772",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.7-preview-verification.zip",
+      "bytes": 3900514,
+      "sha256": "36f0514b432e3cd3c6b3c415a61ccc568be6d312afd73c5f51edfaa1a664c493",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.7-preview-work-report.md",
+      "bytes": 8072,
+      "sha256": "517343414442f308f48d1d28172968116976e381f5fe5e1eb54f17f2947efde6",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.7-preview-x86_64.apk",
+      "bytes": 441522725,
+      "sha256": "d13031515ecd1d34b56ffa97cb339ed2f9a379aa837d1bffd1be8a1fc95858f8",
+      "publicDownloadVerified": true
+    }
+  ],
+  "verifiedAt": "2026-10-28 UTC",
+  "buildRun": 40612743461,
+  "publicationRun": 40614746304,
+  "priorReleasePreserved": {
+    "tag": "v0.8.6-preview",
+    "tagCommit": "3557852a18016c16eb61fc12e53818c4cff49ed2",
+    "assets": 10,
+    "unchanged": true
+  }
+}
