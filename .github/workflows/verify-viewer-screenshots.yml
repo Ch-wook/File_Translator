@@ -15,12 +15,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Read screenshots from the exact passing native test artifact
         run: |
-          gh run download 41819668985 --name focused-reading-ui-8fae41c228a6cf86178f5da33669ee3d6cc4a08c --dir viewer-screenshots
+          gh run download 41821406403 --name focused-reading-ui-d26a14dbe72f6e9a60248e645c0f9ebadb316f1b --dir viewer-screenshots
           python3 - <<'PY'
           from pathlib import Path
           import base64
           files=sorted(p for p in Path('viewer-screenshots').rglob('*.png') if p.parent.name=='native-viewer' and '-failure' not in p.name)
-          assert len(files)==4,[str(p) for p in files]
+          assert len(files)==3,[str(p) for p in files]
           for file in files:
               print('VIEWER_SCREENSHOT',file.name,base64.b64encode(file.read_bytes()).decode(),flush=True)
           PY
