@@ -1,7 +1,6 @@
 {
-  "source": "865b36a35ceed7451112b08f15f65e866fb96b30",
-  "run": 40853363439,
-  "environment": "Android 35 x86_64 Pixel7 SwiftShader 3072 MiB",
+  "source": "f72c0aaa4f1c7fc15561eea9404ee372cd3488fa",
+  "run": 41820125408,
   "result": {
     "pages": 100,
     "mixedSizesAndRotation": true,
@@ -9,6 +8,8 @@
     "doubleTapZoom": true,
     "page100ReachedAndRestored": true,
     "sourceHashUnchanged": true,
+    "visibleInkRendered": true,
+    "hiddenInkNotDisclosed": true,
     "zoomBefore": 1,
     "zoomAfterPinch": 2.1111104
   }

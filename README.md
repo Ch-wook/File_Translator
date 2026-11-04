@@ -1,4 +1,21 @@
-> **0.8.11-preview 검증 진행 중**: 전체 페이지·터치·저장 보호 개선 코드는 작업 브랜치와 PR에 반영했습니다. PowerPoint의 실제 가시 영역·확대·회전 위치 검사를 보강하고 있습니다. 신규 APK/Release는 아직 공개하지 않았습니다. 아래0.8.10 링크는 이전 배포본입니다. [현재 작업·검증 상태](docs/COMMERCIAL_QUALITY_RESULTS.md) · [뷰어 원인과 재검증](docs/VIEWER_PAGES_AUDIT.md)
+# 문서 스튜디오 0.8.11-preview
+
+여러 쪽 문서의 연속 보기·페이지 이동·손가락 확대를 개선하고, 저장 복구와 서명 보관함을 보호한 개발 서명 프리뷰입니다. 기존 문서 편집·서명·로컬 변환 엔진을 유지합니다.
+
+[휴대폰용 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.11-preview/document-studio-0.8.11-preview-arm64-v8a.apk) · [전체 소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.11-preview/document-studio-0.8.11-preview-source.zip) · [작업 보고서·실제 성능·남은 제한](docs/COMMERCIAL_QUALITY_RESULTS.md) · [Release·검증 ZIP·해시·패치·Git 이력](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.11-preview)
+
+PDF는 기본 세로 연속 보기로 모든 페이지에 접근하며, HWPX/Word는 실제 원본 페이지를 탐색합니다. PowerPoint의 작은 표시·확대 시 위치 이동·오래된 슬라이드 번호를 수정했습니다. Excel은 시트/셀 탐색을 유지하고 Markdown은 실제 보기 글꼴·크기·긴 문서 이동을 연결했습니다. 읽기 확대는 원본 서식을 바꾸지 않습니다. 미수정 문서의 불필요한 저장을 피하고 원본·최신 복구본을 구분합니다.
+
+Android35 x86_64 에뮬레이터 **70건**, 단위 **175건**, JavaScript **28건**, 기존 실제 엔진 브라우저9개 시나리오와 별도HWPX20쪽 보기·TypeScript·lint·저장 재열기·독립 파서 검사 통과. HWPX20쪽/PDF100쪽/DOCX12쪽/PPTX30슬라이드/XLSX3시트·원거리 셀을 확인했습니다. 별도 집중10건과 강화한PPT1건은70건과 중복 합산하지 않습니다.
+
+같은 에뮬레이터 비교에서 메뉴 열기는371→251ms, 516KB TXT 편집 전환은151→131ms였습니다. 일반 전환·수정 저장·일부 종료는 증가했습니다. 전체 앱 속도·메모리·60fps가 모두 개선됐다는 결과가 아닙니다. [조건·실패 이력·증감 수치](docs/COMMERCIAL_QUALITY_RESULTS.md)를 함께 확인하세요.
+
+휴대폰 APK는 약430.3MB이며 **문서 스튜디오 품질 개선**(`kr.documentstudio.qualitypreview`)을 별도 설치합니다. 기존 앱·복구본을 삭제하지 마세요. 외부 저장/백업한 파일로 옮길 수 있으며 내 서명·작업 복구본은 자동 이관하지 않습니다. Android10+ 64비트, Office11+입니다.
+
+실제 ARM64 휴대폰·Gboard/S펜/TalkBack·장시간/peak 메모리·운영 서명·스토어 검증은 미완료입니다. npm 개발/빌드 도구22건의 권고도 남아 있습니다. 상용 출시 완료 판정이 아니며, 과거 미푸시0.8.0 원본 복구본이 아닙니다.
+
+<details>
+<summary>0.8.10 및 이전 구현·배포 기록</summary>
 
 # 문서 스튜디오 0.8.10-preview
 
@@ -170,6 +187,8 @@ node scripts/tests/hangul-mobile.cjs
 [사용 안내](docs/USER_GUIDE.md) · [한글 엔진 출처](web/hangul/PROVENANCE.md) · [Office 엔진 출처](officeruntime/PROVENANCE.md) · [오픈소스 고지](docs/THIRD_PARTY.md)
 
 0.7.0 이하 문서와 테스트 수는 과거 기록입니다. 이번 버전의 실기기 검증 결과로 합산하지 않습니다.
+
+</details>
 
 </details>
 

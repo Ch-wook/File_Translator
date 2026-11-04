@@ -1,6 +1,6 @@
 # 문서 스튜디오 0.8.11-preview — 전체 페이지·터치 뷰어 및 데이터 안정성
 
-작성: 2026-11-04 UTC. **최신 전체 검증 진행 중이며 아직0.8.11 APK를 배포하지 않았다. 상용 출시 완료 판정이 아니다.**
+작성: 2026-11-04 UTC. **검증한 0.8.11-preview의 결과다. 상용 출시 완료 판정이 아니다.**
 
 ## 1. 전체 진단 결과
 
@@ -74,18 +74,18 @@ SAF 제공자 전체에서 원자적 교체·외부 앱과의 compare-and-swap·
 | 검사 | 현재 결과 |
 |---|---|
 | 동일 앱 Android 집중10건 | [41819668985](https://github.com/Ch-wook/File_Translator/actions/runs/41819668985) 통과, 실패/오류/건너뜀0. 네 형식의 실제 핀치·읽기 더블 탭·회전·원본 보존, PDF100/숨김 필기, Markdown 실제 글꼴 픽셀, PPT 실제 가시 영역·확대 중심 포함. [원자료](releases/0.8.11-preview-viewer-focused-android.json). |
-| b68d3195 HWPX20 브라우저 | [41813288303](https://github.com/Ch-wook/File_Translator/actions/runs/41813288303) 통과. 실제20개 화면 Canvas 픽셀 해시가 다르고 한 손가락·핀치·더블 탭·마지막 위치 재열기·문서 쓰기0·원본 해시 유지. 첫 준비1107ms는 Chromium1회 값이다. |
+| 최종 HWPX20 브라우저 | [41820125408](https://github.com/Ch-wook/File_Translator/actions/runs/41820125408) 통과. 실제20개 화면 Canvas 픽셀 해시가 다르고 한 손가락·핀치·더블 탭·마지막 위치 재열기·문서 쓰기0·원본 해시 유지. 첫 준비1198ms는 Chromium1회 값이다. |
 | PPT 실제 가시 영역·문서 초점 | [41818169879](https://github.com/Ch-wook/File_Translator/actions/runs/41818169879) 통과. 핀치·더블 탭·가로/세로 회전 후 실제 30번째 슬라이드 유지, 확대 중심 오차40twip 이내. [좌표 원자료](releases/0.8.11-preview-ppt-viewer.json). |
-| PPT 확대 후 화면 맞춤 | [41821406403](https://github.com/Ch-wook/File_Translator/actions/runs/41821406403) 추가1건 통과. 실제 마지막 슬라이드·39% 맞춤 복귀, 본문 영역의 어두운 글자 픽셀431개(2px 간격 표본). 동일 앱 코드에 강화한 테스트만 적용했다. 70건과 중복 합산하지 않는다. [원자료](releases/0.8.11-preview-slide-fit-android.json). |
-| 최신 전체70건·단위·설치·재열기 | [41820125408](https://github.com/Ch-wook/File_Translator/actions/runs/41820125408) 실행 중. 선행 실행의 JavaScript27/28은 새 viewport 화면 크기 필드와 이전 기대값의 불일치였고, 기존 위치와 새 크기를 함께 검증하도록 테스트를 갱신했다. 앱 코드는 그대로다. |
+| PPT 확대 후 화면 맞춤 | [41821406403](https://github.com/Ch-wook/File_Translator/actions/runs/41821406403) 추가1건 통과. 실제 마지막 슬라이드·39% 맞춤 복귀, 본문 영역의 어두운 글자 픽셀431개(2px 간격 표본). 실제 캡처에서도 마지막 두 슬라이드의 VIEWER_SLIDE_29/30을 확인했다. 동일 앱 코드에 강화한 테스트만 적용했다. 70건과 중복 합산하지 않는다. [원자료](releases/0.8.11-preview-slide-fit-android.json). |
+| 최종 전체70건·단위·설치·재열기 | [41820125408](https://github.com/Ch-wook/File_Translator/actions/runs/41820125408) 통과. Android70, core128/Office2/app45(합계175), JavaScript28, 기존 실제 엔진 브라우저9개 시나리오와 별도 HWPX20쪽 보기, TypeScript·lint·독립 파서·두 ABI APK 서명/ELF 검사 통과. 실패/오류/건너뜀0. [최종 원자료](releases/0.8.11-preview-build-verification.json). |
 | 동일 앱·동일 환경 성능 비교 | [41819668944](https://github.com/Ch-wook/File_Translator/actions/runs/41819668944) 통과. 앱 코드는 최종 빌드와 같다. 메뉴·큰 TXT·PDF 재사용은 해당 측정에서 개선됐고, 일반 모드·수정 저장·일부 종료는 느려졌다. [전체 원시 값](releases/0.8.11-preview-performance.json). |
 | 동일 앱 Release 구조·공개 Maven 권고 | [41819669179](https://github.com/Ch-wook/File_Translator/actions/runs/41819669179) 통과. unsigned Release 실제 빌드, 검사 구성요소/INTERNET 제외, 제한된 자격정보 패턴0, 공개 Maven157개 조회·권고 일치0. 전체 보안 인증이 아니다. |
 | 2026-11-04 npm 검사 | [41813288172](https://github.com/Ch-wook/File_Translator/actions/runs/41813288172): production 분류0, 전체22패키지(고8/중9/저5) 미해결. [범위·검토·남은 조치](NODE_DEPENDENCY_AUDIT_REVIEW.md). |
 | 실제 ARM64 휴대폰/Gboard/S펜/TalkBack | 미실행. |
 
-Android 조건은 API35 x86_64 Pixel7, SwiftShader, RAM3072MiB다. 브라우저 휴대폰 화면은412×915이며 실제 휴대폰 검증과 다르다. 최신 전체 실행은 Ubuntu24.04로 고정한다. b6419f88/b68d3195의 기본 검사 뒤에 실제 PPT 좌표 이동을 추가로 발견했고 e23a7a26에서 문서 초점·실제 가시 슬라이드 검사까지 통과했다. 오래된 네이티브 선택 번호만으로 위치 유지까지 통과로 처리하지 않는다. 전체 CI를 Ubuntu24.04로 고정했다. APK를 다시 서명/빌드하지 않고 최종 설치 검사한 바이트를 그대로 배포할 계획이다.
+Android 조건은 API35 x86_64 Pixel7, SwiftShader, RAM3072MiB다. 브라우저 휴대폰 화면은412×915이며 실제 휴대폰 검증과 다르다. 최신 전체 실행은 Ubuntu24.04로 고정한다. b6419f88/b68d3195의 기본 검사 뒤에 실제 PPT 좌표 이동을 추가로 발견했고 e23a7a26에서 문서 초점·실제 가시 슬라이드 검사까지 통과했다. 오래된 네이티브 선택 번호만으로 위치 유지까지 통과로 처리하지 않는다. 전체 CI를 Ubuntu24.04로 고정했다. 최종 빌드는 `f72c0aaa4f1c7fc15561eea9404ee372cd3488fa`다. 검사한 APK 바이트를 재빌드·재서명하지 않고 배포한다. 이후의 차이는 강화한 PPT 테스트·문서·CI이며 앱 코드·엔진은 같다.
 
-PPTX는 표/이미지가 포함된10개 슬라이드를 변환하고 독립 PDF 파서로 쪽 수·16:9 비율·문자 순서와 편집 후11쪽을 확인한다. DOCX는2쪽·머리말/꼬리말·표 문자를, XLSX는2시트·표시/수식 결과를 확인한다. 모든 표/그림의 시각적 배치가 완전히 동일한지 검증한 결과는 아니다. 한글은 실제 Android 자필 획→PNG 삽입→HWPX 저장→엔진/독립 파서 재열기→서명 포함PDF를 검사한다. 저장 실패 주입·중간 프로세스 종료·부분 쓰기/롤백 실패 시 이전/최신 사본 보존도 포함한다. 최종 전체 실행 결과가 나오기 전에는 이 목록 전체의 최신 통과를 주장하지 않는다.
+PPTX는 표/이미지가 포함된10개 슬라이드를 변환하고 독립 PDF 파서로 쪽 수·16:9 비율·문자 순서와 편집 후11쪽을 확인한다. DOCX는2쪽·머리말/꼬리말·표 문자를, XLSX는2시트·표시/수식 결과를 확인한다. 모든 표/그림의 시각적 배치가 완전히 동일한지 검증한 결과는 아니다. 한글은 실제 Android 자필 획→PNG 삽입→HWPX 저장→엔진/독립 파서 재열기→서명 포함PDF를 검사한다. 저장 실패 주입·중간 프로세스 종료·부분 쓰기/롤백 실패 시 이전/최신 사본 보존도 포함한다. 위 시나리오는 최종70건 실행과 독립 파서에서 통과했다. 설치는 API35 x86_64에서 이전0.8.10 앱과 함께 설치하고 검사용 비공개 파일 보존·동일 서명 재설치를 확인했다. ARM64 실기기 설치 검사가 아니다.
 
 성능 측정은 같은 에뮬레이터에서0.8.10과 현재 후보를 순차 실행한다. 전체 앱 peak RAM·60fps·배터리·모든 버튼100ms·모든 화면300ms를 측정/충족했다고 주장하지 않는다.
 
@@ -146,3 +146,11 @@ PPTX는 표/이미지가 포함된10개 슬라이드를 변환하고 독립 PDF 
 앱은 INTERNET 권한이나 새 문서 업로드 서버를 사용하지 않는다. 이것만으로 ML Kit·Google Play 서비스·OS 전체에서 통계/IPC 처리가 전혀 없다고 단정하지 않는다. 앱 삭제/데이터 삭제는 앱 내부 복구본·서명을 지우므로 기존 앱을 삭제하지 말고 외부 저장/백업한 파일로 옮겨야 한다.
 
 Maven에서 확인했던 Log4j API2.24.3의 CVE-2026-49844는2.25.5로 갱신하고 실제 JSON 숫자 회귀와 원본 NOTICE를 보존했다. Rhwp MIT, Collabora/MPL 및 포함 라이브러리, PDFBox Apache, OFL 폰트의 기존 고지를 유지한다. 전체 보안·라이선스 인증을 마쳤다는 뜻은 아니다.
+
+## 배포 파일과 추적 정보
+
+[휴대폰 ARM64 APK](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.11-preview/document-studio-0.8.11-preview-arm64-v8a.apk) · [전체 소스 ZIP](https://github.com/Ch-wook/File_Translator/releases/download/v0.8.11-preview/document-studio-0.8.11-preview-source.zip) · [Release·검증 ZIP·해시·패치·Git 이력](https://github.com/Ch-wook/File_Translator/releases/tag/v0.8.11-preview) · [PR #1](https://github.com/Ch-wook/File_Translator/pull/1)
+
+앱은 **문서 스튜디오 품질 개선 / kr.documentstudio.qualitypreview**, versionCode21다. Android10+ 64비트, Office는Android11+다. ARM64 APK430294148bytes(약430.3MB), x86_64 APK442180638bytes다. 두 APK는 동일한 개발 인증서이며 testOnly가 아니다. 16KiB ELF 정렬은 정적 검사 결과이며 실제16KiB ARM64 기기 검증과 다르다. 기존 앱을 삭제하지 말고 외부 저장·백업한 파일로 옮긴다. 앱 내부 복구본과 내 서명은 자동 이관하지 않는다.
+
+원본0.8.10 Release와 main은 보존한다. 최종 소스 ZIP은 태그의 모든 추적 바이트와 대조하며 APK 빌드 뒤 앱 코드 변경이 없는지 별도 검사한다. 공개 전10개 자산 업로드 크기·해시, 공개 뒤 실제 익명 다운로드의 크기·SHA-256·태그를 검증하는 절차를 실행한다. 공개 다운로드의 최종 결과는 별도 확인서와 Actions에 기록한다.

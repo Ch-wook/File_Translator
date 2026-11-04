@@ -1,7 +1,6 @@
 {
-  "source": "71f746d2c2b131f6d076fc31a060f4d028ce22d6",
-  "run": 40857032375,
-  "environment": "Chromium mobile viewport 412x915; no physical Android claim",
+  "source": "f72c0aaa4f1c7fc15561eea9404ee372cd3488fa",
+  "run": 41820125408,
   "result": {
     "pages": 20,
     "uniqueRenderedPages": 20,
@@ -19,7 +18,7 @@
     "retry": true,
     "documentWrites": 0,
     "originalUnchanged": true,
-    "firstReadyMs": 1181,
+    "firstReadyMs": 1198,
     "zoomBefore": 0.46869094116164794,
     "zoomAfter": 0.9373818823232959,
     "finalView": {
