@@ -14,6 +14,8 @@ Android35 x86_64 에뮬레이터 **70건**, 단위 **175건**, JavaScript **28�
 
 실제 ARM64 휴대폰·Gboard/S펜/TalkBack·장시간/peak 메모리·운영 서명·스토어 검증은 미완료입니다. npm 개발/빌드 도구22건의 권고도 남아 있습니다. 상용 출시 완료 판정이 아니며, 과거 미푸시0.8.0 원본 복구본이 아닙니다.
 
+[공개 다운로드·크기·SHA-256·기존 배포 보존 확인서](docs/releases/0.8.11-preview-download-verification.json) — 10개 자산 확인 완료.
+
 <details>
 <summary>0.8.10 및 이전 구현·배포 기록</summary>
 

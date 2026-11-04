@@ -1,0 +1,136 @@
+{
+  "publicationRun": 41823782053,
+  "verifiedBuildCommit": "f72c0aaa4f1c7fc15561eea9404ee372cd3488fa",
+  "tagCommit": "7aad16c0868575d68ffa40ff33258b7ef438aa5d",
+  "assets": [
+    {
+      "name": "README.txt",
+      "bytes": 2704,
+      "sha256": "83ddfec051e2557b9346cd66dca96fe90579d6d3bfb480879fdc96a84632288c",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "SHA256SUMS",
+      "bytes": 968,
+      "sha256": "c976f36bd820921d516214fd3b429dc473dc1415a6c7b3a8c87b5d4c6ec57724",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.11-preview-apk-metadata.json",
+      "bytes": 1120,
+      "sha256": "e1ab8891c5d197634d3374879d9904070c3faae0bf90b1e3a0e6aa4ceaf2f983",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.11-preview-arm64-v8a.apk",
+      "bytes": 430294148,
+      "sha256": "a5a198a7e46cd093c5443dca2f097a368d03dfdfccb0188e09ec3cc29c2a7793",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.11-preview-changes.patch",
+      "bytes": 713745,
+      "sha256": "174da22a0a65cb6f18848d21ef467bfad5fe5488e43061f1250d2c82447879a2",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.11-preview-history.bundle",
+      "bytes": 9414136,
+      "sha256": "9eb5b7be3726201bc69d68d04f400ba7d2f702f213634fbf696c0369516cac34",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.11-preview-source.zip",
+      "bytes": 8738268,
+      "sha256": "ebd39b7158ff0afe72ad076bc982f751282aa37c207472bd41fbe5d8f06204b5",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.11-preview-verification.zip",
+      "bytes": 6709159,
+      "sha256": "d8b9ddf26d56d75a8ab1d51aef4b2b39cc89fdebc0b58b14dc7bcf8d02f95c28",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.11-preview-work-report.md",
+      "bytes": 22996,
+      "sha256": "da13d064e8fdca21ac8f0b11cb68c12c8f0eaf370ee1a40a896c20f9619a722c",
+      "publicDownloadVerified": true
+    },
+    {
+      "name": "document-studio-0.8.11-preview-x86_64.apk",
+      "bytes": 442180638,
+      "sha256": "7dbbc1c774c8a089160527f20b129fcdab7daced6f24824af4e9ef6dae798b22",
+      "publicDownloadVerified": true
+    }
+  ],
+  "previousReleasePreserved": true,
+  "previousRelease": {
+    "releaseId": 427280154,
+    "tagCommit": "22fe345dbea767ff10745bfd09d1918950e84746",
+    "assets": [
+      {
+        "id": 686613612,
+        "name": "README.txt",
+        "size": 2128,
+        "digest": "sha256:88ff064bfdec774d42e73fb73a2af8a1265f22a527d7a696a144eca6e7a91b73"
+      },
+      {
+        "id": 686613618,
+        "name": "SHA256SUMS",
+        "size": 968,
+        "digest": "sha256:7d29568fd4ed8951c5f2d35ccb066f15c56050b0fada0ec9e8afeda6a46314b8"
+      },
+      {
+        "id": 686613614,
+        "name": "document-studio-0.8.10-preview-apk-metadata.json",
+        "size": 1128,
+        "digest": "sha256:6781e7ef06e893fc88cd644affaa8a9a67a61b471e57e0b32765591a6a3a5998"
+      },
+      {
+        "id": 686613621,
+        "name": "document-studio-0.8.10-preview-arm64-v8a.apk",
+        "size": 429939265,
+        "digest": "sha256:e4ab5b2b5ca20792753e65fa40295944b0dfe556e815c35dee9575aabff41999"
+      },
+      {
+        "id": 686613615,
+        "name": "document-studio-0.8.10-preview-changes.patch",
+        "size": 147325,
+        "digest": "sha256:fb5d712f278053e0d482e1a11f28f09598e14c44725637a652762998635c67c3"
+      },
+      {
+        "id": 686613634,
+        "name": "document-studio-0.8.10-preview-history.bundle",
+        "size": 9126247,
+        "digest": "sha256:13bc409a5471cf5e9995f9540c0b41c12d5ad86ed6a55eda79374f5aaa2a0c24"
+      },
+      {
+        "id": 686613635,
+        "name": "document-studio-0.8.10-preview-source.zip",
+        "size": 8588405,
+        "digest": "sha256:4d158ee43812b0f66f3451d8aedf76fdf94576be259a4fefaa0808a1b34cbbed"
+      },
+      {
+        "id": 686613639,
+        "name": "document-studio-0.8.10-preview-verification.zip",
+        "size": 5753436,
+        "digest": "sha256:cbdd11ffecde1129d83be98abc514f33778f321d980799bf1b578123053b74b7"
+      },
+      {
+        "id": 686613644,
+        "name": "document-studio-0.8.10-preview-work-report.md",
+        "size": 14492,
+        "digest": "sha256:8fbbfec704ebb1a50b2fb43b85ffc3192d68504e4662a7b02c57fd44e971af35"
+      },
+      {
+        "id": 686613672,
+        "name": "document-studio-0.8.10-preview-x86_64.apk",
+        "size": 441825755,
+        "digest": "sha256:16e53cd798c099179876064edb85ff4a19f6b1158adb44b59141a1390edab336"
+      }
+    ]
+  },
+  "apkRebuilt": false,
+  "apkResigned": false
+}

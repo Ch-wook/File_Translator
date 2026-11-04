@@ -154,3 +154,9 @@ Maven에서 확인했던 Log4j API2.24.3의 CVE-2026-49844는2.25.5로 갱신하
 앱은 **문서 스튜디오 품질 개선 / kr.documentstudio.qualitypreview**, versionCode21다. Android10+ 64비트, Office는Android11+다. ARM64 APK430294148bytes(약430.3MB), x86_64 APK442180638bytes다. 두 APK는 동일한 개발 인증서이며 testOnly가 아니다. 16KiB ELF 정렬은 정적 검사 결과이며 실제16KiB ARM64 기기 검증과 다르다. 기존 앱을 삭제하지 말고 외부 저장·백업한 파일로 옮긴다. 앱 내부 복구본과 내 서명은 자동 이관하지 않는다.
 
 원본0.8.10 Release와 main은 보존한다. 최종 소스 ZIP은 태그의 모든 추적 바이트와 대조하며 APK 빌드 뒤 앱 코드 변경이 없는지 별도 검사한다. 공개 전10개 자산 업로드 크기·해시, 공개 뒤 실제 익명 다운로드의 크기·SHA-256·태그를 검증하는 절차를 실행한다. 공개 다운로드의 최종 결과는 별도 확인서와 Actions에 기록한다.
+
+### 공개 배포 확인
+
+[게시 검사41823782053](https://github.com/Ch-wook/File_Translator/actions/runs/41823782053)가 통과했다. 태그는 `7aad16c0868575d68ffa40ff33258b7ef438aa5d`, APK 빌드는 `f72c0aaa4f1c7fc15561eea9404ee372cd3488fa`다. APK 재빌드/재서명 없이10개 자산 모두 업로드 readback 및 익명 공개 다운로드의 크기·SHA-256이 일치했다. 소스 ZIP8738268bytes는 태그의 추적 파일 전체와 바이트 대조했고, 변경 패치 역적용 검사와 Git bundle verify도 통과했다. 기존0.8.10 Release의 ID·태그·10개 자산과 main을 보존했다. [실제 확인서](releases/0.8.11-preview-download-verification.json).
+
+게시 단계의 독립 픽셀 검사도 PPT 그림·도형 위치와 배경, DOCX 그림, XLSX 셀 배경색을 확인했다. 특정 기준 요소의 검사이며 모든 문서의 시각적 무손실 보장은 아니다. 태그 소스·배포용 보고서는 다운로드 확인 전 작성됐고, 이 절과 확인서는 공개 후 추가한 문서다. 앱 코드는 동일하다.
