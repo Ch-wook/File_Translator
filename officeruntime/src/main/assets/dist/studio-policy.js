@@ -186,6 +186,51 @@
     },{passive:true,capture:true});
     document.addEventListener('touchcancel',()=>{down=null;lastTap=null;},{passive:true});
   }
+  function installPresentationPinchAnchor(){
+    const layout=app.activeDocument?.activeLayout;
+    if(map().getDocType()!=='presentation'||layout?.type!=='ViewLayoutFileBased'||typeof layout.applyZoom!=='function')return;
+    const apply=layout.applyZoom;
+    let pinch=null,generation=0;
+    const allowed=target=>target?.closest?.('#document-container')&&!target.closest('a,input,button,[role=dialog]');
+    const focal=touches=>{
+      const canvas=document.getElementById('document-canvas'),rect=canvas?.getBoundingClientRect();
+      if(!rect)return null;
+      const dpi=app.dpiScale||1;
+      return {x:((touches[0].clientX+touches[1].clientX)/2-rect.left)*dpi,
+        y:((touches[0].clientY+touches[1].clientY)/2-rect.top)*dpi};
+    };
+    document.addEventListener('touchstart',event=>{
+      if(event.touches.length!==2||editable()||modeTransition||!initialViewportRestored||!allowed(event.target)){
+        if(event.touches.length===1){pinch=null;++generation;}return;
+      }
+      const at=focal(event.touches);if(!at)return;
+      const point=layout.frameSize.clone();point.pX=at.x;point.pY=at.y;
+      pinch={point:layout.canvasToDocumentPoint(point),x:at.x,y:at.y,until:Date.now()+1500};++generation;
+    },{capture:true,passive:true});
+    document.addEventListener('touchmove',event=>{
+      if(!pinch||event.touches.length!==2)return;
+      const at=focal(event.touches);if(at){pinch.x=at.x;pinch.y=at.y;pinch.until=Date.now()+1500;}
+    },{capture:true,passive:true});
+    document.addEventListener('touchcancel',()=>{pinch=null;++generation;},{capture:true,passive:true});
+    layout.applyZoom=function(value,...args){
+      const anchor=pinch;
+      if(!anchor||Date.now()>anchor.until||editable()||modeTransition||app.activeDocument?.activeLayout!==this
+          ||Math.abs(value-map().getZoom())<.001)return apply.call(this,value,...args);
+      const ticket=++generation;
+      // The native file-based layout otherwise retains pixel scroll offsets
+      // when zooming, which changes the slide. Supply its actual document anchor.
+      const result=apply.call(this,value,anchor.point.clone(),...args.slice(1));
+      const finish=()=>{
+        if(ticket!==generation||editable()||app.activeDocument?.activeLayout!==this)return;
+        const dx=this.documentToViewX(anchor.point)-anchor.x,dy=this.documentToViewY(anchor.point)-anchor.y;
+        if(Number.isFinite(dx)&&Number.isFinite(dy))this.scroll(dx,dy);
+        map()._docLayer?._checkSelectedPart?.();
+        rememberViewport();updateNavigation();
+      };
+      if(app.layoutingService?.onDrain)app.layoutingService.onDrain(finish);else requestAnimationFrame(finish);
+      return result;
+    };
+  }
   function installPresentationFit(){
     if(map().getDocType()!=='presentation')return;
     const layer=map()._docLayer,original=layer._fitWidthZoom;
@@ -644,7 +689,7 @@
       if(window.L?.DomEvent?.disableClickPropagation)L.DomEvent.disableClickPropagation(element);
       else for(const name of ['mousedown','touchstart','pointerdown','dblclick','contextmenu'])element.addEventListener(name,event=>event.stopPropagation());
     }
-    policy.modeSupported=installModeGate();installPresentationFit();installReaderDoubleTap();
+    policy.modeSupported=installModeGate();installPresentationFit();installPresentationPinchAnchor();installReaderDoubleTap();
     map().on('commandstatechanged',event=>{if(event.commandName==='.uno:ModifiedStatus'&&String(event.state)==='true'&&policy.wasAuthorized)policy.changed=true;update();});
     app.events.on('contextchange',event=>{contextName=String(event.detail?.context||event.context||'');update();});
     app.events.on('updatepermission',()=>{update();refreshLayout();if(modeTransition)restore(transitionViewport,undefined,transitionGeneration);});

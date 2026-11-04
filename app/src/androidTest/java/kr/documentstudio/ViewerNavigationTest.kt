@@ -89,7 +89,7 @@ class ViewerNavigationTest {
             if(!name.endsWith(".pptx"))return
             eval(kind,"window.__viewerSettled=false;app.layoutingService.onDrain(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>window.__viewerSettled=true)));true")
             waitFor("Slide layout has drained: "+label){eval(kind,"window.__viewerSettled===true")=="true"}
-            val script="JSON.stringify({index:app.map.getCurrentPartNumber(),zoom:app.map.getZoom(),ratio:app.twipsToPixels,view:app.activeDocument.activeLayout.viewedRectangle,scroll:app.activeDocument.activeLayout.scrollProperties,frame:app.activeDocument.activeLayout.frameSize,parts:app.activeDocument.activeLayout.viewRectangles?.slice(-2)})"
+            val script="JSON.stringify({index:app.map.getCurrentPartNumber(),zoom:app.map.getZoom(),ratio:app.twipsToPixels,view:app.activeDocument.activeLayout.viewedRectangle,scroll:{x:app.activeDocument.activeLayout.scrollProperties.viewX,y:app.activeDocument.activeLayout.scrollProperties.viewY},frame:app.activeDocument.activeLayout.frameSize,parts:app.activeDocument.activeLayout.viewRectangles?.slice(-2)})"
             record.put(label,JSONObject(eval(kind,script)))
         }
         val probeClient=checkNotNull(context.contentResolver.acquireUnstableContentProviderClient(Uri.parse("content://"+context.packageName+"."+kind+"probe")))
