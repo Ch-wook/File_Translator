@@ -303,7 +303,8 @@ jobs:
           print('PUBLISHED_SOURCE_MATCHES_TAG_AND_TESTED_APP',json.dumps(provenance),flush=True)
           units={key:sum(counts[key] for counts in result['unitTests'].values()) for key in ('tests','failures','errors','skipped')}
           notes=(delivery/'README.txt').read_text()
-          notes+='추가 npm 검사: 실행 의존성 권고 일치0건, 개발·빌드 도구 포함16건(높음8) 미해결. 전체 보안/상용 출시 완료가 아닙니다. 검증 ZIP의 quality-node와 작업 보고서를 확인하세요.\n'
+          npm_counts=node_summary['audits']['all']['metadata']['vulnerabilities']
+          notes+='추가 npm 검사: npm 실행 의존성 권고 일치0건, 개발·빌드 도구 포함'+str(npm_counts['total'])+'건(높음'+str(npm_counts['high'])+') 미해결. 전체 보안/상용 출시 완료가 아닙니다. 검증 ZIP의 quality-node와 작업 보고서를 확인하세요.\n'
           notes+='\n실행 검증: Android '+str(result['androidTests']['tests'])+'건, 단위 '+str(units['tests'])+'건 — 실패·오류·건너뜀 0건.\n'
           notes+='이름/MIME 조회 회귀: 동일 3건에서 수정 전 3건 실패 → 수정 후 3건 통과.\n'
           notes+='실제 엔진 브라우저 9개 시나리오, JavaScript 28건, TypeScript·lint, HWP/HWPX 독립 저장 파서 검사 통과.\n'

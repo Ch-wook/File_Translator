@@ -6,11 +6,11 @@
       "metadata": {
         "vulnerabilities": {
           "info": 0,
-          "low": 7,
-          "moderate": 1,
+          "low": 5,
+          "moderate": 9,
           "high": 8,
           "critical": 0,
-          "total": 16
+          "total": 22
         },
         "dependencies": {
           "prod": 6,
@@ -44,7 +44,7 @@
           "range": ">=8.0.0",
           "fixAvailable": {
             "name": "vite-plugin-pwa",
-            "version": "0.2.1",
+            "version": "1.1.0",
             "isSemVerMajor": true
           },
           "advisories": [
@@ -59,6 +59,20 @@
           "fixAvailable": true,
           "advisories": [
             "serialize-javascript"
+          ]
+        },
+        {
+          "package": "@trickfilm400/rollup-plugin-off-main-thread",
+          "severity": "moderate",
+          "isDirect": false,
+          "range": "<=3.1.0-pre2",
+          "fixAvailable": {
+            "name": "vite-plugin-pwa",
+            "version": "1.1.0",
+            "isSemVerMajor": true
+          },
+          "advisories": [
+            "ejs"
           ]
         },
         {
@@ -195,7 +209,7 @@
           "range": ">=4.2.0",
           "fixAvailable": {
             "name": "vite-plugin-pwa",
-            "version": "0.2.1",
+            "version": "1.1.0",
             "isSemVerMajor": true
           },
           "advisories": [
@@ -205,6 +219,20 @@
               "url": "https://github.com/advisories/GHSA-gcqx-w48m-w2h4",
               "severity": "low"
             }
+          ]
+        },
+        {
+          "package": "ejs",
+          "severity": "moderate",
+          "isDirect": false,
+          "range": "3.1.2 - 4.0.1",
+          "fixAvailable": {
+            "name": "vite-plugin-pwa",
+            "version": "1.1.0",
+            "isSemVerMajor": true
+          },
+          "advisories": [
+            "jake"
           ]
         },
         {
@@ -279,6 +307,73 @@
               "title": "fast-uri vulnerable to scheme injection via an unescaped first-segment colon in suffix references",
               "url": "https://github.com/advisories/GHSA-333x-w4r6-6crp",
               "severity": "low"
+            }
+          ]
+        },
+        {
+          "package": "filelist",
+          "severity": "moderate",
+          "isDirect": false,
+          "range": ">=0.0.2",
+          "fixAvailable": {
+            "name": "vite-plugin-pwa",
+            "version": "1.1.0",
+            "isSemVerMajor": true
+          },
+          "advisories": [
+            "minimatch"
+          ]
+        },
+        {
+          "package": "glob",
+          "severity": "moderate",
+          "isDirect": false,
+          "range": "3.0.0 - 14.0.1",
+          "fixAvailable": {
+            "name": "vite-plugin-pwa",
+            "version": "1.1.0",
+            "isSemVerMajor": true
+          },
+          "advisories": [
+            {
+              "name": "glob",
+              "title": "Glob: AbortSignal cancellation bypass allows post-timeout filesystem traversal",
+              "url": "https://github.com/advisories/GHSA-3g3m-2fjr-6pw4",
+              "severity": "moderate"
+            },
+            "minimatch"
+          ]
+        },
+        {
+          "package": "jake",
+          "severity": "moderate",
+          "isDirect": false,
+          "range": ">=10.6.1",
+          "fixAvailable": {
+            "name": "vite-plugin-pwa",
+            "version": "1.1.0",
+            "isSemVerMajor": true
+          },
+          "advisories": [
+            "filelist"
+          ]
+        },
+        {
+          "package": "minimatch",
+          "severity": "moderate",
+          "isDirect": false,
+          "range": "<11.0.1",
+          "fixAvailable": {
+            "name": "vite-plugin-pwa",
+            "version": "1.1.0",
+            "isSemVerMajor": true
+          },
+          "advisories": [
+            {
+              "name": "minimatch",
+              "title": "minimatch has potential denial of service via globparts amplification",
+              "url": "https://github.com/advisories/GHSA-g3hv-75wg-m249",
+              "severity": "moderate"
             }
           ]
         },
@@ -369,12 +464,12 @@
         },
         {
           "package": "vite-plugin-pwa",
-          "severity": "low",
+          "severity": "moderate",
           "isDirect": true,
-          "range": ">=0.3.0",
+          "range": ">=1.2.0",
           "fixAvailable": {
             "name": "vite-plugin-pwa",
-            "version": "0.2.1",
+            "version": "1.1.0",
             "isSemVerMajor": true
           },
           "advisories": [
@@ -383,16 +478,18 @@
         },
         {
           "package": "workbox-build",
-          "severity": "low",
+          "severity": "moderate",
           "isDirect": false,
           "range": ">=6.0.0-alpha.0",
           "fixAvailable": {
             "name": "vite-plugin-pwa",
-            "version": "0.2.1",
+            "version": "1.1.0",
             "isSemVerMajor": true
           },
           "advisories": [
-            "@rollup/plugin-node-resolve"
+            "@rollup/plugin-node-resolve",
+            "@trickfilm400/rollup-plugin-off-main-thread",
+            "glob"
           ]
         },
         {
