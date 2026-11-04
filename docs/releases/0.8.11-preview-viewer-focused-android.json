@@ -1,0 +1,120 @@
+{
+  "source": "b6419f88b46dcf7b5e293d6afc48ceb19e3768cb",
+  "run": 41812475652,
+  "summary": {
+    "tests": 10,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "environment": "Android 35 x86_64 Pixel7 SwiftShader 3072 MiB, Ubuntu26.04 host; not physical ARM64",
+  "nativeFormats": {
+    "viewer-20.hwpx.json": {
+      "file": "viewer-20.hwpx",
+      "expectedCount": 20,
+      "probePrimedBeforeActivity": true,
+      "actualAndroidContinuousScroll": true,
+      "zoomBefore": 0.46869094116164794,
+      "zoomAfter": 0.9373816476596214,
+      "actualAndroidPinch": true,
+      "readingDoubleTapZoom": true,
+      "doubleTapStaysReadonly": true,
+      "sameEngineAcrossRotation": true,
+      "rotationPageAndZoomPreserved": true,
+      "finalState": {
+        "page": 19,
+        "pages": 20,
+        "zoom": 2
+      },
+      "nativeRotation": true,
+      "workingUnchanged": true,
+      "originalUnchanged": true,
+      "completed": true
+    },
+    "viewer-12.docx.json": {
+      "file": "viewer-12.docx",
+      "expectedCount": 12,
+      "probePrimedBeforeActivity": true,
+      "actualAndroidContinuousScroll": true,
+      "zoomBefore": 6,
+      "zoomAfter": 9,
+      "actualAndroidPinch": true,
+      "readingDoubleTapZoom": true,
+      "doubleTapStaysReadonly": true,
+      "continuousScroll": true,
+      "finalState": {
+        "count": 12,
+        "family": "text",
+        "index": 0,
+        "zoomPercent": 167
+      },
+      "nativeRotation": true,
+      "workingUnchanged": true,
+      "originalUnchanged": true,
+      "completed": true
+    },
+    "viewer-30.pptx.json": {
+      "file": "viewer-30.pptx",
+      "expectedCount": 30,
+      "probePrimedBeforeActivity": true,
+      "actualAndroidSlideSwipe": true,
+      "zoomBefore": 5.051690918640477,
+      "zoomAfter": 8,
+      "actualAndroidPinch": true,
+      "readingDoubleTapZoom": true,
+      "doubleTapStaysReadonly": true,
+      "finalState": {
+        "count": 30,
+        "family": "presentation",
+        "index": 17,
+        "zoomPercent": 139
+      },
+      "nativeRotation": true,
+      "workingUnchanged": true,
+      "originalUnchanged": true,
+      "completed": true
+    },
+    "viewer-large.xlsx.json": {
+      "file": "viewer-large.xlsx",
+      "expectedCount": 3,
+      "probePrimedBeforeActivity": true,
+      "distantCellReachedBySearch": true,
+      "distantCell": "CV5000",
+      "zoomBefore": 10,
+      "zoomAfter": 13,
+      "actualAndroidPinch": true,
+      "readingDoubleTapZoom": true,
+      "doubleTapStaysReadonly": true,
+      "finalState": {
+        "count": 3,
+        "family": "spreadsheet",
+        "index": 2,
+        "zoomPercent": 346
+      },
+      "nativeRotation": true,
+      "workingUnchanged": true,
+      "originalUnchanged": true,
+      "completed": true
+    }
+  },
+  "markdown": {
+    "nativeTopBottomNavigation": true,
+    "bundledFontSupplied": true,
+    "fontChangesViewportPixels": true,
+    "displayZoomAppliedWithoutReplacingWebView": true,
+    "scriptsAndNetworkDisabled": true,
+    "sourceUnchanged": true
+  },
+  "pdf": {
+    "pages": 100,
+    "mixedSizesAndRotation": true,
+    "actualTwoPointerZoom": true,
+    "doubleTapZoom": true,
+    "page100ReachedAndRestored": true,
+    "sourceHashUnchanged": true,
+    "visibleInkRendered": true,
+    "hiddenInkNotDisclosed": true,
+    "zoomBefore": 1,
+    "zoomAfterPinch": 2.1111104
+  }
+}
