@@ -77,16 +77,33 @@
     else window.dispatchEvent(new Event('resize'));
   }
   function snapshot() {
-    const layout = window.app?.activeDocument?.activeLayout;
-    const rect = layout?.viewedRectangle;
-    if (!rect || !map()?.getZoom) return null;
-    return { x:Number(rect.x1), y:Number(rect.y1), zoom:Number(map().getZoom()), part:map().getDocType()==='text' ? 0 : Number(map().getCurrentPartNumber?.() || 0) };
+    const layout=window.app?.activeDocument?.activeLayout,rect=layout?.viewedRectangle,frame=layout?.frameSize;
+    if(!rect||!map()?.getZoom)return null;
+    const ratio=app.twipsToPixels,fileBased=layout.type==='ViewLayoutFileBased'&&Number.isFinite(ratio)&&ratio>0;
+    const part=map().getDocType()==='text'?0:(fileBased?visiblePresentationIndex():null)??Number(map().getCurrentPartNumber?.()||0);
+    return {x:Number(fileBased?layout.scrollProperties.viewX/ratio:rect.x1),
+      y:Number(fileBased?layout.scrollProperties.viewY/ratio:rect.y1),zoom:Number(map().getZoom()),part,
+      frameWidth:Number(frame?.x),frameHeight:Number(frame?.y),layoutType:layout.type};
+  }
+  function visiblePresentationIndex(){
+    const layout=app.activeDocument?.activeLayout,parts=layout?.viewRectangles,frame=layout?.frameSize,scroll=layout?.scrollProperties;
+    if(layout?.type!=='ViewLayoutFileBased'||!parts?.length||!frame||!scroll)return null;
+    const preferred=Number(map().getCurrentPartNumber?.()||0);
+    let index=null,best=0;
+    for(let i=0;i<parts.length;i++){
+      const rect=parts[i],w=Math.max(0,Math.min(rect.pX2,scroll.viewX+frame.pX)-Math.max(rect.pX1,scroll.viewX)),
+        h=Math.max(0,Math.min(rect.pY2,scroll.viewY+frame.pY)-Math.max(rect.pY1,scroll.viewY)),area=w*h;
+      if(area>best+1||(area>0&&Math.abs(area-best)<=1&&i===preferred)){best=area;index=i;}
+    }
+    return index;
   }
   function navigationState() {
     const m=map(),layer=m?._docLayer,family=m?.getDocType?.(),rectangles=app.file?.writer?.pageRectangleList||[];
     let count=family==='text'?Number(layer?._pages||rectangles.length):Number(m?.getNumberOfParts?.()||0);
     if(!Number.isInteger(count)||count<1)return null;
     let index=family==='text'?Number(layer?._currentPage||0):Number(m?.getCurrentPartNumber?.()||0);
+    const liveSlide=family==='presentation'?visiblePresentationIndex():null;
+    if(liveSlide!==null)index=liveSlide;
     if(family==='text'){
       const rect=app.activeDocument?.activeLayout?.viewedRectangle;
       const y=rect?rect.y1+rect.height/2:undefined;
@@ -95,7 +112,7 @@
         if(found>=0)index=found;
       }
     }
-    return {family,index:Math.max(0,Math.min(count-1,index)),count,
+    return {family,index:Math.max(0,Math.min(count-1,index)),count,viewportMeasured:family!=='presentation'||liveSlide!==null,
       zoomPercent:typeof app.activeDocument?.getZoomScale==='function'?Math.round(app.activeDocument.getZoomScale(m.getZoom(),10)*100):null};
   }
   function updateNavigation(){
@@ -116,7 +133,13 @@
     if(!s||modeTransition||!Number.isInteger(index)||index<0||index>=s.count)return false;
     releaseViewportPin();
     if(s.family==='text')map().goToPage(index);
-    else map().setPart(index);
+    else {
+      map().setPart(index);
+      // Native selection can be stale after a layout change. Scroll the actual
+      // file-based viewport even when setPart sees the same selected part.
+      if(s.family==='presentation'&&app.activeDocument?.activeLayout?.type==='ViewLayoutFileBased')
+        map()._docLayer?._preview?._scrollViewToPartPosition?.(index);
+    }
     rememberViewport();updateNavigation();return true;
   }
   function choosePage(){
@@ -193,6 +216,59 @@
       });
     },{passive:true,capture:true});
     document.addEventListener('touchcancel',()=>{down=null;lastTap=null;},{passive:true});
+  }
+  function installPresentationPinchAnchor(){
+    if(map().getDocType()!=='presentation')return;
+    const wrapped=new WeakSet();
+    let pinch=null,generation=0;
+    const allowed=target=>target?.closest?.('#document-container')&&!target.closest('a,input,button,[role=dialog]');
+    const focal=touches=>{
+      const rect=document.getElementById('document-canvas')?.getBoundingClientRect();
+      if(!rect)return null;
+      const dpi=app.dpiScale||1;
+      return {x:((touches[0].clientX+touches[1].clientX)/2-rect.left)*dpi,
+        y:((touches[0].clientY+touches[1].clientY)/2-rect.top)*dpi};
+    };
+    function wrap(layout){
+      if(layout?.type!=='ViewLayoutFileBased'||typeof layout.applyZoom!=='function'||wrapped.has(layout))return;
+      wrapped.add(layout);const apply=layout.applyZoom;
+      layout.applyZoom=function(value,...args){
+        const anchor=pinch;
+        if(!anchor||anchor.layout!==this||Date.now()>anchor.until||editable()||modeTransition
+            ||app.activeDocument?.activeLayout!==this||Math.abs(value-map().getZoom())<.001)return apply.call(this,value,...args);
+        const ticket=++generation;
+        // Native file-based zoom otherwise retains physical scroll pixels.
+        // Give it the actual document anchor before rebuilding its view.
+        const result=apply.call(this,value,anchor.point.clone(),...args.slice(1));
+        const finish=()=>{
+          if(ticket!==generation||editable()||app.activeDocument?.activeLayout!==this)return;
+          const dx=this.documentToViewX(anchor.point)-anchor.x,dy=this.documentToViewY(anchor.point)-anchor.y;
+          if(Number.isFinite(dx)&&Number.isFinite(dy))this.scrollTo(this.scrollProperties.viewX+dx,this.scrollProperties.viewY+dy);
+          map()._docLayer?._checkSelectedPart?.();
+          rememberViewport();updateNavigation();
+        };
+        if(app.layoutingService?.onDrain)app.layoutingService.onDrain(finish);else requestAnimationFrame(finish);
+        return result;
+      };
+    }
+    wrap(app.activeDocument?.activeLayout);
+    document.addEventListener('touchstart',event=>{
+      if(event.touches.length!==2||editable()||modeTransition||!initialViewportRestored||!allowed(event.target)){
+        if(event.touches.length===1){pinch=null;++generation;}return;
+      }
+      const layout=app.activeDocument?.activeLayout,at=focal(event.touches);
+      if(layout?.type!=='ViewLayoutFileBased'||!at)return;
+      // Permission changes can replace the native layout, while the document and
+      // these listeners stay alive. Wrap each real layout once, without retaining it.
+      wrap(layout);
+      const point=layout.frameSize.clone();point.pX=at.x;point.pY=at.y;
+      pinch={layout,point:layout.canvasToDocumentPoint(point),x:at.x,y:at.y,until:Date.now()+1500};++generation;
+    },{capture:true,passive:true});
+    document.addEventListener('touchmove',event=>{
+      if(!pinch||event.touches.length!==2)return;
+      const at=focal(event.touches);if(at){pinch.x=at.x;pinch.y=at.y;pinch.until=Date.now()+1500;}
+    },{capture:true,passive:true});
+    document.addEventListener('touchcancel',()=>{pinch=null;++generation;},{capture:true,passive:true});
   }
   function installPresentationFit(){
     if(map().getDocType()!=='presentation')return;
@@ -300,7 +376,17 @@
             // the next asynchronous cursor update; a direct layout scroll does not.
             nativeViewState.onViewPositionMsg('viewposition: x='+Math.round(value.x)+' y='+Math.round(value.y));
             ownedNativeRestore=layer._savedScrollPos || null;
-          } else active?.scrollTo?.(value.x*ratio,value.y*ratio);
+          } else {
+            let x=value.x,y=value.y;
+            const frame=active?.frameSize;
+            if(value.layoutType===active?.type && Number.isFinite(value.frameWidth)&&Number.isFinite(value.frameHeight)
+                && frame && Math.abs(frame.x-value.frameWidth)>1){
+              // Keep the document point at the viewport centre through rotation.
+              x+=value.frameWidth/2-frame.x/2;y+=value.frameHeight/2-frame.y/2;
+            }
+            active?.scrollTo?.(x*ratio,y*ratio);
+            if(active?.type==='ViewLayoutFileBased')map()._docLayer?._checkSelectedPart?.();
+          }
         }
         } catch(error) {traceRestore('scroll-error',value,error);persistViewport();throw error;}
         traceRestore('after-scroll',value);
@@ -652,7 +738,7 @@
       if(window.L?.DomEvent?.disableClickPropagation)L.DomEvent.disableClickPropagation(element);
       else for(const name of ['mousedown','touchstart','pointerdown','dblclick','contextmenu'])element.addEventListener(name,event=>event.stopPropagation());
     }
-    policy.modeSupported=installModeGate();installPresentationFit();installReaderDoubleTap();
+    policy.modeSupported=installModeGate();installPresentationFit();installPresentationPinchAnchor();installReaderDoubleTap();
     map().on('commandstatechanged',event=>{if(event.commandName==='.uno:ModifiedStatus'&&String(event.state)==='true'&&policy.wasAuthorized)policy.changed=true;update();});
     app.events.on('contextchange',event=>{contextName=String(event.detail?.context||event.context||'');update();});
     app.events.on('updatepermission',()=>{update();refreshLayout();if(modeTransition)restore(transitionViewport,undefined,transitionGeneration);});

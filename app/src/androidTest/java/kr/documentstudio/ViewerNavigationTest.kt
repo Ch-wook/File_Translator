@@ -89,7 +89,7 @@ class ViewerNavigationTest {
             if(!name.endsWith(".pptx"))return
             eval(kind,"window.__viewerSettled=false;app.layoutingService.onDrain(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>window.__viewerSettled=true)));true")
             waitFor("Slide layout has drained: "+label){eval(kind,"window.__viewerSettled===true")=="true"}
-            val script="JSON.stringify({index:app.map.getCurrentPartNumber(),zoom:app.map.getZoom(),ratio:app.twipsToPixels,view:app.activeDocument.activeLayout.viewedRectangle,scroll:{x:app.activeDocument.activeLayout.scrollProperties.viewX,y:app.activeDocument.activeLayout.scrollProperties.viewY},frame:app.activeDocument.activeLayout.frameSize,parts:app.activeDocument.activeLayout.viewRectangles?.slice(-2)})"
+            val script="JSON.stringify({index:window.studioOffice.viewerState().index,visible:window.studioOffice.viewerState().viewportMeasured,nativeIndex:app.map.getCurrentPartNumber(),zoom:app.map.getZoom(),ratio:app.twipsToPixels,view:app.activeDocument.activeLayout.viewedRectangle,scroll:{x:app.activeDocument.activeLayout.scrollProperties.viewX,y:app.activeDocument.activeLayout.scrollProperties.viewY},frame:app.activeDocument.activeLayout.frameSize,focal42:(()=>{const l=app.activeDocument.activeLayout,r=document.getElementById('document-canvas').getBoundingClientRect(),p=l.frameSize.clone();p.pX=(innerWidth*.5-r.left)*app.dpiScale;p.pY=(innerHeight*.42-r.top)*app.dpiScale;const a=l.canvasToDocumentPoint(p);return{x:a.x,y:a.y}})(),focal40:(()=>{const l=app.activeDocument.activeLayout,r=document.getElementById('document-canvas').getBoundingClientRect(),p=l.frameSize.clone();p.pX=(innerWidth*.5-r.left)*app.dpiScale;p.pY=(innerHeight*.4-r.top)*app.dpiScale;const a=l.canvasToDocumentPoint(p);return{x:a.x,y:a.y}})(),parts:app.activeDocument.activeLayout.viewRectangles?.slice(-2)})"
             record.put(label,JSONObject(eval(kind,script)))
         }
         val probeClient=checkNotNull(context.contentResolver.acquireUnstableContentProviderClient(Uri.parse("content://"+context.packageName+"."+kind+"probe")))
@@ -196,8 +196,14 @@ class ViewerNavigationTest {
             if(name.endsWith(".pptx")){
                 for(stage in listOf("beforePinch","afterPinch","afterDoubleTap","afterLandscape","afterPortrait")){
                     assertEquals("Slide position must remain at thirty: "+stage,29,record.getJSONObject(stage).getInt("index"))
+                    assertTrue("A real slide is visible: "+stage,record.getJSONObject(stage).getBoolean("visible"))
                 }
-                record.put("slidePositionPreserved",true)
+                for((first,next,key) in listOf(Triple("beforePinch","afterPinch","focal42"),Triple("afterPinch","afterDoubleTap","focal40"))){
+                    val a=record.getJSONObject(first).getJSONObject(key);val b=record.getJSONObject(next).getJSONObject(key)
+                    assertEquals("Horizontal document focal point: "+key,a.getDouble("x"),b.getDouble("x"),40.0)
+                    assertEquals("Vertical document focal point: "+key,a.getDouble("y"),b.getDouble("y"),40.0)
+                }
+                record.put("slidePositionPreserved",true).put("documentFocalPointPreserved",true)
             }
             assertFalse(File(working.path+".edited").exists())
             assertEquals(workingHash,DocumentRepository.digest(working));assertEquals(originalHash,DocumentRepository.digest(original))

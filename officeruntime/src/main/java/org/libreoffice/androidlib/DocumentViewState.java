@@ -21,6 +21,13 @@ public final class DocumentViewState {
                 || !Double.isFinite(zoom) || zoom < 0 || zoom > 30 || part < 0 || part > 1000000)
             throw new IllegalArgumentException("Invalid viewport");
         JSONObject result = new JSONObject().put("x", x).put("y", y).put("zoom", zoom).put("part", part);
+        if (source.has("frameWidth") && source.has("frameHeight")) {
+            double width=source.getDouble("frameWidth"),height=source.getDouble("frameHeight");
+            String layout=source.optString("layoutType","");
+            if (Double.isFinite(width) && Double.isFinite(height) && width>0 && height>0 && width<1e12 && height<1e12
+                    && layout.matches("ViewLayout[A-Za-z0-9]{1,64}"))
+                result.put("frameWidth",width).put("frameHeight",height).put("layoutType",layout);
+        }
         org.json.JSONArray trace = source.optJSONArray("restoreTrace");
         if (trace != null && trace.length() <= 14) result.put("restoreTrace", trace);
         return result;
