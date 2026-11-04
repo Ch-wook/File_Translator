@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Read screenshots from the exact passing native test artifact
         run: |
-          gh run download 41813288474 --name focused-reading-ui-b68d31951ffa881c8784ad30897ddc8dfd0fd4de --dir viewer-screenshots
+          gh run download 41819668985 --name focused-reading-ui-8fae41c228a6cf86178f5da33669ee3d6cc4a08c --dir viewer-screenshots
           python3 - <<'PY'
           from pathlib import Path
           import base64

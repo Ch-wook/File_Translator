@@ -1,6 +1,6 @@
 {
-  "source": "b68d31951ffa881c8784ad30897ddc8dfd0fd4de",
-  "run": 41813288274,
+  "source": "8fae41c228a6cf86178f5da33669ee3d6cc4a08c",
+  "run": 41819669179,
   "result": {
     "releaseUnsignedBuild": true,
     "releaseDebugFixturesAbsent": true,
@@ -10,7 +10,7 @@
     "advisoryQueryCompleted": true,
     "advisoryMatches": 0,
     "commercialReady": false,
-    "unsignedAPKBytes": 402138366,
+    "unsignedAPKBytes": 402139762,
     "blockers": [
       "Physical ARM64/device and TalkBack validation",
       "Stable production signing and store/account setup",

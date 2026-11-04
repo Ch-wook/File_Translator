@@ -1,15 +1,15 @@
 {
-  "source": "b6419f88b46dcf7b5e293d6afc48ceb19e3768cb",
-  "run": 41812475652,
-  "summary": {
+  "source": "8fae41c228a6cf86178f5da33669ee3d6cc4a08c",
+  "run": 41819668985,
+  "physicalDeviceTested": false,
+  "androidTests": {
     "tests": 10,
     "failures": 0,
     "errors": 0,
     "skipped": 0
   },
-  "environment": "Android 35 x86_64 Pixel7 SwiftShader 3072 MiB, Ubuntu26.04 host; not physical ARM64",
-  "nativeFormats": {
-    "viewer-20.hwpx.json": {
+  "nativeViewers": {
+    "viewer-20.hwpx": {
       "file": "viewer-20.hwpx",
       "expectedCount": 20,
       "probePrimedBeforeActivity": true,
@@ -31,7 +31,7 @@
       "originalUnchanged": true,
       "completed": true
     },
-    "viewer-12.docx.json": {
+    "viewer-12.docx": {
       "file": "viewer-12.docx",
       "expectedCount": 12,
       "probePrimedBeforeActivity": true,
@@ -46,6 +46,7 @@
         "count": 12,
         "family": "text",
         "index": 0,
+        "viewportMeasured": true,
         "zoomPercent": 167
       },
       "nativeRotation": true,
@@ -53,20 +54,280 @@
       "originalUnchanged": true,
       "completed": true
     },
-    "viewer-30.pptx.json": {
+    "viewer-30.pptx": {
       "file": "viewer-30.pptx",
       "expectedCount": 30,
       "probePrimedBeforeActivity": true,
+      "fitViewportCoverage": 0.9388322520852641,
       "actualAndroidSlideSwipe": true,
+      "middlePageReached": true,
+      "beforePinch": {
+        "index": 29,
+        "visible": true,
+        "nativeIndex": 29,
+        "zoom": 5.051690918640477,
+        "ratio": 0.07032967032967033,
+        "view": {
+          "_x1": 0,
+          "_y1": 235235,
+          "_width": 14404,
+          "_height": 16494,
+          "part": -1,
+          "mode": -1
+        },
+        "scroll": {
+          "x": 0,
+          "y": 16561
+        },
+        "frame": {
+          "_x": 15342,
+          "_y": 24698,
+          "part": -1,
+          "mode": -1
+        },
+        "focal42": {
+          "x": 7195,
+          "y": 246439
+        },
+        "focal40": {
+          "x": 7195,
+          "y": 245828
+        },
+        "parts": [
+          {
+            "_x1": 492,
+            "_y1": 235228,
+            "_width": 14401,
+            "_height": 8101,
+            "part": 28,
+            "mode": -1
+          },
+          {
+            "_x1": 492,
+            "_y1": 243629,
+            "_width": 14401,
+            "_height": 8101,
+            "part": 29,
+            "mode": -1
+          }
+        ]
+      },
+      "afterPinch": {
+        "index": 29,
+        "visible": true,
+        "nativeIndex": 29,
+        "zoom": 8,
+        "ratio": 0.12149976269577599,
+        "view": {
+          "_x1": 0,
+          "_y1": 235227,
+          "_width": 14403,
+          "_height": 16502,
+          "part": -1,
+          "mode": -1
+        },
+        "scroll": {
+          "x": 331.99999713897705,
+          "y": 29171.2001786232
+        },
+        "frame": {
+          "_x": 8881,
+          "_y": 14296,
+          "part": -1,
+          "mode": -1
+        },
+        "focal42": {
+          "x": 7185,
+          "y": 246437
+        },
+        "focal40": {
+          "x": 7185,
+          "y": 246083
+        },
+        "parts": [
+          {
+            "_x1": 0,
+            "_y1": 235228,
+            "_width": 14401,
+            "_height": 8101,
+            "part": 28,
+            "mode": -1
+          },
+          {
+            "_x1": 0,
+            "_y1": 243629,
+            "_width": 14401,
+            "_height": 8101,
+            "part": 29,
+            "mode": -1
+          }
+        ]
+      },
       "zoomBefore": 5.051690918640477,
       "zoomAfter": 8,
       "actualAndroidPinch": true,
       "readingDoubleTapZoom": true,
       "doubleTapStaysReadonly": true,
+      "afterDoubleTap": {
+        "index": 29,
+        "visible": true,
+        "nativeIndex": 29,
+        "zoom": 11.80178401692393,
+        "ratio": 0.25196850393700787,
+        "view": {
+          "_x1": 0,
+          "_y1": 235228,
+          "_width": 14403,
+          "_height": 16502,
+          "part": -1,
+          "mode": -1
+        },
+        "scroll": {
+          "x": 1267.9999771118164,
+          "y": 61276.9999833107
+        },
+        "frame": {
+          "_x": 4282,
+          "_y": 6894,
+          "part": -1,
+          "mode": -1
+        },
+        "focal42": {
+          "x": 7179,
+          "y": 246253
+        },
+        "focal40": {
+          "x": 7179,
+          "y": 246082
+        },
+        "parts": [
+          {
+            "_x1": 0,
+            "_y1": 235228,
+            "_width": 14401,
+            "_height": 8101,
+            "part": 28,
+            "mode": -1
+          },
+          {
+            "_x1": 0,
+            "_y1": 243629,
+            "_width": 14401,
+            "_height": 8101,
+            "part": 29,
+            "mode": -1
+          }
+        ]
+      },
+      "afterLandscape": {
+        "index": 29,
+        "visible": true,
+        "nativeIndex": 29,
+        "zoom": 11.80178401692393,
+        "ratio": 0.25196850393700787,
+        "view": {
+          "_x1": 0,
+          "_y1": 243630,
+          "_width": 14403,
+          "_height": 8100,
+          "part": -1,
+          "mode": -1
+        },
+        "scroll": {
+          "x": 870.5196621511865,
+          "y": 61764.55903842881
+        },
+        "frame": {
+          "_x": 7437,
+          "_y": 3024,
+          "part": -1,
+          "mode": -1
+        },
+        "focal42": {
+          "x": 6660,
+          "y": 246301
+        },
+        "focal40": {
+          "x": 6660,
+          "y": 246217
+        },
+        "parts": [
+          {
+            "_x1": 0,
+            "_y1": 235228,
+            "_width": 14401,
+            "_height": 8101,
+            "part": 28,
+            "mode": -1
+          },
+          {
+            "_x1": 0,
+            "_y1": 243629,
+            "_width": 14401,
+            "_height": 8101,
+            "part": 29,
+            "mode": -1
+          }
+        ]
+      },
+      "afterPortrait": {
+        "index": 29,
+        "visible": true,
+        "nativeIndex": 29,
+        "zoom": 11.80178401692393,
+        "ratio": 0.25196850393700787,
+        "view": {
+          "_x1": 0,
+          "_y1": 235228,
+          "_width": 14403,
+          "_height": 16502,
+          "part": -1,
+          "mode": -1
+        },
+        "scroll": {
+          "x": 1267.9999771118164,
+          "y": 61276.9999833107
+        },
+        "frame": {
+          "_x": 4282,
+          "_y": 6894,
+          "part": -1,
+          "mode": -1
+        },
+        "focal42": {
+          "x": 7179,
+          "y": 246253
+        },
+        "focal40": {
+          "x": 7179,
+          "y": 246082
+        },
+        "parts": [
+          {
+            "_x1": 0,
+            "_y1": 235228,
+            "_width": 14401,
+            "_height": 8101,
+            "part": 28,
+            "mode": -1
+          },
+          {
+            "_x1": 0,
+            "_y1": 243629,
+            "_width": 14401,
+            "_height": 8101,
+            "part": 29,
+            "mode": -1
+          }
+        ]
+      },
+      "slidePositionPreserved": true,
+      "documentFocalPointPreserved": true,
       "finalState": {
         "count": 30,
         "family": "presentation",
-        "index": 17,
+        "index": 29,
+        "viewportMeasured": true,
         "zoomPercent": 139
       },
       "nativeRotation": true,
@@ -74,7 +335,7 @@
       "originalUnchanged": true,
       "completed": true
     },
-    "viewer-large.xlsx.json": {
+    "viewer-large.xlsx": {
       "file": "viewer-large.xlsx",
       "expectedCount": 3,
       "probePrimedBeforeActivity": true,
@@ -89,6 +350,7 @@
         "count": 3,
         "family": "spreadsheet",
         "index": 2,
+        "viewportMeasured": true,
         "zoomPercent": 346
       },
       "nativeRotation": true,
@@ -97,15 +359,7 @@
       "completed": true
     }
   },
-  "markdown": {
-    "nativeTopBottomNavigation": true,
-    "bundledFontSupplied": true,
-    "fontChangesViewportPixels": true,
-    "displayZoomAppliedWithoutReplacingWebView": true,
-    "scriptsAndNetworkDisabled": true,
-    "sourceUnchanged": true
-  },
-  "pdf": {
+  "pdf100": {
     "pages": 100,
     "mixedSizesAndRotation": true,
     "actualTwoPointerZoom": true,
@@ -116,5 +370,13 @@
     "hiddenInkNotDisclosed": true,
     "zoomBefore": 1,
     "zoomAfterPinch": 2.1111104
+  },
+  "markdownReader": {
+    "nativeTopBottomNavigation": true,
+    "bundledFontSupplied": true,
+    "fontChangesViewportPixels": true,
+    "displayZoomAppliedWithoutReplacingWebView": true,
+    "scriptsAndNetworkDisabled": true,
+    "sourceUnchanged": true
   }
 }
