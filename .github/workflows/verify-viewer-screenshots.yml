@@ -1,0 +1,26 @@
+name: Inspect actual multi-format viewer screenshots
+on:
+  push:
+    branches: [codex/hangul-mobile-editing]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    if: contains(github.event.head_commit.message, '[viewer-screen-review]')
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read screenshots from the exact passing native test artifact
+        run: |
+          gh run download 41813288474 --name focused-reading-ui-b68d31951ffa881c8784ad30897ddc8dfd0fd4de --dir viewer-screenshots
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          files=sorted(p for p in Path('viewer-screenshots').rglob('*.png') if p.parent.name=='native-viewer' and '-failure' not in p.name)
+          assert len(files)==4,[str(p) for p in files]
+          for file in files:
+              print('VIEWER_SCREENSHOT',file.name,base64.b64encode(file.read_bytes()).decode(),flush=True)
+          PY
