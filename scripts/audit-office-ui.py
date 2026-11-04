@@ -27,4 +27,4 @@ with zipfile.ZipFile(apk) as z:
             content=z.read(name).decode(errors='replace')
             hits=list(re.finditer(re.escape('postMobileError'),content))
             if hits:
-                print('BROWSER_DIAGNOSTIC_CALLS',json.dumps({'file':name,'count':len(hits),'snippets':[content[max(0,m.start()-180):m.end()+650] for m in hits[:4]]},ensure_ascii=False))
+                print('BROWSER_DIAGNOSTIC_CALLS',json.dumps({'file':name,'count':len(hits),'snippets':[content[max(0,m.start()-180):m.end()+650] for m in hits[-4:]]},ensure_ascii=False))

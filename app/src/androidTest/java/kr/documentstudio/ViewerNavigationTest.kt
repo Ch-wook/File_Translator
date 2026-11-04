@@ -111,9 +111,15 @@ class ViewerNavigationTest {
                 record.put("actualAndroidContinuousScroll",true)
             }
             if(name.endsWith(".pptx")){
+                val coverage="(()=>{const l=app.activeDocument.activeLayout,r=l.viewRectangles?.[0],f=l.frameSize;return r?Math.max(r.pWidth/f.pX,r.pHeight/f.pY):0})()"
+                waitFor("A real slide, rather than the whole stacked file, fits the viewport"){eval(kind,coverage).toDouble() in .8..1.05}
+                record.put("fitViewportCoverage",eval(kind,coverage).toDouble())
                 val r=documentBounds();device.swipe(r.left+r.width()*3/4,r.top+r.height()/2,r.left+r.width()/4,r.top+r.height()/2,25)
                 waitFor("Native horizontal gesture reaches next slide"){JSONObject(eval(kind,state)).getInt(index)>0}
                 record.put("actualAndroidSlideSwipe",true)
+                assertEquals("true",eval(kind,"window.studioOffice.navigate(14)"))
+                waitFor("Actual middle slide fifteen selected"){JSONObject(eval(kind,state)).getInt(index)==14}
+                record.put("middlePageReached",true)
             }
             if(name.endsWith(".xlsx")){
                 tap("문서 메뉴");tap("시트 목록");tap("Viewer 3")

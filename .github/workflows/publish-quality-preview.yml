@@ -12,7 +12,7 @@ concurrency:
 jobs:
   publish:
     if: contains(github.event.head_commit.message, '[publish-0811]')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
@@ -168,15 +168,17 @@ jobs:
                   assert recovered['apkBuildCommit']==sha and recovered['originalTestRun']==int(run) and recovered['packagingRun']==int(package_run)
                   assert recovered['originalTestsPassed'] is True and recovered['apkRebuilt'] is False,recovered
               viewer=result['viewerBrowser'];pdf_viewer=result['pdf100Viewer']
-              assert viewer['pages']==20 and viewer['uniqueRenderedPages']==20 and viewer['documentWrites']==0 and viewer['originalUnchanged'],viewer
-              assert all(viewer[k] for k in ('continuousScroll','directLastPage','actualChromiumTouchPinch','panAfterZoom','modeSwitchPagePreserved','phoneLandscapeViewport','fitPage','retry')),viewer
-              assert pdf_viewer['pages']==100 and all(pdf_viewer[k] for k in ('mixedSizesAndRotation','actualTwoPointerZoom','doubleTapZoom','page100ReachedAndRestored','sourceHashUnchanged')),pdf_viewer
+              assert viewer['pages']==20 and viewer['uniqueRenderedPages']==20 and viewer['uniqueVisibleCanvasPages']==20 and viewer['documentWrites']==0 and viewer['originalUnchanged'],viewer
+              assert all(viewer[k] for k in ('continuousScroll','directLastPage','actualChromiumTouchPinch','actualChromiumSingleTouchScroll','readingDoubleTapZoom','reopenedLastPage','panAfterZoom','modeSwitchPagePreserved','phoneLandscapeViewport','fitPage','retry')),viewer
+              assert pdf_viewer['pages']==100 and all(pdf_viewer[k] for k in ('mixedSizesAndRotation','actualTwoPointerZoom','doubleTapZoom','page100ReachedAndRestored','sourceHashUnchanged','visibleInkRendered','hiddenInkNotDisclosed')),pdf_viewer
+              markdown=result['markdownReader']
+              assert all(markdown[k] for k in ('nativeTopBottomNavigation','bundledFontSupplied','fontChangesViewportPixels','displayZoomAppliedWithoutReplacingWebView','scriptsAndNetworkDisabled','sourceUnchanged')),markdown
               assert result['nativeMultiPageFormats']==4
               for filename in ('viewer-20.hwpx','viewer-12.docx','viewer-30.pptx','viewer-large.xlsx'):
                   v=json.loads(z.read('artifacts/native-android/native-viewer/'+filename+'.json'))
-                  assert all(v[k] for k in ('completed','workingUnchanged','originalUnchanged','actualAndroidPinch','nativeRotation')),v
+                  assert all(v[k] for k in ('completed','workingUnchanged','originalUnchanged','actualAndroidPinch','nativeRotation','readingDoubleTapZoom','doubleTapStaysReadonly')),v
                   if filename.endswith(('.hwpx','.docx')):assert v['actualAndroidContinuousScroll'] is True
-                  if filename.endswith('.pptx'):assert v['actualAndroidSlideSwipe'] is True
+                  if filename.endswith('.pptx'):assert v['actualAndroidSlideSwipe'] is True and v['middlePageReached'] is True and .8 <= v['fitViewportCoverage'] <= 1.05
                   if filename.endswith('.xlsx'):assert v['distantCell']=='CV5000'
               independent=json.loads(z.read('artifacts/native-android/native-common-ui/recovery-independent-stores.json'))
               assert independent['signaturePaneIndependentFromPendingDocumentStore'] is True,independent

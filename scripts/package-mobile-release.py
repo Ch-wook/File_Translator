@@ -110,13 +110,18 @@ for item in ('metadata-free-hwp.json','metadata-free-hwpx.json','distribution-re
     proof=json.loads((evidence/item).read_text())
     assert all(v is True or k=='originalSha256' for k,v in proof.items()),proof
 viewer=json.loads((root/'artifacts/viewer/hwpx-20-results.json').read_text())
-assert viewer['pages']==20 and viewer['uniqueRenderedPages']==20 and viewer['documentWrites']==0
-assert all(viewer[k] for k in ('continuousScroll','directLastPage','actualChromiumTouchPinch','panAfterZoom','modeSwitchPagePreserved','phoneLandscapeViewport','fitPage','retry','originalUnchanged')),viewer
+assert viewer['pages']==20 and viewer['uniqueRenderedPages']==20 and viewer['uniqueVisibleCanvasPages']==20 and viewer['documentWrites']==0
+assert all(viewer[k] for k in ('continuousScroll','directLastPage','actualChromiumTouchPinch','actualChromiumSingleTouchScroll','readingDoubleTapZoom','reopenedLastPage','panAfterZoom','modeSwitchPagePreserved','phoneLandscapeViewport','fitPage','retry','originalUnchanged')),viewer
 pdf_viewer=json.loads((root/'artifacts/native-android/native-reading-ux/pdf-100-page-navigation.json').read_text())
-assert pdf_viewer['pages']==100 and all(pdf_viewer[k] for k in ('mixedSizesAndRotation','actualTwoPointerZoom','doubleTapZoom','page100ReachedAndRestored','sourceHashUnchanged')),pdf_viewer
+assert pdf_viewer['pages']==100 and all(pdf_viewer[k] for k in ('mixedSizesAndRotation','actualTwoPointerZoom','doubleTapZoom','page100ReachedAndRestored','sourceHashUnchanged','visibleInkRendered','hiddenInkNotDisclosed')),pdf_viewer
+markdown_reader=json.loads((root/'artifacts/native-android/native-reading-ux/markdown-reader-tools.json').read_text())
+assert all(markdown_reader[k] for k in ('nativeTopBottomNavigation','bundledFontSupplied','fontChangesViewportPixels','displayZoomAppliedWithoutReplacingWebView','scriptsAndNetworkDisabled','sourceUnchanged')),markdown_reader
 for filename in ('viewer-20.hwpx','viewer-12.docx','viewer-30.pptx','viewer-large.xlsx'):
     proof=json.loads((root/'artifacts/native-android/native-viewer'/(filename+'.json')).read_text())
-    assert all(proof[k] for k in ('completed','workingUnchanged','originalUnchanged','actualAndroidPinch','nativeRotation')),proof
+    assert all(proof[k] for k in ('completed','workingUnchanged','originalUnchanged','actualAndroidPinch','nativeRotation','readingDoubleTapZoom','doubleTapStaysReadonly')),proof
+    if filename.endswith(('.hwpx','.docx')):assert proof['actualAndroidContinuousScroll'] is True
+    if filename.endswith('.pptx'):assert proof['actualAndroidSlideSwipe'] is True and proof['middlePageReached'] is True and .8 <= proof['fitViewportCoverage'] <= 1.05
+    if filename.endswith('.xlsx'):assert proof['distantCell']=='CV5000' and proof['distantCellReachedBySearch'] is True
 reports={}
 for module in ('core','officeruntime','app'):
     totals={k:0 for k in ('tests','failures','errors','skipped')}
@@ -161,7 +166,7 @@ metadata={'commit':sha,'sourceArchiveCommit':source_sha,'physicalDeviceTested':F
 (out/(name+'-apk-metadata.json')).write_text(json.dumps(metadata,indent=2))
 (ci/'apk-engine-assets.json').write_text(json.dumps(engine_assets,indent=2))
 summary={'commit':sha,'sourceArchiveCommit':source_sha,'version':'0.8.11-preview','applicationId':pkg,'androidEmulatorOutcome':os.environ['EMULATOR_OUTCOME'],
-         'androidTests':android,'signatureConversionVerified':True,'viewerBrowser':viewer,'pdf100Viewer':pdf_viewer,'nativeMultiPageFormats':4,'signatureEngineTests':signatures,'unitTests':reports,'installation':install,'mobileEngineTests':mobile,'originalBrowserScenarios':len(old_browser),'javascriptTests':28,'independentPartialFormattingParser':True,'physicalDeviceTested':False,'nativeCalc':calc_result,'additionalBundledFontFamilies':6,'apks':apks}
+         'androidTests':android,'signatureConversionVerified':True,'viewerBrowser':viewer,'pdf100Viewer':pdf_viewer,'markdownReader':markdown_reader,'nativeMultiPageFormats':4,'signatureEngineTests':signatures,'unitTests':reports,'installation':install,'mobileEngineTests':mobile,'originalBrowserScenarios':len(old_browser),'javascriptTests':28,'independentPartialFormattingParser':True,'physicalDeviceTested':False,'nativeCalc':calc_result,'additionalBundledFontFamilies':6,'apks':apks}
 (ci/'summary.json').write_text(json.dumps(summary,indent=2))
 with zipfile.ZipFile(out/(name+'-verification.zip'),'w',zipfile.ZIP_DEFLATED) as z:
     for folder in ('artifacts/open-fixtures','artifacts/ci','artifacts/mobile-install','artifacts/hangul-mobile','artifacts/viewer','artifacts/signature-conversion','artifacts/mobile-ui','artifacts/native-android','artifacts/document-engines',

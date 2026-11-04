@@ -7,7 +7,7 @@ permissions:
 jobs:
   audit:
     if: contains(github.event.head_commit.message, '[quality-security]')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
