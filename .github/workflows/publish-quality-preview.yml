@@ -25,6 +25,8 @@ jobs:
       UI_DRIVER_SHA: 'f72c0aaa4f1c7fc15561eea9404ee372cd3488fa'
       NODE_AUDIT_RUN: '41813288172'
       NODE_AUDIT_SHA: 'b68d31951ffa881c8784ad30897ddc8dfd0fd4de'
+      FIT_DRIVER_RUN: '41821406403'
+      FIT_DRIVER_SHA: 'd26a14dbe72f6e9a60248e645c0f9ebadb316f1b'
       PREVIEW_TAG: v0.8.11-preview
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +71,7 @@ jobs:
               assert recovery['status']=='completed' and recovery['conclusion']=='success',recovery
           subprocess.run(['git','merge-base','--is-ancestor',sha,'HEAD'],check=True)
           changed=subprocess.check_output(['git','diff','--name-only',sha,'HEAD'],text=True).splitlines()
-          assert all(p in ('README.md','scripts/package-mobile-release.py','app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt') or p.startswith(('docs/','.github/workflows/')) for p in changed),changed
+          assert all(p in ('README.md','scripts/package-mobile-release.py','app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt','app/src/androidTest/java/kr/documentstudio/ViewerNavigationTest.kt') or p.startswith(('docs/','.github/workflows/')) for p in changed),changed
           subprocess.run(['gh','run','download',package_run,'--name','document-studio-mobile-'+sha,'--dir','delivery'],check=True)
           delivery=pathlib.Path('delivery')
           perf_run=os.environ['PERFORMANCE_RUN']
@@ -137,6 +139,22 @@ jobs:
           assert len(ui_selected)==11 and len(ui_cases)==3 and all(not any(c.find(k) is not None for k in ('failure','error','skipped')) for c in ui_selected)
           ui_proof={'apkBuildCommit':sha,'uiDriverCommit':ui_sha,'run':int(ui_run),'sourceReport':ui_summary,'selectedPassingStorageCases':11,'qualityUiCases':3,'applicationCodeUnchanged':True,'nonApplicationChanges':ui_delta,'notAddedToFull70Count':True}
           print('SUPPLEMENTAL_UI_DRIVER_VERIFIED',json.dumps(ui_proof),flush=True)
+          fit_run=os.environ['FIT_DRIVER_RUN'];fit_sha=os.environ['FIT_DRIVER_SHA']
+          fit_info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{fit_run}']))
+          assert fit_info['head_sha']==fit_sha and fit_info['conclusion']=='success',fit_info
+          subprocess.run(['git','merge-base','--is-ancestor',sha,fit_sha],check=True)
+          fit_delta=subprocess.check_output(['git','diff','--name-only',sha,fit_sha],text=True).splitlines()
+          assert all(n in ('README.md','app/src/androidTest/java/kr/documentstudio/ViewerNavigationTest.kt') or n.startswith(('docs/','.github/workflows/')) for n in fit_delta),fit_delta
+          fit_dir=pathlib.Path('fit-driver')
+          subprocess.run(['gh','run','download',fit_run,'--name','focused-reading-ui-'+fit_sha,'--dir',str(fit_dir)],check=True)
+          fit_summaries=list(fit_dir.rglob('android-summary.json'));assert len(fit_summaries)==1
+          assert json.loads(fit_summaries[0].read_text())=={'tests':1,'failures':0,'errors':0,'skipped':0}
+          fit_results=list(fit_dir.rglob('viewer-30.pptx.json'));assert len(fit_results)==1
+          fit_result=json.loads(fit_results[0].read_text())
+          assert all(fit_result[k] is True for k in ('completed','originalUnchanged','workingUnchanged','slidePositionPreserved','documentFocalPointPreserved','fitAfterZoomRestoresLastSlide')),fit_result
+          assert fit_result['fittedSlideBodyDarkPixels']>100 and fit_result['fittedState']['index']==29 and fit_result['fittedState']['count']==30,fit_result
+          fit_proof={'apkBuildCommit':sha,'testDriverCommit':fit_sha,'run':int(fit_run),'applicationCodeUnchanged':True,'nonApplicationChanges':fit_delta,'overlapsFull70NotAddedToCount':True}
+          print('ACTUAL_NATIVE_SLIDE_FIT_PIXELS_VERIFIED',json.dumps(fit_result),flush=True)
           node_run=os.environ['NODE_AUDIT_RUN'];node_sha=os.environ['NODE_AUDIT_SHA']
           node_info=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/actions/runs/{node_run}']))
           assert node_info['head_sha']==node_sha and node_info['conclusion']=='success',node_info
@@ -236,7 +254,7 @@ jobs:
           archive_sha=result.get('sourceArchiveCommit',sha)
           subprocess.run(['git','merge-base','--is-ancestor',sha,archive_sha],check=True)
           archive_delta=subprocess.check_output(['git','diff','--name-only',sha,archive_sha],text=True).splitlines()
-          assert all(p in ('README.md','scripts/package-mobile-release.py','app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt') or p.startswith(('docs/','.github/workflows/')) for p in archive_delta),archive_delta
+          assert all(p in ('README.md','scripts/package-mobile-release.py','app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt','app/src/androidTest/java/kr/documentstudio/ViewerNavigationTest.kt') or p.startswith(('docs/','.github/workflows/')) for p in archive_delta),archive_delta
           with zipfile.ZipFile(delivery/'document-studio-0.8.11-preview-source.zip') as z:
               assert z.testzip() is None
               tracked={}
@@ -292,6 +310,11 @@ jobs:
               for file in ui_dir.rglob('*'):
                   if file.is_file() and file.suffix!='.apk':z.write(file,'artifacts/supplemental-ui-driver/'+file.relative_to(ui_dir).as_posix())
               z.writestr('artifacts/supplemental-ui-driver/provenance.json',json.dumps(ui_proof,indent=2));assert z.testzip() is None
+          with zipfile.ZipFile(verification,'a',zipfile.ZIP_DEFLATED) as z:
+              for file in fit_dir.rglob('*'):
+                  if file.is_file() and (file.name in ('viewer-30.pptx.json','viewer-30.pptx-fit.png','viewer-30.pptx-zoom.png','android-summary.json') or 'androidTest-results' in file.as_posix()):
+                      z.write(file,'artifacts/supplemental-viewer-fit/'+file.relative_to(fit_dir).as_posix())
+              z.writestr('artifacts/supplemental-viewer-fit/provenance.json',json.dumps(fit_proof,indent=2));assert z.testzip() is None
           (delivery/'document-studio-0.8.11-preview-work-report.md').write_text(pathlib.Path('docs/COMMERCIAL_QUALITY_RESULTS.md').read_text())
           readme=delivery/'README.txt'
           readme.write_text(readme.read_text()+'\n소스 ZIP·패치·Git 이력은 태그의 최종 문서·CI·테스트 동기화를 포함합니다. 앱 코드·엔진·APK는 위 빌드 커밋과 동일합니다.\n소스 아카이브 커밋: '+os.environ['GITHUB_SHA']+'\n')
@@ -330,7 +353,7 @@ jobs:
           def same_app(commit):
               subprocess.run(['git','merge-base','--is-ancestor',verified,commit],check=True)
               names=subprocess.check_output(['git','diff','--name-only',verified,commit],text=True).splitlines()
-              assert all(p in ('README.md','scripts/package-mobile-release.py','app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt') or p.startswith(('docs/','.github/workflows/')) for p in names),names
+              assert all(p in ('README.md','scripts/package-mobile-release.py','app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt','app/src/androidTest/java/kr/documentstudio/ViewerNavigationTest.kt') or p.startswith(('docs/','.github/workflows/')) for p in names),names
           releases=api(f'repos/{repo}/releases?per_page=100');existing=[r for r in releases if r['tag_name']==tag]
           expected={p.name:p for p in pathlib.Path('delivery').iterdir() if p.is_file()}
           assert len(expected)==10,sorted(expected)
@@ -376,7 +399,7 @@ jobs:
           assert ref['object']['type']=='commit';tag_sha=ref['object']['sha']
           subprocess.run(['git','merge-base','--is-ancestor',verified,tag_sha],check=True)
           names=subprocess.check_output(['git','diff','--name-only',verified,tag_sha],text=True).splitlines()
-          assert all(p in ('README.md','scripts/package-mobile-release.py','app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt') or p.startswith(('docs/','.github/workflows/')) for p in names),names
+          assert all(p in ('README.md','scripts/package-mobile-release.py','app/src/androidTest/java/kr/documentstudio/QualityUiTest.kt','app/src/androidTest/java/kr/documentstudio/ViewerNavigationTest.kt') or p.startswith(('docs/','.github/workflows/')) for p in names),names
           results=[]
           for p in sorted(pathlib.Path('delivery').iterdir()):
               if not p.is_file():continue
